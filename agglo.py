@@ -2,7 +2,7 @@
 from itertools import combinations
 
 from heapq import heapify, heappush, heappop
-from numpy import array, mean, zeros, uint8
+from numpy import array, mean, zeros, zeros_like, uint8, int8
 from networkx import Graph
 import ws
 
@@ -10,7 +10,9 @@ class Rag(Graph):
 
     def __init__(self, watershed, probabilities):
         super(Rag, self).__init__(weighted=False)
-        self.edge_idx_count = zeros(watershed.shape, uint8)
+        self.watershed = watershed
+        self.probabilities = probabilities
+        self.edge_idx_count = zeros(watershed.shape, int8)
         xmax, ymax, zmax = watershed.shape
         zero_idxs = ((x,y,z) for x in range(xmax) for y in range(ymax)
                     for z in range(zmax) if watershed[x,y,z] == 0)
@@ -37,19 +39,29 @@ class Rag(Graph):
                 self.node[watershed[idx]]['extent'].append(idx)
             except KeyError:
                 self.node[watershed[idx]]['extent'] = [idx]
-        self.merge_queue = []
+        self.merge_queue = self.build_merge_queue()
+
+    def build_merge_queue(self):
+        merge_queue = []
         for l1, l2 in self.edges_iter():
             props = self[l1][l2]
-            self.merge_queue.append(
-                [mean(props['boundary_probs']), True, l1, l2]
-            )
-            props['qlink'] = self.merge_queue[-1]
-        heapify(self.merge_queue)
+            merge_queue.append([mean(props['boundary_probs']), True, l1, l2])
+            props['qlink'] = merge_queue[-1]
+        heapify(merge_queue)
+        return merge_queue
 
     def agglomerate(self, threshold=128):
         while self.merge_queue[0][0] < threshold:
             mean_boundary, valid, n1, n2 = heappop(self.merge_queue)
             if valid:
+                self.merge_nodes(n1,n2)
+
+    def agglomerate_ladder(self, threshold=1000):
+        while len(self.merge_queue) > 0:
+            mean_boundary, valid, n1, n2 = heappop(self.merge_queue)
+            if valid and \
+                        (len(self.node[n1]['extent']) < threshold or \
+                        len(self.node[n2]['extent']) < threshold):
                 self.merge_nodes(n1,n2)
 
     def merge_nodes(self, n1, n2):
@@ -88,6 +100,10 @@ class Rag(Graph):
         self.remove_edge(w, x)
         self[u][v]['qlink'][2:] = u, v
         
+    def build_volume(self):
+        self.v = zeros_like(self.watershed)
+        for n in self.nodes():
+            self.v[zip(*self.node[n]['extent'])] = n
 
     def write(self, fout, format='GraphML'):
         pass
