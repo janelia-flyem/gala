@@ -50,6 +50,9 @@ class Rag(Graph):
         heapify(merge_queue)
         return merge_queue
 
+    def rebuild_merge_queue(self):
+        self.merge_queue = self.build_merge_queue()
+
     def agglomerate(self, threshold=128):
         while self.merge_queue[0][0] < threshold:
             mean_boundary, valid, n1, n2 = heappop(self.merge_queue)
