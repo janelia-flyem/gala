@@ -28,7 +28,7 @@ def watershed3d(a):
                                                 if l > 0 and l != maxlabel]))
             if len(adj_labels) > 1:
                 ws[idx] = maxlabel # build a dam
-            if len(adj_labels) == 1 and ws[idx] == 0:
+            elif len(adj_labels) == 1 and ws[idx] == 0:
                 ws[idx] = adj_labels[0]
                 idxs_adjacent_to_labels.extend([p for p in neighbors[idx] if
                                                 ws[p] == 0 and a[p] == level])
