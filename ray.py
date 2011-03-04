@@ -2,6 +2,7 @@
 
 import sys, os, argparse
 
+from numpy import unique
 from imio import read_image_stack, write_h5_stack
 from agglo import Rag
 from ws import watershed3d
@@ -53,24 +54,46 @@ if __name__ == '__main__':
     parser.add_argument('-S', '--save-watershed', metavar='FILE',
         help='Write the watershed result to FILE (overwrites).'
     )
+    parser.add_argument('-v', '--verbose', action='store_true', default=False,
+        help='Print runtime information about execution.'
+    )
     args = parser.parse_args()
 
     probs = read_image_stack(*args.fin)
     if args.invert_image:
         probs = probs.max() - probs
     if args.watershed is None:
+        if args.verbose:
+            print 'Computing watershed...'
         args.watershed = watershed3d(probs)
+        if args.verbose:
+            print 'Watershed done. Number of basins: ', \
+                                                len(unique(args.watershed))-1
     if args.save_watershed is not None:
         # h5py sometimes has issues overwriting files, so delete ahead of time
         if os.access(args.save_watershed, os.F_OK):
             os.remove(args.save_watershed)
         write_h5_stack(args.watershed, args.save_watershed)
+
+    if args.verbose:
+        print 'Computing RAG.'
+
     g = Rag(args.watershed, probs)
+
+    if args.verbose:
+        print 'RAG computed. Number of nodes: ', g.number_of_nodes(), \
+            '. Number of edges: ', g.number_of_edges()
+
     if args.ladder is not None:
         if args.pre_ladder:
+            if args.verbose:
+                print 'Computing ladder agglomeration...'
             args.post_ladder = False
             g.agglomerate_ladder(args.ladder)
             g.rebuild_merge_queue()
+            if args.verbose:
+                print 'Ladder done. new graph statistics: n: ', \
+                            g.number_of_nodes(), 'm: ', g.number_of_edges()
         else:
             args.post_ladder = True
     if args.show_progress:
