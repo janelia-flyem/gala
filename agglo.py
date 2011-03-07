@@ -4,7 +4,7 @@ from itertools import combinations
 from heapq import heapify, heappush, heappop
 from numpy import array, mean, zeros, zeros_like, uint8, int8
 from networkx import Graph
-import ws
+import morpho
 
 class Rag(Graph):
 
@@ -22,7 +22,7 @@ class Rag(Graph):
         steps = map(array, [(0,0,1),(0,1,0),(1,0,0)])
         arrayshape = array(watershed.shape) 
         for idx in zero_idxs:
-            ns = ws.neighbor_idxs(idx, steps, arrayshape)
+            ns = morpho.neighbor_idxs(idx, steps, arrayshape)
             nlabels = list(set([l for l in [watershed[n] for n in ns] if l>0]))
             self.edge_idx_count[idx] = len(nlabels)-1
             for l1,l2 in combinations(nlabels, 2):
@@ -89,9 +89,9 @@ class Rag(Graph):
         self[u][v]['boundary_probs'].extend(self[w][x]['boundary_probs'])
         self[u][v]['qlink'][1] = False
         self[w][x]['qlink'][1] = False
-        new_props = [mean(self[u][v]['boundary_probs']), True, u, v]
-        self[u][v]['qlink'] = new_props
-        heappush(self.merge_queue, new_props)
+        new_qitem = [mean(self[u][v]['boundary_probs']), True, u, v]
+        self[u][v]['qlink'] = new_qitem
+        heappush(self.merge_queue, new_qitem)
 
     def move_edge_properties(self, e1, e2):
         u, v = e1

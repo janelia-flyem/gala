@@ -5,7 +5,7 @@ import sys, os, argparse
 from numpy import unique
 from imio import read_image_stack, write_h5_stack
 from agglo import Rag
-from ws import watershed3d
+from morpho import watershed3d
 from progressbar import ProgressBar, Percentage, Bar, ETA, RotatingMarker
 
 def read_image_stack_single_arg(fn):
