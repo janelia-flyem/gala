@@ -31,7 +31,6 @@ def diamondse(sz, dimension):
 
 
 def watershed(a):
-    original_shape = a.shape
     ws = zeros(shape(a), uint32)
     a = pad(a, a.max()+1)
     ws = pad(ws, 0)
@@ -42,7 +41,7 @@ def watershed(a):
     level_pixels = build_levels_dict(a)
     for level in sorted(level_pixels.keys())[:-1]:
         idxs_adjacent_to_labels = queue([idx for idx in level_pixels[level] if
-                                                any(ws.ravel()[neighbors[idx]])])
+                                            any(ws.ravel()[neighbors[idx]])])
         while len(idxs_adjacent_to_labels) > 0:
             idx = idxs_adjacent_to_labels.popleft()
             adj_labels = ws.ravel()[neighbors[idx]]
@@ -54,17 +53,16 @@ def watershed(a):
             elif len(adj_labels) == 1 and ws.ravel()[idx] == 0:
                 ws.ravel()[idx] = adj_labels[0]
                 ns = neighbors[idx]
-                idxs_adjacent_to_labels.extend(ns[
-                    ((ws.ravel()[ns] == 0) * (a.ravel()[ns] == level)).astype(bool)
-                ])
+                idxs_adjacent_to_labels.extend(ns[((ws.ravel()[ns] == 0) * 
+                                    (a.ravel()[ns] == level)).astype(bool) ])
         new_labels, num_new = measurements.label((ws == 0) * (a == level), sel)
         new_labels = (current_label + new_labels) * (new_labels != 0)
         current_label += num_new
         ws += new_labels
     ws[ws==maxlabel] = 0
-    return ws[pad(ones(original_shape), 0).astype(bool)].reshape(original_shape)
+    return juicy_center(ws)
 
-def smallest_int_dtype(number, signed=False):
+def smallest_int_dtype(number, signed=False, mindtype=None):
     if number < 0: signed = True
     if not signed:
         if number <= iinfo(uint8).max:
@@ -94,6 +92,8 @@ def pad(ar, vals):
     newshape = array(ar.shape)+2
     if ar.dtype == double or ar.dtype == float:
         new_dtype = double
+    elif ar.dtype == bool:
+        new_dtype = bool
     else:
         maxval = max([vals.max(), ar.max()])
         minval = min([vals.min(), ar.min()])
@@ -106,7 +106,7 @@ def pad(ar, vals):
             else:
                 signed = False
             extremeval = maxval
-        new_dtype = smallest_int_dtype(extremeval, signed)
+        new_dtype = max([smallest_int_dtype(extremeval, signed), ar.dtype])
     ar2 = zeros(newshape, dtype=new_dtype)
     center = ones(newshape, dtype=bool)
     for i in xrange(ar.ndim):
@@ -120,12 +120,9 @@ def pad(ar, vals):
     else:
         return pad(ar2, vals[1:])
         
-
-def get_border_idxs(ashape):
-    y = zeros(ashape, dtype=bool)
-    y[0,:,:] = y[:,0,:] = y[:,:,0] = y[ashape[0]-1,:,:] = y[:,ashape[1]-1,:] \
-        = y[:,:,ashape[2]-1] = True
-    return where(y.ravel())[0]
+def juicy_center(ar):
+    center_shape = array(ar.shape)-2
+    return ar[pad(ones(center_shape), 0).astype(bool)].reshape(center_shape)
 
 def build_levels_dict(a):
     return dict( ((l, where(a.ravel()==l)[0]) for l in unique(a)) )
@@ -136,24 +133,6 @@ def build_neighbors_array(ar):
     steps = array(ar.strides)/ar.itemsize
     steps = concatenate((steps, -steps))
     return indices_vect[:,newaxis] + steps
-
-def build_neighbors_dict(arshape):
-    xmax,ymax,zmax = arshape
-    border_idxs = itertools.chain(
-        ((x,y,z) for x in [0,xmax-1] for y in range(ymax) for z in range(zmax)),
-        ((x,y,z) for x in range(1,xmax-1) for y in [0,ymax-1] for z in range(zmax)),
-        ((x,y,z) for x in range(1,xmax-1) for y in range(1,ymax-1) for z in [0,zmax-1])
-    )
-    interior_idxs = ((x,y,z) for x in range(1,xmax-1) for y in range(1,ymax-1)
-        for z in range(1,zmax-1))
-    # precompute steps and arrayshape for efficiency inside loop
-    steps = map(array, [(0,0,1),(0,1,0),(1,0,0)])
-    d1 = dict( ((idx, neighbor_idxs(idx, steps, arshape)) 
-                                                    for idx in border_idxs) )
-    d2 = dict( ((idx, neighbor_idxs_no_check(idx, steps, arshape)) 
-                                                    for idx in interior_idxs) )
-    return dict(d1, **d2) # concatenate the two dictionaries
-
 
 def neighbor_idxs(idx, steps, arrayshape):
     idx = array(idx)
