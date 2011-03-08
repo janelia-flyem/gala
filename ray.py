@@ -5,7 +5,7 @@ import sys, os, argparse
 from numpy import unique
 from imio import read_image_stack, write_h5_stack
 from agglo import Rag
-from morpho import watershed3d
+from morpho import watershed
 from progressbar import ProgressBar, Percentage, Bar, ETA, RotatingMarker
 
 def read_image_stack_single_arg(fn):
@@ -65,7 +65,7 @@ if __name__ == '__main__':
     if args.watershed is None:
         if args.verbose:
             print 'Computing watershed...'
-        args.watershed = watershed3d(probs)
+        args.watershed = watershed(probs)
         if args.verbose:
             print 'Watershed done. Number of basins: ', \
                                                 len(unique(args.watershed))-1
