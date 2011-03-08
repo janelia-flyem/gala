@@ -2,7 +2,7 @@
 from itertools import combinations
 
 from heapq import heapify, heappush, heappop
-from numpy import array, mean, zeros, zeros_like, uint8, int8
+from numpy import array, mean, zeros, zeros_like, uint8, int8, where
 from networkx import Graph
 import morpho
 
@@ -10,35 +10,35 @@ class Rag(Graph):
 
     def __init__(self, watershed, probabilities):
         super(Rag, self).__init__(weighted=False)
-        self.watershed = watershed
-        self.probabilities = probabilities
-        self.edge_idx_count = zeros(watershed.shape, int8)
-        xmax, ymax, zmax = watershed.shape
-        zero_idxs = ((x,y,z) for x in range(xmax) for y in range(ymax)
-                    for z in range(zmax) if watershed[x,y,z] == 0)
-        nonzero_idxs = ((x,y,z) for x in range(xmax) for y in range(ymax)
-                    for z in range(zmax) if watershed[x,y,z] != 0)
-        # precompute steps and arrayshape for efficiency inside loop
-        steps = map(array, [(0,0,1),(0,1,0),(1,0,0)])
-        arrayshape = array(watershed.shape) 
+        self.boundary_body = watershed.max()+1
+        self.boundary_probability = probabilities.max()+1
+        self.watershed = morpho.pad(watershed, array([0,self.boundary_body]))
+        self.probabilities = morpho.pad(probabilities, 
+                                        array([self.boundary_probability, 0]))
+        self.edge_idx_count = zeros(self.watershed.shape, int8)
+        neighbors = morpho.build_neighbors_array(self.watershed)
+        zero_idxs = where(self.watershed.ravel() == 0)[0]
         for idx in zero_idxs:
-            ns = morpho.neighbor_idxs(idx, steps, arrayshape)
-            nlabels = list(set([l for l in [watershed[n] for n in ns] if l>0]))
-            self.edge_idx_count[idx] = len(nlabels)-1
-            for l1,l2 in combinations(nlabels, 2):
+            ns = neighbors[idx]
+            adj_labels = self.watershed.ravel()[ns]
+            adj_labels = list(set(adj_labels[adj_labels != 0]))
+            self.edge_idx_count.ravel()[idx] = len(adj_labels)-1
+            for l1,l2 in combinations(adj_labels, 2):
                 if self.has_edge(l1, l2):
                     self[l1][l2]['boundary'].append(idx)
-                    self[l1][l2]['boundary_probs'].append(probabilities[idx])
+                    self[l1][l2]['boundary_probs'].append(
+                                            self.probabilities.ravel()[idx])
                 else:
                     self.add_edge(l1, l2, 
                         {'boundary': [idx], 
-                        'boundary_probs': [probabilities[idx]]}
+                        'boundary_probs': [self.probabilities.ravel()[idx]]}
                     )
+        nonzero_idxs = where(self.watershed.ravel() != 0)[0]
         for idx in nonzero_idxs:
             try:
-                self.node[watershed[idx]]['extent'].append(idx)
+                self.node[self.watershed.ravel()[idx]]['extent'].append(idx)
             except KeyError:
-                self.node[watershed[idx]]['extent'] = [idx]
+                self.node[self.watershed.ravel()[idx]]['extent'] = [idx]
         self.merge_queue = self.build_merge_queue()
 
     def build_merge_queue(self):
