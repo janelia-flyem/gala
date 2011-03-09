@@ -1,7 +1,7 @@
 
 
 from numpy import   shape, reshape, \
-                    array, zeros, ones, arange, \
+                    array, zeros, zeros_like, ones, ones_like, arange, \
                     double, \
                     int8, int16, int32, int64, uint8, uint16, uint32, uint64, \
                     iinfo, \
@@ -88,7 +88,8 @@ def pad(ar, vals):
         padding_thickness = len(vals)
     except TypeError:
         padding_thickness = 1
-        vals = array([vals])
+        vals = [vals]
+    vals = array(vals)
     newshape = array(ar.shape)+2
     if ar.dtype == double or ar.dtype == float:
         new_dtype = double
@@ -120,15 +121,18 @@ def pad(ar, vals):
     else:
         return pad(ar2, vals[1:])
         
-def juicy_center(ar):
-    center_shape = array(ar.shape)-2
-    return ar[pad(ones(center_shape), 0).astype(bool)].reshape(center_shape)
+def juicy_center(ar, skinsize=1):
+    center_shape = array(ar.shape)-2*skinsize
+    selector = ones_like(ar).astype(bool)
+    for i in xrange(ar.ndim):
+        selector.swapaxes(0,i)[0:skinsize,...] = False
+        selector.swapaxes(0,i)[-1:-skinsize-1:-1,...] = False
+    return ar[selector].reshape(center_shape)
 
 def build_levels_dict(a):
     return dict( ((l, where(a.ravel()==l)[0]) for l in unique(a)) )
 
 def build_neighbors_array(ar):
-    d = len(ar.shape)
     indices_vect = arange(ar.size, dtype=uint32)
     steps = array(ar.strides)/ar.itemsize
     steps = concatenate((steps, -steps))

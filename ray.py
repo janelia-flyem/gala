@@ -9,6 +9,12 @@ from morpho import watershed
 from progressbar import ProgressBar, Percentage, Bar, ETA, RotatingMarker
 
 def read_image_stack_single_arg(fn):
+    """Read an image stack and print exceptions as they occur.
+    
+    argparse.ArgumentParser() subsumes exceptions when they occur in the 
+    argument type, masking lower-level errors. This function prints out the
+    error before propagating it up the stack.
+    """
     try:
         return read_image_stack(fn)
     except Exception as err:
@@ -66,9 +72,8 @@ if __name__ == '__main__':
         if args.verbose:
             print 'Computing watershed...'
         args.watershed = watershed(probs)
-        if args.verbose:
-            print 'Watershed done. Number of basins: ', \
-                                                len(unique(args.watershed))-1
+    if args.verbose:
+        print 'Number of watershed basins: ',len(unique(args.watershed))-1
     if args.save_watershed is not None:
         # h5py sometimes has issues overwriting files, so delete ahead of time
         if os.access(args.save_watershed, os.F_OK):
@@ -76,7 +81,8 @@ if __name__ == '__main__':
         write_h5_stack(args.watershed, args.save_watershed)
 
     if args.verbose:
-        print 'Computing RAG.'
+        print 'Computing RAG for ws and image sizes:', args.watershed.shape,\
+            probs.shape
 
     g = Rag(args.watershed, probs)
 
@@ -110,7 +116,8 @@ if __name__ == '__main__':
             g2.agglomerate_ladder(args.ladder)
         else:
             g2 = g
-        g2.build_volume()
-        write_h5_stack(g2.v, args.fout % t)
+        v = g2.build_volume()
+        write_h5_stack(v, args.fout % t)
         pbar.update(i+1)
+    pbar.finish()
 
