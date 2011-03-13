@@ -9,7 +9,7 @@ import morpho
 class Rag(Graph):
     """Region adjacency graph for segmentation of nD volumes."""
 
-    def __init__(self, watershed, probabilities):
+    def __init__(self, watershed, probabilities, merge_priority_function=None):
         """Create a graph from a watershed volume and image volume.
         
         The watershed is assumed to have dams of label 0 in between basins.
@@ -23,6 +23,10 @@ class Rag(Graph):
         self.watershed = morpho.pad(watershed, array([0,self.boundary_body]))
         self.probabilities = morpho.pad(probabilities, 
                                         array([self.boundary_probability, 0]))
+        if merge_priority_function is None:
+            self.merge_priority_function = self.boundary_mean
+        else:
+            self.merge_priority_function = merge_priority_function
         self.edge_idx_count = zeros(self.watershed.shape, int8)
         neighbors = morpho.build_neighbors_array(self.watershed)
         zero_idxs = where(self.watershed.ravel() == 0)[0]
@@ -33,20 +37,15 @@ class Rag(Graph):
             self.edge_idx_count.ravel()[idx] = len(adj_labels)-1
             for l1,l2 in combinations(adj_labels, 2):
                 if self.has_edge(l1, l2):
-                    self[l1][l2]['boundary'].append(idx)
-                    self[l1][l2]['boundary_probs'].append(
-                                            self.probabilities.ravel()[idx])
+                    self[l1][l2]['boundary'].add(idx)
                 else:
-                    self.add_edge(l1, l2, 
-                        {'boundary': [idx], 
-                        'boundary_probs': [self.probabilities.ravel()[idx]]}
-                    )
+                    self.add_edge(l1, l2, boundary=set([idx]))
         nonzero_idxs = where(self.watershed.ravel() != 0)[0]
         for idx in nonzero_idxs:
             try:
-                self.node[self.watershed.ravel()[idx]]['extent'].append(idx)
+                self.node[self.watershed.ravel()[idx]]['extent'].add(idx)
             except KeyError:
-                self.node[self.watershed.ravel()[idx]]['extent'] = [idx]
+                self.node[self.watershed.ravel()[idx]]['extent'] = set([idx])
         self.merge_queue = self.build_merge_queue()
 
     def build_merge_queue(self):
@@ -68,7 +67,7 @@ class Rag(Graph):
         """
         merge_queue = []
         for l1, l2 in self.edges_iter():
-            qitem = [mean(self[l1][l2]['boundary_probs']), True, l1, l2]
+            qitem = [self.merge_priority_function(l1,l2), True, l1, l2]
             merge_queue.append(qitem)
             self[l1][l2]['qlink'] = qitem
         heapify(merge_queue)
@@ -81,7 +80,7 @@ class Rag(Graph):
     def agglomerate(self, threshold=128):
         """Merge nodes sequentially until given edge confidence threshold."""
         while self.merge_queue[0][0] < threshold:
-            mean_boundary, valid, n1, n2 = heappop(self.merge_queue)
+            merge_priority, valid, n1, n2 = heappop(self.merge_queue)
             if valid:
                 self.merge_nodes(n1,n2)
 
@@ -91,7 +90,7 @@ class Rag(Graph):
         Note: nodes that are on the volume boundary are not agglomerated.
         """
         while len(self.merge_queue) > 0:
-            mean_boundary, valid, n1, n2 = heappop(self.merge_queue)
+            merge_priority, valid, n1, n2 = heappop(self.merge_queue)
             if valid and \
                         (len(self.node[n1]['extent']) < threshold and \
                         not self.has_edge(n1, self.boundary_body) or \
@@ -104,25 +103,25 @@ class Rag(Graph):
         for n in self.neighbors(n2):
             if n != n1:
                 if n in self.neighbors(n1):
-                    self.merge_edge_properties((n1,n), (n2,n))
+                    self.merge_edge_properties((n2,n), (n1,n))
                 else:
                     self.move_edge_properties((n2,n), (n1,n))
-        self.node[n1]['extent'].extend(self.node[n2]['extent'])
-        self.edge_idx_count.ravel()[self[n1][n2]['boundary']] -= 1
-        self.node[n1]['extent'].extend(
+        self.node[n1]['extent'].update(self.node[n2]['extent'])
+        self.edge_idx_count.ravel()[list(self[n1][n2]['boundary'])] -= 1
+        self.node[n1]['extent'].update(
             [idx for idx in self[n1][n2]['boundary'] 
             if self.edge_idx_count.ravel()[idx] == 0]
         )
         self.remove_node(n2)
 
-    def merge_edge_properties(self, e1, e2):
-        u, v = e1
-        w, x = e2
-        self[u][v]['boundary'].extend(self[w][x]['boundary'])
-        self[u][v]['boundary_probs'].extend(self[w][x]['boundary_probs'])
+    def merge_edge_properties(self, src, dst):
+        """Merge the properties of edge src into edge dst."""
+        u, v = dst
+        w, x = src
+        self[u][v]['boundary'].update(self[w][x]['boundary'])
         self[u][v]['qlink'][1] = False
         self[w][x]['qlink'][1] = False
-        new_qitem = [mean(self[u][v]['boundary_probs']), True, u, v]
+        new_qitem = [self.merge_priority_function(u,v), True, u, v]
         self[u][v]['qlink'] = new_qitem
         heappush(self.merge_queue, new_qitem)
 
@@ -134,7 +133,7 @@ class Rag(Graph):
         if self.has_edge(u,v):
             self[u][v]['qlink'][1] = False
             self.remove_edge(u,v)
-        self.add_edge(u, v, attr_dict = self[w][x])
+        self.add_edge(u, v, attr_dict=self[w][x])
         self.remove_edge(w, x)
         self[u][v]['qlink'][2:] = u, v
         
@@ -142,8 +141,11 @@ class Rag(Graph):
         """Return the segmentation (numpy.ndarray) induced by the graph."""
         v = zeros_like(self.watershed)
         for n in self.nodes():
-            v.ravel()[self.node[n]['extent']] = n
+            v.ravel()[list(self.node[n]['extent'])] = n
         return morpho.juicy_center(v,2)
+
+    def boundary_mean(self, n1, n2):
+        return mean(self.probabilities.ravel()[list(self[n1][n2]['boundary'])])
 
     def write(self, fout, format='GraphML'):
         pass
