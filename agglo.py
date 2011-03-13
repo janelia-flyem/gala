@@ -79,12 +79,17 @@ class Rag(Graph):
         self.merge_queue = self.build_merge_queue()
 
     def agglomerate(self, threshold=128):
+        """Merge nodes sequentially until given edge confidence threshold."""
         while self.merge_queue[0][0] < threshold:
             mean_boundary, valid, n1, n2 = heappop(self.merge_queue)
             if valid:
                 self.merge_nodes(n1,n2)
 
     def agglomerate_ladder(self, threshold=1000):
+        """Merge sequentially all nodes smaller than threshold.
+        
+        Note: nodes that are on the volume boundary are not agglomerated.
+        """
         while len(self.merge_queue) > 0:
             mean_boundary, valid, n1, n2 = heappop(self.merge_queue)
             if valid and \
@@ -95,12 +100,13 @@ class Rag(Graph):
                 self.merge_nodes(n1,n2)
 
     def merge_nodes(self, n1, n2):
+        """Merge two nodes, while updating the necessary edges."""
         for n in self.neighbors(n2):
             if n != n1:
                 if n in self.neighbors(n1):
                     self.merge_edge_properties((n1,n), (n2,n))
                 else:
-                    self.move_edge_properties((n1,n), (n2,n))
+                    self.move_edge_properties((n2,n), (n1,n))
         self.node[n1]['extent'].extend(self.node[n2]['extent'])
         self.edge_idx_count.ravel()[self[n1][n2]['boundary']] -= 1
         self.node[n1]['extent'].extend(
@@ -120,9 +126,11 @@ class Rag(Graph):
         self[u][v]['qlink'] = new_qitem
         heappush(self.merge_queue, new_qitem)
 
-    def move_edge_properties(self, e1, e2):
-        u, v = e1
-        w, x = e2
+    def move_edge_properties(self, src, dst):
+        """Replace edge src with dst in the graph, maintaining properties."""
+        u, v = dst
+        w, x = src
+        # this shouldn't happen in agglomeration, but check just in case:
         if self.has_edge(u,v):
             self[u][v]['qlink'][1] = False
             self.remove_edge(u,v)
@@ -131,6 +139,7 @@ class Rag(Graph):
         self[u][v]['qlink'][2:] = u, v
         
     def build_volume(self):
+        """Return the segmentation (numpy.ndarray) induced by the graph."""
         v = zeros_like(self.watershed)
         for n in self.nodes():
             v.ravel()[self.node[n]['extent']] = n
