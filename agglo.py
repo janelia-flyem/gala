@@ -23,22 +23,23 @@ class Rag(Graph):
         self.watershed = morpho.pad(watershed, array([0,self.boundary_body]))
         self.probabilities = morpho.pad(probabilities, 
                                         array([self.boundary_probability, 0]))
+        self.segmentation = self.watershed.copy()
         if merge_priority_function is None:
             self.merge_priority_function = self.boundary_mean
         else:
             self.merge_priority_function = merge_priority_function
         self.edge_idx_count = zeros(self.watershed.shape, int8)
-        neighbors = morpho.build_neighbors_array(self.watershed)
+        self.pixel_neighbors = morpho.build_neighbors_array(self.watershed)
         zero_idxs = where(self.watershed.ravel() == 0)[0]
         for idx in zero_idxs:
-            ns = neighbors[idx]
+            ns = self.pixel_neighbors[idx]
             adj_labels = self.watershed.ravel()[ns]
             adj_labels = unique(adj_labels[adj_labels != 0])
             self.edge_idx_count.ravel()[idx] = len(adj_labels)-1
             for l1,l2 in combinations(adj_labels, 2):
-                if self.has_edge(l1, l2):
+                if self.has_edge(l1, l2): 
                     self[l1][l2]['boundary'].add(idx)
-                else:
+                else: 
                     self.add_edge(l1, l2, boundary=set([idx]))
         nonzero_idxs = where(self.watershed.ravel() != 0)[0]
         for idx in nonzero_idxs:
@@ -107,12 +108,39 @@ class Rag(Graph):
                 else:
                     self.move_edge_properties((n2,n), (n1,n))
         self.node[n1]['extent'].update(self.node[n2]['extent'])
-        self.edge_idx_count.ravel()[list(self[n1][n2]['boundary'])] -= 1
-        self.node[n1]['extent'].update(
-            [idx for idx in self[n1][n2]['boundary'] 
-            if self.edge_idx_count.ravel()[idx] == 0]
-        )
+        boundary = array(list(self[n1][n2]['boundary']))
+        self.edge_idx_count.ravel()[boundary] -= 1
+        boundary_neighbor_pixels = self.segmentation.ravel()[
+            self.pixel_neighbors[boundary,:]
+        ]
+        add = ( (boundary_neighbor_pixels == 0) + 
+            (boundary_neighbor_pixels == n1) + 
+            (boundary_neighbor_pixels == n2) ).all(axis=1)
+        check = True-add
+        self.node[n1]['extent'].update(boundary[add])
+        self.segmentation.ravel()[list(self.node[n1]['extent'])] = n1
         self.remove_node(n2)
+        boundaries_to_edit = {}
+        for px in boundary[check]:
+            for lb in unique(
+                        self.segmentation.ravel()[self.pixel_neighbors[px]]):
+                if lb != n1 and lb != 0:
+                    try:
+                        boundaries_to_edit[(n1,lb)].append(px)
+                    except KeyError:
+                        boundaries_to_edit[(n1,lb)] = [px]
+        for u, v in boundaries_to_edit.keys():
+            if self.has_edge(u, v):
+                self[u][v]['boundary'].update(boundaries_to_edit[(u,v)])
+                self[u][v]['qlink'][1] = False
+                new_qitem = [self.merge_priority_function(u,v), True, u, v]
+                self[u][v]['qlink'] = new_qitem
+                heappush(self.merge_queue, new_qitem)
+            else:
+                self.add_edge(u, v, boundary=set(boundaries_to_edit[(u,v)]))
+                new_qitem = [self.merge_priority_function(u,v), True, u, v]
+                self[u][v]['qlink'] = new_qitem
+                heappush(self.merge_queue, new_qitem)
 
     def merge_edge_properties(self, src, dst):
         """Merge the properties of edge src into edge dst."""
