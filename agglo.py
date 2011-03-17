@@ -132,26 +132,17 @@ class Rag(Graph):
         for u, v in boundaries_to_edit.keys():
             if self.has_edge(u, v):
                 self[u][v]['boundary'].update(boundaries_to_edit[(u,v)])
-                self[u][v]['qlink'][1] = False
-                new_qitem = [self.merge_priority_function(u,v), True, u, v]
-                self[u][v]['qlink'] = new_qitem
-                heappush(self.merge_queue, new_qitem)
             else:
                 self.add_edge(u, v, boundary=set(boundaries_to_edit[(u,v)]))
-                new_qitem = [self.merge_priority_function(u,v), True, u, v]
-                self[u][v]['qlink'] = new_qitem
-                heappush(self.merge_queue, new_qitem)
+            self.update_merge_queue(u, v)
 
     def merge_edge_properties(self, src, dst):
         """Merge the properties of edge src into edge dst."""
         u, v = dst
         w, x = src
         self[u][v]['boundary'].update(self[w][x]['boundary'])
-        self[u][v]['qlink'][1] = False
         self[w][x]['qlink'][1] = False
-        new_qitem = [self.merge_priority_function(u,v), True, u, v]
-        self[u][v]['qlink'] = new_qitem
-        heappush(self.merge_queue, new_qitem)
+        self.update_merge_queue(u, v)
 
     def move_edge_properties(self, src, dst):
         """Replace edge src with dst in the graph, maintaining properties."""
@@ -164,6 +155,17 @@ class Rag(Graph):
         self.add_edge(u, v, attr_dict=self[w][x])
         self.remove_edge(w, x)
         self[u][v]['qlink'][2:] = u, v
+
+    def update_merge_queue(self, u, v):
+        """Update the merge queue item for edge (u,v). Add new by default."""
+        if self[u][v].has_key('qlink'):
+            self[u][v]['qlink'][1] = False
+        new_qitem = [self.merge_priority_function(u,v), True, u, v]
+        self[u][v]['qlink'] = new_qitem
+        heappush(self.merge_queue, new_qitem)
+
+    def invalidate_merge_queue_item(self, u, v):
+        self[u][v]['qlink'][1] = False
         
     def build_volume(self):
         """Return the segmentation (numpy.ndarray) induced by the graph."""
