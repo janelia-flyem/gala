@@ -28,14 +28,12 @@ class Rag(Graph):
             self.merge_priority_function = self.boundary_mean
         else:
             self.merge_priority_function = merge_priority_function
-        self.edge_idx_count = zeros(self.watershed.shape, int8)
         self.pixel_neighbors = morpho.build_neighbors_array(self.watershed)
         zero_idxs = where(self.watershed.ravel() == 0)[0]
         for idx in zero_idxs:
             ns = self.pixel_neighbors[idx]
             adj_labels = self.watershed.ravel()[ns]
             adj_labels = unique(adj_labels[adj_labels != 0])
-            self.edge_idx_count.ravel()[idx] = len(adj_labels)-1
             for l1,l2 in combinations(adj_labels, 2):
                 if self.has_edge(l1, l2): 
                     self[l1][l2]['boundary'].add(idx)
@@ -109,7 +107,6 @@ class Rag(Graph):
                     self.move_edge_properties((n2,n), (n1,n))
         self.node[n1]['extent'].update(self.node[n2]['extent'])
         boundary = array(list(self[n1][n2]['boundary']))
-        self.edge_idx_count.ravel()[boundary] -= 1
         boundary_neighbor_pixels = self.segmentation.ravel()[
             self.pixel_neighbors[boundary,:]
         ]
