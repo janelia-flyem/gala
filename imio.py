@@ -15,13 +15,27 @@ def read_image_stack(fn, *args, **kwargs):
             fns = [fn] + [split_path(f)[1] for f in args]
         else:
             fns = fnfilter(os.listdir(d), fn)
-        ims = (Image.open(join_path(d,fn)) for fn in sorted(fns))
+        fns.sort()
+        if kwargs.has_key('crop'):
+            crop = kwargs['crop']
+        else:
+            crop = [[],[],[]]
+        if len(crop[2]) == 0:
+            crop[2] = [0,len(fns)]
+        else:
+            fns = fns[crop[2][0]:crop[2][1]]
+        ims = (Image.open(join_path(d,fn)) for fn in fns)
         ars = (asarray(im) for im in ims)
         w, h = Image.open(join_path(d,fns[0])).size
+        if len(crop[0]) == 0:
+            crop[0] = [0,h]
+        if len(crop[1]) == 0:
+            crop[1] = [0,w]
+        w, h = crop[1][1]-crop[1][0], crop[0][1]-crop[0][0]
         dtype = asarray(Image.open(join_path(d,fns[0]))).dtype
         stack = zeros([h,w,len(fns)], dtype)
         for i, im in enumerate(ars):
-            stack[:,:,i] = im
+            stack[:,:,i] = im[crop[0][0]:crop[0][1],crop[1][0]:crop[1][1]]
     if fn.endswith('.h5'):
         stack = read_h5_stack('/'.join([d,fn]), *args, **kwargs)
     return stack
