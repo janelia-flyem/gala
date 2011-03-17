@@ -10,18 +10,25 @@ from numpy import array, asarray, uint8, uint16, uint32, zeros
 def read_image_stack(fn, *args, **kwargs):
     d, fn = split_path(fn)
     if len(d) == 0: d = '.'
+    if kwargs.has_key('crop'):
+        crop = kwargs['crop']
+    else:
+        crop = [None,None,None,None,None,None]
+        kwargs['crop'] = crop
     if fn.endswith('.png'):
         if len(args) > 0 and type(args[0]) == str and args[0].endswith('png'):
             fns = [fn] + [split_path(f)[1] for f in args]
         else:
             fns = fnfilter(os.listdir(d), fn)
-        ims = (Image.open(join_path(d,fn)) for fn in sorted(fns))
+        fns.sort()
+        fns = fns[crop[4]:crop[5]]
+        ims = (Image.open(join_path(d,fn)) for fn in fns)
         ars = (asarray(im) for im in ims)
-        w, h = Image.open(join_path(d,fns[0])).size
+        w, h = asarray(Image.open(join_path(d,fns[0])))[crop[0]:crop[1],crop[2]:crop[3]].shape
         dtype = asarray(Image.open(join_path(d,fns[0]))).dtype
-        stack = zeros([h,w,len(fns)], dtype)
+        stack = zeros([w,h,len(fns)], dtype)
         for i, im in enumerate(ars):
-            stack[:,:,i] = im
+            stack[:,:,i] = im[crop[0]:crop[1],crop[2]:crop[3]]
     if fn.endswith('.h5'):
         stack = read_h5_stack('/'.join([d,fn]), *args, **kwargs)
     return stack

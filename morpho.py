@@ -45,9 +45,9 @@ def watershed(a):
         while len(idxs_adjacent_to_labels) > 0:
             idx = idxs_adjacent_to_labels.popleft()
             adj_labels = ws.ravel()[neighbors[idx]]
-            adj_labels = adj_labels[
+            adj_labels = unique(adj_labels[
                 ((adj_labels != 0) * (adj_labels != maxlabel)).astype(bool)
-            ]
+            ])
             if len(adj_labels) > 1:
                 ws.ravel()[idx] = maxlabel # build a dam
             elif len(adj_labels) == 1 and ws.ravel()[idx] == 0:
