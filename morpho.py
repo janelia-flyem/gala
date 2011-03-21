@@ -13,6 +13,7 @@ import itertools
 from collections import deque as queue
 from scipy.ndimage import filters, measurements
 #from scipy.spatial.distance import cityblock as manhattan_distance
+import iterprogress as ip
 
 zero3d = array([0,0,0])
 
@@ -30,7 +31,7 @@ def diamondse(sz, dimension):
     return se
 
 
-def watershed(a):
+def watershed(a, show_progress=False):
     ws = zeros(shape(a), uint32)
     a = pad(a, a.max()+1)
     ws = pad(ws, 0)
@@ -39,7 +40,15 @@ def watershed(a):
     current_label = 0
     neighbors = build_neighbors_array(a)
     level_pixels = build_levels_dict(a)
-    for level in sorted(level_pixels.keys())[:-1]:
+    if show_progress:
+        def with_progress(it): 
+            return ip.with_progress(
+                it, pbar=ip.StandardProgressBar('Watershed... ')
+            )
+    else:
+        def with_progress(it):
+            return ip.with_progress(it, pbar=ip.NoProgressBar())
+    for level in with_progress(sorted(level_pixels.keys())[:-1]):
         idxs_adjacent_to_labels = queue([idx for idx in level_pixels[level] if
                                             any(ws.ravel()[neighbors[idx]])])
         while len(idxs_adjacent_to_labels) > 0:
