@@ -65,51 +65,46 @@ if __name__ == '__main__':
     )
     args = parser.parse_args()
 
+    if args.verbose:
+        vfn = sys.stdout
+    else:
+        vfn = open('/dev/null', 'w')
     probs = read_image_stack(*args.fin)
     if args.invert_image:
         probs = probs.max() - probs
     if args.watershed is None:
-        if args.verbose:
-            print 'Computing watershed...'
-        args.watershed = watershed(probs)
-    if args.verbose:
-        print 'Number of watershed basins: ',len(unique(args.watershed))-1
+        vfn.write('Computing watershed...\n')
+        args.watershed = watershed(probs, show_progress=args.show_progress)
+    vfn.write('Num watershed basins: %i\n'%(len(unique(args.watershed))-1))
     if args.save_watershed is not None:
         # h5py sometimes has issues overwriting files, so delete ahead of time
         if os.access(args.save_watershed, os.F_OK):
             os.remove(args.save_watershed)
         write_h5_stack(args.watershed, args.save_watershed)
 
-    if args.verbose:
-        print 'Computing RAG for ws and image sizes:', args.watershed.shape,\
-            probs.shape
+    vfn.write('Computing RAG for ws and image sizes: %s, %s\n'%
+        ('('+','.join(map(str,args.watershed.shape))+')',
+        '('+','.join(map(str,probs.shape))+')')
+    )
 
-    g = Rag(args.watershed, probs)
+    g = Rag(args.watershed, probs, show_progress=args.show_progress)
 
-    if args.verbose:
-        print 'RAG computed. Number of nodes: ', g.number_of_nodes(), \
-            '. Number of edges: ', g.number_of_edges()
+    vfn.write('RAG computed. Number of nodes: %i, Number of edges: %i\n'%
+        (g.number_of_nodes(), g.number_of_edges())
+    )
 
     if args.ladder is not None:
         if args.pre_ladder:
-            if args.verbose:
-                print 'Computing ladder agglomeration...'
+            vfn.write('Computing ladder agglomeration...\n')
             args.post_ladder = False
             g.agglomerate_ladder(args.ladder)
             g.rebuild_merge_queue()
-            if args.verbose:
-                print 'Ladder done. new graph statistics: n: ', \
-                            g.number_of_nodes(), 'm: ', g.number_of_edges()
+            vfn.write('Ladder done. new graph statistics: n: %i, m: %i\n'%
+                (g.number_of_nodes(), g.number_of_edges())
+            )
         else:
             args.post_ladder = True
-    if args.show_progress:
-        pbarwidgets = ['Agglomerating: ', RotatingMarker(), ' ',
-                            Percentage(), ' ', Bar(marker='='), ' ', ETA()]
-    else:
-        pbarwidgets = []
-    pbar = ProgressBar(widgets=pbarwidgets, maxval=len(args.thresholds))
-    pbar.start()
-    for i, t in enumerate(args.thresholds):
+    for t in args.thresholds:
         g.agglomerate(t)
         if args.ladder is not None and args.post_ladder:
             g2 = g.copy()
@@ -118,6 +113,4 @@ if __name__ == '__main__':
             g2 = g
         v = g2.build_volume()
         write_h5_stack(v, args.fout % t)
-        pbar.update(i+1)
-    pbar.finish()
 
