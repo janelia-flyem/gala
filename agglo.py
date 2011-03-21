@@ -5,11 +5,14 @@ from heapq import heapify, heappush, heappop
 from numpy import array, mean, zeros, zeros_like, uint8, int8, where, unique
 from networkx import Graph
 import morpho
+import iterprogress as ip
+from mergequeue import MergeQueue
 
 class Rag(Graph):
     """Region adjacency graph for segmentation of nD volumes."""
 
-    def __init__(self, watershed, probabilities, merge_priority_function=None):
+    def __init__(self, watershed, probabilities, 
+                        merge_priority_function=None, show_progress=False):
         """Create a graph from a watershed volume and image volume.
         
         The watershed is assumed to have dams of label 0 in between basins.
@@ -18,9 +21,10 @@ class Rag(Graph):
         connected to both corresponding basins.
         """
         super(Rag, self).__init__(weighted=False)
+        self.show_progress = show_progress
         self.boundary_body = watershed.max()+1
-        self.boundary_probability = probabilities.max()+1
         self.watershed = morpho.pad(watershed, array([0,self.boundary_body]))
+        self.boundary_probability = probabilities.max()+1
         self.probabilities = morpho.pad(probabilities, 
                                         array([self.boundary_probability, 0]))
         self.segmentation = self.watershed.copy()
@@ -30,7 +34,14 @@ class Rag(Graph):
             self.merge_priority_function = merge_priority_function
         self.pixel_neighbors = morpho.build_neighbors_array(self.watershed)
         zero_idxs = where(self.watershed.ravel() == 0)[0]
-        for idx in zero_idxs:
+        if self.show_progress:
+            def with_progress(seq, length=None, title='Progress: '):
+                return ip.with_progress(seq, length, title,
+                                                ip.StandardProgressBar())
+        else:
+            def with_progress(seq, length=None, title='Progress: '):
+                return ip.with_progress(seq, length, title, ip.NoProgressBar())
+        for idx in with_progress(zero_idxs, title='Building edges... '):
             ns = self.pixel_neighbors[idx]
             adj_labels = self.watershed.ravel()[ns]
             adj_labels = unique(adj_labels[adj_labels != 0])
@@ -40,7 +51,7 @@ class Rag(Graph):
                 else: 
                     self.add_edge(l1, l2, boundary=set([idx]))
         nonzero_idxs = where(self.watershed.ravel() != 0)[0]
-        for idx in nonzero_idxs:
+        for idx in with_progress(nonzero_idxs, title='Building nodes... '):
             try:
                 self.node[self.watershed.ravel()[idx]]['extent'].add(idx)
             except KeyError:
@@ -64,22 +75,22 @@ class Rag(Graph):
         their corresponding queue items so that when nodes are merged,
         affected edges can be invalidated and reinserted in the queue.
         """
-        merge_queue = []
+        queue_items = []
         for l1, l2 in self.edges_iter():
             qitem = [self.merge_priority_function(l1,l2), True, l1, l2]
-            merge_queue.append(qitem)
+            queue_items.append(qitem)
             self[l1][l2]['qlink'] = qitem
-        heapify(merge_queue)
-        return merge_queue
+        return MergeQueue(queue_items, with_progress=self.show_progress)
 
     def rebuild_merge_queue(self):
         """Build a merge queue from scratch and assign to self.merge_queue."""
+        self.merge_queue.finish()
         self.merge_queue = self.build_merge_queue()
 
     def agglomerate(self, threshold=128):
         """Merge nodes sequentially until given edge confidence threshold."""
-        while self.merge_queue[0][0] < threshold:
-            merge_priority, valid, n1, n2 = heappop(self.merge_queue)
+        while self.merge_queue.peek()[0] < threshold:
+            merge_priority, valid, n1, n2 = self.merge_queue.pop()
             if valid:
                 self.merge_nodes(n1,n2)
 
@@ -89,13 +100,15 @@ class Rag(Graph):
         Note: nodes that are on the volume boundary are not agglomerated.
         """
         while len(self.merge_queue) > 0:
-            merge_priority, valid, n1, n2 = heappop(self.merge_queue)
-            if valid and \
-                        (len(self.node[n1]['extent']) < threshold and \
-                        not self.has_edge(n1, self.boundary_body) or \
-                        len(self.node[n2]['extent']) < threshold and \
-                        not self.has_edge(n2, self.boundary_body)):
-                self.merge_nodes(n1,n2)
+            merge_priority, valid, n1, n2 = self.merge_queue.pop()
+            if valid:
+                if (len(self.node[n1]['extent']) < threshold and \
+                            not self.has_edge(n1, self.boundary_body) or \
+                            len(self.node[n2]['extent']) < threshold and \
+                            not self.has_edge(n2, self.boundary_body)):
+                    self.merge_nodes(n1,n2)
+                else:
+                    self[n1][n2]['qlink'][1] = False #invalidate but no cnt
 
     def merge_nodes(self, n1, n2):
         """Merge two nodes, while updating the necessary edges."""
@@ -138,7 +151,7 @@ class Rag(Graph):
         u, v = dst
         w, x = src
         self[u][v]['boundary'].update(self[w][x]['boundary'])
-        self[w][x]['qlink'][1] = False
+        self.merge_queue.invalidate(self[w][x]['qlink'])
         self.update_merge_queue(u, v)
 
     def move_edge_properties(self, src, dst):
@@ -147,7 +160,7 @@ class Rag(Graph):
         w, x = src
         # this shouldn't happen in agglomeration, but check just in case:
         if self.has_edge(u,v):
-            self[u][v]['qlink'][1] = False
+            self.merge_queue.invalidate(self[u][v]['qlink'])
             self.remove_edge(u,v)
         self.add_edge(u, v, attr_dict=self[w][x])
         self.remove_edge(w, x)
@@ -156,14 +169,11 @@ class Rag(Graph):
     def update_merge_queue(self, u, v):
         """Update the merge queue item for edge (u,v). Add new by default."""
         if self[u][v].has_key('qlink'):
-            self[u][v]['qlink'][1] = False
+            self.merge_queue.invalidate(self[u][v]['qlink'])
         new_qitem = [self.merge_priority_function(u,v), True, u, v]
         self[u][v]['qlink'] = new_qitem
-        heappush(self.merge_queue, new_qitem)
+        self.merge_queue.push(new_qitem)
 
-    def invalidate_merge_queue_item(self, u, v):
-        self[u][v]['qlink'][1] = False
-        
     def build_volume(self):
         """Return the segmentation (numpy.ndarray) induced by the graph."""
         v = zeros_like(self.watershed)
