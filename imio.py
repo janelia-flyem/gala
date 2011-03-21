@@ -5,7 +5,7 @@ import h5py, Image, numpy
 
 from fnmatch import filter as fnfilter
 from os.path import split as split_path, join as join_path
-from numpy import array, asarray, uint8, uint16, uint32, zeros
+from numpy import array, asarray, uint8, uint16, uint32, zeros, squeeze
 
 def read_image_stack(fn, *args, **kwargs):
     d, fn = split_path(fn)
@@ -31,7 +31,7 @@ def read_image_stack(fn, *args, **kwargs):
             stack[:,:,i] = im[crop[0]:crop[1],crop[2]:crop[3]]
     if fn.endswith('.h5'):
         stack = read_h5_stack('/'.join([d,fn]), *args, **kwargs)
-    return stack
+    return squeeze(stack)
 
 def read_h5_stack(fn, *args, **kwargs):
     if len(args) > 0:
