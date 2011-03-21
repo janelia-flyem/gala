@@ -6,7 +6,6 @@ from numpy import unique
 from imio import read_image_stack, write_h5_stack
 from agglo import Rag
 from morpho import watershed
-from progressbar import ProgressBar, Percentage, Bar, ETA, RotatingMarker
 
 def read_image_stack_single_arg(fn):
     """Read an image stack and print exceptions as they occur.
