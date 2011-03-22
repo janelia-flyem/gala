@@ -119,6 +119,7 @@ class Rag(Graph):
                 else:
                     self.move_edge_properties((n2,n), (n1,n))
         self.node[n1]['extent'].update(self.node[n2]['extent'])
+        self.segmentation.ravel()[list(self.node[n2]['extent'])] = n1
         boundary = array(list(self[n1][n2]['boundary']))
         boundary_neighbor_pixels = self.segmentation.ravel()[
             self.pixel_neighbors[boundary,:]
@@ -128,7 +129,7 @@ class Rag(Graph):
             (boundary_neighbor_pixels == n2) ).all(axis=1)
         check = True-add
         self.node[n1]['extent'].update(boundary[add])
-        self.segmentation.ravel()[list(self.node[n1]['extent'])] = n1
+        self.segmentation.ravel()[boundary[add]] = n1
         self.remove_node(n2)
         boundaries_to_edit = {}
         for px in boundary[check]:
