@@ -1,0 +1,5 @@
+numpy 1.5.1
+networkx 1.4
+h5py 1.5.0
+scipy 0.7.0 (ndimage.filters, ndimage.measurements)
+progressbar 2.3-dev + modification (test for self.finished in self.need_update)
