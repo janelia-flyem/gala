@@ -6,6 +6,7 @@ from numpy import unique
 from imio import read_image_stack, write_h5_stack
 from agglo import Rag
 from morpho import watershed
+from scipy.ndimage.filters import median_filter
 
 def read_image_stack_single_arg(fn):
     """Read an image stack and print exceptions as they occur.
@@ -53,6 +54,9 @@ if __name__ == '__main__':
         action='store_false', dest='pre_ladder',
         help='Run ladder after normal agglomeration instead of before (SLOW).'
     )
+    parser.add_argument('-m', '--median-filter', action='store_true', 
+        default=False, help='Run a median filter on the input image.'
+    )
     parser.add_argument('-P', '--show-progress', action='store_true',
         default=True, help='Show a progress bar for the agglomeration.'
     )
@@ -71,6 +75,8 @@ if __name__ == '__main__':
     probs = read_image_stack(*args.fin)
     if args.invert_image:
         probs = probs.max() - probs
+    if args.median_filter:
+        probs = median_filter(probs, 3)
     if args.watershed is None:
         vfn.write('Computing watershed...\n')
         args.watershed = watershed(probs, show_progress=args.show_progress)
@@ -110,6 +116,5 @@ if __name__ == '__main__':
             g2.agglomerate_ladder(args.ladder)
         else:
             g2 = g
-        v = g2.build_volume()
-        write_h5_stack(v, args.fout % t)
+        write_h5_stack(g2.segmentation, args.fout % t)
 
