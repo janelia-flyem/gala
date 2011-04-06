@@ -1,4 +1,4 @@
 data/
 *.pyc
 .*.swp
-ipython_log.py
+ipython_log.py*
