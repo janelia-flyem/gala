@@ -5,7 +5,7 @@ import sys, os, argparse
 from numpy import unique
 from imio import read_image_stack, write_h5_stack
 from agglo import Rag
-from morpho import watershed
+from morpho import watershed, juicy_center
 from scipy.ndimage.filters import median_filter
 
 def read_image_stack_single_arg(fn):
@@ -116,5 +116,5 @@ if __name__ == '__main__':
             g2.agglomerate_ladder(args.ladder)
         else:
             g2 = g
-        write_h5_stack(g2.segmentation, args.fout % t)
+        write_h5_stack(juicy_center(g2.segmentation, 2), args.fout % t)
 
