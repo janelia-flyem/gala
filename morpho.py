@@ -1,5 +1,6 @@
+#!/usr/bin/env python
 
-
+import sys, os, argparse
 from numpy import   shape, reshape, \
                     array, zeros, zeros_like, ones, ones_like, arange, \
                     double, \
@@ -14,6 +15,8 @@ from collections import deque as queue
 from scipy.ndimage import filters, measurements
 #from scipy.spatial.distance import cityblock as manhattan_distance
 import iterprogress as ip
+
+from imio import read_image_stack, write_h5_stack
 
 zero3d = array([0,0,0])
 
@@ -157,3 +160,38 @@ def neighbor_idxs_no_check(idx, steps, arrayshape):
     idx = array(idx)
     neighbors = itertools.chain(*[[idx+step, idx-step] for step in steps])
     return map(tuple, neighbors)
+
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(
+        description='Watershed transform an image volume.'
+    )
+    parser.add_argument('fin', nargs='+',
+        help='input image (png or h5 volume)'
+    )
+    parser.add_argument('fout', help='output filename (.h5)')
+    parser.add_argument('-I', '--invert-image', action='store_true',
+        help='invert the image before applying watershed'
+    )
+    parser.add_argument('-m', '--median-filter', action='store_true',
+        help='Apply a median filter before watershed.'
+    )
+    parser.add_argument('-g', '--gaussian-filter', type=float, metavar='SIGMA',
+        help='Apply a gaussian filter before watershed.'
+    )
+    parser.add_argument('-P', '--show-progress', action='store_true',
+        help='Show a progress bar for the watershed transform.'
+    )
+    args = parser.parse_args()
+
+    v = read_image_stack(*args.fin)
+    if args.invert_image:
+        v = v.max() - v
+    if args.median_filter:
+        v = filters.median_filter(v, 3)
+    if args.gaussian_filter is not None:
+        v = filters.gaussian_filter(v, args.gaussian_filter)
+    ws = watershed(v, show_progress=args.show_progress)
+    if os.access(args.fout, os.F_OK):
+        os.remove(args.fout)
+    write_h5_stack(ws, args.fout)
