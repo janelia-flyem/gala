@@ -102,13 +102,13 @@ class Rag(Graph):
         while len(self.merge_queue) > 0:
             merge_priority, valid, n1, n2 = self.merge_queue.pop()
             if valid:
-                if (len(self.node[n1]['extent']) < threshold and \
-                            not self.has_edge(n1, self.boundary_body) or \
-                            len(self.node[n2]['extent']) < threshold and \
-                            not self.has_edge(n2, self.boundary_body)):
+                s1 = len(self.node[n1]['extent'])
+                s2 = len(self.node[n2]['extent'])
+                if (s1 < threshold and not self.at_volume_boundary(n1)) or \
+                        (s2 < threshold and not self.at_volume_boundary(n2)):
                     self.merge_nodes(n1,n2)
                 else:
-                    self[n1][n2]['qlink'][1] = False #invalidate but no cnt
+                    self[n1][n2]['qlink'][1] = False #invalidate but dont count
 
     def merge_nodes(self, n1, n2):
         """Merge two nodes, while updating the necessary edges."""
@@ -181,6 +181,10 @@ class Rag(Graph):
         for n in self.nodes():
             v.ravel()[list(self.node[n]['extent'])] = n
         return morpho.juicy_center(v,2)
+
+    def at_volume_boundary(self, n):
+        """Return True if node n touches the volume boundary."""
+        return self.has_edge(n, self.boundary_body)
 
     def boundary_mean(self, n1, n2):
         return mean(self.probabilities.ravel()[list(self[n1][n2]['boundary'])])
