@@ -111,10 +111,7 @@ class Rag(Graph):
         """Merge two nodes, while updating the necessary edges."""
         for n in self.neighbors(n2):
             if n != n1:
-                if n in self.neighbors(n1):
-                    self.merge_edge_properties((n2,n), (n1,n))
-                else:
-                    self.move_edge_properties((n2,n), (n1,n))
+                self.merge_edge_properties((n2,n), (n1,n))
         self.node[n1]['extent'].update(self.node[n2]['extent'])
         self.segmentation.ravel()[list(self.node[n2]['extent'])] = n1
         boundary = array(list(self[n1][n2]['boundary']))
@@ -148,21 +145,12 @@ class Rag(Graph):
         """Merge the properties of edge src into edge dst."""
         u, v = dst
         w, x = src
-        self[u][v]['boundary'].update(self[w][x]['boundary'])
+        if not self.has_edge(u,v):
+            self.add_edge(u, v, boundary=self[w][x]['boundary'])
+        else:
+            self[u][v]['boundary'].update(self[w][x]['boundary'])
         self.merge_queue.invalidate(self[w][x]['qlink'])
         self.update_merge_queue(u, v)
-
-    def move_edge_properties(self, src, dst):
-        """Replace edge src with dst in the graph, maintaining properties."""
-        u, v = dst
-        w, x = src
-        # this shouldn't happen in agglomeration, but check just in case:
-        if self.has_edge(u,v):
-            self.merge_queue.invalidate(self[u][v]['qlink'])
-            self.remove_edge(u,v)
-        self.add_edge(u, v, attr_dict=self[w][x])
-        self.remove_edge(w, x)
-        self[u][v]['qlink'][2:] = u, v
 
     def update_merge_queue(self, u, v):
         """Update the merge queue item for edge (u,v). Add new by default."""
