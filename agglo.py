@@ -2,7 +2,8 @@
 from itertools import combinations
 
 from heapq import heapify, heappush, heappop
-from numpy import array, mean, zeros, zeros_like, uint8, int8, where, unique
+from numpy import array, mean, zeros, zeros_like, uint8, int8, where, unique, \
+    finfo, float, size
 from networkx import Graph
 import morpho
 import iterprogress as ip
@@ -24,12 +25,12 @@ class Rag(Graph):
         self.show_progress = show_progress
         self.boundary_body = watershed.max()+1
         self.watershed = morpho.pad(watershed, array([0,self.boundary_body]))
-        self.boundary_probability = probabilities.max()+1
+        self.boundary_probability = finfo(float).max / size(self.watershed)
         self.probabilities = morpho.pad(probabilities, 
                                         array([self.boundary_probability, 0]))
         self.segmentation = self.watershed.copy()
         if merge_priority_function is None:
-            self.merge_priority_function = self.boundary_mean
+            self.merge_priority_function = boundary_mean
         else:
             self.merge_priority_function = merge_priority_function
         self.pixel_neighbors = morpho.build_neighbors_array(self.watershed)
@@ -77,14 +78,13 @@ class Rag(Graph):
         """
         queue_items = []
         for l1, l2 in self.edges_iter():
-            qitem = [self.merge_priority_function(l1,l2), True, l1, l2]
+            qitem = [self.merge_priority_function(self,l1,l2), True, l1, l2]
             queue_items.append(qitem)
             self[l1][l2]['qlink'] = qitem
         return MergeQueue(queue_items, with_progress=self.show_progress)
 
     def rebuild_merge_queue(self):
         """Build a merge queue from scratch and assign to self.merge_queue."""
-        self.merge_queue.finish()
         self.merge_queue = self.build_merge_queue()
 
     def agglomerate(self, threshold=128):
@@ -94,30 +94,30 @@ class Rag(Graph):
             if valid:
                 self.merge_nodes(n1,n2)
 
-    def agglomerate_ladder(self, threshold=1000):
+    def agglomerate_ladder(self, threshold=1000, strictness=1):
         """Merge sequentially all nodes smaller than threshold.
         
         Note: nodes that are on the volume boundary are not agglomerated.
         """
-        while len(self.merge_queue) > 0:
-            merge_priority, valid, n1, n2 = self.merge_queue.pop()
-            if valid:
-                s1 = len(self.node[n1]['extent'])
-                s2 = len(self.node[n2]['extent'])
-                if (s1 < threshold and not self.at_volume_boundary(n1)) or \
-                        (s2 < threshold and not self.at_volume_boundary(n2)):
-                    self.merge_nodes(n1,n2)
-                else:
-                    self[n1][n2]['qlink'][1] = False #invalidate but dont count
+        def boundary_mean_ladder_instance(g, n1, n2):
+            return boundary_mean_ladder(g, n1, n2, threshold, strictness)
+        self.merge_priority_function = boundary_mean_ladder_instance
+        self.rebuild_merge_queue()
+        self.agglomerate(finfo(float).max/size(self.segmentation)/10)
+        self.merge_priority_function = boundary_mean
+        self.merge_queue.finish()
 
     def merge_nodes(self, n1, n2):
         """Merge two nodes, while updating the necessary edges."""
+        new_neighbors = [n for n in self.neighbors(n2) if n != n1]
+        for n in new_neighbors:
+            if self.has_edge(n, n1):
+                self[n1][n]['boundary'].update(self[n2][n]['boundary'])
+            else:
+                self.add_edge(n, n1, boundary=self[n2][n]['boundary'])
         for n in self.neighbors(n2):
             if n != n1:
-                if n in self.neighbors(n1):
-                    self.merge_edge_properties((n2,n), (n1,n))
-                else:
-                    self.move_edge_properties((n2,n), (n1,n))
+                self.merge_edge_properties((n2,n), (n1,n))
         self.node[n1]['extent'].update(self.node[n2]['extent'])
         self.segmentation.ravel()[list(self.node[n2]['extent'])] = n1
         boundary = array(list(self[n1][n2]['boundary']))
@@ -146,32 +146,26 @@ class Rag(Graph):
             else:
                 self.add_edge(u, v, boundary=set(boundaries_to_edit[(u,v)]))
             self.update_merge_queue(u, v)
+        for n in new_neighbors:
+            if not boundaries_to_edit.has_key((n1,n)):
+                self.update_merge_queue(n1, n)
 
     def merge_edge_properties(self, src, dst):
         """Merge the properties of edge src into edge dst."""
         u, v = dst
         w, x = src
-        self[u][v]['boundary'].update(self[w][x]['boundary'])
+        if not self.has_edge(u,v):
+            self.add_edge(u, v, boundary=self[w][x]['boundary'])
+        else:
+            self[u][v]['boundary'].update(self[w][x]['boundary'])
         self.merge_queue.invalidate(self[w][x]['qlink'])
         self.update_merge_queue(u, v)
-
-    def move_edge_properties(self, src, dst):
-        """Replace edge src with dst in the graph, maintaining properties."""
-        u, v = dst
-        w, x = src
-        # this shouldn't happen in agglomeration, but check just in case:
-        if self.has_edge(u,v):
-            self.merge_queue.invalidate(self[u][v]['qlink'])
-            self.remove_edge(u,v)
-        self.add_edge(u, v, attr_dict=self[w][x])
-        self.remove_edge(w, x)
-        self[u][v]['qlink'][2:] = u, v
 
     def update_merge_queue(self, u, v):
         """Update the merge queue item for edge (u,v). Add new by default."""
         if self[u][v].has_key('qlink'):
             self.merge_queue.invalidate(self[u][v]['qlink'])
-        new_qitem = [self.merge_priority_function(u,v), True, u, v]
+        new_qitem = [self.merge_priority_function(self,u,v), True, u, v]
         self[u][v]['qlink'] = new_qitem
         self.merge_queue.push(new_qitem)
 
@@ -186,8 +180,29 @@ class Rag(Graph):
         """Return True if node n touches the volume boundary."""
         return self.has_edge(n, self.boundary_body)
 
-    def boundary_mean(self, n1, n2):
-        return mean(self.probabilities.ravel()[list(self[n1][n2]['boundary'])])
-
     def write(self, fout, format='GraphML'):
         pass
+
+############################
+# Merge priority functions #
+############################
+
+def boundary_mean(g, n1, n2):
+    return mean(g.probabilities.ravel()[list(g[n1][n2]['boundary'])])
+
+def boundary_mean_ladder(g, n1, n2, threshold, strictness=1):
+    s1 = len(g.node[n1]['extent'])
+    s2 = len(g.node[n2]['extent'])
+    ladder_condition = \
+            (s1 < threshold and not g.at_volume_boundary(n1)) or \
+            (s2 < threshold and not g.at_volume_boundary(n2))
+    if strictness >= 2:
+        ladder_condition &= ((s1 < threshold) != (s2 < threshold))
+    if strictness >= 3:
+        ladder_condition &= len(g[n1][n2]['boundary']) > 2
+
+    if ladder_condition:
+        return boundary_mean(g, n1, n2)
+    else:
+        return finfo(float).max / size(g.segmentation)
+

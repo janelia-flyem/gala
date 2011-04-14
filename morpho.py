@@ -83,7 +83,7 @@ def smallest_int_dtype(number, signed=False, mindtype=None):
             return uint16
         if number <= iinfo(uint32).max:
             return uint32
-        if rumber <= iinfo(uint64).max:
+        if number <= iinfo(uint64).max:
             return uint64
     else:
         if iinfo(int8).min <= number <= iinfo(int8).max:
