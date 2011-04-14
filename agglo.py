@@ -103,12 +103,18 @@ class Rag(Graph):
             return boundary_mean_ladder(g, n1, n2, threshold, strictness)
         self.merge_priority_function = boundary_mean_ladder_instance
         self.rebuild_merge_queue()
-        self.agglomerate(finfo(float).max/size(self.segmentation)/2)
+        self.agglomerate(finfo(float).max/size(self.segmentation)/10)
         self.merge_priority_function = boundary_mean
         self.merge_queue.finish()
 
     def merge_nodes(self, n1, n2):
         """Merge two nodes, while updating the necessary edges."""
+        new_neighbors = [n for n in self.neighbors(n2) if n != n1]
+        for n in new_neighbors:
+            if self.has_edge(n, n1):
+                self[n1][n]['boundary'].update(self[n2][n]['boundary'])
+            else:
+                self.add_edge(n, n1, boundary=self[n2][n]['boundary'])
         for n in self.neighbors(n2):
             if n != n1:
                 self.merge_edge_properties((n2,n), (n1,n))
@@ -140,6 +146,9 @@ class Rag(Graph):
             else:
                 self.add_edge(u, v, boundary=set(boundaries_to_edit[(u,v)]))
             self.update_merge_queue(u, v)
+        for n in new_neighbors:
+            if not boundaries_to_edit.has_key((n1,n)):
+                self.update_merge_queue(n1, n)
 
     def merge_edge_properties(self, src, dst):
         """Merge the properties of edge src into edge dst."""
