@@ -5,30 +5,33 @@ import h5py, Image, numpy
 
 from fnmatch import filter as fnfilter
 from os.path import split as split_path, join as join_path
-from numpy import array, asarray, uint8, uint16, uint32, zeros, squeeze
+from numpy import array, asarray, uint8, uint16, uint32, zeros, squeeze, ndim
 
 def read_image_stack(fn, *args, **kwargs):
     d, fn = split_path(fn)
     if len(d) == 0: d = '.'
     if kwargs.has_key('crop'):
         crop = kwargs['crop']
+        if len(crop) == 4:
+            crop.extend([None,None])
     else:
         crop = [None,None,None,None,None,None]
         kwargs['crop'] = crop
     if fn.endswith('.png'):
+        xmin, xmax, ymin, ymax, zmin, zmax = crop
         if len(args) > 0 and type(args[0]) == str and args[0].endswith('png'):
             fns = [fn] + [split_path(f)[1] for f in args]
         else:
             fns = fnfilter(os.listdir(d), fn)
         fns.sort()
-        fns = fns[crop[4]:crop[5]]
+        fns = fns[zmin:zmax]
         ims = (Image.open(join_path(d,fn)) for fn in fns)
         ars = (asarray(im) for im in ims)
-        w, h = asarray(Image.open(join_path(d,fns[0])))[crop[0]:crop[1],crop[2]:crop[3]].shape
+        w, h = asarray(Image.open(join_path(d,fns[0])))[xmin:xmax,ymin:ymax].shape
         dtype = asarray(Image.open(join_path(d,fns[0]))).dtype
         stack = zeros([w,h,len(fns)], dtype)
         for i, im in enumerate(ars):
-            stack[:,:,i] = im[crop[0]:crop[1],crop[2]:crop[3]]
+            stack[:,:,i] = im[xmin:xmax,ymin:ymax]
     if fn.endswith('.h5'):
         stack = read_h5_stack('/'.join([d,fn]), *args, **kwargs)
     return squeeze(stack)
@@ -40,8 +43,18 @@ def read_h5_stack(fn, *args, **kwargs):
         group = kwargs['group']
     else:
         group = 'stack'
+    if kwargs.has_key('crop'):
+        crop = kwargs['crop']
+    else:
+        crop = [None,None,None,None,None,None]
+    xmin, xmax, ymin, ymax, zmin, zmax = crop
     dset = h5py.File(fn, 'r')
-    return array(dset[group])
+    a = dset[group]
+    if ndim(a) == 2:
+        a = a[xmin:xmax,ymin:ymax]
+    elif ndim(a) == 3:
+        a = a[xmin:xmax,ymin:ymax,zmin:zmax]
+    return array(a)
 
 def write_image_stack(npy_vol, fn, **kwargs):
     fn = os.path.expanduser(fn)

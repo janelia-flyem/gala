@@ -5,7 +5,7 @@ import sys, os, argparse
 from numpy import unique
 from imio import read_image_stack, write_h5_stack
 from agglo import Rag
-from morpho import watershed
+from morpho import watershed, juicy_center
 from scipy.ndimage.filters import median_filter
 
 def read_image_stack_single_arg(fn):
@@ -53,6 +53,14 @@ if __name__ == '__main__':
     parser.add_argument('-L', '--post-ladder', 
         action='store_false', dest='pre_ladder',
         help='Run ladder after normal agglomeration instead of before (SLOW).'
+    )
+    parser.add_argument('-s', '--strict-ladder', type=int, metavar='INT', 
+        default=1,
+        help='''Specify the strictness of the ladder agglomeration. Level 1
+            (default): merge anything smaller than the ladder threshold as 
+            long as it's not on the volume border. Level 2: only merge smaller
+            bodies to larger ones. Level 3: only merge when the border is 
+            larger than or equal to 2 pixels.'''
     )
     parser.add_argument('-m', '--median-filter', action='store_true', 
         default=False, help='Run a median filter on the input image.'
@@ -102,7 +110,7 @@ if __name__ == '__main__':
         if args.pre_ladder:
             vfn.write('Computing ladder agglomeration...\n')
             args.post_ladder = False
-            g.agglomerate_ladder(args.ladder)
+            g.agglomerate_ladder(args.ladder, args.strict_ladder)
             g.rebuild_merge_queue()
             vfn.write('Ladder done. new graph statistics: n: %i, m: %i\n'%
                 (g.number_of_nodes(), g.number_of_edges())
@@ -113,8 +121,9 @@ if __name__ == '__main__':
         g.agglomerate(t)
         if args.ladder is not None and args.post_ladder:
             g2 = g.copy()
-            g2.agglomerate_ladder(args.ladder)
+            g2.agglomerate_ladder(args.ladder, args.strict_ladder)
         else:
             g2 = g
-        write_h5_stack(g2.segmentation, args.fout % t)
+        write_h5_stack(juicy_center(g2.segmentation, 2), args.fout % t)
+    g.merge_queue.finish()
 
