@@ -206,3 +206,44 @@ def boundary_mean_ladder(g, n1, n2, threshold, strictness=1):
     else:
         return finfo(float).max / size(g.segmentation)
 
+# RUG #
+
+class Rug(object):
+    """Region union graph, used to compare two segmentations."""
+    def __init__(self, s1=None, s2=None):
+        self.s1 = s1
+        self.s2 = s2
+        if s1 is not None and s2 is not None:
+            self.build_graph(s1, s2)
+
+    def build_graph(s1, s2):
+        if s1.shape != s2.shape:
+            raise RuntimeError('Error building region union graph: '+
+                'volume shapes don\'t match. '+str(s1.shape)+' '+str(s2.shape))
+        n1 = len(unique(s1))
+        n2 = len(unique(s2))
+        self.overlaps = zeros((n1,n2), double)
+        self.sizes1 = zeros(n1, double)
+        self.sizes2 = zeros(n2, double)
+        for v1, v2 in izip(s1.ravel(), s2.ravel()):
+            if v1 != 0 and v2 != 0:
+                self.overlaps[v1,v2] += 1
+                self.sizes1[v1] += 1
+                self.sizes2[v2] += 1
+
+    def __getitem__(v1, v2=Ellipsis, transpose=False):
+        if transpose:
+            return transpose(self.overlaps)[v1,v2]/self.sizes2[v1]
+        else:
+            return self.overlaps[v1,v2]/self.sizes1[v1]
+
+
+def best_possible_segmentation(ws, gt):
+    """Build the best possible segmentation given a superpixel map."""
+    ws = Rag(ws)
+    gt = Rag(gt)
+    rug = Rug(ws.segmentation, gt.segmentation)
+    assignment = rug.overlaps == rug.overlaps.max(axis==1)[:,newaxis]
+    assert(all(assignment.sum(axis=1)==1))
+    for gt_node in range(1,len(rug.sizes2)):
+        pass
