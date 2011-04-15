@@ -23,6 +23,9 @@ class MergeQueue(object):
     def finish(self):
         self.pbar.finish()
 
+    def is_empty(self):
+        return len(self.q) == 0
+
     def peek(self):
         return self.q[0]
 

@@ -12,7 +12,7 @@ from mergequeue import MergeQueue
 class Rag(Graph):
     """Region adjacency graph for segmentation of nD volumes."""
 
-    def __init__(self, watershed, probabilities, 
+    def __init__(self, watershed=None, probabilities=None, 
                         merge_priority_function=None, show_progress=False):
         """Create a graph from a watershed volume and image volume.
         
@@ -22,18 +22,21 @@ class Rag(Graph):
         connected to both corresponding basins.
         """
         super(Rag, self).__init__(weighted=False)
+        self.boundary_probability = finfo(float).max / size(probabilities)
+        if probabilities is not None:
+            self.set_probabilities(probabilities)
         self.show_progress = show_progress
-        self.boundary_body = watershed.max()+1
-        self.watershed = morpho.pad(watershed, array([0,self.boundary_body]))
-        self.boundary_probability = finfo(float).max / size(self.watershed)
-        self.probabilities = morpho.pad(probabilities, 
-                                        array([self.boundary_probability, 0]))
-        self.segmentation = self.watershed.copy()
         if merge_priority_function is None:
             self.merge_priority_function = boundary_mean
         else:
             self.merge_priority_function = merge_priority_function
-        self.pixel_neighbors = morpho.build_neighbors_array(self.watershed)
+        if watershed is not None:
+            self.set_watershed(watershed)
+            self.pixel_neighbors = morpho.build_neighbors_array(self.watershed)
+            self.build_graph_from_watershed()
+        self.merge_queue = MergeQueue()
+
+    def build_graph_from_watershed(self):
         zero_idxs = where(self.watershed.ravel() == 0)[0]
         if self.show_progress:
             def with_progress(seq, length=None, title='Progress: '):
@@ -57,7 +60,14 @@ class Rag(Graph):
                 self.node[self.watershed.ravel()[idx]]['extent'].add(idx)
             except KeyError:
                 self.node[self.watershed.ravel()[idx]]['extent'] = set([idx])
-        self.merge_queue = self.build_merge_queue()
+
+    def set_probabilities(self, probs):
+        self.probabilities = morpho.pad(probs, [self.boundary_probability, 0])
+
+    def set_watershed(self, ws):
+        self.boundary_body = ws.max()+1
+        self.watershed = morpho.pad(ws, [0, self.boundary_body])
+        self.segmentation = self.watershed.copy()
 
     def build_merge_queue(self):
         """Build a queue of node pairs to be merged in a specific priority.
@@ -89,6 +99,8 @@ class Rag(Graph):
 
     def agglomerate(self, threshold=128):
         """Merge nodes sequentially until given edge confidence threshold."""
+        if self.merge_queue.is_empty():
+            self.merge_queue = self.build_merge_queue()
         while self.merge_queue.peek()[0] < threshold:
             merge_priority, valid, n1, n2 = self.merge_queue.pop()
             if valid:
