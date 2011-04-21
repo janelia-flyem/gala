@@ -4,7 +4,8 @@ import sys, os, argparse
 import pdb
 from agglo import Rag
 from imio import read_image_stack
-from numpy import zeros, bool, hstack, newaxis, array
+from morpho import juicy_center
+from numpy import zeros, bool, hstack, vstack, newaxis, array, savetxt
 from scipy.ndimage.filters import median_filter, gaussian_filter
 from scipy.ndimage.measurements import label
 from ray import read_image_stack_single_arg
@@ -98,11 +99,11 @@ if __name__ == '__main__':
             g1.agglomerate(t)
             g2.agglomerate(t)
             results_table[i,j] = is_one_to_one_mapping(
-                                    g1.segmentation[...,-overlap/2-1], 
-                                    g2.segmentation[...,overlap/2])
+                                    juicy_center(g1.segmentation,2)[...,-overlap/2-1], 
+                                    juicy_center(g2.segmentation,2)[...,overlap/2])
     savetxt('debug.txt', results_table, delimiter='\t')
     results_table = hstack([array(args.thresholds)[:,newaxis], results_table])
     results_table = \
         vstack([array([0]+overlaps), results_table, results_table.all(axis=0)])
-    savetxt(args.fout, results_table, delimiter='\t')
+    savetxt(args.fout, results_table, delimiter='\t', fmt='%i')
 
