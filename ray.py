@@ -120,7 +120,10 @@ if __name__ == '__main__':
     for t in args.thresholds:
         g.agglomerate(t)
         if args.ladder is not None and args.post_ladder:
-            g2 = g.copy()
+            if len(args.thresholds) > 1:
+                g2 = g.copy()
+            else:
+                g2 = g
             g2.agglomerate_ladder(args.ladder, args.strict_ladder)
         else:
             g2 = g
