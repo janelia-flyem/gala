@@ -99,8 +99,8 @@ if __name__ == '__main__':
             g1.agglomerate(t)
             g2.agglomerate(t)
             results_table[i,j] = is_one_to_one_mapping(
-                                    juicy_center(g1.segmentation,2)[...,-overlap/2-1], 
-                                    juicy_center(g2.segmentation,2)[...,overlap/2])
+                            juicy_center(g1.segmentation,2)[...,-overlap/2], 
+                            juicy_center(g2.segmentation,2)[...,overlap/2])
     savetxt('debug.txt', results_table, delimiter='\t')
     results_table = hstack([array(args.thresholds)[:,newaxis], results_table])
     results_table = \
