@@ -13,7 +13,7 @@ class Rag(Graph):
     """Region adjacency graph for segmentation of nD volumes."""
 
     def __init__(self, watershed=None, probabilities=None, 
-                        merge_priority_function=None, show_progress=False):
+            merge_priority_function=None, show_progress=False, lowmem=False):
         """Create a graph from a watershed volume and image volume.
         
         The watershed is assumed to have dams of label 0 in between basins.
@@ -31,8 +31,7 @@ class Rag(Graph):
         else:
             self.merge_priority_function = merge_priority_function
         if watershed is not None:
-            self.set_watershed(watershed)
-            self.pixel_neighbors = morpho.build_neighbors_array(self.watershed)
+            self.set_watershed(watershed, lowmem)
             self.build_graph_from_watershed()
         self.merge_queue = MergeQueue()
 
@@ -46,7 +45,7 @@ class Rag(Graph):
             def with_progress(seq, length=None, title='Progress: '):
                 return ip.with_progress(seq, length, title, ip.NoProgressBar())
         for idx in with_progress(zero_idxs, title='Building edges... '):
-            ns = self.pixel_neighbors[idx]
+            ns = self.neighbor_idxs(idx)
             adj_labels = self.watershed.ravel()[ns]
             adj_labels = unique(adj_labels[adj_labels != 0])
             for l1,l2 in combinations(adj_labels, 2):
@@ -61,13 +60,24 @@ class Rag(Graph):
             except KeyError:
                 self.node[self.watershed.ravel()[idx]]['extent'] = set([idx])
 
+    def get_neighbor_idxs_fast(self, idxs):
+        return self.pixel_neighbors[idxs]
+
+    def get_neighbor_idxs_lean(self, idxs):
+        return morpho.get_neighbor_idxs(self.watershed, idxs)
+
     def set_probabilities(self, probs):
         self.probabilities = morpho.pad(probs, [self.boundary_probability, 0])
 
-    def set_watershed(self, ws):
+    def set_watershed(self, ws, lowmem=False):
         self.boundary_body = ws.max()+1
         self.watershed = morpho.pad(ws, [0, self.boundary_body])
         self.segmentation = self.watershed.copy()
+        if lowmem:
+            self.neighbor_idxs = self.get_neighbor_idxs_lean
+        else:
+            self.pixel_neighbors = morpho.build_neighbors_array(self.watershed)
+            self.neighbor_idxs = self.get_neighbor_idxs_fast
 
     def build_merge_queue(self):
         """Build a queue of node pairs to be merged in a specific priority.
@@ -134,7 +144,7 @@ class Rag(Graph):
         self.segmentation.ravel()[list(self.node[n2]['extent'])] = n1
         boundary = array(list(self[n1][n2]['boundary']))
         boundary_neighbor_pixels = self.segmentation.ravel()[
-            self.pixel_neighbors[boundary,:]
+            self.neighbor_idxs(boundary)
         ]
         add = ( (boundary_neighbor_pixels == 0) + 
             (boundary_neighbor_pixels == n1) + 
@@ -146,7 +156,7 @@ class Rag(Graph):
         boundaries_to_edit = {}
         for px in boundary[check]:
             for lb in unique(
-                        self.segmentation.ravel()[self.pixel_neighbors[px]]):
+                        self.segmentation.ravel()[self.neighbor_idxs(px)]):
                 if lb != n1 and lb != 0:
                     try:
                         boundaries_to_edit[(n1,lb)].append(px)

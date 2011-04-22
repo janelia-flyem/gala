@@ -145,21 +145,14 @@ def build_levels_dict(a):
     return dict( ((l, where(a.ravel()==l)[0]) for l in unique(a)) )
 
 def build_neighbors_array(ar):
-    indices_vect = arange(ar.size, dtype=uint32)
+    idxs = arange(ar.size, dtype=uint32)
+    return get_neighbors(ar, idxs)
+
+def get_neighbor_idxs(ar, idxs):
+    idxs = array(idxs) # in case only a single idx is given
     steps = array(ar.strides)/ar.itemsize
     steps = concatenate((steps, -steps))
-    return indices_vect[:,newaxis] + steps
-
-def neighbor_idxs(idx, steps, arrayshape):
-    idx = array(idx)
-    neighbors = itertools.chain(*[[idx+step, idx-step] for step in steps])
-    return [tuple(n) for n in neighbors if all(n >= zero3d) and 
-                                           all(n < arrayshape)]
-
-def neighbor_idxs_no_check(idx, steps, arrayshape):
-    idx = array(idx)
-    neighbors = itertools.chain(*[[idx+step, idx-step] for step in steps])
-    return map(tuple, neighbors)
+    return idxs[:,newaxis] + steps
 
 
 if __name__ == '__main__':
