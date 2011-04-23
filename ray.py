@@ -35,6 +35,10 @@ if __name__ == '__main__':
         default=False,
         help='Invert the probabilities before segmenting.'
     )
+    parser.add_argument('-M', '--low-memory', action='store_true',
+        help='''Use less memory at a slight speed cost. Note that the phrase 
+            'low memory' is relative.'''
+    )
     parser.add_argument('-w', '--watershed', metavar='WS_FN',
         type=read_image_stack_single_arg,
         help='Use a precomputed watershed volume from file.'
@@ -100,7 +104,8 @@ if __name__ == '__main__':
         '('+','.join(map(str,probs.shape))+')')
     )
 
-    g = Rag(args.watershed, probs, show_progress=args.show_progress)
+    g = Rag(args.watershed, probs, show_progress=args.show_progress, 
+        lowmem=args.low_memory)
 
     vfn.write('RAG computed. Number of nodes: %i, Number of edges: %i\n'%
         (g.number_of_nodes(), g.number_of_edges())

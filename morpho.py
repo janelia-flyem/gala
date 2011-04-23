@@ -5,7 +5,7 @@ from numpy import   shape, reshape, \
                     array, zeros, zeros_like, ones, ones_like, arange, \
                     double, \
                     int8, int16, int32, int64, uint8, uint16, uint32, uint64, \
-                    iinfo, \
+                    iinfo, isscalar, \
                     unique, \
                     where, unravel_index, newaxis, \
                     ceil, floor, prod, cumprod, \
@@ -146,10 +146,12 @@ def build_levels_dict(a):
 
 def build_neighbors_array(ar):
     idxs = arange(ar.size, dtype=uint32)
-    return get_neighbors(ar, idxs)
+    return get_neighbor_idxs(ar, idxs)
 
 def get_neighbor_idxs(ar, idxs):
-    idxs = array(idxs) # in case only a single idx is given
+    if isscalar(idxs): # in case only a single idx is given
+        idxs = [idxs]
+    idxs = array(idxs) # in case a list or other array-like is given
     steps = array(ar.strides)/ar.itemsize
     steps = concatenate((steps, -steps))
     return idxs[:,newaxis] + steps
