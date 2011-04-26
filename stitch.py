@@ -43,6 +43,9 @@ if __name__ == '__main__':
         default=False,
         help='Invert the probabilities before segmenting.'
     )
+    parser.add_argument('-M', '--low-memory', action='store_true',
+        help='Use low memory mode.'
+    )
     parser.add_argument('-x', '--xy-crop', action=EvalAction, default=[None]*4,
         help='Specify a crop in the first and second array dimensions.'
     )
@@ -93,8 +96,10 @@ if __name__ == '__main__':
         # pdb.set_trace()
         probs1, ws1 = crop_probs_and_ws(args.xy_crop+zcrop1, probs, ws)
         probs2, ws2 = crop_probs_and_ws(args.xy_crop+zcrop2, probs, ws)
-        g1 = Rag(ws1, probs1, show_progress=args.show_progress)
-        g2 = Rag(ws2, probs2, show_progress=args.show_progress)
+        g1 = Rag(ws1, probs1, show_progress=args.show_progress, 
+            lowmem=args.low_memory)
+        g2 = Rag(ws2, probs2, show_progress=args.show_progress,
+            lowmem=args.low_memory)
         for i, t in enumerate(args.thresholds):
             g1.agglomerate(t)
             g2.agglomerate(t)
