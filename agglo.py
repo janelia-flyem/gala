@@ -1,9 +1,9 @@
 
-from itertools import combinations
+from itertools import combinations, izip
 
 from heapq import heapify, heappush, heappop
 from numpy import array, mean, zeros, zeros_like, uint8, int8, where, unique, \
-    finfo, float, size
+    finfo, float, size, double
 from networkx import Graph
 import morpho
 import iterprogress as ip
@@ -232,13 +232,14 @@ def boundary_mean_ladder(g, n1, n2, threshold, strictness=1):
 
 class Rug(object):
     """Region union graph, used to compare two segmentations."""
-    def __init__(self, s1=None, s2=None):
+    def __init__(self, s1=None, s2=None, progress=False):
         self.s1 = s1
         self.s2 = s2
+        self.progress = progress
         if s1 is not None and s2 is not None:
             self.build_graph(s1, s2)
 
-    def build_graph(s1, s2):
+    def build_graph(self, s1, s2):
         if s1.shape != s2.shape:
             raise RuntimeError('Error building region union graph: '+
                 'volume shapes don\'t match. '+str(s1.shape)+' '+str(s2.shape))
