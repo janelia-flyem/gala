@@ -248,13 +248,19 @@ class Rug(object):
         self.overlaps = zeros((n1,n2), double)
         self.sizes1 = zeros(n1, double)
         self.sizes2 = zeros(n2, double)
-        for v1, v2 in izip(s1.ravel(), s2.ravel()):
+        if self.progress:
+            def with_progress(seq):
+                return ip.with_progress(
+                                seq, length=self.overlaps.size, title='RUG...')
+        else:
+            def with_progress(seq): return seq
+        for v1, v2 in with_progress(izip(s1.ravel(), s2.ravel())):
             if v1 != 0 and v2 != 0:
                 self.overlaps[v1,v2] += 1
                 self.sizes1[v1] += 1
                 self.sizes2[v2] += 1
 
-    def __getitem__(v1, v2=Ellipsis, transpose=False):
+    def __getitem__(self, v1, v2=Ellipsis, transpose=False):
         if transpose:
             return transpose(self.overlaps)[v1,v2]/self.sizes2[v1]
         else:
