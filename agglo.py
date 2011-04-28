@@ -3,7 +3,7 @@ from itertools import combinations, izip
 
 from heapq import heapify, heappush, heappop
 from numpy import array, mean, zeros, zeros_like, uint8, int8, where, unique, \
-    finfo, float, size, double
+    finfo, float, size, double, transpose, newaxis
 from networkx import Graph
 import morpho
 import iterprogress as ip
@@ -250,21 +250,32 @@ class Rug(object):
         self.sizes2 = zeros(n2, double)
         if self.progress:
             def with_progress(seq):
-                return ip.with_progress(
-                                seq, length=self.overlaps.size, title='RUG...')
+                return ip.with_progress(seq, length=s1.size,
+                            title='RUG...', pbar=ip.StandardProgressBar())
         else:
             def with_progress(seq): return seq
         for v1, v2 in with_progress(izip(s1.ravel(), s2.ravel())):
-            if v1 != 0 and v2 != 0:
-                self.overlaps[v1,v2] += 1
-                self.sizes1[v1] += 1
-                self.sizes2[v2] += 1
+            self.overlaps[v1,v2] += 1
+            self.sizes1[v1] += 1
+            self.sizes2[v2] += 1
 
-    def __getitem__(self, v1, v2=Ellipsis, transpose=False):
-        if transpose:
-            return transpose(self.overlaps)[v1,v2]/self.sizes2[v1]
+    def __getitem__(self, v):
+        try:
+            l = len(v)
+        except TypeError:
+            v = [v]
+            l = 1
+        v1 = v[0]
+        v2 = Ellipsis
+        do_transpose = False
+        if l >= 2:
+            v2 = v[1]
+        if l >= 3:
+            do_transpose = bool(v[2])
+        if do_transpose:
+            return transpose(self.overlaps)[v1,v2]/self.sizes2[v1,newaxis]
         else:
-            return self.overlaps[v1,v2]/self.sizes1[v1]
+            return self.overlaps[v1,v2]/self.sizes1[v1,newaxis]
 
 
 def best_possible_segmentation(ws, gt):
