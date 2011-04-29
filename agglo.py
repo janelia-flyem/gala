@@ -4,7 +4,9 @@ from itertools import combinations, izip
 from heapq import heapify, heappush, heappop
 from numpy import array, mean, zeros, zeros_like, uint8, int8, where, unique, \
     finfo, float, size, double, transpose, newaxis
+from scipy.stats import sem
 from networkx import Graph
+from networkx.algorithms.traversal.depth_first_search import dfs_preorder_nodes
 import morpho
 import iterprogress as ip
 from mergequeue import MergeQueue
@@ -180,16 +182,23 @@ class Rag(Graph):
             self.add_edge(u, v, boundary=self[w][x]['boundary'])
         else:
             self[u][v]['boundary'].update(self[w][x]['boundary'])
-        self.merge_queue.invalidate(self[w][x]['qlink'])
-        self.update_merge_queue(u, v)
+        try:
+            self.merge_queue.invalidate(self[w][x]['qlink'])
+            self.update_merge_queue(u, v)
+        except KeyError:
+            pass
 
     def update_merge_queue(self, u, v):
         """Update the merge queue item for edge (u,v). Add new by default."""
         if self[u][v].has_key('qlink'):
             self.merge_queue.invalidate(self[u][v]['qlink'])
-        new_qitem = [self.merge_priority_function(self,u,v), True, u, v]
-        self[u][v]['qlink'] = new_qitem
-        self.merge_queue.push(new_qitem)
+        if not self.merge_queue.is_null_queue:
+            new_qitem = [self.merge_priority_function(self,u,v), True, u, v]
+            self[u][v]['qlink'] = new_qitem
+            self.merge_queue.push(new_qitem)
+
+    def get_segmentation(self):
+        return morpho.juicy_center(self.segmentation, 2)
 
     def build_volume(self):
         """Return the segmentation (numpy.ndarray) induced by the graph."""
@@ -227,6 +236,10 @@ def boundary_mean_ladder(g, n1, n2, threshold, strictness=1):
         return boundary_mean(g, n1, n2)
     else:
         return finfo(float).max / size(g.segmentation)
+
+def boundary_mean_plus_sem(g, n1, n2, alpha=-6):
+    bvals = g.probabilities.ravel()[list(g[n1][n2]['boundary'])]
+    return mean(bvals) + alpha*sem(bvals)
 
 # RUG #
 
@@ -277,13 +290,17 @@ class Rug(object):
         else:
             return self.overlaps[v1,v2]/self.sizes1[v1,newaxis]
 
-
 def best_possible_segmentation(ws, gt):
     """Build the best possible segmentation given a superpixel map."""
     ws = Rag(ws)
     gt = Rag(gt)
     rug = Rug(ws.segmentation, gt.segmentation)
-    assignment = rug.overlaps == rug.overlaps.max(axis==1)[:,newaxis]
+    assignment = rug.overlaps == rug.overlaps.max(axis=1)[:,newaxis]
     assert(all(assignment.sum(axis=1)==1))
     for gt_node in range(1,len(rug.sizes2)):
-        pass
+        sp_subgraph = ws.subgraph(where(assignment[:,gt_node])[0])
+        sp_dfs = list(dfs_preorder_nodes(sp_subgraph)) # preorder returns iter
+        source_sp, other_sps = sp_dfs[0], sp_dfs[1:]
+        for current_sp in other_sps:
+            ws.merge_nodes(source_sp, current_sp)
+    return ws.get_segmentation()

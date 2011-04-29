@@ -1,4 +1,4 @@
-test/
+tmp/
 data/
 *.pyc
 .*.swp
