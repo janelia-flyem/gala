@@ -24,7 +24,7 @@ class Rag(Graph):
         connected to both corresponding basins.
         """
         super(Rag, self).__init__(weighted=False)
-        self.boundary_probability = finfo(float).max / size(probabilities)
+        self.boundary_probability = 10**100 #inconceivably high, but no overflow
         if probabilities is not None:
             self.set_probabilities(probabilities)
         self.show_progress = show_progress
@@ -109,26 +109,30 @@ class Rag(Graph):
         """Build a merge queue from scratch and assign to self.merge_queue."""
         self.merge_queue = self.build_merge_queue()
 
-    def agglomerate(self, threshold=128):
+    def agglomerate(self, threshold=128, generate=False):
         """Merge nodes sequentially until given edge confidence threshold."""
         if self.merge_queue.is_empty():
             self.merge_queue = self.build_merge_queue()
-        while self.merge_queue.peek()[0] < threshold:
+        while len(self.merge_queue) > 0 and \
+                                        self.merge_queue.peek()[0] < threshold:
             merge_priority, valid, n1, n2 = self.merge_queue.pop()
             if valid:
                 self.merge_nodes(n1,n2)
+                if generate:
+                    yield n1, n2
 
     def agglomerate_ladder(self, threshold=1000, strictness=1):
         """Merge sequentially all nodes smaller than threshold.
         
         Note: nodes that are on the volume boundary are not agglomerated.
         """
-        def boundary_mean_ladder_instance(g, n1, n2):
-            return boundary_mean_ladder(g, n1, n2, threshold, strictness)
-        self.merge_priority_function = boundary_mean_ladder_instance
+        original_merge_priority_function = self.merge_priority_function
+        self.merge_priority_function = make_ladder(
+            self.merge_priority_function, threshold, strictness
+        )
         self.rebuild_merge_queue()
-        self.agglomerate(finfo(float).max/size(self.segmentation)/10)
-        self.merge_priority_function = boundary_mean
+        self.agglomerate(self.boundary_probability/10)
+        self.merge_priority_function = original_merge_priority_function
         self.merge_queue.finish()
 
     def merge_nodes(self, n1, n2):
@@ -144,35 +148,36 @@ class Rag(Graph):
                 self.merge_edge_properties((n2,n), (n1,n))
         self.node[n1]['extent'].update(self.node[n2]['extent'])
         self.segmentation.ravel()[list(self.node[n2]['extent'])] = n1
-        boundary = array(list(self[n1][n2]['boundary']))
-        boundary_neighbor_pixels = self.segmentation.ravel()[
-            self.neighbor_idxs(boundary)
-        ]
-        add = ( (boundary_neighbor_pixels == 0) + 
-            (boundary_neighbor_pixels == n1) + 
-            (boundary_neighbor_pixels == n2) ).all(axis=1)
-        check = True-add
-        self.node[n1]['extent'].update(boundary[add])
-        self.segmentation.ravel()[boundary[add]] = n1
+        if self.has_edge(n1,n2):
+            boundary = array(list(self[n1][n2]['boundary']))
+            boundary_neighbor_pixels = self.segmentation.ravel()[
+                self.neighbor_idxs(boundary)
+            ]
+            add = ( (boundary_neighbor_pixels == 0) + 
+                (boundary_neighbor_pixels == n1) + 
+                (boundary_neighbor_pixels == n2) ).all(axis=1)
+            check = True-add
+            self.node[n1]['extent'].update(boundary[add])
+            self.segmentation.ravel()[boundary[add]] = n1
+            boundaries_to_edit = {}
+            for px in boundary[check]:
+                for lb in unique(
+                            self.segmentation.ravel()[self.neighbor_idxs(px)]):
+                    if lb != n1 and lb != 0:
+                        try:
+                            boundaries_to_edit[(n1,lb)].append(px)
+                        except KeyError:
+                            boundaries_to_edit[(n1,lb)] = [px]
+            for u, v in boundaries_to_edit.keys():
+                if self.has_edge(u, v):
+                    self[u][v]['boundary'].update(boundaries_to_edit[(u,v)])
+                else:
+                    self.add_edge(u, v, boundary=set(boundaries_to_edit[(u,v)]))
+                self.update_merge_queue(u, v)
+            for n in new_neighbors:
+                if not boundaries_to_edit.has_key((n1,n)):
+                    self.update_merge_queue(n1, n)
         self.remove_node(n2)
-        boundaries_to_edit = {}
-        for px in boundary[check]:
-            for lb in unique(
-                        self.segmentation.ravel()[self.neighbor_idxs(px)]):
-                if lb != n1 and lb != 0:
-                    try:
-                        boundaries_to_edit[(n1,lb)].append(px)
-                    except KeyError:
-                        boundaries_to_edit[(n1,lb)] = [px]
-        for u, v in boundaries_to_edit.keys():
-            if self.has_edge(u, v):
-                self[u][v]['boundary'].update(boundaries_to_edit[(u,v)])
-            else:
-                self.add_edge(u, v, boundary=set(boundaries_to_edit[(u,v)]))
-            self.update_merge_queue(u, v)
-        for n in new_neighbors:
-            if not boundaries_to_edit.has_key((n1,n)):
-                self.update_merge_queue(n1, n)
 
     def merge_edge_properties(self, src, dst):
         """Merge the properties of edge src into edge dst."""
@@ -221,21 +226,33 @@ class Rag(Graph):
 def boundary_mean(g, n1, n2):
     return mean(g.probabilities.ravel()[list(g[n1][n2]['boundary'])])
 
-def boundary_mean_ladder(g, n1, n2, threshold, strictness=1):
-    s1 = len(g.node[n1]['extent'])
-    s2 = len(g.node[n2]['extent'])
-    ladder_condition = \
-            (s1 < threshold and not g.at_volume_boundary(n1)) or \
-            (s2 < threshold and not g.at_volume_boundary(n2))
-    if strictness >= 2:
-        ladder_condition &= ((s1 < threshold) != (s2 < threshold))
-    if strictness >= 3:
-        ladder_condition &= len(g[n1][n2]['boundary']) > 2
+def make_ladder(priority_function, threshold, strictness=1):
+    def ladder_function(g, n1, n2):
+        s1 = len(g.node[n1]['extent'])
+        s2 = len(g.node[n2]['extent'])
+        ladder_condition = \
+                (s1 < threshold and not g.at_volume_boundary(n1)) or \
+                (s2 < threshold and not g.at_volume_boundary(n2))
+        if strictness >= 2:
+            ladder_condition &= ((s1 < threshold) != (s2 < threshold))
+        if strictness >= 3:
+            ladder_condition &= len(g[n1][n2]['boundary']) > 2
 
-    if ladder_condition:
-        return boundary_mean(g, n1, n2)
-    else:
-        return finfo(float).max / size(g.segmentation)
+        if ladder_condition:
+            return priority_function(g, n1, n2)
+        else:
+            return finfo(float).max / size(g.segmentation)
+    return ladder_function
+
+def classifier_probability(feature_extractor, classifier):
+    def predict(g, n1, n2):
+        features = feature_extractor(g, n1, n2)
+        return classifier.predict_proba(features)[0,1]
+    return predict
+
+def boundary_mean_ladder(g, n1, n2, threshold, strictness=1):
+    f = make_ladder(boundary_mean, threshold, strictness)
+    return f(g, n1, n2)
 
 def boundary_mean_plus_sem(g, n1, n2, alpha=-6):
     bvals = g.probabilities.ravel()[list(g[n1][n2]['boundary'])]
@@ -271,6 +288,9 @@ class Rug(object):
             self.overlaps[v1,v2] += 1
             self.sizes1[v1] += 1
             self.sizes2[v2] += 1
+        self.overlaps[:,0] = 0
+        self.overlaps[0,:] = 0
+        self.overlaps[0,0] = 1
 
     def __getitem__(self, v):
         try:
@@ -294,13 +314,17 @@ def best_possible_segmentation(ws, gt):
     """Build the best possible segmentation given a superpixel map."""
     ws = Rag(ws)
     gt = Rag(gt)
-    rug = Rug(ws.segmentation, gt.segmentation)
+    rug = Rug(ws.get_segmentation(), gt.get_segmentation())
     assignment = rug.overlaps == rug.overlaps.max(axis=1)[:,newaxis]
-    assert(all(assignment.sum(axis=1)==1))
+    hard_assignment = where(assignment.sum(axis=1) > 1)[0]
+    # currently ignoring hard assignment nodes
+    assignment[hard_assignment,:] = 0
     for gt_node in range(1,len(rug.sizes2)):
         sp_subgraph = ws.subgraph(where(assignment[:,gt_node])[0])
-        sp_dfs = list(dfs_preorder_nodes(sp_subgraph)) # preorder returns iter
-        source_sp, other_sps = sp_dfs[0], sp_dfs[1:]
-        for current_sp in other_sps:
-            ws.merge_nodes(source_sp, current_sp)
+        if len(sp_subgraph) > 0:
+            sp_dfs = list(dfs_preorder_nodes(sp_subgraph)) 
+                    # dfs_preorder_nodes returns iter, convert to list
+            source_sp, other_sps = sp_dfs[0], sp_dfs[1:]
+            for current_sp in other_sps:
+                ws.merge_nodes(source_sp, current_sp)
     return ws.get_segmentation()
