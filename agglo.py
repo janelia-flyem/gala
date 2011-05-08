@@ -115,6 +115,7 @@ class Rag(Graph):
             self.merge_queue = self.build_merge_queue()
         while len(self.merge_queue) > 0 and \
                                         self.merge_queue.peek()[0] < threshold:
+            1/0
             merge_priority, valid, n1, n2 = self.merge_queue.pop()
             if valid:
                 self.merge_nodes(n1,n2)
@@ -247,7 +248,11 @@ def make_ladder(priority_function, threshold, strictness=1):
 def classifier_probability(feature_extractor, classifier):
     def predict(g, n1, n2):
         features = feature_extractor(g, n1, n2)
-        return classifier.predict_proba(features)[0,1]
+        try:
+            prediction = classifier.predict_proba(features)[0,1]
+        except AttributeError:
+            prediction = classifier.predict(features)[0]
+        return prediction
     return predict
 
 def boundary_mean_ladder(g, n1, n2, threshold, strictness=1):

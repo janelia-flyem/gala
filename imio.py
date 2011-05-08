@@ -90,3 +90,16 @@ def write_h5_stack(npy_vol, fn, **kwargs):
         group = 'stack'
     fout = h5py.File(fn, 'a')
     fout.create_dataset(group, data=npy_vol, **kwargs)
+
+
+#######################
+# Image visualization #
+#######################
+
+def show_boundary(seg):
+    seg = seg.squeeze()
+    boundary = 255*(1-seg.astype(bool)).astype(uint8)
+    Image.fromarray(boundary).show()
+
+def show_image(ar):
+    Image.fromarray(ar.squeeze()).show()
