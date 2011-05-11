@@ -16,6 +16,14 @@ def mean_and_sem(g, n1, n2):
     bvals = g.probabilities.ravel()[list(g[n1][n2]['boundary'])]
     return array([mean(bvals), sem(bvals)]).reshape(1,2)
 
+def feature_set_a(g, n1, n2):
+    bvals = g.probabilities.ravel()[list(g[n1][n2]['boundary'])]
+    body1 = g.probabilities.ravel()[list(g.node[n1]['extent'])]
+    body2 = g.probabilities.ravel()[list(g.node[n2]['extent'])]
+    return array([mean(bvals), sem(bvals), bvals.size, 
+                mean(body1), sem(body1), body1.size,
+                mean(body2), sem(body2), body2.size]).reshape(1,9)
+
 def h5py_stack(fn):
     return array(h5py.File(fn, 'r')['stack'])
 
@@ -60,7 +68,8 @@ if __name__ == '__main__':
     )
     args = parser.parse_args()
 
-    feature_map_function = mean_and_sem
+    #feature_map_function = mean_and_sem
+    feature_map_function = feature_set_a
     bps_boundaries = morpho.pad(
         1-best_possible_segmentation(args.ws, args.gt).astype(bool), [0,0]
     )

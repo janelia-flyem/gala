@@ -115,7 +115,6 @@ class Rag(Graph):
             self.merge_queue = self.build_merge_queue()
         while len(self.merge_queue) > 0 and \
                                         self.merge_queue.peek()[0] < threshold:
-            1/0
             merge_priority, valid, n1, n2 = self.merge_queue.pop()
             if valid:
                 self.merge_nodes(n1,n2)
