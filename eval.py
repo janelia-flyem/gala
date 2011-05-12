@@ -9,6 +9,16 @@ def pixel_wise_boundary_precision_recall(aseg, gt):
     fn = (gt * (1-aseg)).sum()
     return tp/(tp+fp), tp/(tp+fn)
 
+def edit_distance(aseg, gt, ws):
+    return edit_distance_to_bps(aseg, agglo.best_possible_segmentation(ws, gt))
+
+def edit_distance_to_bps(aseg, bps):
+    r = agglo.Rug(aseg, bps)
+    r.overlaps = r.overlaps.astype(bool)
+    false_splits = (r.overlaps.sum(axis=0)-1).sum()
+    false_merges = (r.overlaps.sum(axis=1)-1).sum()
+    return (false_merges, false_splits)
+
 def body_rand(aseg, gt):
     amap = dict()
     asizes = dict()
