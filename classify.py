@@ -11,6 +11,7 @@ from scikits.learn.svm import SVC
 from scikits.learn.linear_model import LogisticRegression, LinearRegression
 from agglo import best_possible_segmentation, Rag
 import morpho
+import iterprogress as ip
 
 def mean_and_sem(g, n1, n2):
     bvals = g.probabilities.ravel()[list(g[n1][n2]['boundary'])]
@@ -25,7 +26,12 @@ def feature_set_a(g, n1, n2):
                 mean(body2), sem(body2), body2.size]).reshape(1,9)
 
 def h5py_stack(fn):
-    return array(h5py.File(fn, 'r')['stack'])
+    try:
+        a = array(h5py.File(fn, 'r')['stack'])
+    except Exception as except_inst:
+        print except_inst
+        raise
+    return a
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
@@ -81,7 +87,9 @@ if __name__ == '__main__':
     number_of_features = feature_map_function(g, *g.edges_iter().next()).size
     features = zeros((len(merge_history), number_of_features))
     print "generating features..."
-    for i, nodes in enumerate(merge_history):
+    for i, nodes in enumerate(ip.with_progress(
+            merge_history, title='Replaying merge history...', 
+            pbar=ip.StandardProgressBar())):
         n1, n2 = nodes
         features[i,:] = feature_map_function(g, n1, n2)
         boundary_idxs = list(g[n1][n2]['boundary'])
