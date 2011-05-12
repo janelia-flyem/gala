@@ -56,11 +56,19 @@ class Rag(Graph):
                 else: 
                     self.add_edge(l1, l2, boundary=set([idx]))
         nonzero_idxs = where(self.watershed.ravel() != 0)[0]
+        if not hasattr(self, 'probabilities'):
+            self.probabilities = zeros(self.watershed.shape, uint8)
         for idx in with_progress(nonzero_idxs, title='Building nodes... '):
+            nodeid = self.watershed.ravel()[idx]
+            p = self.probabilities.ravel()[idx]
             try:
-                self.node[self.watershed.ravel()[idx]]['extent'].add(idx)
+                self.node[nodeid]['extent'].add(idx)
+                self.node[nodeid]['sump'] += p
+                self.node[nodeid]['sump2'] += p*p
             except KeyError:
-                self.node[self.watershed.ravel()[idx]]['extent'] = set([idx])
+                self.node[nodeid]['extent'] = set([idx])
+                self.node[nodeid]['sump'] = double(p)
+                self.node[nodeid]['sump2'] = double(p*p)
 
     def get_neighbor_idxs_fast(self, idxs):
         return self.pixel_neighbors[idxs]
@@ -147,6 +155,8 @@ class Rag(Graph):
             if n != n1:
                 self.merge_edge_properties((n2,n), (n1,n))
         self.node[n1]['extent'].update(self.node[n2]['extent'])
+        self.node[n1]['sump'] += self.node[n2]['sump']
+        self.node[n1]['sump2'] += self.node[n2]['sump2']
         self.segmentation.ravel()[list(self.node[n2]['extent'])] = n1
         if self.has_edge(n1,n2):
             boundary = array(list(self[n1][n2]['boundary']))
@@ -158,6 +168,9 @@ class Rag(Graph):
                 (boundary_neighbor_pixels == n2) ).all(axis=1)
             check = True-add
             self.node[n1]['extent'].update(boundary[add])
+            boundary_probs = self.probabilities.ravel()[boundary[add]]
+            self.node[n1]['sump'] += boundary_probs.sum()
+            self.node[n1]['sump2'] += (boundary_probs*boundary_probs).sum()
             self.segmentation.ravel()[boundary[add]] = n1
             boundaries_to_edit = {}
             for px in boundary[check]:
