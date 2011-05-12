@@ -1,5 +1,5 @@
 from numpy import bool, uint8
-
+import agglo
 
 def pixel_wise_boundary_precision_recall(aseg, gt):
     gt = (1-gt.astype(bool)).astype(uint8)
