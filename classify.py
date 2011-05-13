@@ -102,22 +102,16 @@ if __name__ == '__main__':
         g.merge_nodes(n1,n2)
     features = features[labels != 0,:]
     labels = labels[labels != 0]
-    if args.balance_classes:
-        minus_idxs = where(labels[labels == -1])[0]
-        plus_idxs = where(labels[labels == 1])[0]
-        if len(minus_idxs) > len(plus_idxs):
-            random.shuffle(minus_idxs)
-            minus_idxs = minus_idxs[:len(plus_idxs)]
-        else:
-            random.shuffle(plus_idxs)
-            plus_idxs = plus_idxs[:len(minus_idxs)]
-        labels = concatenate((labels[minus_idxs], labels[plus_idxs]))
-        features = concatenate((features[minus_idxs,:], features[plus_idxs,:]))
     print "fitting classifier of size: ", labels.size
+    if args.balance_classes:
+        cw = 'auto'
+    else:
+        cw = {-1:1, 1:1}
     if 'svm'.startswith(args.classifier):
-        c = SVC(kernel=args.kernel, probability=True).fit(features, labels)
+        c = SVC(kernel=args.kernel, probability=True).fit(features, labels,
+                                                             class_weight=cw)
     elif 'logistic-regression'.startswith(args.classifier):
-        c = LogisticRegression().fit(features, labels)
+        c = LogisticRegression().fit(features, labels, class_weight=cw)
     elif 'linear-regression'.startswith(args.classifier):
         c = LinearRegression().fit(features, labels)
     print "saving classifier..."

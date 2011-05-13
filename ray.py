@@ -1,12 +1,17 @@
 #!/usr/bin/env python
 
-import sys, os, argparse
+# Python standard library
+import sys, os, argparse, cPickle
 
+# external libraries
 from numpy import unique
-from imio import read_image_stack, write_h5_stack
-from agglo import Rag
-from morpho import watershed, juicy_center
 from scipy.ndimage.filters import median_filter
+
+# local modules
+from imio import read_image_stack, write_h5_stack
+from agglo import Rag, classifier_probability, boundary_mean
+from morpho import watershed, juicy_center
+from classify import mean_and_sem, feature_set_a
 
 def read_image_stack_single_arg(fn):
     """Read an image stack and print exceptions as they occur.
@@ -20,6 +25,9 @@ def read_image_stack_single_arg(fn):
     except Exception as err:
         print err
         raise
+
+def pickled(fn):
+    return cPickle.load(open(fn, 'r'))
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
@@ -78,6 +86,13 @@ if __name__ == '__main__':
     parser.add_argument('-v', '--verbose', action='store_true', default=False,
         help='Print runtime information about execution.'
     )
+    parser.add_argument('-c', '--classifier', type=pickled, metavar='PCK_FILE',
+        help='Load and use a classifier as a merge priority function.'
+    )
+    parser.add_argument('-f', '--feature-map-function', type=eval, 
+        default=feature_set_a,
+        help='Use named function as feature map (ignored when -c is not used).'
+    )
     args = parser.parse_args()
 
     if args.verbose:
@@ -103,9 +118,13 @@ if __name__ == '__main__':
         ('('+','.join(map(str,args.watershed.shape))+')',
         '('+','.join(map(str,probs.shape))+')')
     )
+    if args.classifier is not None:
+        mpf = classifier_probability(args.feature_map_function, args.classifier)
+    else:
+        mpf = boundary_mean
 
     g = Rag(args.watershed, probs, show_progress=args.show_progress, 
-        lowmem=args.low_memory)
+        merge_priority_function=mpf, lowmem=args.low_memory)
 
     vfn.write('RAG computed. Number of nodes: %i, Number of edges: %i\n'%
         (g.number_of_nodes(), g.number_of_edges())
