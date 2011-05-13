@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 
 import sys, os, argparse
-
 import cPickle
+from math import sqrt
 
 import h5py
 from numpy import bool, array, double, zeros, mean, random, concatenate, where
@@ -19,11 +19,24 @@ def mean_and_sem(g, n1, n2):
 
 def feature_set_a(g, n1, n2):
     bvals = g.probabilities.ravel()[list(g[n1][n2]['boundary'])]
-    body1 = g.probabilities.ravel()[list(g.node[n1]['extent'])]
-    body2 = g.probabilities.ravel()[list(g.node[n2]['extent'])]
-    return array([mean(bvals), sem(bvals), bvals.size, 
-                mean(body1), sem(body1), body1.size,
-                mean(body2), sem(body2), body2.size]).reshape(1,9)
+    mb = mean(bvals)
+    sb = sem(bvals)
+    lb = bvals.size
+    l1 = len(g.node[n1]['extent'])
+    m1 = g.node[n1]['sump']/l1
+    try:
+        v1 = max(0, g.node[n1]['sump2']/(l1-1) - l1/(l1-1)*m1*m1)
+    except ZeroDivisionError:
+        v1 = 0
+    s1 = sqrt(v1/l1)
+    l2 = len(g.node[n2]['extent'])
+    m2 = g.node[n2]['sump']/l2
+    try:
+        v2 = max(0, g.node[n2]['sump2']/(l2-1) - l2/(l2-1)*m2*m2)
+    except ZeroDivisionError:
+        v2 = 0
+    s2 = sqrt(v2/l2)
+    return array([mb, sb, lb, m1, s1, l1, m2, s2, l2]).reshape(1,9)
 
 def h5py_stack(fn):
     try:
