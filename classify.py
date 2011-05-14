@@ -45,6 +45,20 @@ def h5py_stack(fn):
         print except_inst
         raise
     return a
+    
+class RandomForest(object):
+    def __init__(self, ntrees=255):
+        self.forest = []
+        pass
+
+    def fit(self, features, labels):
+        pass
+
+    def predict_proba(self, features):
+        n = len(rf_model.forest)
+        votes = sum(t.apply(features) for t in rf_model.forest)
+        return double(votes) / n
+        pass
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(

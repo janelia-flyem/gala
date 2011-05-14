@@ -151,6 +151,34 @@ if __name__ == '__main__':
             g2.agglomerate_ladder(args.ladder, args.strict_ladder)
         else:
             g2 = g
-        write_h5_stack(juicy_center(g2.segmentation, 2), args.fout % t)
+        try:
+            write_h5_stack(g2.get_segmentation(), args.fout % t)
+        except TypeError:
+            write_h5_stack(g2.get_segmentation(), args.fout)
+            if len(args.thresholds) > 1:
+                sys.stdout.write(
+                    '\nWarning: single output file but multiple thresholds '+
+                    'provided. What should I do? (q: quit, first threshold '+
+                    'written to file; t: give specific threshold, written '+
+                    'to file; f: new filename, provide new filename for '+
+                    'output.\n'
+                )
+                response = sys.stdin.readline()[0]
+                if response == 'q':
+                    break
+                elif response == 't':
+                    sys.stdout.write('which threshold?\n')
+                    t = double(sys.stdin.readline()[:-1])
+                    g.agglomerate(t)
+                    if args.ladder is not None and args.post_ladder:
+                        g.agglomerate_ladder(args.ladder, args.strict_ladder)
+                    os.remove(args.fout)
+                    write_h5_stack(g.get_segmentation(), args.fout)
+                elif response == 'f':
+                    args.fout = sys.stdin.readline()[:-1]
+                    continue
+                else:
+                    sys.stdout.write('Unknown response: quitting.\n')
+                    break
     g.merge_queue.finish()
 

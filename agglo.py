@@ -154,13 +154,13 @@ class Rag(Graph):
                 self[n1][n]['boundary'].update(self[n2][n]['boundary'])
             else:
                 self.add_edge(n, n1, boundary=self[n2][n]['boundary'])
-        for n in self.neighbors(n2):
-            if n != n1:
-                self.merge_edge_properties((n2,n), (n1,n))
         self.node[n1]['extent'].update(self.node[n2]['extent'])
         self.node[n1]['sump'] += self.node[n2]['sump']
         self.node[n1]['sump2'] += self.node[n2]['sump2']
         self.segmentation.ravel()[list(self.node[n2]['extent'])] = n1
+        for n in self.neighbors(n2):
+            if n != n1:
+                self.merge_edge_properties((n2,n), (n1,n))
         if self.has_edge(n1,n2):
             boundary = array(list(self[n1][n2]['boundary']))
             boundary_neighbor_pixels = self.segmentation.ravel()[
@@ -289,7 +289,7 @@ class Rug(object):
         if s1 is not None and s2 is not None:
             self.build_graph(s1, s2)
 
-    def build_graph(self, s1, s2):
+    def build_graph(self, s1, s2, remove_zero_overlaps=False):
         if s1.shape != s2.shape:
             raise RuntimeError('Error building region union graph: '+
                 'volume shapes don\'t match. '+str(s1.shape)+' '+str(s2.shape))
@@ -308,9 +308,10 @@ class Rug(object):
             self.overlaps[v1,v2] += 1
             self.sizes1[v1] += 1
             self.sizes2[v2] += 1
-        self.overlaps[:,0] = 0
-        self.overlaps[0,:] = 0
-        self.overlaps[0,0] = 1
+        if remove_zero_overlaps:
+            self.overlaps[:,0] = 0
+            self.overlaps[0,:] = 0
+            self.overlaps[0,0] = 1
 
     def __getitem__(self, v):
         try:

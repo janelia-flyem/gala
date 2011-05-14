@@ -15,8 +15,8 @@ def edit_distance(aseg, gt, ws):
 def edit_distance_to_bps(aseg, bps):
     r = agglo.Rug(aseg, bps)
     r.overlaps = r.overlaps.astype(bool)
-    false_splits = (r.overlaps.sum(axis=0)-1).sum()
-    false_merges = (r.overlaps.sum(axis=1)-1).sum()
+    false_splits = (r.overlaps.sum(axis=0)-1)[1:].sum()
+    false_merges = (r.overlaps.sum(axis=1)-1)[1:].sum()
     return (false_merges, false_splits)
 
 def body_rand(aseg, gt):
