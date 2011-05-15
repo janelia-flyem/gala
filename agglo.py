@@ -50,25 +50,31 @@ class Rag(Graph):
             ns = self.neighbor_idxs(idx)
             adj_labels = self.watershed.ravel()[ns]
             adj_labels = unique(adj_labels[adj_labels != 0])
+            p = double(self.probabilities.ravel()[idx])
             for l1,l2 in combinations(adj_labels, 2):
                 if self.has_edge(l1, l2): 
                     self[l1][l2]['boundary'].add(idx)
+                    self[l1][l2]['sump'] += p
+                    self[l1][l2]['sump2'] += p*p
+                    self[l1][l2]['n'] += 1
                 else: 
-                    self.add_edge(l1, l2, boundary=set([idx]))
+                    self.add_edge(l1, l2, 
+                        boundary=set([idx]), sump=p, sump2=p*p, n=1
+                    )
         nonzero_idxs = where(self.watershed.ravel() != 0)[0]
         if not hasattr(self, 'probabilities'):
             self.probabilities = zeros(self.watershed.shape, uint8)
         for idx in with_progress(nonzero_idxs, title='Building nodes... '):
             nodeid = self.watershed.ravel()[idx]
-            p = self.probabilities.ravel()[idx]
+            p = double(self.probabilities.ravel()[idx])
             try:
                 self.node[nodeid]['extent'].add(idx)
                 self.node[nodeid]['sump'] += p
                 self.node[nodeid]['sump2'] += p*p
             except KeyError:
                 self.node[nodeid]['extent'] = set([idx])
-                self.node[nodeid]['sump'] = double(p)
-                self.node[nodeid]['sump2'] = double(p*p)
+                self.node[nodeid]['sump'] = p
+                self.node[nodeid]['sump2'] = p*p
 
     def get_neighbor_idxs_fast(self, idxs):
         return self.pixel_neighbors[idxs]
@@ -152,8 +158,11 @@ class Rag(Graph):
         for n in new_neighbors:
             if self.has_edge(n, n1):
                 self[n1][n]['boundary'].update(self[n2][n]['boundary'])
+                self[n1][n]['sump'] += self[n2][n]['sump']
+                self[n1][n]['sump2'] += self[n2][n]['sump2']
+                self[n1][n]['n'] += self[n2][n]['n']
             else:
-                self.add_edge(n, n1, boundary=self[n2][n]['boundary'])
+                self.add_edge(n, n1, attr_dict=self[n2][n])
         self.node[n1]['extent'].update(self.node[n2]['extent'])
         self.node[n1]['sump'] += self.node[n2]['sump']
         self.node[n1]['sump2'] += self.node[n2]['sump2']
@@ -185,10 +194,17 @@ class Rag(Graph):
                         except KeyError:
                             boundaries_to_edit[(n1,lb)] = [px]
             for u, v in boundaries_to_edit.keys():
+                p = self.probabilities.ravel()[boundaryies_to_edit[(u,v)]]
                 if self.has_edge(u, v):
                     self[u][v]['boundary'].update(boundaries_to_edit[(u,v)])
+                    self[u][v]['sump'] += p
+                    self[u][v]['sump2'] += p*p
+                    self[u][v]['n'] += len(p)
                 else:
-                    self.add_edge(u, v, boundary=set(boundaries_to_edit[(u,v)]))
+                    self.add_edge(u, v, 
+                        boundary=set(boundaries_to_edit[(u,v)]),
+                        sump=double(p), sump2=double(p*p), n=len(p)
+                    )
                 self.update_merge_queue(u, v)
             for n in new_neighbors:
                 if not boundaries_to_edit.has_key((n1,n)):
@@ -200,9 +216,12 @@ class Rag(Graph):
         u, v = dst
         w, x = src
         if not self.has_edge(u,v):
-            self.add_edge(u, v, boundary=self[w][x]['boundary'])
+            self.add_edge(u, v, attr_dict=self[w][x])
         else:
             self[u][v]['boundary'].update(self[w][x]['boundary'])
+            self[u][v]['sump'] += self[w][x]['sump']
+            self[u][v]['sump2'] += self[w][x]['sump2']
+            self[u][v]['n'] += self[w][x]['n']
         try:
             self.merge_queue.invalidate(self[w][x]['qlink'])
             self.update_merge_queue(u, v)

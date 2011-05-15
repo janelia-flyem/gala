@@ -18,10 +18,13 @@ def mean_and_sem(g, n1, n2):
     return array([mean(bvals), sem(bvals)]).reshape(1,2)
 
 def feature_set_a(g, n1, n2):
-    bvals = g.probabilities.ravel()[list(g[n1][n2]['boundary'])]
-    mb = mean(bvals)
-    sb = sem(bvals)
-    lb = bvals.size
+    lb = g[n1][n2]['n']
+    mb = g[n1][n2]['sump']/lb
+    try:
+        vb = max(0, g[n1][n2]['sump2']/(lb-1) - lb/(lb-1)*mb*mb)
+    except ZeroDivisionError:
+        vb = 0
+    sb = sqrt(vb/lb)
     l1 = len(g.node[n1]['extent'])
     m1 = g.node[n1]['sump']/l1
     try:
