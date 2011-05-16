@@ -5,13 +5,17 @@ import cPickle
 from math import sqrt
 
 import h5py
-from numpy import bool, array, double, zeros, mean, random, concatenate, where
+from numpy import bool, array, double, zeros, mean, random, concatenate, where,\
+    uint8, ones
 from scipy.stats import sem
 from scikits.learn.svm import SVC
 from scikits.learn.linear_model import LogisticRegression, LinearRegression
-from agglo import best_possible_segmentation, Rag
+from milk.supervised import randomforest as rf
+from agglo import best_possible_segmentation, Rag, boundary_mean, \
+    classifier_probability
 import morpho
 import iterprogress as ip
+from imio import read_h5_stack, write_h5_stack
 
 def mean_and_sem(g, n1, n2):
     bvals = g.probabilities.ravel()[list(g[n1][n2]['boundary'])]
@@ -51,17 +55,19 @@ def h5py_stack(fn):
     
 class RandomForest(object):
     def __init__(self, ntrees=255):
-        self.forest = []
-        pass
+        self.learn = rf.rf_learner(rf=ntrees)
 
-    def fit(self, features, labels):
-        pass
+    def fit(self, features, labels, with_progress=False):
+        self.model = self.learn.train(features, labels)
 
     def predict_proba(self, features):
-        n = len(rf_model.forest)
-        votes = sum(t.apply(features) for t in rf_model.forest)
-        return double(votes) / n
-        pass
+        n = len(self.model.forest)
+        result = zeros((len(features),2), double)
+        for i in xrange(len(features)):
+            votes = sum(t.apply(features[i]) for t in self.model.forest)
+            result[i,1] = double(votes) / n
+        result[:,0] = 1-result[:,1]
+        return result
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
@@ -80,11 +86,13 @@ if __name__ == '__main__':
     parser.add_argument('-T', '--max-threshold', type=float, default=255,
         help='Agglomerate until this threshold'
     )
-    parser.add_argument('-E', '--true-tolerance', metavar='FLOAT', default=0.9,
+    parser.add_argument('-E', '--true-tolerance', metavar='FLOAT', 
+        type=float, default=0.9,
         help='''If and only if a boundary overlaps over more than fraction
             FLOAT of true boundary, use as a positive training example.'''
     )
-    parser.add_argument('-e', '--false-tolerance', metavar='FLOAT', default=0.1,
+    parser.add_argument('-e', '--false-tolerance', metavar='FLOAT',
+        type=float, default=0.1,
         help='''If and only if a boundary overlaps over less than fraction
             FLOAT of a true boundary, use as a negative training example.'''
     )
@@ -97,10 +105,17 @@ if __name__ == '__main__':
     )
     parser.add_argument('-c', '--classifier', default='svm', 
         help='''Choose the classifier to use. Default: svm (support vector 
-            machine). Options: svm, logistic-regression, linear-regression.'''
+            machine). Options: svm, logistic-regression, linear-regression,
+            random-forest.'''
     )
     parser.add_argument('-k', '--kernel', default='rbf',
         help='The kernel for an SVM classifier.'
+    )
+    parser.add_argument('-i', '--training-image', type=str,
+        help='Save the positive and negative examples as an h5 image.'
+    )
+    parser.add_argument('-C', '--classifier-training', type=str,
+        help='Use a previously trained classifier to train this one.'
     )
     args = parser.parse_args()
 
@@ -109,7 +124,13 @@ if __name__ == '__main__':
     bps_boundaries = morpho.pad(
         1-best_possible_segmentation(args.ws, args.gt).astype(bool), [0,0]
     )
-    g = Rag(args.ws, args.probs, show_progress=True)
+    if args.classifier_training is not None:
+        c = cPickle.load(open(args.classifier_training))
+        mpf = classifier_probability(feature_map_function, c)
+    else:
+        mpf = boundary_mean
+    g = Rag(args.ws, args.probs, show_progress=True,
+                                                merge_priority_function=mpf)
     merge_history = list(g.agglomerate(args.max_threshold, generate=True))
     g.merge_queue.finish()
     g = Rag(args.ws, args.probs, show_progress=True)
@@ -117,6 +138,7 @@ if __name__ == '__main__':
     number_of_features = feature_map_function(g, *g.edges_iter().next()).size
     features = zeros((len(merge_history), number_of_features))
     print "generating features..."
+    labeled_image = zeros(bps_boundaries.shape, uint8)
     for i, nodes in enumerate(ip.with_progress(
             merge_history, title='Replaying merge history...', 
             pbar=ip.StandardProgressBar())):
@@ -127,16 +149,31 @@ if __name__ == '__main__':
             astype(double).sum()/len(boundary_idxs)
         if fraction_true > args.true_tolerance:
             labels[i] = 1
+            labeled_image.ravel()[boundary_idxs] = 2
         elif fraction_true < args.false_tolerance:
             labels[i] = -1
+            labeled_image.ravel()[boundary_idxs] = 1
         g.merge_nodes(n1,n2)
+    if args.training_image is not None:
+        write_h5_stack(labeled_image, args.training_image)
     features = features[labels != 0,:]
     labels = labels[labels != 0]
-    print "fitting classifier of size: ", labels.size
+    if args.classifier_training is not None:
+        try:
+            f = h5py.File(args.save_training_data)
+            old_features = array(f['samples'])
+            old_labels = array(f['labels'])
+            features = concatenate((features, old_features), 0)
+            labels = concatenate((labels, old_labels), 0)
+        except:
+            pass
+    print "fitting classifier of size, pos: ", labels.size, (labels==1).sum()
     if args.balance_classes:
         cw = 'auto'
     else:
         cw = {-1:1, 1:1}
+    if args.classifier_training is not None:
+        f = h5py.File(args.save_training_data)
     if 'svm'.startswith(args.classifier):
         c = SVC(kernel=args.kernel, probability=True).fit(features, labels,
                                                              class_weight=cw)
@@ -144,6 +181,9 @@ if __name__ == '__main__':
         c = LogisticRegression().fit(features, labels, class_weight=cw)
     elif 'linear-regression'.startswith(args.classifier):
         c = LinearRegression().fit(features, labels)
+    elif 'random-forest'.startswith(args.classifier):
+        c = RandomForest()
+        c.fit(features, labels)
     print "saving classifier..."
     cPickle.dump(c, open(os.path.expanduser(args.fout), 'w'), -1)
     if args.save_training_data is not None:

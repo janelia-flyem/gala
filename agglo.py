@@ -46,6 +46,8 @@ class Rag(Graph):
         else:
             def with_progress(seq, length=None, title='Progress: '):
                 return ip.with_progress(seq, length, title, ip.NoProgressBar())
+        if not hasattr(self, 'probabilities'):
+            self.probabilities = zeros(self.watershed.shape, uint8)
         for idx in with_progress(zero_idxs, title='Building edges... '):
             ns = self.neighbor_idxs(idx)
             adj_labels = self.watershed.ravel()[ns]
@@ -62,8 +64,6 @@ class Rag(Graph):
                         boundary=set([idx]), sump=p, sump2=p*p, n=1
                     )
         nonzero_idxs = where(self.watershed.ravel() != 0)[0]
-        if not hasattr(self, 'probabilities'):
-            self.probabilities = zeros(self.watershed.shape, uint8)
         for idx in with_progress(nonzero_idxs, title='Building nodes... '):
             nodeid = self.watershed.ravel()[idx]
             p = double(self.probabilities.ravel()[idx])
@@ -194,16 +194,17 @@ class Rag(Graph):
                         except KeyError:
                             boundaries_to_edit[(n1,lb)] = [px]
             for u, v in boundaries_to_edit.keys():
-                p = self.probabilities.ravel()[boundaryies_to_edit[(u,v)]]
+                p = self.probabilities.ravel()[boundaries_to_edit[(u,v)]]\
+                                                                .astype(double)
                 if self.has_edge(u, v):
                     self[u][v]['boundary'].update(boundaries_to_edit[(u,v)])
-                    self[u][v]['sump'] += p
-                    self[u][v]['sump2'] += p*p
+                    self[u][v]['sump'] += p.sum()
+                    self[u][v]['sump2'] += (p*p).sum()
                     self[u][v]['n'] += len(p)
                 else:
                     self.add_edge(u, v, 
                         boundary=set(boundaries_to_edit[(u,v)]),
-                        sump=double(p), sump2=double(p*p), n=len(p)
+                        sump=p.sum(), sump2=(p*p).sum(), n=len(p)
                     )
                 self.update_merge_queue(u, v)
             for n in new_neighbors:
@@ -281,6 +282,8 @@ def make_ladder(priority_function, threshold, strictness=1):
 
 def classifier_probability(feature_extractor, classifier):
     def predict(g, n1, n2):
+        if n1 == g.boundary_body or n2 == g.boundary_body:
+            return g.boundary_probability
         features = feature_extractor(g, n1, n2)
         try:
             prediction = classifier.predict_proba(features)[0,1]

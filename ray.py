@@ -11,7 +11,7 @@ from scipy.ndimage.filters import median_filter
 from imio import read_image_stack, write_h5_stack
 from agglo import Rag, classifier_probability, boundary_mean
 from morpho import watershed, juicy_center
-from classify import mean_and_sem, feature_set_a
+from classify import mean_and_sem, feature_set_a, RandomForest
 
 def read_image_stack_single_arg(fn):
     """Read an image stack and print exceptions as they occur.
