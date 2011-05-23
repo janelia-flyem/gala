@@ -69,8 +69,68 @@ class RandomForest(object):
         result[:,0] = 1-result[:,1]
         return result
 
+def boundary_overlap_threshold(boundary_idxs, gt, tol_false, tol_true):
+    """Return -1, 0 or 1 by thresholding overlaps between boundaries."""
+    n = len(boundary_idxs)
+    gt_boundary = 1-gt.ravel()[boundary_idxs].astype(bool)
+    fraction_true = gt_boundary.astype(double).sum() / n
+    if fraction_true > tol_true:
+        return 1
+    elif fraction_true > tol_false:
+        return 0
+    else:
+        return -1
+
+def make_thresholded_boundary_overlap_loss(tol_false, tol_true):
+    """Return a merge loss function based on boundary overlaps."""
+    def loss(g, n1, n2, gt):
+        boundary_idxs = list(g[n1][n2]['boundary'])
+        return \
+            boundary_overlap_threshold(boundary_idxs, gt, tol_false, tol_true)
+    return loss
+
+def label_merges(g, merge_history, feature_map_function, gt, loss_function):
+    """Replay an agglomeration history and label the loss of each merge."""
+    labels = zeros(len(merge_history))
+    number_of_features = feature_map_function(g, *g.edges_iter().next()).size
+    features = zeros((len(merge_history), number_of_features))
+    labeled_image = zeros(gt.shape, double)
+    for i, nodes in enumerate(ip.with_progress(
+                            merge_history, title='Replaying merge history...', 
+                            pbar=ip.StandardProgressBar())):
+        n1, n2 = nodes
+        features[i,:] = feature_map_function(g, n1, n2)
+        labels[i] = loss_function(g, n1, n2, gt)
+        labeled_image.ravel()[list(g[n1][n2]['boundary'])] = labels[i]
+        g.merge_nodes(n1,n2)
+    return features, labels, labeled_image
+
+def pickled(fn):
+    return cPickle.load(open(fn, 'r'))
+
+arguments = argparse.ArgumentParser(add_help=False)
+arggroup = arguments.add_argument_group('Classification options')
+arggroup.add_argument('-c', '--classifier', default='svm', 
+    help='''Choose the classifier to use. Default: svm (support vector 
+        machine). Options: svm, logistic-regression, linear-regression,
+        random-forest.'''
+)
+arggroup.add_argument('-k', '--load-classifier', 
+    type=pickled, metavar='PCK_FILE',
+    help='Load and use a pickled classifier as a merge priority function.'
+)
+arggroup.add_argument('-f', '--feature-map-function', metavar='FCT_NAME',
+    type=eval, default=feature_set_a,
+    help='Use named function as feature map (ignored when -c is not used).'
+)
+arggroup.add_argument('-T', '--training-data', metavar='HDF5_FN', type=str,
+    help='Load training data from file.'
+)
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
+        parents=[arguments],
         description='Create an agglomeration classifier.'
     )
     parser.add_argument('ws', type=h5py_stack,
@@ -103,12 +163,7 @@ if __name__ == '__main__':
         default=False, 
         help='Ensure both true edges and false edges are equally represented.'
     )
-    parser.add_argument('-c', '--classifier', default='svm', 
-        help='''Choose the classifier to use. Default: svm (support vector 
-            machine). Options: svm, logistic-regression, linear-regression,
-            random-forest.'''
-    )
-    parser.add_argument('-k', '--kernel', default='rbf',
+    parser.add_argument('-K', '--kernel', default='rbf',
         help='The kernel for an SVM classifier.'
     )
     parser.add_argument('-i', '--training-image', type=str,
@@ -119,11 +174,9 @@ if __name__ == '__main__':
     )
     args = parser.parse_args()
 
-    #feature_map_function = mean_and_sem
     feature_map_function = feature_set_a
-    bps_boundaries = morpho.pad(
-        1-best_possible_segmentation(args.ws, args.gt).astype(bool), [0,0]
-    )
+    gt = best_possible_segmentation(args.ws, args.gt)
+    gt = morpho.pad(gt, [0,0]) # put gt on same coordinate system as seg
     if args.classifier_training is not None:
         c = cPickle.load(open(args.classifier_training))
         mpf = classifier_probability(feature_map_function, c)
@@ -131,29 +184,13 @@ if __name__ == '__main__':
         mpf = boundary_mean
     g = Rag(args.ws, args.probs, show_progress=True,
                                                 merge_priority_function=mpf)
-    merge_history = list(g.agglomerate(args.max_threshold, generate=True))
+    merge_history = g.agglomerate(args.max_threshold, save_history=True)
     g.merge_queue.finish()
     g = Rag(args.ws, args.probs, show_progress=True)
-    labels = zeros(len(merge_history))
-    number_of_features = feature_map_function(g, *g.edges_iter().next()).size
-    features = zeros((len(merge_history), number_of_features))
-    print "generating features..."
-    labeled_image = zeros(bps_boundaries.shape, uint8)
-    for i, nodes in enumerate(ip.with_progress(
-            merge_history, title='Replaying merge history...', 
-            pbar=ip.StandardProgressBar())):
-        n1, n2 = nodes
-        features[i,:] = feature_map_function(g, n1, n2)
-        boundary_idxs = list(g[n1][n2]['boundary'])
-        fraction_true = bps_boundaries.ravel()[boundary_idxs].\
-            astype(double).sum()/len(boundary_idxs)
-        if fraction_true > args.true_tolerance:
-            labels[i] = 1
-            labeled_image.ravel()[boundary_idxs] = 2
-        elif fraction_true < args.false_tolerance:
-            labels[i] = -1
-            labeled_image.ravel()[boundary_idxs] = 1
-        g.merge_nodes(n1,n2)
+    loss = make_thresholded_boundary_overlap_loss(args.false_tolerance, 
+                                                  args.true_tolerance)
+    samples, labels, labeled_image = \
+                                label_merges(g, merge_history, gt, loss)
     if args.training_image is not None:
         write_h5_stack(labeled_image, args.training_image)
     features = features[labels != 0,:]

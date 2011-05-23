@@ -16,9 +16,20 @@ from scipy.ndimage import filters, measurements
 #from scipy.spatial.distance import cityblock as manhattan_distance
 import iterprogress as ip
 
-from imio import read_image_stack, write_h5_stack
+from imio import read_image_stack, write_h5_stack, arguments as imioargs, \
+    read_image_stack_single_arg
 
 zero3d = array([0,0,0])
+
+arguments = argparse.ArgumentParser(add_help=False)
+arggroup = arguments.add_argument_group('Morphological operations options')
+arggroup.add_argument('-S', '--save-watershed', metavar='FILE',
+    help='Write the watershed result to FILE (overwrites).'
+)
+arggroup.add_argument('-w', '--watershed', metavar='WS_FN',
+    type=read_image_stack_single_arg,
+    help='Use a precomputed watershed volume from file.'
+)
 
 def manhattan_distance(a, b):
     return sum(abs(a-b))

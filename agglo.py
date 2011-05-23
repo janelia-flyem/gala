@@ -1,5 +1,6 @@
 
 from itertools import combinations, izip
+import argparse
 
 from heapq import heapify, heappush, heappop
 from numpy import array, mean, zeros, zeros_like, uint8, int8, where, unique, \
@@ -11,11 +12,44 @@ import morpho
 import iterprogress as ip
 from mergequeue import MergeQueue
 
+arguments = argparse.ArgumentParser(add_help=False)
+arggroup = arguments.add_argument_group('Agglomeration options')
+arggroup.add_argument('-t', '--thresholds', nargs='+', default=[128],
+    type=float, metavar='FLOAT',
+    help='''The agglomeration thresholds. One output file will be written
+        for each threshold.'''
+)
+arggroup.add_argument('-l', '--ladder', type=int, metavar='SIZE',
+    help='Merge any bodies smaller than SIZE.'
+)
+arggroup.add_argument('-p', '--pre-ladder', action='store_true', default=True,
+    help='Run ladder before normal agglomeration (default).'
+)
+arggroup.add_argument('-L', '--post-ladder', 
+    action='store_false', dest='pre_ladder',
+    help='Run ladder after normal agglomeration instead of before (SLOW).'
+)
+arggroup.add_argument('-s', '--strict-ladder', type=int, metavar='INT', 
+    default=1,
+    help='''Specify the strictness of the ladder agglomeration. Level 1
+        (default): merge anything smaller than the ladder threshold as 
+        long as it's not on the volume border. Level 2: only merge smaller
+        bodies to larger ones. Level 3: only merge when the border is 
+        larger than or equal to 2 pixels.'''
+)
+arggroup.add_argument('-M', '--low-memory', action='store_true',
+    help='''Use less memory at a slight speed cost. Note that the phrase 
+        'low memory' is relative.'''
+)
+
 class Rag(Graph):
     """Region adjacency graph for segmentation of nD volumes."""
 
     def __init__(self, watershed=None, probabilities=None, 
-            merge_priority_function=None, show_progress=False, lowmem=False):
+            merge_priority_function=None, 
+            edge_feature_init_fct=None, edge_feature_merge_fct=None, 
+            node_feature_init_fct=None, node_feature_merge_fct=None,
+            show_progress=False, lowmem=False):
         """Create a graph from a watershed volume and image volume.
         
         The watershed is assumed to have dams of label 0 in between basins.
@@ -123,7 +157,7 @@ class Rag(Graph):
         """Build a merge queue from scratch and assign to self.merge_queue."""
         self.merge_queue = self.build_merge_queue()
 
-    def agglomerate(self, threshold=128, save_history=False, generate=False):
+    def agglomerate(self, threshold=128, save_history=False):
         """Merge nodes sequentially until given edge confidence threshold."""
         if self.merge_queue.is_empty():
             self.merge_queue = self.build_merge_queue()
@@ -133,14 +167,31 @@ class Rag(Graph):
             merge_priority, valid, n1, n2 = self.merge_queue.pop()
             if valid:
                 self.merge_nodes(n1,n2)
-                if save_history or generate:
-                    history.append((n1,n2))
-        if save_history or generate:
-            return history
+                if save_history: history.append((n1,n2))
+        if save_history: return history
+
+    def agglomerate_count(self, stepsize=100, save_history=False):
+        """Agglomerate until 'stepsize' merges have been made."""
+        if self.merge_queue.is_empty():
+            self.merge_queue = self.build_merge_queue()
+        history = []
+        i = 0
+        while len(self.merge_queue) > 0 and i < stepsize:
+            merge_priority, valid, n1, n2 = self.merge_queue.pop()
+            if valid:
+                i += 1
+                self.merge_nodes(n1, n2)
+                if save_history: history.append((n1,n2))
+        if save_history: return history
 
     def agglomerate_ladder(self, threshold=1000, strictness=1):
         """Merge sequentially all nodes smaller than threshold.
         
+        strictness = 1 only considers size of nodes
+        strictness = 2 adds additional constraint: small nodes can only be 
+        merged to large neighbors
+        strictness = 3 additionally requires that the boundary between nodes
+        be larger than 2 pixels
         Note: nodes that are on the volume boundary are not agglomerated.
         """
         original_merge_priority_function = self.merge_priority_function
@@ -261,6 +312,9 @@ class Rag(Graph):
 
 def boundary_mean(g, n1, n2):
     return mean(g.probabilities.ravel()[list(g[n1][n2]['boundary'])])
+
+def approximate_boundary_mean(g, n1, n2):
+    return g[n1][n2]['sump'] / g[n1][n2]['n']
 
 def make_ladder(priority_function, threshold, strictness=1):
     def ladder_function(g, n1, n2):

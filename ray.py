@@ -8,30 +8,18 @@ from numpy import unique
 from scipy.ndimage.filters import median_filter
 
 # local modules
-from imio import read_image_stack, write_h5_stack
-from agglo import Rag, classifier_probability, boundary_mean
-from morpho import watershed, juicy_center
-from classify import mean_and_sem, feature_set_a, RandomForest
-
-def read_image_stack_single_arg(fn):
-    """Read an image stack and print exceptions as they occur.
-    
-    argparse.ArgumentParser() subsumes exceptions when they occur in the 
-    argument type, masking lower-level errors. This function prints out the
-    error before propagating it up the stack.
-    """
-    try:
-        return read_image_stack(fn)
-    except Exception as err:
-        print err
-        raise
-
-def pickled(fn):
-    return cPickle.load(open(fn, 'r'))
+from imio import read_image_stack, write_h5_stack, arguments as imioargs, \
+    read_image_stack_single_arg
+from agglo import Rag, classifier_probability, boundary_mean, \
+    approximate_boundary_mean, arguments as aggloargs
+from morpho import watershed, juicy_center, arguments as morphoargs
+from classify import mean_and_sem, feature_set_a, RandomForest, \
+    arguments as classifyargs
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
-        description='Segment a volume using a superpixel-to-RAG model.'
+        description='Segment a volume using a superpixel-to-RAG model.',
+        parents=[imioargs, morphoargs, aggloargs, classifyargs]
     )
     parser.add_argument('fin', nargs='+', 
         help='The boundary probability map file(s).'
@@ -39,59 +27,16 @@ if __name__ == '__main__':
     parser.add_argument('fout', 
         help='The output filename for the segmentation. Use %%str syntax.'
     )
-    parser.add_argument('-I', '--invert-image', action='store_true',
-        default=False,
-        help='Invert the probabilities before segmenting.'
-    )
-    parser.add_argument('-M', '--low-memory', action='store_true',
-        help='''Use less memory at a slight speed cost. Note that the phrase 
-            'low memory' is relative.'''
-    )
-    parser.add_argument('-w', '--watershed', metavar='WS_FN',
-        type=read_image_stack_single_arg,
-        help='Use a precomputed watershed volume from file.'
-    )
-    parser.add_argument('-t', '--thresholds', nargs='+', default=[128],
-        type=float, metavar='FLOAT',
-        help='''The agglomeration thresholds. One output file will be written
-            for each threshold.'''
-    )
-    parser.add_argument('-l', '--ladder', type=int, metavar='SIZE',
-        help='Merge any bodies smaller than SIZE.'
-    )
-    parser.add_argument('-p', '--pre-ladder', action='store_true', default=True,
-        help='Run ladder before normal agglomeration (default).'
-    )
-    parser.add_argument('-L', '--post-ladder', 
-        action='store_false', dest='pre_ladder',
-        help='Run ladder after normal agglomeration instead of before (SLOW).'
-    )
-    parser.add_argument('-s', '--strict-ladder', type=int, metavar='INT', 
-        default=1,
-        help='''Specify the strictness of the ladder agglomeration. Level 1
-            (default): merge anything smaller than the ladder threshold as 
-            long as it's not on the volume border. Level 2: only merge smaller
-            bodies to larger ones. Level 3: only merge when the border is 
-            larger than or equal to 2 pixels.'''
-    )
-    parser.add_argument('-m', '--median-filter', action='store_true', 
-        default=False, help='Run a median filter on the input image.'
-    )
     parser.add_argument('-P', '--show-progress', action='store_true',
         default=True, help='Show a progress bar for the agglomeration.'
-    )
-    parser.add_argument('-S', '--save-watershed', metavar='FILE',
-        help='Write the watershed result to FILE (overwrites).'
     )
     parser.add_argument('-v', '--verbose', action='store_true', default=False,
         help='Print runtime information about execution.'
     )
-    parser.add_argument('-c', '--classifier', type=pickled, metavar='PCK_FILE',
-        help='Load and use a classifier as a merge priority function.'
-    )
-    parser.add_argument('-f', '--feature-map-function', type=eval, 
-        default=feature_set_a,
-        help='Use named function as feature map (ignored when -c is not used).'
+    parser.add_argument('-o', '--objective-function', 
+        metavar='FCT_NAME', default='boundary_mean',
+        help='''Which merge priority function to use. Default: boundary_mean; 
+        choices: boundary_mean, approximate_boundary_mean'''
     )
     args = parser.parse_args()
 
@@ -118,10 +63,11 @@ if __name__ == '__main__':
         ('('+','.join(map(str,args.watershed.shape))+')',
         '('+','.join(map(str,probs.shape))+')')
     )
-    if args.classifier is not None:
-        mpf = classifier_probability(args.feature_map_function, args.classifier)
+    if args.load_classifier is not None:
+        mpf = classifier_probability(args.feature_map_function, 
+                                                        args.load_classifier)
     else:
-        mpf = boundary_mean
+        mpf = eval(args.objective_function)
 
     g = Rag(args.watershed, probs, show_progress=args.show_progress, 
         merge_priority_function=mpf, lowmem=args.low_memory)

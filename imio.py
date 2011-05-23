@@ -1,11 +1,22 @@
 
 import os
+import argparse
 
 import h5py, Image, numpy
 
 from fnmatch import filter as fnfilter
 from os.path import split as split_path, join as join_path
 from numpy import array, asarray, uint8, uint16, uint32, zeros, squeeze, ndim
+
+arguments = argparse.ArgumentParser(add_help=False)
+arggroup = arguments.add_argument_group('Image IO options')
+arggroup.add_argument('-I', '--invert-image', action='store_true',
+    default=False,
+    help='Invert the probabilities before segmenting.'
+)
+arggroup.add_argument('-m', '--median-filter', action='store_true', 
+    default=False, help='Run a median filter on the input image.'
+)
 
 def read_image_stack(fn, *args, **kwargs):
     """Read a 3D volume of images in .png or .h5 format into a numpy.ndarray.
@@ -46,6 +57,19 @@ def read_image_stack(fn, *args, **kwargs):
     if fn.endswith('.h5'):
         stack = read_h5_stack('/'.join([d,fn]), *args, **kwargs)
     return squeeze(stack)
+
+def read_image_stack_single_arg(fn):
+    """Read an image stack and print exceptions as they occur.
+    
+    argparse.ArgumentParser() subsumes exceptions when they occur in the 
+    argument type, masking lower-level errors. This function prints out the
+    error before propagating it up the stack.
+    """
+    try:
+        return read_image_stack(fn)
+    except Exception as err:
+        print err
+        raise
 
 def read_h5_stack(fn, *args, **kwargs):
     """Read a volume in HDF5 format into numpy.ndarray.
