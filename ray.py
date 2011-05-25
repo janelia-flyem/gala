@@ -64,7 +64,7 @@ if __name__ == '__main__':
         '('+','.join(map(str,probs.shape))+')')
     )
     if args.load_classifier is not None:
-        mpf = classifier_probability(args.feature_map_function, 
+        mpf = classifier_probability(eval(args.feature_map_function), 
                                                         args.load_classifier)
     else:
         mpf = eval(args.objective_function)
