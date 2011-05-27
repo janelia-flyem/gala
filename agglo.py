@@ -1,6 +1,7 @@
 
 from itertools import combinations, izip
 import argparse
+import random
 
 from heapq import heapify, heappush, heappop
 from numpy import array, mean, zeros, zeros_like, uint8, int8, where, unique, \
@@ -354,16 +355,21 @@ def boundary_mean_plus_sem(g, n1, n2, alpha=-6):
     bvals = g.probabilities.ravel()[list(g[n1][n2]['boundary'])]
     return mean(bvals) + alpha*sem(bvals)
 
+def random_priority(g, n1, n2):
+    if n1 == g.boundary_body or n2 == g.boundary_body:
+        return g.boundary_probability
+    return random.random()
+
 # RUG #
 
 class Rug(object):
     """Region union graph, used to compare two segmentations."""
-    def __init__(self, s1=None, s2=None, progress=False):
+    def __init__(self, s1=None, s2=None, progress=False, rem_zero_ovr=False):
         self.s1 = s1
         self.s2 = s2
         self.progress = progress
         if s1 is not None and s2 is not None:
-            self.build_graph(s1, s2)
+            self.build_graph(s1, s2, rem_zero_ovr)
 
     def build_graph(self, s1, s2, remove_zero_overlaps=False):
         if s1.shape != s2.shape:

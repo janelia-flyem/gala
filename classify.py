@@ -12,10 +12,10 @@ from scikits.learn.svm import SVC
 from scikits.learn.linear_model import LogisticRegression, LinearRegression
 from vigra.learning import RandomForest as VigraRandomForest
 from agglo import best_possible_segmentation, Rag, boundary_mean, \
-    classifier_probability
+    classifier_probability, Rug, random_priority
 import morpho
 import iterprogress as ip
-from imio import read_h5_stack, write_h5_stack
+from imio import read_h5_stack, write_h5_stack, write_image_stack
 
 def mean_and_sem(g, n1, n2):
     bvals = g.probabilities.ravel()[list(g[n1][n2]['boundary'])]
@@ -203,16 +203,6 @@ if __name__ == '__main__':
     parser.add_argument('-t', '--max-threshold', type=float, default=255,
         help='Agglomerate until this threshold'
     )
-    parser.add_argument('-E', '--true-tolerance', metavar='FLOAT', 
-        type=float, default=0.9,
-        help='''If and only if a boundary overlaps over more than fraction
-            FLOAT of true boundary, use as a positive training example.'''
-    )
-    parser.add_argument('-e', '--false-tolerance', metavar='FLOAT',
-        type=float, default=0.1,
-        help='''If and only if a boundary overlaps over less than fraction
-            FLOAT of a true boundary, use as a negative training example.'''
-    )
     parser.add_argument('-s', '--save-training-data', metavar='FILE',
         help='Save the generated training data to FILE (HDF5 format).'
     )
@@ -223,31 +213,50 @@ if __name__ == '__main__':
     parser.add_argument('-K', '--kernel', default='rbf',
         help='The kernel for an SVM classifier.'
     )
-    parser.add_argument('-i', '--training-image', type=str,
-        help='Save the positive and negative examples as an h5 image.'
-    )
     args = parser.parse_args()
 
     feature_map_function = eval(args.feature_map_function)
-    gt = best_possible_segmentation(args.ws, args.gt)
-    gt = morpho.pad(gt, [0,0]) # put gt on same coordinate system as seg
-    if args.load_classifier is not None:
-        mpf = classifier_probability(feature_map_function, args.load_classifier)
-    else:
-        mpf = boundary_mean
-    g = Rag(args.ws, args.probs, show_progress=True,
-                                                merge_priority_function=mpf)
-    merge_history = g.agglomerate(args.max_threshold, save_history=True)
-    g.merge_queue.finish()
-    g = Rag(args.ws, args.probs, show_progress=True)
-    loss = make_thresholded_boundary_overlap_loss(args.false_tolerance, 
-                                                  args.true_tolerance)
-    features, labels, labeled_image = \
-                label_merges(g, merge_history, feature_map_function, gt, loss)
-    if args.training_image is not None:
-        write_h5_stack(labeled_image, args.training_image)
-    features = features[labels != 0,:]
-    labels = labels[labels != 0]
+    gtg = Rag(args.gt)
+    wsg = Rag(args.ws, args.probs, random_priority)
+    rug = Rug(wsg.get_segmentation(), gtg.get_segmentation(), True, False)
+    assignment = rug.overlaps == rug.overlaps.max(axis=1)[:,newaxis]
+    hard_assignment = where(assignment.sum(axis=1) > 1)[0]
+    wsg.merge_queue = wsg.build_merge_queue()
+    features, labels = [], []
+
+    while(wsg.number_of_nodes() > gtg.number_of_nodes()):
+        pr, valid, n1, n2 = wsg.merge_queue.pop()
+        if pr > 1:
+            print 'Warning, wsg number of nodes > than gtg number of nodes ' +\
+                'and all valid merges have been made. saving segmentation ' +\
+                'to tmp-seg.h5. wsg number of nodes: ', \
+                wsg.number_of_nodes(), 'gtg number of nodes: ', \
+                gtg.number_of_nodes()
+            write_image_stack(wsg.get_segmentation(), 'tmp-seg.h5')
+            break
+        if valid:
+            features.append(feature_map_function(wsg, n1, n2).ravel())
+            if n2 in hard_assignment:
+                n1, n2 = n2, n1
+            if n1 in hard_assignment and \
+                                (assignment[n1,:] * assignment[n2,:]).any():
+                m = boundary_mean(wsg, n1, n2)
+                ms = [boundary_mean(wsg, n1, n) for n in wsg.neighbors(n1)]
+                if m == min(ms):
+                    wsg.merge_nodes(n2, n1)
+                    labels.append(-1)
+                else:
+                    _ = features.pop() # remove last item
+            else:
+                if (assignment[n1,:] == assignment[n2,:]).all():
+                    wsg.merge_nodes(n1, n2)
+                    labels.append(-1)
+                else:
+                    labels.append(1)
+
+    features, labels = array(features).astype(double), array(labels)
+    print 'shapes: ', features.shape, labels.shape
+
     if args.load_classifier is not None:
         try:
             f = h5py.File(args.save_training_data)
