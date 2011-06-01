@@ -1,4 +1,6 @@
 
+import itertools
+combinations, izip = itertools.combinations, itertools.izip
 from itertools import combinations, izip
 import argparse
 import random
@@ -42,6 +44,14 @@ arggroup.add_argument('-M', '--low-memory', action='store_true',
     help='''Use less memory at a slight speed cost. Note that the phrase 
         'low memory' is relative.'''
 )
+
+def conditional_countdown(seq, start=1, pred=bool):
+    """Count down from 'start' each time pred(elem) is true for elem in seq."""
+    remaining = start
+    for elem in seq:
+        if pred(elem):
+            remaining -= 1
+        yield remaining
 
 class Rag(Graph):
     """Region adjacency graph for segmentation of nD volumes."""
@@ -129,6 +139,7 @@ class Rag(Graph):
         else:
             self.pixel_neighbors = morpho.build_neighbors_array(self.watershed)
             self.neighbor_idxs = self.get_neighbor_idxs_fast
+        self.sum_body_sizes = double(self.get_segmentation().astype(bool).sum())
 
     def build_merge_queue(self):
         """Build a queue of node pairs to be merged in a specific priority.
@@ -204,8 +215,87 @@ class Rag(Graph):
         self.merge_priority_function = original_merge_priority_function
         self.merge_queue.finish()
 
+    def learn_agglomerate(self, gt, feature_map_function):
+        """Agglomerate while comparing to ground truth & classifying merges."""
+        gtg = Rag(gt)
+        rug = Rug(self.get_segmentation(), gtg.get_segmentation(), True, False)
+        assignment = rug.overlaps == rug.overlaps.max(axis=1)[:,newaxis]
+        hard_assignment = where(assignment.sum(axis=1) > 1)[0]
+        # 'hard assignment' nodes are nodes that have most of their overlap
+        # with the 0-label in gt, or that have equal amounts of overlap between
+        # two other labels
+        if self.merge_queue.is_empty(): self.rebuild_merge_queue()
+        features, labels = [], []
+        history, ave_size = [], []
+        while self.number_of_nodes() > gtg.number_of_nodes():
+            merge_priority, valid, n1, n2 = self.merge_queue.pop()
+            if merge_priority == self.boundary_probability:
+                print 'Warning: agglomeration done early...'
+                break
+            if valid:
+                features.append(feature_map_function(self, n1, n2).ravel())
+                if n2 in hard_assignment:
+                    n1, n2 = n2, n1
+                if n1 in hard_assignment and \
+                                (assignment[n1,:] * assignment[n2,:]).any():
+                    m = boundary_mean(self, n1, n2)
+                    ms = [boundary_mean(self, n1, n) for n in 
+                                                            self.neighbors(n1)]
+                    if m == min(ms):
+                        ave_size.append(self.sum_body_sizes / 
+                                                (self.number_of_nodes()-1))
+                        history.append([n2, n1])
+                        self.merge_nodes(n2, n1)
+                        labels.append(-1)
+                    else:
+                        _ = features.pop() # remove last item
+                else:
+                    history.append([n1, n2])
+                    ave_size.append(self.sum_body_sizes / 
+                                                (self.number_of_nodes()-1))
+                    if (assignment[n1,:] == assignment[n2,:]).all():
+                        self.merge_nodes(n1, n2)
+                        labels.append(-1)
+                    else:
+                        labels.append(1)
+        return array(features).astype(double), array(labels), \
+                                            array(history), array(ave_size)
+
+    def replay_merge_history(self, merge_seq, labels=None, num_errors=1):
+        """Agglomerate according to a merge sequence, optionally labeled.
+        
+        The merge sequence and labels _must_ be generators if you don't want
+        to manually keep track of how much has been consumed. The merging
+        continues until num_errors false merges have been encountered, or 
+        until the sequence is fully consumed.
+        
+        labels are -1 or 0 for 'should merge', 1 for 'should not merge'.
+        
+        Return value: number of elements consumed from merge_seq, and last
+        merge pair observed.
+        """
+        if labels is None:
+            labels1 = itertools.repeat(False)
+            labels2 = itertools.repeat(False)
+        else:
+            labels1 = (label > 0 for label in labels)
+            labels2 = (label > 0 for label in labels)
+        counter = itertools.count()
+        errors_remaining = conditional_countdown(labels2, num_errors)
+        nodes = None
+        for nodes, label, errs, count in \
+                        izip(merge_seq, labels1, errors_remaining, counter):
+            n1, n2 = nodes
+            if not label:
+                self.merge_nodes(n1, n2)
+            elif errs == 0:
+                break
+        return count, nodes
+
     def merge_nodes(self, n1, n2):
         """Merge two nodes, while updating the necessary edges."""
+        self.sum_body_sizes -= len(self.node[n1]['extent']) + \
+                                len(self.node[n2]['extent'])
         new_neighbors = [n for n in self.neighbors(n2) if n != n1]
         for n in new_neighbors:
             if self.has_edge(n, n1):
@@ -263,6 +353,7 @@ class Rag(Graph):
                 if not boundaries_to_edit.has_key((n1,n)):
                     self.update_merge_queue(n1, n)
         self.remove_node(n2)
+        self.sum_body_sizes += len(self.node[n1]['extent'])
 
     def merge_edge_properties(self, src, dst):
         """Merge the properties of edge src into edge dst."""

@@ -213,48 +213,22 @@ if __name__ == '__main__':
     parser.add_argument('-K', '--kernel', default='rbf',
         help='The kernel for an SVM classifier.'
     )
+    parser.add_argument('-o', '--objective-function', metavar='FCT_NAME', 
+        default='random_priority', help='The merge priority function name.'
+    )
     args = parser.parse_args()
 
     feature_map_function = eval(args.feature_map_function)
-    gtg = Rag(args.gt)
+    if args.load_classifier is not None:
+        mpf = classifier_probability(eval(args.feature_map_function), 
+                                                        args.load_classifier)
+    else:
+        mpf = eval(args.objective_function)
+
     wsg = Rag(args.ws, args.probs, random_priority)
-    rug = Rug(wsg.get_segmentation(), gtg.get_segmentation(), True, False)
-    assignment = rug.overlaps == rug.overlaps.max(axis=1)[:,newaxis]
-    hard_assignment = where(assignment.sum(axis=1) > 1)[0]
-    wsg.merge_queue = wsg.build_merge_queue()
-    features, labels = [], []
+    features, labels, history, ave_sizes = \
+                        wsg.learn_agglomerate(args.gt, feature_map_function)
 
-    while(wsg.number_of_nodes() > gtg.number_of_nodes()):
-        pr, valid, n1, n2 = wsg.merge_queue.pop()
-        if pr > 1:
-            print 'Warning, wsg number of nodes > than gtg number of nodes ' +\
-                'and all valid merges have been made. saving segmentation ' +\
-                'to tmp-seg.h5. wsg number of nodes: ', \
-                wsg.number_of_nodes(), 'gtg number of nodes: ', \
-                gtg.number_of_nodes()
-            write_image_stack(wsg.get_segmentation(), 'tmp-seg.h5')
-            break
-        if valid:
-            features.append(feature_map_function(wsg, n1, n2).ravel())
-            if n2 in hard_assignment:
-                n1, n2 = n2, n1
-            if n1 in hard_assignment and \
-                                (assignment[n1,:] * assignment[n2,:]).any():
-                m = boundary_mean(wsg, n1, n2)
-                ms = [boundary_mean(wsg, n1, n) for n in wsg.neighbors(n1)]
-                if m == min(ms):
-                    wsg.merge_nodes(n2, n1)
-                    labels.append(-1)
-                else:
-                    _ = features.pop() # remove last item
-            else:
-                if (assignment[n1,:] == assignment[n2,:]).all():
-                    wsg.merge_nodes(n1, n2)
-                    labels.append(-1)
-                else:
-                    labels.append(1)
-
-    features, labels = array(features).astype(double), array(labels)
     print 'shapes: ', features.shape, labels.shape
 
     if args.load_classifier is not None:
@@ -279,6 +253,8 @@ if __name__ == '__main__':
         f = h5py.File(args.save_training_data)
         f['samples'] = features
         f['labels'] = labels
+        f['history'] = history
+        f['size'] = ave_sizes
     c = select_classifier(args.classifier, features=features, labels=labels, 
                                         class_weight=cw, kernel=args.kernel)
     print "saving classifier..."
