@@ -9,6 +9,7 @@ from heapq import heapify, heappush, heappop
 from numpy import array, mean, zeros, zeros_like, uint8, int8, where, unique, \
     finfo, float, size, double, transpose, newaxis
 from scipy.stats import sem
+from scipy.ndimage.measurements import center_of_mass
 from networkx import Graph
 from networkx.algorithms.traversal.depth_first_search import dfs_preorder_nodes
 import morpho
@@ -380,6 +381,16 @@ class Rag(Graph):
             new_qitem = [self.merge_priority_function(self,u,v), True, u, v]
             self[u][v]['qlink'] = new_qitem
             self.merge_queue.push(new_qitem)
+
+    def show_merge_3D(self, n1, n2, **kwargs):
+        im = self.image
+        if kwargs.has_key('image'):
+            im = kwargs['image']
+        boundary = zeros(self.segmentation.shape, uint8)
+        boundary.ravel()[list(self[n1][n2]['boundary'])] = 1
+        centerpoint = array(center_of_mass(boundary)).round()
+        bodies = zeros(self.segmentation.shape, uint8)
+
 
     def get_segmentation(self):
         return morpho.juicy_center(self.segmentation, 2)
