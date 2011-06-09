@@ -4,10 +4,10 @@ combinations, izip = itertools.combinations, itertools.izip
 from itertools import combinations, izip
 import argparse
 import random
-
+import matplotlib.pyplot as plt
 from heapq import heapify, heappush, heappop
 from numpy import array, mean, zeros, zeros_like, uint8, int8, where, unique, \
-    finfo, float, size, double, transpose, newaxis
+    finfo, float, size, double, transpose, newaxis, uint32
 from scipy.stats import sem
 from scipy.ndimage.measurements import center_of_mass
 from networkx import Graph
@@ -383,13 +383,48 @@ class Rag(Graph):
             self.merge_queue.push(new_qitem)
 
     def show_merge_3D(self, n1, n2, **kwargs):
+        """Show the 'best' view of a putative merge between given nodes."""
         im = self.image
         if kwargs.has_key('image'):
             im = kwargs['image']
+        alpha = 0.7
+        if kwargs.has_key('alpha'):
+            alpha = kwargs['alpha']
+        fignum = 1
+        if kwargs.has_key('fignum'):
+            fignum = kwargs['fignum']
         boundary = zeros(self.segmentation.shape, uint8)
-        boundary.ravel()[list(self[n1][n2]['boundary'])] = 1
-        centerpoint = array(center_of_mass(boundary)).round()
-        bodies = zeros(self.segmentation.shape, uint8)
+        boundary_idxs = list(self[n1][n2]['boundary'])
+        boundary.ravel()[boundary_idxs] = 3
+        boundary.ravel()[list(self.node[n1]['extent'])] = 1
+        boundary.ravel()[list(self.node[n2]['extent'])] = 2
+        boundary = morpho.juicy_center(boundary, 2)
+        x, y, z = array(center_of_mass(boundary==3)).round().astype(uint32)
+        def imshow_grey(im):
+            _ = plt.imshow(im, cmap=plt.cm.gray, interpolation='nearest')
+        def imshow_jet_a(im):
+            _ = plt.imshow(im, cmap=plt.cm.jet, 
+                                        interpolation='nearest', alpha=alpha)
+        fig = plt.figure(fignum)
+        plt.subplot(221)
+        imshow_grey(im[:,:,z])
+        imshow_jet_a(boundary[:,:,z])
+        plt.subplot(222)
+        imshow_grey(im[:,y,:])
+        imshow_jet_a(boundary[:,y,:])
+        plt.subplot(223)
+        imshow_grey(im[x,:,:])
+        imshow_jet_a(boundary[x,:,:])
+        plt.subplot(224)
+        if kwargs.has_key('feature_map_function'):
+            f = kwargs['feature_map_function']
+            features = f(self, n1, n2)
+            _ = plt.scatter(arange(len(features)), features)
+        else:
+            _ = plt.hist(self.probabilities.ravel()[boundary_idxs], bins=25)
+        plt.title('feature vector. prob = %.4f' % 
+                                self.merge_priority_function(self, n1, n2))
+        return fig
 
 
     def get_segmentation(self):
