@@ -1,5 +1,6 @@
 import numpy
 import agglo
+from scipy.misc import comb as nchoosek
 
 def pixel_wise_boundary_precision_recall(aseg, gt):
     gt = (1-gt.astype(numpy.bool)).astype(numpy.uint8)
