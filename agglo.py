@@ -441,9 +441,7 @@ class Rag(Graph):
         nodes_list = self.nodes()
         n = len(nodes_list)
         W = lil_matrix((n,n))
-        for edge in self.edges_iter():
-            e1 = edge[0]
-            e2 = edge[1]
+        for e1, e2 in self.edges_iter():
             val = merge_priority_function(self,e1,e2)
             ind1 = nonzero(nodes_list==e1)[0][0]
             ind2 = nonzero(nodes_list==e2)[0][0]
