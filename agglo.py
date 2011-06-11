@@ -7,13 +7,15 @@ import random
 import matplotlib.pyplot as plt
 from heapq import heapify, heappush, heappop
 from numpy import array, mean, zeros, zeros_like, uint8, int8, where, unique, \
-    finfo, float, size, double, transpose, newaxis, uint32
+    finfo, float, size, double, transpose, newaxis, uint32, nonzero, median, exp
 from scipy.stats import sem
+from scipy.sparse import lil_matrix
 from scipy.ndimage.measurements import center_of_mass
 from networkx import Graph
 from networkx.algorithms.traversal.depth_first_search import dfs_preorder_nodes
 import morpho
 import iterprogress as ip
+from ncut import ncutW
 from mergequeue import MergeQueue
 
 arguments = argparse.ArgumentParser(add_help=False)
@@ -443,6 +445,46 @@ class Rag(Graph):
 
     def write(self, fout, format='GraphML'):
         pass
+        
+    def ncut(self, num_clusters=10, kmeans_iters=5, sigma=255.0*20):
+        """Run normalized cuts on the current set of superpixels.
+           Keyword arguments:
+               num_clusters -- number of clusters to compute
+               kmeans_iters -- # iterations to run kmeans when clustering
+               sigma -- sigma value when setting up weight matrix
+           Return value: None
+        """
+        W = self.compute_W(self.merge_priority_function) # Compute weight matrix
+        labels, eigvec, eigval = ncutW(W, num_clusters, kmeans_iters) # Run ncut
+        self.cluster_by_labels(labels) # Merge nodes that are in same cluster
+    
+    def cluster_by_labels(self, labels):
+        """Merge all superpixels with the same label (1 label per 1 sp)"""
+        if not (len(labels) == self.number_of_nodes()):
+            raise ValueError('Number of labels should be %d but is %d.', 
+                self.number_of_nodes(), len(labels))
+        nodes = array(self.nodes())
+        for label in unique(labels):
+            ind = nonzero(labels==label)[0]
+            nodes_to_merge = nodes[ind]
+            node1 = nodes_to_merge[0]
+            for node in nodes_to_merge[1:]:
+                self.merge_nodes(node1,node)
+                
+    def compute_W(self, merge_priority_function, sigma=255.0*20):
+        """ Computes the weight matrix for clustering"""
+        nodes_list = self.nodes()
+        n = len(nodes_list)
+        W = lil_matrix((n,n))
+        for e1, e2 in self.edges_iter():
+            val = merge_priority_function(self,e1,e2)
+            ind1 = nonzero(nodes_list==e1)[0][0]
+            ind2 = nonzero(nodes_list==e2)[0][0]
+            W[ind1, ind2] = exp(-val**2/sigma)
+            W[ind2, ind1] = W[ind1, ind2]
+        return W
+              
+                    
 
 ############################
 # Merge priority functions #
@@ -450,6 +492,9 @@ class Rag(Graph):
 
 def boundary_mean(g, n1, n2):
     return mean(g.probabilities.ravel()[list(g[n1][n2]['boundary'])])
+
+def boundary_median(g, n1, n2):
+    return median(g.probabilities.ravel()[list(g[n1][n2]['boundary'])])
 
 def approximate_boundary_mean(g, n1, n2):
     return g[n1][n2]['sump'] / g[n1][n2]['n']
