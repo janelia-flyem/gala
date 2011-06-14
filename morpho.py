@@ -45,8 +45,12 @@ def diamondse(sz, dimension):
     return se
 
 
-def watershed(a, show_progress=False):
-    ws = zeros(shape(a), uint32)
+def watershed(a, seeds=None, show_progress=False):
+    seeded = seeds is not None
+    if not seeded:
+        ws = zeros(shape(a), uint32)
+    else:
+        ws = seeds
     a = pad(a, a.max()+1)
     ws = pad(ws, 0)
     maxlabel = iinfo(ws.dtype).max
@@ -78,10 +82,16 @@ def watershed(a, show_progress=False):
                 ns = neighbors[idx]
                 idxs_adjacent_to_labels.extend(ns[((ws.ravel()[ns] == 0) * 
                                     (a.ravel()[ns] == level)).astype(bool) ])
-        new_labels, num_new = measurements.label((ws == 0) * (a == level), sel)
-        new_labels = (current_label + new_labels) * (new_labels != 0)
-        current_label += num_new
-        ws += new_labels
+        if seeded:
+            not_adj = where((ws == 0) * (a == level))[0]
+            level_pixels[level+1].extend(not_adj)
+            a.ravel()[not_adj] = level+1
+        else:
+            new_labels, num_new = \
+                            measurements.label((ws == 0) * (a == level), sel)
+            new_labels = (current_label + new_labels) * (new_labels != 0)
+            current_label += num_new
+            ws += new_labels
     ws[ws==maxlabel] = 0
     return juicy_center(ws)
 
@@ -153,7 +163,7 @@ def juicy_center(ar, skinsize=1):
     return ar[selector].reshape(center_shape)
 
 def build_levels_dict(a):
-    return dict( ((l, where(a.ravel()==l)[0]) for l in unique(a)) )
+    return dict( ((l, list(where(a.ravel()==l)[0])) for l in unique(a)) )
 
 def build_neighbors_array(ar):
     idxs = arange(ar.size, dtype=uint32)
