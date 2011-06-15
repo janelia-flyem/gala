@@ -27,10 +27,7 @@ def mean_sem_and_n_from_cache_dict(d):
     except KeyError:
         n = len(d['extent'])
     m = d['sump']/n
-    try:
-        v = max(0, d['sump2']/(n-1) - n/(n-1)*m*m)
-    except ZeroDivisionError:
-        v = 0
+    v = 0 if n==1 else max(0, d['sump2']/(n-1) - n/(n-1)*m*m)
     s = sqrt(v/n)
     return m, s, n
 

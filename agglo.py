@@ -232,7 +232,7 @@ class Rag(Graph):
         history, ave_size = [], []
         while self.number_of_nodes() > gtg.number_of_nodes():
             merge_priority, valid, n1, n2 = self.merge_queue.pop()
-            if merge_priority == self.boundary_probability:
+            if merge_priority == self.boundary_probability or self.boundary_body in [n1, n2]:
                 print 'Warning: agglomeration done early...'
                 break
             if valid:
