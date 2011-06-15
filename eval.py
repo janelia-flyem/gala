@@ -41,28 +41,44 @@ def contingency_table(seg, gt):
         
     return cont
     
-def voi(seg, gt, cont=None):
+def voi(X, Y, cont=None):
     """ Return the variation of information metric. """
+    return numpy.sum(split_voi(X,Y,cont))
+
+def split_voi(X, Y, cont=None):
+    """ Return the conditional entropies associated with the variation of information.
+    
+    The variation of information is defined as VI(X,Y) = H(X|Y) + H(Y|X).
+    If Y is the ground-truth segmentation, then H(Y|X) can be interpreted
+    as the amount of under-segmentation of Y and H(X|Y) is then the amount
+    of over-segmentation.  In other words, a perfect over-segmentation
+    will have H(Y|X)=0 and a perfect under-segmentation will have H(X|Y)=0.
+
+    """
     if cont is None:
-        cont = contingency_table(seg, gt)
+        cont = contingency_table(X, Y)
     
     n = numpy.sum(cont)
-    # Calculate values for variation of information
     s1,s2 = numpy.shape(cont)
-    pxy = cont/float(n) #P(X,Y)
+    
+    # Calculate probabilities
+    pxy = cont/float(n)
     px = numpy.sum(pxy,0)
     py = numpy.sum(pxy,1)
+    
+    # Calculate log conditional probabilities
     lpygx = numpy.divide(pxy, numpy.tile(px, (s1,1))) # log P(Y|X)
     r,c = numpy.nonzero(pxy)
     lpygx[r,c] = numpy.log2(lpygx[r,c])
+    
     lpxgy = numpy.divide(pxy, numpy.tile(py, (s2,1)).transpose()) # log P(X|Y)
     r,c = numpy.nonzero(pxy)
     lpxgy[r,c] = numpy.log2(lpxgy[r,c])
 
-    # Get variation of information
+    # Calculate conditional entropies
     hygx = -numpy.sum(numpy.multiply(pxy, lpygx))
     hxgy = -numpy.sum(numpy.multiply(pxy, lpxgy))
-    return hygx + hxgy
+    return hygx, hxgy
 
 def rand_index(seg, gt, cont=None):
     """ Return the unadjusted Rand index. """
