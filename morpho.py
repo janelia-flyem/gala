@@ -12,7 +12,8 @@ from numpy import   shape, reshape, \
                     concatenate
 import itertools
 from collections import deque as queue
-from scipy.ndimage import filters, measurements
+from scipy.ndimage import filters
+from scipy.ndimage.measurements import label
 #from scipy.spatial.distance import cityblock as manhattan_distance
 import iterprogress as ip
 
@@ -29,6 +30,10 @@ arggroup.add_argument('-S', '--save-watershed', metavar='FILE',
 arggroup.add_argument('-w', '--watershed', metavar='WS_FN',
     type=read_image_stack_single_arg,
     help='Use a precomputed watershed volume from file.'
+)
+arggroup.add_argument('--seed', metavar='FN', type=read_image_stack_single_arg,
+    help='''use the volume in FN to seed the watershed. By default, connected
+        components of 0-valued pixels will be used as the seeds.'''
 )
 
 def manhattan_distance(a, b):
@@ -87,8 +92,7 @@ def watershed(a, seeds=None, show_progress=False):
             level_pixels[level+1].extend(not_adj)
             a.ravel()[not_adj] = level+1
         else:
-            new_labels, num_new = \
-                            measurements.label((ws == 0) * (a == level), sel)
+            new_labels, num_new = label((ws == 0) * (a == level), sel)
             new_labels = (current_label + new_labels) * (new_labels != 0)
             current_label += num_new
             ws += new_labels
@@ -180,6 +184,7 @@ def get_neighbor_idxs(ar, idxs):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
+        parents=[arguments],
         description='Watershed transform an image volume.'
     )
     parser.add_argument('fin', nargs='+',
@@ -207,7 +212,9 @@ if __name__ == '__main__':
         v = filters.median_filter(v, 3)
     if args.gaussian_filter is not None:
         v = filters.gaussian_filter(v, args.gaussian_filter)
-    ws = watershed(v, show_progress=args.show_progress)
+    if args.seed is not None:
+        args.seed, _ = label(args.seed == 0, diamondse(3, args.seed.ndim))
+    ws = watershed(v, seeds=args.seed, show_progress=args.show_progress)
     if os.access(args.fout, os.F_OK):
         os.remove(args.fout)
     write_h5_stack(ws, args.fout)
