@@ -47,6 +47,16 @@ arggroup.add_argument('-M', '--low-memory', action='store_true',
     help='''Use less memory at a slight speed cost. Note that the phrase 
         'low memory' is relative.'''
 )
+arggroup.add_argument('--disallow-shared-boundaries', action='store_false',
+    dest='allow_shared_boundaries',
+    help='''Watershed pixels that are shared between more than 2 labels are
+        not counted as edges.'''
+)
+arggroup.add_argument('--allow-shared-boundaries', action='store_true',
+    default=True,
+    help='''Count every watershed pixel in every edge in which it participates
+        (default: True).'''
+)
 
 def conditional_countdown(seq, start=1, pred=bool):
     """Count down from 'start' each time pred(elem) is true for elem in seq."""
@@ -60,7 +70,7 @@ class Rag(Graph):
     """Region adjacency graph for segmentation of nD volumes."""
 
     def __init__(self, watershed=None, probabilities=None, 
-            merge_priority_function=None, 
+            merge_priority_function=None, allow_shared_boundaries=True,
             edge_feature_init_fct=None, edge_feature_merge_fct=None, 
             node_feature_init_fct=None, node_feature_merge_fct=None,
             show_progress=False, lowmem=False):
@@ -82,10 +92,10 @@ class Rag(Graph):
             self.merge_priority_function = merge_priority_function
         if watershed is not None:
             self.set_watershed(watershed, lowmem)
-            self.build_graph_from_watershed()
+            self.build_graph_from_watershed(allow_shared_boundaries)
         self.merge_queue = MergeQueue()
 
-    def build_graph_from_watershed(self):
+    def build_graph_from_watershed(self, allow_shared_boundaries=True):
         zero_idxs = where(self.watershed.ravel() == 0)[0]
         if self.show_progress:
             def with_progress(seq, length=None, title='Progress: '):
@@ -100,6 +110,8 @@ class Rag(Graph):
             ns = self.neighbor_idxs(idx)
             adj_labels = self.watershed.ravel()[ns]
             adj_labels = unique(adj_labels[adj_labels != 0])
+            if len(adj_labels) > 2 and not allow_shared_boundaries:
+                continue
             p = double(self.probabilities.ravel()[idx])
             for l1,l2 in combinations(adj_labels, 2):
                 if self.has_edge(l1, l2): 
@@ -114,6 +126,8 @@ class Rag(Graph):
         nonzero_idxs = where(self.watershed.ravel() != 0)[0]
         for idx in with_progress(nonzero_idxs, title='Building nodes... '):
             nodeid = self.watershed.ravel()[idx]
+            if not allow_shared_boundaries and not self.has_node(nodeid):
+                self.add_node(nodeid)
             p = double(self.probabilities.ravel()[idx])
             try:
                 self.node[nodeid]['extent'].add(idx)

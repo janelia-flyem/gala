@@ -70,7 +70,9 @@ if __name__ == '__main__':
         mpf = eval(args.objective_function)
 
     g = Rag(args.watershed, probs, show_progress=args.show_progress, 
-        merge_priority_function=mpf, lowmem=args.low_memory)
+        merge_priority_function=mpf, 
+        allow_shared_boundaries=args.allow_shared_boundaries,
+        lowmem=args.low_memory)
 
     vfn.write('RAG computed. Number of nodes: %i, Number of edges: %i\n'%
         (g.number_of_nodes(), g.number_of_edges())
