@@ -25,8 +25,6 @@ def edit_distance_to_bps(aseg, bps):
 
 def contingency_table(seg, gt):
     """Return the contingency table for all regions in matched segmentations."""
-    gt,n = label(gt)
-    seg,n = label(seg)
     gtr = numpy.ravel(gt)
     segr = numpy.ravel(seg) 
     ij = numpy.zeros((2,len(gtr)))
@@ -52,14 +50,21 @@ def split_voi(X, Y, cont=None):
         cont = contingency_table(X, Y)
 
     n = numpy.sum(cont)
-    s1,s2 = numpy.shape(cont)
 
     # Calculate probabilities
     pxy = cont/float(n)
     px = numpy.sum(pxy,0)
     py = numpy.sum(pxy,1)
+    # Remove zero rows/cols
+    px0 = numpy.nonzero(px)[0]
+    py0 = numpy.nonzero(py)[0]
+    px = px[px0]
+    py = py[py0]
+    pxy = pxy[py0,:]
+    pxy = pxy[:,px0]
 
     # Calculate log conditional probabilities
+    s1,s2 = numpy.shape(pxy)
     lpygx = numpy.divide(pxy, numpy.tile(px, (s1,1))) # log P(Y|X)
     r,c = numpy.nonzero(pxy)
     lpygx[r,c] = numpy.log2(lpygx[r,c])
