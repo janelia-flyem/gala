@@ -149,6 +149,7 @@ class Rag(Graph):
 
     def set_watershed(self, ws, lowmem=False):
         self.boundary_body = ws.max()+1
+        self.size = ws.size
         self.watershed = morpho.pad(ws, [0, self.boundary_body])
         self.segmentation = self.watershed.copy()
         if lowmem:
@@ -541,6 +542,20 @@ def classifier_probability(feature_extractor, classifier):
         except AttributeError:
             prediction = classifier.predict(features)[0]
         return prediction
+    return predict
+
+def expected_change_voi(feature_extractor, classifier):
+    prob_func = classifier_probability(feature_extractor, classifier)
+    def predict(g, n1, n2):
+        p = prob_func(g, n1, n2) # Prediction from the classifier
+        n = g.size
+        py1 = len(g.node[n1]['extent'])/float(n)
+        py2 = len(g.node[n2]['extent'])/float(n)
+        py = py1 + py2
+        # Calculate change in VOI
+        v = -(py1*numpy.log2(py1) + py2*numpy.log2(py2) - py*numpy.log2(py))
+        # Return expected change (p*v + (1-p)*(-v))
+        return 2*p*v - v
     return predict
 
 def boundary_mean_ladder(g, n1, n2, threshold, strictness=1):
