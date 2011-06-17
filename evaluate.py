@@ -25,11 +25,8 @@ def edit_distance_to_bps(aseg, bps):
 def contingency_table(seg, gt):
     """Return the contingency table for all regions in matched segmentations."""
     # Re-number the segmentations in so they have sequentially-numbered segments
-    sel = numpy.zeros((3,3))
-    sel[:,1] = 1
-    sel[1,:] = 1
-    gt,n = label(gt, sel)
-    seg,n = label(seg, sel)
+    gt,n = label(gt)
+    seg,n = label(seg)
 
     gtr = numpy.ravel(gt)
     segr = numpy.ravel(seg)
