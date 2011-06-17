@@ -1,5 +1,6 @@
 import numpy
 import agglo
+from scipy.sparse import coo_matrix
 from scipy.ndimage.measurements import label
 from scipy.misc import comb as nchoosek
 
