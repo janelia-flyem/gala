@@ -7,7 +7,8 @@ import random
 import matplotlib.pyplot as plt
 from heapq import heapify, heappush, heappop
 from numpy import array, mean, zeros, zeros_like, uint8, int8, where, unique, \
-    finfo, float, size, double, transpose, newaxis, uint32, nonzero, median, exp
+    finfo, float, size, double, transpose, newaxis, uint32, nonzero, median, exp, \
+    log2
 from scipy.stats import sem
 from scipy.sparse import lil_matrix
 from scipy.ndimage.measurements import center_of_mass
@@ -547,15 +548,15 @@ def classifier_probability(feature_extractor, classifier):
 def expected_change_voi(feature_extractor, classifier):
     prob_func = classifier_probability(feature_extractor, classifier)
     def predict(g, n1, n2):
-        p = prob_func(g, n1, n2) # Prediction from the classifier
+        p = float(prob_func(g, n1, n2)) # Prediction from the classifier
         n = g.size
         py1 = len(g.node[n1]['extent'])/float(n)
         py2 = len(g.node[n2]['extent'])/float(n)
         py = py1 + py2
         # Calculate change in VOI
-        v = -(py1*numpy.log2(py1) + py2*numpy.log2(py2) - py*numpy.log2(py))
-        # Return expected change (p*v + (1-p)*(-v))
-        return 2*p*v - v
+        v = -float(py1*log2(py1) + py2*log2(py2) - py*log2(py))
+        # Return expected change
+        return  (p*v + (1.0-p)*(-v))
     return predict
 
 def boundary_mean_ladder(g, n1, n2, threshold, strictness=1):
