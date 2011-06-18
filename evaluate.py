@@ -30,7 +30,7 @@ def contingency_table(seg, gt):
     ij = numpy.zeros((2,len(gtr)))
     ij[0,:] = gtr
     ij[1,:] = segr
-    cont = numpy.array(scipy.sparse.coo_matrix((numpy.ones((len(gtr))), ij)).todense())
+    cont = numpy.array(coo_matrix((numpy.ones((len(gtr))), ij)).todense())
     return cont
     
 def voi(X, Y, cont=None):
