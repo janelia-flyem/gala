@@ -159,12 +159,12 @@ def pad(ar, vals):
         return pad(ar2, vals[1:])
         
 def juicy_center(ar, skinsize=1):
-    center_shape = array(ar.shape)-2*skinsize
-    selector = ones_like(ar).astype(bool)
-    for i in xrange(ar.ndim):
-        selector.swapaxes(0,i)[0:skinsize,...] = False
-        selector.swapaxes(0,i)[-1:-skinsize-1:-1,...] = False
-    return ar[selector].reshape(center_shape)
+   for i in xrange(ar.ndim):
+       ind = ones((ar.shape[i]))
+       ind[:skinsize] = 0
+       ind[-skinsize:] = 0
+       ar = ar.compress(ind, axis = i)
+   return ar
 
 def build_levels_dict(a):
     return dict( ((l, list(where(a.ravel()==l)[0])) for l in unique(a)) )
