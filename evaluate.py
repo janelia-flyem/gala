@@ -25,19 +25,29 @@ def edit_distance_to_bps(aseg, bps):
 
 def contingency_table(seg, gt):
     """Return the contingency table for all regions in matched segmentations."""
-    gtr = numpy.ravel(gt)
-    segr = numpy.ravel(seg) 
+    gtr = gt.ravel()
+    segr = seg.ravel() 
     ij = numpy.zeros((2,len(gtr)))
     ij[0,:] = gtr
     ij[1,:] = segr
-    cont = numpy.array(coo_matrix((numpy.ones((len(gtr))), ij)).todense())
+    cont = coo_matrix((numpy.ones((len(gtr))), ij)).toarray()
     return cont
-    
+
+def xlogx(x, out=None):
+    """Compute x * log_2(x) with 0 log(0) defined to be 0."""
+    nz = x.nonzero()
+    if out is None:
+        y = x.copy()
+    else:
+        y = out
+    y[nz] *= numpy.log2(y[nz])
+    return y
+
 def voi(X, Y, cont=None):
     """Return the variation of information metric."""
     return numpy.sum(split_voi(X,Y,cont))
 
-def split_voi(X, Y, cont=None):
+def split_voi(X, Y, cont=None, ignore_gt_labels=[], ignore_seg_labels=[]):
     """Return the symmetric conditional entropies associated with the VOI.
     
     The variation of information is defined as VI(X,Y) = H(X|Y) + H(Y|X).
@@ -49,84 +59,63 @@ def split_voi(X, Y, cont=None):
     if cont is None:
         cont = contingency_table(X, Y)
 
-    n = numpy.sum(cont)
+    # Zero out ignored labels
+    cont[:, ignore_gt_labels] = 0
+    cont[ignore_seg_labels,:] = 0
+    n = cont.sum()
 
     # Calculate probabilities
     pxy = cont/float(n)
-    px = numpy.sum(pxy,0)
-    py = numpy.sum(pxy,1)
+    px = pxy.sum(axis=0)
+    py = pxy.sum(axis=1)
     # Remove zero rows/cols
-    px0 = numpy.nonzero(px)[0]
-    py0 = numpy.nonzero(py)[0]
-    px = px[px0]
-    py = py[py0]
-    pxy = pxy[py0,:]
-    pxy = pxy[:,px0]
+    nzx = px.nonzero()[0]
+    nzy = py.nonzero()[0]
+    px = px[nzx]
+    py = py[nzy]
+    pxy = pxy[:,nzx][nzy,:]
 
-    # Calculate log conditional probabilities
-    s1,s2 = numpy.shape(pxy)
-    lpygx = numpy.divide(pxy, numpy.tile(px, (s1,1))) # log P(Y|X)
-    r,c = numpy.nonzero(pxy)
-    lpygx[r,c] = numpy.log2(lpygx[r,c])
+    # Calculate log conditional probabilities and entropies
+    lpygx = xlogx(pxy / px).sum(axis=0) # \sum_x{p_{y|x} \log{p_{y|x}}}
+    hygx = -(px*lpygx).sum() # \sum_y{p_y H(X|Y=y)} = H(X|Y)
+    ax = numpy.newaxis
+    lpxgy = xlogx(pxy / py[:,ax]).sum(axis=1)
+    hxgy = -(py*lpxgy).sum()
 
-    lpxgy = numpy.divide(pxy, numpy.tile(py, (s2,1)).transpose()) # log P(X|Y)
-    r,c = numpy.nonzero(pxy)
-    lpxgy[r,c] = numpy.log2(lpxgy[r,c])
-
-    # Calculate conditional entropies
-    hygx = -numpy.sum(numpy.multiply(pxy, lpygx))
-    hxgy = -numpy.sum(numpy.multiply(pxy, lpxgy))
+    # false merges, false splits
     return hygx, hxgy
 
-def rand_index(seg, gt, cont=None):
-    """ Return the unadjusted Rand index. """
-    if cont is None:
-        cont = contingency_table(seg, gt)
-
-    # Calculate values for rand indices
-    n = numpy.sum(cont)
-    sum1 = numpy.sum(numpy.power(cont,2))
-    sum2 = numpy.sum(numpy.power(numpy.sum(cont,1),2))
-    sum3 = numpy.sum(numpy.power(numpy.sum(cont,0),2))
+def rand_values(cont_table):
+    """Calculate values for rand indices."""
+    n = cont_table.sum()
+    sum1 = (cont_table*cont_table).sum()
+    sum2 = (cont_table.sum(axis=1)**2).sum()
+    sum3 = (cont_table.sum(axis=0)**2).sum()
     a = (sum1 - n)/2.0;
     b = (sum2 - sum1)/2
     c = (sum3 - sum1)/2
     d = (sum1 + n**2 - sum2 - sum3)/2
+    return a, b, c, d
 
+def rand_index(seg, gt, cont=None):
+    """Return the unadjusted Rand index."""
+    if cont is None:
+        cont = contingency_table(seg, gt)
+    a, b, c, d = rand_values(cont)
     return (a+d)/(a+b+c+d)
     
 def adj_rand_index(seg, gt, cont=None):
-    """ Return the adjusted Rand index. """
+    """Return the adjusted Rand index."""
     if cont is None:
         cont = contingency_table(seg, gt)
-
-    # Calculate values for rand indices
-    n = numpy.sum(cont)
-    sum1 = numpy.sum(numpy.power(cont,2))
-    sum2 = numpy.sum(numpy.power(numpy.sum(cont,1),2))
-    sum3 = numpy.sum(numpy.power(numpy.sum(cont,0),2))
-    a = (sum1 - n)/2.0;
-    b = (sum2 - sum1)/2
-    c = (sum3 - sum1)/2
-    d = (sum1 + n**2 - sum2 - sum3)/2
-
+    a, b, c, d = rand_values(cont)
     return (nchoosek(n,2)*(a+d) - ((a+b)*(a+c) + (c+d)*(b+d)))/(
         nchoosek(n,2)**2 - ((a+b)*(a+c) + (c+d)*(b+d)))
-        
+
 def fm_index(seg, gt, cont=None):
     """ Return the Fowlkes-Mallows index. """
     if cont is None:
         cont = contingency_table(seg, gt)
-
-    # Calculate values for rand indices
-    n = numpy.sum(cont)
-    sum1 = numpy.sum(numpy.power(cont,2))
-    sum2 = numpy.sum(numpy.power(numpy.sum(cont,1),2))
-    sum3 = numpy.sum(numpy.power(numpy.sum(cont,0),2))
-    a = (sum1 - n)/2.0;
-    b = (sum2 - sum1)/2
-    c = (sum3 - sum1)/2
-    d = (sum1 + n**2 - sum2 - sum3)/2
-
+    a, b, c, d = rand_values(cont)
     return a/(numpy.sqrt((a+b)*(a+c)))
 
