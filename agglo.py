@@ -73,6 +73,7 @@ class Rag(Graph):
 
     def __init__(self, watershed=None, probabilities=None, 
             merge_priority_function=None, allow_shared_boundaries=True,
+            gt_vol=None,
             edge_feature_init_fct=None, edge_feature_merge_fct=None, 
             node_feature_init_fct=None, node_feature_merge_fct=None,
             show_progress=False, lowmem=False):
@@ -92,12 +93,14 @@ class Rag(Graph):
             self.merge_priority_function = boundary_mean
         else:
             self.merge_priority_function = merge_priority_function
-        if watershed is not None:
-            self.set_watershed(watershed, lowmem)
-            self.build_graph_from_watershed(allow_shared_boundaries)
+        self.set_watershed(watershed, lowmem)
+        self.build_graph_from_watershed(allow_shared_boundaries)
+        self.set_ground_truth(gt_vol)
         self.merge_queue = MergeQueue()
 
     def build_graph_from_watershed(self, allow_shared_boundaries=True):
+        if self.watershed is None:
+            return
         zero_idxs = where(self.watershed.ravel() == 0)[0]
         if self.show_progress:
             def with_progress(seq, length=None, title='Progress: '):
@@ -149,7 +152,9 @@ class Rag(Graph):
     def set_probabilities(self, probs):
         self.probabilities = morpho.pad(probs, [self.boundary_probability, 0])
 
-    def set_watershed(self, ws, lowmem=False):
+    def set_watershed(self, ws=None, lowmem=False):
+        if ws is None:
+            self.watershed = None
         self.boundary_body = ws.max()+1
         self.size = ws.size
         self.watershed = morpho.pad(ws, [0, self.boundary_body])
@@ -160,6 +165,18 @@ class Rag(Graph):
             self.pixel_neighbors = morpho.build_neighbors_array(self.watershed)
             self.neighbor_idxs = self.get_neighbor_idxs_fast
         self.sum_body_sizes = double(self.get_segmentation().astype(bool).sum())
+
+    def set_ground_truth(self, gt=None):
+        if gt is not None:
+            self.gt = morpho.pad(gt, [0, gt.max()+1])
+            self.rig = contingency_table(self.watershed, self.gt)
+            self.rig[[0,self.boundary_body],:] = 0
+            self.rig[:,[0, gt.max()+1]] = 0
+        else:
+            self.gt = None
+            # null pattern to transparently allow merging of nodes.
+            # Bonus feature: counts how many sp's went into a single node.
+            self.rig = ones(self.number_of_nodes())
 
     def build_merge_queue(self):
         """Build a queue of node pairs to be merged in a specific priority.
@@ -373,6 +390,8 @@ class Rag(Graph):
             for n in new_neighbors:
                 if not boundaries_to_edit.has_key((n1,n)):
                     self.update_merge_queue(n1, n)
+        self.rig[n1] += self.rig[n2]
+        self.rig[n2] = 0
         self.remove_node(n2)
         self.sum_body_sizes += len(self.node[n1]['extent'])
 
@@ -483,6 +502,14 @@ class Rag(Graph):
     def at_volume_boundary(self, n):
         """Return True if node n touches the volume boundary."""
         return self.has_edge(n, self.boundary_body) or n == self.boundary_body
+
+    def split_voi(self, gt=None):
+        if self.gt is None and gt is None:
+            return array([0,0])
+        elif self.gt is not None:
+            return split_voi(None, None, self.rig)
+        else:
+            return split_voi(self.get_segmentation(), gt, [0], [0])
 
     def write(self, fout, format='GraphML'):
         pass

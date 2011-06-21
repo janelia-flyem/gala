@@ -28,8 +28,8 @@ def contingency_table(seg, gt):
     gtr = gt.ravel()
     segr = seg.ravel() 
     ij = numpy.zeros((2,len(gtr)))
-    ij[0,:] = gtr
-    ij[1,:] = segr
+    ij[0,:] = segr
+    ij[1,:] = gtr
     cont = coo_matrix((numpy.ones((len(gtr))), ij)).toarray()
     return cont
 
@@ -47,7 +47,7 @@ def voi(X, Y, cont=None, weights=numpy.ones(2)):
     """Return the variation of information metric."""
     return numpy.dot(weights, split_voi(X,Y,cont))
 
-def split_voi(X, Y, cont=None, ignore_gt_labels=[], ignore_seg_labels=[]):
+def split_voi(X, Y, cont=None, ignore_seg_labels=[], ignore_gt_labels=[]):
     """Return the symmetric conditional entropies associated with the VOI.
     
     The variation of information is defined as VI(X,Y) = H(X|Y) + H(Y|X).
@@ -66,20 +66,20 @@ def split_voi(X, Y, cont=None, ignore_gt_labels=[], ignore_seg_labels=[]):
 
     # Calculate probabilities
     pxy = cont/float(n)
-    px = pxy.sum(axis=0)
-    py = pxy.sum(axis=1)
+    px = pxy.sum(axis=1)
+    py = pxy.sum(axis=0)
     # Remove zero rows/cols
     nzx = px.nonzero()[0]
     nzy = py.nonzero()[0]
     px = px[nzx]
     py = py[nzy]
-    pxy = pxy[:,nzx][nzy,:]
+    pxy = pxy[nzx,:][:,nzy]
 
     # Calculate log conditional probabilities and entropies
-    lpygx = xlogx(pxy / px).sum(axis=0) # \sum_x{p_{y|x} \log{p_{y|x}}}
-    hygx = -(px*lpygx).sum() # \sum_y{p_y H(X|Y=y)} = H(X|Y)
     ax = numpy.newaxis
-    lpxgy = xlogx(pxy / py[:,ax]).sum(axis=1)
+    lpygx = xlogx(pxy / px[:,ax]).sum(axis=1) # \sum_x{p_{y|x} \log{p_{y|x}}}
+    hygx = -(px*lpygx).sum() # \sum_x{p_x H(Y|X=x)} = H(Y|X)
+    lpxgy = xlogx(pxy / py[ax,:]).sum(axis=0)
     hxgy = -(py*lpxgy).sum()
 
     # false merges, false splits
