@@ -448,10 +448,12 @@ class Rag(Graph):
     def get_segmentation(self):
         return morpho.juicy_center(self.segmentation, 2)
 
-    def build_volume(self):
+    def build_volume(self, nbunch=None):
         """Return the segmentation (numpy.ndarray) induced by the graph."""
         v = zeros_like(self.watershed)
-        for n in self.nodes():
+        if nbunch is None:
+            nbunch = self.nodes()
+        for n in nbunch:
             v.ravel()[list(self.node[n]['extent'])] = n
         return morpho.juicy_center(v,2)
 
