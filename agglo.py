@@ -7,11 +7,11 @@ import random
 import matplotlib.pyplot as plt
 from heapq import heapify, heappush, heappop
 from numpy import array, mean, zeros, zeros_like, uint8, int8, where, unique, \
-    finfo, float, size, double, transpose, newaxis, uint32, nonzero, median, exp, \
-    log2
+    finfo, size, double, transpose, newaxis, uint32, nonzero, median, exp, \
+    log2, float, ones
 from scipy.stats import sem
 from scipy.sparse import lil_matrix
-from scipy.ndimage.measurements import center_of_mass
+from scipy.ndimage.measurements import center_of_mass, label
 from networkx import Graph
 from networkx.algorithms.traversal.depth_first_search import dfs_preorder_nodes
 import morpho
@@ -455,9 +455,30 @@ class Rag(Graph):
             v.ravel()[list(self.node[n]['extent'])] = n
         return morpho.juicy_center(v,2)
 
+    def orphans(self):
+        """List of all the nodes that do not touch the volume boundary."""
+        return [n for n in self.nodes() if not self.at_volume_boundary(n)]
+
+    def is_traversed_by_node(self, n):
+        """Determine whether a body traverses the volume.
+        
+        This is defined as touching the volume boundary at two distinct 
+        locations.
+        """
+        if not self.at_volume_boundary(n) or n == self.boundary_body:
+            return False
+        v = zeros(self.segmentation.shape, uint8)
+        v.ravel()[list(self[n][self.boundary_body]['boundary'])] = 1
+        _, n = label(v, ones([3]*v.ndim))
+        return n > 1
+
+    def traversing_bodies(self):
+        """List all bodies that traverse the volume."""
+        return [n for n in self.nodes() if self.is_traversed_by_node(n)]
+
     def at_volume_boundary(self, n):
         """Return True if node n touches the volume boundary."""
-        return self.has_edge(n, self.boundary_body)
+        return self.has_edge(n, self.boundary_body) or n == self.boundary_body
 
     def write(self, fout, format='GraphML'):
         pass
