@@ -7,17 +7,18 @@ import random
 import matplotlib.pyplot as plt
 from heapq import heapify, heappush, heappop
 from numpy import array, mean, zeros, zeros_like, uint8, int8, where, unique, \
-    finfo, float, size, double, transpose, newaxis, uint32, nonzero, median, exp, \
-    log2
+    finfo, size, double, transpose, newaxis, uint32, nonzero, median, exp, \
+    log2, float, ones
 from scipy.stats import sem
 from scipy.sparse import lil_matrix
-from scipy.ndimage.measurements import center_of_mass
+from scipy.ndimage.measurements import center_of_mass, label
 from networkx import Graph
 from networkx.algorithms.traversal.depth_first_search import dfs_preorder_nodes
 import morpho
 import iterprogress as ip
 from ncut import ncutW
 from mergequeue import MergeQueue
+from evaluate import contingency_table, split_voi
 
 arguments = argparse.ArgumentParser(add_help=False)
 arggroup = arguments.add_argument_group('Agglomeration options')
@@ -72,6 +73,7 @@ class Rag(Graph):
 
     def __init__(self, watershed=None, probabilities=None, 
             merge_priority_function=None, allow_shared_boundaries=True,
+            gt_vol=None,
             edge_feature_init_fct=None, edge_feature_merge_fct=None, 
             node_feature_init_fct=None, node_feature_merge_fct=None,
             show_progress=False, lowmem=False):
@@ -91,12 +93,14 @@ class Rag(Graph):
             self.merge_priority_function = boundary_mean
         else:
             self.merge_priority_function = merge_priority_function
-        if watershed is not None:
-            self.set_watershed(watershed, lowmem)
-            self.build_graph_from_watershed(allow_shared_boundaries)
+        self.set_watershed(watershed, lowmem)
+        self.build_graph_from_watershed(allow_shared_boundaries)
+        self.set_ground_truth(gt_vol)
         self.merge_queue = MergeQueue()
 
     def build_graph_from_watershed(self, allow_shared_boundaries=True):
+        if self.watershed is None:
+            return
         zero_idxs = where(self.watershed.ravel() == 0)[0]
         if self.show_progress:
             def with_progress(seq, length=None, title='Progress: '):
@@ -148,7 +152,9 @@ class Rag(Graph):
     def set_probabilities(self, probs):
         self.probabilities = morpho.pad(probs, [self.boundary_probability, 0])
 
-    def set_watershed(self, ws, lowmem=False):
+    def set_watershed(self, ws=None, lowmem=False):
+        if ws is None:
+            self.watershed = None
         self.boundary_body = ws.max()+1
         self.size = ws.size
         self.watershed = morpho.pad(ws, [0, self.boundary_body])
@@ -159,6 +165,18 @@ class Rag(Graph):
             self.pixel_neighbors = morpho.build_neighbors_array(self.watershed)
             self.neighbor_idxs = self.get_neighbor_idxs_fast
         self.sum_body_sizes = double(self.get_segmentation().astype(bool).sum())
+
+    def set_ground_truth(self, gt=None):
+        if gt is not None:
+            self.gt = morpho.pad(gt, [0, gt.max()+1])
+            self.rig = contingency_table(self.watershed, self.gt)
+            self.rig[[0,self.boundary_body],:] = 0
+            self.rig[:,[0, gt.max()+1]] = 0
+        else:
+            self.gt = None
+            # null pattern to transparently allow merging of nodes.
+            # Bonus feature: counts how many sp's went into a single node.
+            self.rig = ones(self.number_of_nodes())
 
     def build_merge_queue(self):
         """Build a queue of node pairs to be merged in a specific priority.
@@ -237,8 +255,8 @@ class Rag(Graph):
     def learn_agglomerate(self, gt, feature_map_function):
         """Agglomerate while comparing to ground truth & classifying merges."""
         gtg = Rag(gt)
-        rug = Rug(self.get_segmentation(), gtg.get_segmentation(), True, False)
-        assignment = rug.overlaps == rug.overlaps.max(axis=1)[:,newaxis]
+        cnt = contingency_table(self.get_segmentation(), gtg.get_segmentation())
+        assignment = cnt == cnt.max(axis=1)[:,newaxis]
         hard_assignment = where(assignment.sum(axis=1) > 1)[0]
         # 'hard assignment' nodes are nodes that have most of their overlap
         # with the 0-label in gt, or that have equal amounts of overlap between
@@ -248,7 +266,8 @@ class Rag(Graph):
         history, ave_size = [], []
         while self.number_of_nodes() > gtg.number_of_nodes():
             merge_priority, valid, n1, n2 = self.merge_queue.pop()
-            if merge_priority == self.boundary_probability or self.boundary_body in [n1, n2]:
+            if merge_priority == self.boundary_probability or \
+                                                self.boundary_body in [n1, n2]:
                 print 'Warning: agglomeration done early...'
                 break
             if valid:
@@ -371,6 +390,8 @@ class Rag(Graph):
             for n in new_neighbors:
                 if not boundaries_to_edit.has_key((n1,n)):
                     self.update_merge_queue(n1, n)
+        self.rig[n1] += self.rig[n2]
+        self.rig[n2] = 0
         self.remove_node(n2)
         self.sum_body_sizes += len(self.node[n1]['extent'])
 
@@ -448,16 +469,47 @@ class Rag(Graph):
     def get_segmentation(self):
         return morpho.juicy_center(self.segmentation, 2)
 
-    def build_volume(self):
+    def build_volume(self, nbunch=None):
         """Return the segmentation (numpy.ndarray) induced by the graph."""
         v = zeros_like(self.watershed)
-        for n in self.nodes():
+        if nbunch is None:
+            nbunch = self.nodes()
+        for n in nbunch:
             v.ravel()[list(self.node[n]['extent'])] = n
         return morpho.juicy_center(v,2)
 
+    def orphans(self):
+        """List of all the nodes that do not touch the volume boundary."""
+        return [n for n in self.nodes() if not self.at_volume_boundary(n)]
+
+    def is_traversed_by_node(self, n):
+        """Determine whether a body traverses the volume.
+        
+        This is defined as touching the volume boundary at two distinct 
+        locations.
+        """
+        if not self.at_volume_boundary(n) or n == self.boundary_body:
+            return False
+        v = zeros(self.segmentation.shape, uint8)
+        v.ravel()[list(self[n][self.boundary_body]['boundary'])] = 1
+        _, n = label(v, ones([3]*v.ndim))
+        return n > 1
+
+    def traversing_bodies(self):
+        """List all bodies that traverse the volume."""
+        return [n for n in self.nodes() if self.is_traversed_by_node(n)]
+
     def at_volume_boundary(self, n):
         """Return True if node n touches the volume boundary."""
-        return self.has_edge(n, self.boundary_body)
+        return self.has_edge(n, self.boundary_body) or n == self.boundary_body
+
+    def split_voi(self, gt=None):
+        if self.gt is None and gt is None:
+            return array([0,0])
+        elif self.gt is not None:
+            return split_voi(None, None, self.rig)
+        else:
+            return split_voi(self.get_segmentation(), gt, [0], [0])
 
     def write(self, fout, format='GraphML'):
         pass
@@ -572,69 +624,16 @@ def random_priority(g, n1, n2):
         return g.boundary_probability
     return random.random()
 
-# RUG #
-
-class Rug(object):
-    """Region union graph, used to compare two segmentations."""
-    def __init__(self, s1=None, s2=None, progress=False, rem_zero_ovr=False):
-        self.s1 = s1
-        self.s2 = s2
-        self.progress = progress
-        if s1 is not None and s2 is not None:
-            self.build_graph(s1, s2, rem_zero_ovr)
-
-    def build_graph(self, s1, s2, remove_zero_overlaps=False):
-        if s1.shape != s2.shape:
-            raise RuntimeError('Error building region union graph: '+
-                'volume shapes don\'t match. '+str(s1.shape)+' '+str(s2.shape))
-        n1 = len(unique(s1))
-        n2 = len(unique(s2))
-        self.overlaps = zeros((n1,n2), double)
-        self.sizes1 = zeros(n1, double)
-        self.sizes2 = zeros(n2, double)
-        if self.progress:
-            def with_progress(seq):
-                return ip.with_progress(seq, length=s1.size,
-                            title='RUG...', pbar=ip.StandardProgressBar())
-        else:
-            def with_progress(seq): return seq
-        for v1, v2 in with_progress(izip(s1.ravel(), s2.ravel())):
-            self.overlaps[v1,v2] += 1
-            self.sizes1[v1] += 1
-            self.sizes2[v2] += 1
-        if remove_zero_overlaps:
-            self.overlaps[:,0] = 0
-            self.overlaps[0,:] = 0
-            self.overlaps[0,0] = 1
-
-    def __getitem__(self, v):
-        try:
-            l = len(v)
-        except TypeError:
-            v = [v]
-            l = 1
-        v1 = v[0]
-        v2 = Ellipsis
-        do_transpose = False
-        if l >= 2:
-            v2 = v[1]
-        if l >= 3:
-            do_transpose = bool(v[2])
-        if do_transpose:
-            return transpose(self.overlaps)[v1,v2]/self.sizes2[v1,newaxis]
-        else:
-            return self.overlaps[v1,v2]/self.sizes1[v1,newaxis]
-
 def best_possible_segmentation(ws, gt):
     """Build the best possible segmentation given a superpixel map."""
     ws = Rag(ws)
     gt = Rag(gt)
-    rug = Rug(ws.get_segmentation(), gt.get_segmentation())
-    assignment = rug.overlaps == rug.overlaps.max(axis=1)[:,newaxis]
+    cnt = contingency_table(ws.get_segmentation(), gt.get_segmentation())
+    assignment = cnt == cnt.max(axis=1)[:,newaxis]
     hard_assignment = where(assignment.sum(axis=1) > 1)[0]
     # currently ignoring hard assignment nodes
     assignment[hard_assignment,:] = 0
-    for gt_node in range(1,len(rug.sizes2)):
+    for gt_node in range(1,cnt.shape[1]):
         sp_subgraph = ws.subgraph(where(assignment[:,gt_node])[0])
         if len(sp_subgraph) > 0:
             sp_dfs = list(dfs_preorder_nodes(sp_subgraph)) 
