@@ -18,6 +18,7 @@ import morpho
 import iterprogress as ip
 from ncut import ncutW
 from mergequeue import MergeQueue
+from evaluate import contingency_table, split_voi
 
 arguments = argparse.ArgumentParser(add_help=False)
 arggroup = arguments.add_argument_group('Agglomeration options')
@@ -237,8 +238,8 @@ class Rag(Graph):
     def learn_agglomerate(self, gt, feature_map_function):
         """Agglomerate while comparing to ground truth & classifying merges."""
         gtg = Rag(gt)
-        rug = Rug(self.get_segmentation(), gtg.get_segmentation(), True, False)
-        assignment = rug.overlaps == rug.overlaps.max(axis=1)[:,newaxis]
+        cnt = contingency_table(self.get_segmentation(), gtg.get_segmentation())
+        assignment = cnt == cnt.max(axis=1)[:,newaxis]
         hard_assignment = where(assignment.sum(axis=1) > 1)[0]
         # 'hard assignment' nodes are nodes that have most of their overlap
         # with the 0-label in gt, or that have equal amounts of overlap between
@@ -248,7 +249,8 @@ class Rag(Graph):
         history, ave_size = [], []
         while self.number_of_nodes() > gtg.number_of_nodes():
             merge_priority, valid, n1, n2 = self.merge_queue.pop()
-            if merge_priority == self.boundary_probability or self.boundary_body in [n1, n2]:
+            if merge_priority == self.boundary_probability or \
+                                                self.boundary_body in [n1, n2]:
                 print 'Warning: agglomeration done early...'
                 break
             if valid:
@@ -595,69 +597,16 @@ def random_priority(g, n1, n2):
         return g.boundary_probability
     return random.random()
 
-# RUG #
-
-class Rug(object):
-    """Region union graph, used to compare two segmentations."""
-    def __init__(self, s1=None, s2=None, progress=False, rem_zero_ovr=False):
-        self.s1 = s1
-        self.s2 = s2
-        self.progress = progress
-        if s1 is not None and s2 is not None:
-            self.build_graph(s1, s2, rem_zero_ovr)
-
-    def build_graph(self, s1, s2, remove_zero_overlaps=False):
-        if s1.shape != s2.shape:
-            raise RuntimeError('Error building region union graph: '+
-                'volume shapes don\'t match. '+str(s1.shape)+' '+str(s2.shape))
-        n1 = len(unique(s1))
-        n2 = len(unique(s2))
-        self.overlaps = zeros((n1,n2), double)
-        self.sizes1 = zeros(n1, double)
-        self.sizes2 = zeros(n2, double)
-        if self.progress:
-            def with_progress(seq):
-                return ip.with_progress(seq, length=s1.size,
-                            title='RUG...', pbar=ip.StandardProgressBar())
-        else:
-            def with_progress(seq): return seq
-        for v1, v2 in with_progress(izip(s1.ravel(), s2.ravel())):
-            self.overlaps[v1,v2] += 1
-            self.sizes1[v1] += 1
-            self.sizes2[v2] += 1
-        if remove_zero_overlaps:
-            self.overlaps[:,0] = 0
-            self.overlaps[0,:] = 0
-            self.overlaps[0,0] = 1
-
-    def __getitem__(self, v):
-        try:
-            l = len(v)
-        except TypeError:
-            v = [v]
-            l = 1
-        v1 = v[0]
-        v2 = Ellipsis
-        do_transpose = False
-        if l >= 2:
-            v2 = v[1]
-        if l >= 3:
-            do_transpose = bool(v[2])
-        if do_transpose:
-            return transpose(self.overlaps)[v1,v2]/self.sizes2[v1,newaxis]
-        else:
-            return self.overlaps[v1,v2]/self.sizes1[v1,newaxis]
-
 def best_possible_segmentation(ws, gt):
     """Build the best possible segmentation given a superpixel map."""
     ws = Rag(ws)
     gt = Rag(gt)
-    rug = Rug(ws.get_segmentation(), gt.get_segmentation())
-    assignment = rug.overlaps == rug.overlaps.max(axis=1)[:,newaxis]
+    cnt = contingency_table(ws.get_segmentation(), gt.get_segmentation())
+    assignment = cnt == cnt.max(axis=1)[:,newaxis]
     hard_assignment = where(assignment.sum(axis=1) > 1)[0]
     # currently ignoring hard assignment nodes
     assignment[hard_assignment,:] = 0
-    for gt_node in range(1,len(rug.sizes2)):
+    for gt_node in range(1,cnt.shape[1]):
         sp_subgraph = ws.subgraph(where(assignment[:,gt_node])[0])
         if len(sp_subgraph) > 0:
             sp_dfs = list(dfs_preorder_nodes(sp_subgraph)) 

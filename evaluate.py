@@ -43,9 +43,9 @@ def xlogx(x, out=None):
     y[nz] *= numpy.log2(y[nz])
     return y
 
-def voi(X, Y, cont=None):
+def voi(X, Y, cont=None, weights=numpy.ones(2)):
     """Return the variation of information metric."""
-    return numpy.sum(split_voi(X,Y,cont))
+    return numpy.dot(weights, split_voi(X,Y,cont))
 
 def split_voi(X, Y, cont=None, ignore_gt_labels=[], ignore_seg_labels=[]):
     """Return the symmetric conditional entropies associated with the VOI.
@@ -83,7 +83,7 @@ def split_voi(X, Y, cont=None, ignore_gt_labels=[], ignore_seg_labels=[]):
     hxgy = -(py*lpxgy).sum()
 
     # false merges, false splits
-    return hygx, hxgy
+    return numpy.array([hygx, hxgy])
 
 def rand_values(cont_table):
     """Calculate values for rand indices."""
