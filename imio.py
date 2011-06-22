@@ -6,7 +6,10 @@ import h5py, Image, numpy
 
 from fnmatch import filter as fnfilter
 from os.path import split as split_path, join as join_path
-from numpy import array, asarray, uint8, uint16, uint32, zeros, squeeze, ndim
+from numpy import array, asarray, uint8, uint16, uint32, zeros, squeeze, \
+    fromstring, ndim
+import numpy as np
+from morpho import pad, juicy_center, get_neighbor_idxs
 
 arguments = argparse.ArgumentParser(add_help=False)
 arggroup = arguments.add_argument_group('Image IO options')
@@ -70,6 +73,39 @@ def read_image_stack_single_arg(fn):
     except Exception as err:
         print err
         raise
+
+shiv_type_elem_dict = {
+    '0':np.int8, '1':np.uint8, '2':np.int16, '3':np.uint16,
+    '4':np.int32, '5':np.uint32, '6':np.int64, '7':np.uint64,
+    '8':np.float32, '9':np.float64
+}
+
+def read_shiv_raw_stack(ws_fn, sp2body_fn):
+    ws = read_shiv_raw_array(ws_fn)
+    sp2b = read_shiv_raw_array(sp2body_fn)[1]
+    ar = ws[sp2b]
+    return remove_merged_boundaries(ar)
+
+def remove_merged_boundaries(ar):
+    arp = pad(ar, [0,ar.max()+1])
+    arpr = arp.ravel()
+    zero_idxs = (arpr == 0).nonzero()[0]
+    ns = arpr[get_neighbor_idxs(arp, zero_idxs)]
+    ns_compl = ns.copy()
+    ns_compl[ns==0] = ns.max()+1
+    merged_boundaries = (ns.max(axis=1) == ns_compl.min(axis=1)).nonzero()[0]
+    arpr[zero_idxs[merged_boundaries]] = ns.max(axis=1)[merged_boundaries]
+    return juicy_center(arp, 2)
+
+def read_shiv_raw_array(fn):
+    fin = open(fn, 'rb')
+    type_elem_code = fromstring(fin.read(4), uint8)[1]
+    ar_dtype = shiv_type_elem_dict[type_elem_code]
+    ar_ndim = fromstring(fin.read(4), uint8)[0]
+    ar_shape = fromstring(fin.read(ar_ndim*4), uint32)
+    ar = fromstring(fin.read(), ar_dtype).reshape(ar_shape, order='F')
+    return ar
+
 
 def read_h5_stack(fn, *args, **kwargs):
     """Read a volume in HDF5 format into numpy.ndarray.
