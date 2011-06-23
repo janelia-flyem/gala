@@ -16,9 +16,7 @@ from scipy.ndimage import filters
 from scipy.ndimage.measurements import label
 #from scipy.spatial.distance import cityblock as manhattan_distance
 import iterprogress as ip
-
-from imio import read_image_stack, write_h5_stack, arguments as imioargs, \
-    read_image_stack_single_arg
+import imio
 
 zero3d = array([0,0,0])
 
@@ -28,10 +26,11 @@ arggroup.add_argument('-S', '--save-watershed', metavar='FILE',
     help='Write the watershed result to FILE (overwrites).'
 )
 arggroup.add_argument('-w', '--watershed', metavar='WS_FN',
-    type=read_image_stack_single_arg,
+    type=imio.read_image_stack_single_arg,
     help='Use a precomputed watershed volume from file.'
 )
-arggroup.add_argument('--seed', metavar='FN', type=read_image_stack_single_arg,
+arggroup.add_argument('--seed', metavar='FN', 
+    type=imio.read_image_stack_single_arg,
     help='''use the volume in FN to seed the watershed. By default, connected
         components of 0-valued pixels will be used as the seeds.'''
 )
@@ -204,7 +203,7 @@ if __name__ == '__main__':
     )
     args = parser.parse_args()
 
-    v = read_image_stack(*args.fin)
+    v = imio.read_image_stack(*args.fin)
     if args.invert_image:
         v = v.max() - v
     if args.median_filter:
