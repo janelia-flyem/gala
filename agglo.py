@@ -142,6 +142,7 @@ class Rag(Graph):
                 self.node[nodeid]['extent'] = set([idx])
                 self.node[nodeid]['sump'] = p
                 self.node[nodeid]['sump2'] = p*p
+                self.node[nodeid]['absorbed'] = [nodeid]
 
     def get_neighbor_idxs_fast(self, idxs):
         return self.pixel_neighbors[idxs]
@@ -392,8 +393,13 @@ class Rag(Graph):
                     self.update_merge_queue(n1, n)
         self.rig[n1] += self.rig[n2]
         self.rig[n2] = 0
+        self.node[n1]['absorbed'].extend(self.node[n2]['absorbed'])
         self.remove_node(n2)
         self.sum_body_sizes += len(self.node[n1]['extent'])
+
+    def shatter_node(self, n):
+        gsub = self.subgraph([n]+self.neighbors(n))
+
 
     def merge_edge_properties(self, src, dst):
         """Merge the properties of edge src into edge dst."""
