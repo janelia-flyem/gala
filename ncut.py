@@ -5,7 +5,7 @@ import scipy.sparse
 import scipy.sparse.linalg
 import scipy.cluster.vq
  
-def ncutW(W, num_eigs=10, kmeans_iters=10, offset = 1e-5, **kwargs):
+def ncutW(W, num_eigs=10, kmeans_iters=10, offset = 0.5, **kwargs):
     """Run the normalized cut algorithm
     
     (as implemented in Ng, Jordan, and Weiss, 2002)
@@ -15,12 +15,15 @@ def ncutW(W, num_eigs=10, kmeans_iters=10, offset = 1e-5, **kwargs):
     
     n,m = numpy.shape(W)
     # Add an offset in case some rows are zero
+    # We also add the offset below to the diagonal matrix. See (Yu, 2001),
+    #    "Understanding Popout through Repulsion" for more information.  This 
+    #    helps to stabalize the eigenvector computation.
     W = W + scipy.sparse.spdiags(offset*numpy.ones(n),0,n,n)
     
     # Calculate matrix to take eigenvectors of
     rows, cols = W.nonzero()
     d = W.sum(1).transpose()
-    Dinv2 = scipy.sparse.spdiags(1./numpy.sqrt(d), 0, n, n)
+    Dinv2 = scipy.sparse.spdiags(1./(numpy.sqrt(d) + offset*numpy.ones(n)), 0, n, n)
     P = Dinv2*W*Dinv2;
     
     # Get the eigenvectors and sort by eigenvalue
