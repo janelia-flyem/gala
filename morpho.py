@@ -55,6 +55,7 @@ def watershed(a, seeds=None, show_progress=False):
         ws = zeros(shape(a), uint32)
     else:
         ws = seeds
+    levels = unique(a)
     a = pad(a, a.max()+1)
     ws = pad(ws, 0)
     maxlabel = iinfo(ws.dtype).max
@@ -63,14 +64,14 @@ def watershed(a, seeds=None, show_progress=False):
     neighbors = build_neighbors_array(a)
     level_pixels = build_levels_dict(a)
     if show_progress:
-        def with_progress(it): 
+        def with_progress(it, *args, **kwargs): 
             return ip.with_progress(
-                it, pbar=ip.StandardProgressBar('Watershed... ')
+                it, *args, pbar=ip.StandardProgressBar('Watershed...'), **kwargs
             )
     else:
-        def with_progress(it):
-            return ip.with_progress(it, pbar=ip.NoProgressBar())
-    for level in with_progress(sorted(level_pixels.keys())[:-1]):
+        def with_progress(it, *args, **kwargs):
+            return ip.with_progress(it, *args,pbar=ip.NoProgressBar(),**kwargs)
+    for i, level in with_progress(enumerate(levels), length=len(levels)):
         idxs_adjacent_to_labels = queue([idx for idx in level_pixels[level] if
                                             any(ws.ravel()[neighbors[idx]])])
         while len(idxs_adjacent_to_labels) > 0:
@@ -87,12 +88,10 @@ def watershed(a, seeds=None, show_progress=False):
                 idxs_adjacent_to_labels.extend(ns[((ws.ravel()[ns] == 0) * 
                                     (a.ravel()[ns] == level)).astype(bool) ])
         if seeded:
-            not_adj = where((ws == 0) * (a == level))[0]
-            try:
-                level_pixels[level+1].extend(not_adj)
-            except KeyError:
-                level_pixels[level+1] = list(not_adj)
-            a.ravel()[not_adj] = level+1
+            if i+1 < len(levels):
+                not_adj = where((ws.ravel() == 0) * (a.ravel() == level))[0]
+                level_pixels[levels[i+1]].extend(not_adj)
+                a.ravel()[not_adj] = levels[i+1]
         else:
             new_labels, num_new = label((ws == 0) * (a == level), sel)
             new_labels = (current_label + new_labels) * (new_labels != 0)
