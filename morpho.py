@@ -88,7 +88,10 @@ def watershed(a, seeds=None, show_progress=False):
                                     (a.ravel()[ns] == level)).astype(bool) ])
         if seeded:
             not_adj = where((ws == 0) * (a == level))[0]
-            level_pixels[level+1].extend(not_adj)
+            try:
+                level_pixels[level+1].extend(not_adj)
+            except KeyError:
+                level_pixels[level+1] = list(not_adj)
             a.ravel()[not_adj] = level+1
         else:
             new_labels, num_new = label((ws == 0) * (a == level), sel)
@@ -215,4 +218,4 @@ if __name__ == '__main__':
     ws = watershed(v, seeds=args.seed, show_progress=args.show_progress)
     if os.access(args.fout, os.F_OK):
         os.remove(args.fout)
-    write_h5_stack(ws, args.fout)
+    imio.write_h5_stack(ws, args.fout)
