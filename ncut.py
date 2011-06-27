@@ -5,7 +5,7 @@ import scipy.sparse
 import scipy.sparse.linalg
 import scipy.cluster.vq
  
-def ncutW(W, num_eigs=10, kmeans_iters=10, offset = 1e-5):
+def ncutW(W, num_eigs=10, kmeans_iters=10, offset = 1e-5, **kwargs):
     """Run the normalized cut algorithm
     
     (as implemented in Ng, Jordan, and Weiss, 2002)

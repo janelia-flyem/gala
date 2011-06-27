@@ -31,6 +31,19 @@ def mean_sem_and_n_from_cache_dict(d):
     s = sqrt(v/n)
     return m, s, n
 
+def skew_from_cache_dict(d):
+    try:
+        n = d['n']
+    except KeyError:
+        n = len(d['extent'])
+    m1 = d['sump']/n
+    k1 = m1
+    m2 = d['sump2']/n
+    k2 = m2 - m1*m1
+    m3 = d['sump3']/n
+    k3 = m3 - 3*m2*m1 + 2*m1*m1*m1
+    return k3 * k2**(-1.5)
+
 def feature_set_a(g, n1, n2):
     """Return the mean, SEM, and size of n1, n2, and the n1-n2 boundary in g.
     
@@ -45,6 +58,17 @@ def feature_set_a(g, n1, n2):
     m1, s1, l1 = mean_sem_and_n_from_cache_dict(g.node[n1])
     m2, s2, l2 = mean_sem_and_n_from_cache_dict(g.node[n2])
     return array([mb, sb, lb, m1, s1, l1, m2, s2, l2]).reshape(1,9)
+
+def node_feature_set_a(g, n):
+    """Return the mean, standard deviation, SEM, size, and skewness of n.
+
+    Uses the probability of boundary within n.
+    """
+    d = g.node[n]
+    m, s, l = mean_sem_and_n_from_cache_dict(d)
+    stdev = s*sqrt(l)
+    skew = skew_from_cache_dict(d)
+    return array([m, stdev, s, l, skew])
 
 def h5py_stack(fn):
     try:
@@ -180,6 +204,10 @@ arggroup.add_argument('-f', '--feature-map-function', metavar='FCT_NAME',
 arggroup.add_argument('-T', '--training-data', metavar='HDF5_FN', type=str,
     help='Load training data from file.'
 )
+arggroup.add_argument('-N', '--node-split-classifier', metavar='HDF5_FN',
+    type=str,
+    help='Load a node split classifier and split nodes when required.'
+)
 
 
 if __name__ == '__main__':
@@ -212,6 +240,12 @@ if __name__ == '__main__':
     )
     parser.add_argument('-o', '--objective-function', metavar='FCT_NAME', 
         default='random_priority', help='The merge priority function name.'
+    )
+    parser.add_argument('--save-node-training-data', metavar='FILE',
+        help='Save node features and labels to FILE.'
+    )
+    parser.add_argument('--node-classifier', metavar='FILE',
+        help='Train and output a node split classifier.'
     )
     args = parser.parse_args()
 

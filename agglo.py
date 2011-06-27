@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 from heapq import heapify, heappush, heappop
 from numpy import array, mean, zeros, zeros_like, uint8, int8, where, unique, \
     finfo, size, double, transpose, newaxis, uint32, nonzero, median, exp, \
-    log2, float, ones
+    log2, float, ones, arange
 from scipy.stats import sem
 from scipy.sparse import lil_matrix
 from scipy.ndimage.measurements import center_of_mass, label
@@ -98,10 +98,13 @@ class Rag(Graph):
         self.set_ground_truth(gt_vol)
         self.merge_queue = MergeQueue()
 
-    def build_graph_from_watershed(self, allow_shared_boundaries=True):
+    def build_graph_from_watershed(self, 
+                                    allow_shared_boundaries=True, idxs=None):
         if self.watershed is None:
             return
-        zero_idxs = where(self.watershed.ravel() == 0)[0]
+        if idxs is None:
+            idxs = arange(self.watershed.size)
+        zero_idxs = idxs[self.watershed.ravel()[idxs] == 0]
         if self.show_progress:
             def with_progress(seq, length=None, title='Progress: '):
                 return ip.with_progress(seq, length, title,
@@ -123,12 +126,13 @@ class Rag(Graph):
                     self[l1][l2]['boundary'].add(idx)
                     self[l1][l2]['sump'] += p
                     self[l1][l2]['sump2'] += p*p
+                    self[l1][l2]['sump3'] += p*p*p
                     self[l1][l2]['n'] += 1
                 else: 
                     self.add_edge(l1, l2, 
-                        boundary=set([idx]), sump=p, sump2=p*p, n=1
+                        boundary=set([idx]), sump=p, sump2=p*p, sump3=p*p*p, n=1
                     )
-        nonzero_idxs = where(self.watershed.ravel() != 0)[0]
+        nonzero_idxs = idxs[self.watershed.ravel()[idxs] != 0]
         for idx in with_progress(nonzero_idxs, title='Building nodes... '):
             nodeid = self.watershed.ravel()[idx]
             if not allow_shared_boundaries and not self.has_node(nodeid):
@@ -138,10 +142,12 @@ class Rag(Graph):
                 self.node[nodeid]['extent'].add(idx)
                 self.node[nodeid]['sump'] += p
                 self.node[nodeid]['sump2'] += p*p
+                self.node[nodeid]['sump3'] += p*p*p
             except KeyError:
                 self.node[nodeid]['extent'] = set([idx])
                 self.node[nodeid]['sump'] = p
                 self.node[nodeid]['sump2'] = p*p
+                self.node[nodeid]['sump3'] = p*p*p
                 self.node[nodeid]['absorbed'] = [nodeid]
 
     def get_neighbor_idxs_fast(self, idxs):
@@ -156,6 +162,7 @@ class Rag(Graph):
     def set_watershed(self, ws=None, lowmem=False):
         if ws is None:
             self.watershed = None
+            return
         self.boundary_body = ws.max()+1
         self.size = ws.size
         self.watershed = morpho.pad(ws, [0, self.boundary_body])
@@ -198,9 +205,11 @@ class Rag(Graph):
         """
         queue_items = []
         for l1, l2 in self.edges_iter():
-            qitem = [self.merge_priority_function(self,l1,l2), True, l1, l2]
+            w = self.merge_priority_function(self,l1,l2)
+            qitem = [w, True, l1, l2]
             queue_items.append(qitem)
             self[l1][l2]['qlink'] = qitem
+            self[l1][l2]['weight'] = w
         return MergeQueue(queue_items, with_progress=self.show_progress)
 
     def rebuild_merge_queue(self):
@@ -397,8 +406,18 @@ class Rag(Graph):
         self.remove_node(n2)
         self.sum_body_sizes += len(self.node[n1]['extent'])
 
-    def shatter_node(self, n):
-        gsub = self.subgraph([n]+self.neighbors(n))
+    def split_node(self, u, n=2, **kwargs):
+        node_extent = list(self.node[u]['extent'])
+        node_borders = set().union(
+                        *[self[u][v]['boundary'] for v in self.neighbors(u)])
+        labels = unique(self.watershed.ravel()[node_extent])
+        if labels[0] == 0:
+            labels = labels[1:]
+        self.remove_node(u)
+        self.build_graph_from_watershed(
+            idxs=array(list(set().union(node_extent, node_borders)))
+        )
+        self.ncut(num_clusters=n, nodes=labels, **kwargs)
 
 
     def merge_edge_properties(self, src, dst):
@@ -423,8 +442,10 @@ class Rag(Graph):
         if self[u][v].has_key('qlink'):
             self.merge_queue.invalidate(self[u][v]['qlink'])
         if not self.merge_queue.is_null_queue:
-            new_qitem = [self.merge_priority_function(self,u,v), True, u, v]
+            w = self.merge_priority_function(self,u,v)
+            new_qitem = [w, True, u, v]
             self[u][v]['qlink'] = new_qitem
+            self[u][v]['weight'] = w
             self.merge_queue.push(new_qitem)
 
     def show_merge_3D(self, n1, n2, **kwargs):
@@ -520,7 +541,8 @@ class Rag(Graph):
     def write(self, fout, format='GraphML'):
         pass
         
-    def ncut(self, num_clusters=10, kmeans_iters=5, sigma=255.0*20):
+    def ncut(self, num_clusters=10, kmeans_iters=5, sigma=255.0*20, nodes=None,
+            **kwargs):
         """Run normalized cuts on the current set of superpixels.
            Keyword arguments:
                num_clusters -- number of clusters to compute
@@ -528,34 +550,43 @@ class Rag(Graph):
                sigma -- sigma value when setting up weight matrix
            Return value: None
         """
-        W = self.compute_W(self.merge_priority_function) # Compute weight matrix
-        labels, eigvec, eigval = ncutW(W, num_clusters, kmeans_iters) # Run ncut
-        self.cluster_by_labels(labels) # Merge nodes that are in same cluster
+        if nodes is None:
+            nodes = self.nodes()
+        # Compute weight matrix
+        W = self.compute_W(self.merge_priority_function, nodes=nodes)
+        # Run normalized cut
+        labels, eigvec, eigval = ncutW(W, num_clusters, kmeans_iters, **kwargs)
+        # Merge nodes that are in same cluster
+        self.cluster_by_labels(labels, nodes) 
     
-    def cluster_by_labels(self, labels):
+    def cluster_by_labels(self, labels, nodes=None):
         """Merge all superpixels with the same label (1 label per 1 sp)"""
-        if not (len(labels) == self.number_of_nodes()):
+        if nodes is None:
+            nodes = array(self.nodes())
+        if not (len(labels) == len(nodes)):
             raise ValueError('Number of labels should be %d but is %d.', 
                 self.number_of_nodes(), len(labels))
-        nodes = array(self.nodes())
-        for label in unique(labels):
-            ind = nonzero(labels==label)[0]
-            nodes_to_merge = nodes[ind]
+        for l in unique(labels):
+            inds = nonzero(labels==l)[0]
+            nodes_to_merge = nodes[inds]
             node1 = nodes_to_merge[0]
             for node in nodes_to_merge[1:]:
                 self.merge_nodes(node1,node)
                 
-    def compute_W(self, merge_priority_function, sigma=255.0*20):
+    def compute_W(self, merge_priority_function, sigma=255.0*20, nodes=None):
         """ Computes the weight matrix for clustering"""
-        nodes_list = self.nodes()
-        n = len(nodes_list)
+        if nodes is None:
+            nodes = array(self.nodes())
+        n = len(nodes)
+        nodes2ind = dict(zip(nodes, range(n)))
         W = lil_matrix((n,n))
-        for e1, e2 in self.edges_iter():
-            val = merge_priority_function(self,e1,e2)
-            ind1 = nonzero(nodes_list==e1)[0][0]
-            ind2 = nonzero(nodes_list==e2)[0][0]
-            W[ind1, ind2] = exp(-val**2/sigma)
-            W[ind2, ind1] = W[ind1, ind2]
+        for u, v in self.edges(nodes):
+            try:
+                i, j = nodes2ind[u], nodes2ind[v]
+            except KeyError:
+                continue
+            w = merge_priority_function(self,u,v)
+            W[i,j] = W[j,i] = exp(-w**2/sigma)
         return W
               
                     
