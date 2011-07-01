@@ -222,7 +222,7 @@ if __name__ == '__main__':
     else:
         mpf = eval(args.objective_function)
 
-    wsg = Rag(args.ws, args.probs, random_priority)
+    wsg = Rag(args.ws, args.probs, mpf)
     features, labels, history, ave_sizes = \
                         wsg.learn_agglomerate(args.gt, feature_map_function)
 
