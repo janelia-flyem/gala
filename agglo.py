@@ -262,7 +262,7 @@ class Rag(Graph):
         # with the 0-label in gt, or that have equal amounts of overlap between
         # two other labels
         if self.merge_queue.is_empty(): self.rebuild_merge_queue()
-        features, labels = [], []
+        features, labels, weights = [], [], []
         history, ave_size = [], []
         while self.number_of_nodes() > gtg.number_of_nodes():
             merge_priority, valid, n1, n2 = self.merge_queue.pop()
@@ -274,6 +274,13 @@ class Rag(Graph):
                 features.append(feature_map_function(self, n1, n2).ravel())
                 if n2 in hard_assignment:
                     n1, n2 = n2, n1
+                # Get change in VOI
+                n = self.size
+                py1 = len(self.node[n1]['extent'])/float(n)
+                py2 = len(self.node[n2]['extent'])/float(n)
+                py = py1 + py2
+                weight =  py*log2(py) - py1*log2(py1) - py2*log2(py2)
+
                 if n1 in hard_assignment and \
                                 (assignment[n1,:] * assignment[n2,:]).any():
                     m = boundary_mean(self, n1, n2)
@@ -285,6 +292,7 @@ class Rag(Graph):
                         history.append([n2, n1])
                         self.merge_nodes(n2, n1)
                         labels.append(-1)
+                        weights.append(weight)
                     else:
                         _ = features.pop() # remove last item
                 else:
@@ -294,9 +302,11 @@ class Rag(Graph):
                     if (assignment[n1,:] == assignment[n2,:]).all():
                         self.merge_nodes(n1, n2)
                         labels.append(-1)
+                        weights.append(weight)
                     else:
                         labels.append(1)
-        return array(features).astype(double), array(labels), \
+                        weights.append(weight)
+        return array(features).astype(double), array(labels), array(weights), \
                                             array(history), array(ave_size)
 
     def replay_merge_history(self, merge_seq, labels=None, num_errors=1):
