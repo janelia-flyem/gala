@@ -251,6 +251,19 @@ class Rag(Graph):
         self.agglomerate(self.boundary_probability/10)
         self.merge_priority_function = original_merge_priority_function
         self.merge_queue.finish()
+        
+    def agglom_segmentations(self):
+        """Return all segmentations produced during agglomeration."""
+        if self.merge_queue.is_empty():
+            self.merge_queue = self.build_merge_queue()
+        result = []
+        while self.number_of_nodes() > 2:
+            merge_priority, valid, n1, n2 = self.merge_queue.pop()
+            if valid:
+                self.merge_nodes(n1, n2)
+                result.append((self.get_segmentation().copy(), merge_priority, n1, n2))
+        return result
+
 
     def learn_agglomerate(self, gt, feature_map_function):
         """Agglomerate while comparing to ground truth & classifying merges."""
