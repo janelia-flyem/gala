@@ -9,7 +9,6 @@ from os.path import split as split_path, join as join_path
 from numpy import array, asarray, uint8, uint16, uint32, zeros, squeeze, \
     fromstring, ndim
 import numpy as np
-import morpho
 
 arguments = argparse.ArgumentParser(add_help=False)
 arggroup = arguments.add_argument_group('Image IO options')
@@ -86,6 +85,7 @@ def read_shiv_raw_stack(ws_fn, sp2body_fn):
     ar = sp2b[ws]
     return remove_merged_boundaries(ar)
 
+import morpho
 def remove_merged_boundaries(ar):
     arp = morpho.pad(ar, [0,ar.max()+1])
     arpr = arp.ravel()

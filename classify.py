@@ -12,7 +12,7 @@ from scikits.learn.svm import SVC
 from scikits.learn.linear_model import LogisticRegression, LinearRegression
 from vigra.learning import RandomForest as VigraRandomForest
 from agglo import best_possible_segmentation, Rag, boundary_mean, \
-    classifier_probability, Rug, random_priority
+    classifier_probability, random_priority
 import morpho
 import iterprogress as ip
 from imio import read_h5_stack, write_h5_stack, write_image_stack
@@ -256,7 +256,7 @@ if __name__ == '__main__':
     else:
         mpf = eval(args.objective_function)
 
-    wsg = Rag(args.ws, args.probs, random_priority)
+    wsg = Rag(args.ws, args.probs, mpf)
     features, labels, history, ave_sizes = \
                         wsg.learn_agglomerate(args.gt, feature_map_function)
 
