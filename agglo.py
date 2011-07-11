@@ -1,4 +1,3 @@
-
 import itertools
 combinations, izip = itertools.combinations, itertools.izip
 from itertools import combinations, izip
@@ -216,33 +215,53 @@ class Rag(Graph):
         """Build a merge queue from scratch and assign to self.merge_queue."""
         self.merge_queue = self.build_merge_queue()
 
-    def agglomerate(self, threshold=128, save_history=False):
+    def agglomerate(self, threshold=128, save_history=False, eval_function=None):
         """Merge nodes sequentially until given edge confidence threshold."""
         if self.merge_queue.is_empty():
             self.merge_queue = self.build_merge_queue()
         history = []
+	evaluation = []
         while len(self.merge_queue) > 0 and \
                                         self.merge_queue.peek()[0] < threshold:
-            merge_priority, valid, n1, n2 = self.merge_queue.pop()
+	    merge_priority, valid, n1, n2 = self.merge_queue.pop()
             if valid:
                 self.merge_nodes(n1,n2)
                 if save_history: history.append((n1,n2))
-        if save_history: return history
+		if eval_function is not None:
+		    num_segs = len(unique(self.get_segmentation()))-1
+		    val = eval_function(self.get_segmentation())
+                    evaluation.append((num_segs, val))
+	if (save_history) and (eval_function is not None):
+	    return history, evaluation
+	elif save_history:
+	    return save_history
+	elif eval_functino is not None:
+	    return evaluation
 
-    def agglomerate_count(self, stepsize=100, save_history=False):
+    def agglomerate_count(self, stepsize=100, save_history=False, eval_function=None):
         """Agglomerate until 'stepsize' merges have been made."""
         if self.merge_queue.is_empty():
             self.merge_queue = self.build_merge_queue()
         history = []
+	evaluation = []
         i = 0
         while len(self.merge_queue) > 0 and i < stepsize:
-            merge_priority, valid, n1, n2 = self.merge_queue.pop()
+	    merge_priority, valid, n1, n2 = self.merge_queue.pop()
             if valid:
                 i += 1
                 self.merge_nodes(n1, n2)
                 if save_history: history.append((n1,n2))
-        if save_history: return history
-
+		if eval_function is not None: 
+			num_segs = len(unique(self.get_segmentation()))-1
+			val = eval_function(self.get_segmentation())
+			evaluation.append((num_segs, val))
+	if (save_history) and (eval_function is not None):
+	    return history, evaluation
+	elif save_history:
+	    return history
+  	elif eval_function is not None:
+	    return evaluation
+	
     def agglomerate_ladder(self, threshold=1000, strictness=1):
         """Merge sequentially all nodes smaller than threshold.
         
@@ -262,18 +281,6 @@ class Rag(Graph):
         self.merge_priority_function = original_merge_priority_function
         self.merge_queue.finish()
         
-    def agglom_segmentations(self):
-        """Return all segmentations produced during agglomeration."""
-        if self.merge_queue.is_empty():
-            self.merge_queue = self.build_merge_queue()
-        result = []
-        while self.number_of_nodes() > 2:
-            merge_priority, valid, n1, n2 = self.merge_queue.pop()
-            if valid:
-                self.merge_nodes(n1, n2)
-                result.append((self.get_segmentation().copy(), merge_priority, n1, n2))
-        return result
-
 
     def learn_agglomerate(self, gt, feature_map_function):
         """Agglomerate while comparing to ground truth & classifying merges."""
