@@ -47,16 +47,17 @@ def train_decision_stump(X,Y,w):
 
 
 def build_stump_1d(x,y,w):
-    sorted_xyw = numpy.array(sorted(zip(x,y,w), key=operator.itemgetter(0)))
-    xsorted = sorted_xyw[:,0]
-    wy = sorted_xyw[:,1]*sorted_xyw[:,2]
+    idx = x.argsort()
+    xsorted = x[idx]
+    wy = y[idx]*w[idx]
     score_left = numpy.cumsum(wy)
     score_right = numpy.cumsum(wy[::-1])
     score = -score_left[0:-1:1] + score_right[-1:0:-1]
     Idec = numpy.where(xsorted[:-1]<xsorted[1:])[0]
     if len(Idec)>0:  # determine the boundary
-        ind, maxscore = max(zip(Idec,abs(score[Idec])),key=operator.itemgetter(1))
-        err = 0.5-0.5*maxscore # compute weighted error
+        ind = Idec[numpy.argmax(abs(score[Idec]))]
+	maxscore = abs(score[ind])
+	err = 0.5-0.5*maxscore # compute weighted error
         threshold = (xsorted[ind] + xsorted[ind+1])/2 # threshold
         s = numpy.sign(score[ind]) # direction of -1 -> 1 change
     else:  # all identical; todo: add random noise?
