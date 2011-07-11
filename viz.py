@@ -1,5 +1,6 @@
 from math import ceil
 import numpy as np
+import evaluate
 import matplotlib
 plt = matplotlib.pyplot
 
@@ -61,3 +62,34 @@ def inspect_segs_3D(*args, **kwargs):
         plt.subplot(*plot_arrangement+(j,))
         imshow_rand(args[i].swapaxes(0,axis)[z])
     return fig
+
+def plot_voi(r, gt, fig=None):
+    """ Plot the voi from segmentations output from agglo.agglom_segmentations(). """
+    v = []
+    n = []
+    for i in r:
+        v.append(evaluate.voi(i[0], gt))
+        n.append(len(np.unique(i[0])-1))
+    if fig is None:
+        fig = plt.figure()
+    plt.plot(n, v, figure = fig)
+    plt.xlabel('Number of segments', figure = fig)
+    plt.ylabel('VOI', figure = fig)
+
+def plot_num_segments(r, gt, num, fig=None):
+    """ Plot a segmentation with a specific number of semgents.
+    
+        The first input should be the output from agglo.agglom_segmentations(). 
+    
+    """
+    i = len(r)-1
+    n = len(np.unique(r[i])-1)
+    while n > num:
+        i -= 1
+        n = len(np.unique(r[i])-1)
+    v = evaluate.voi(r[i][0], gt)
+    if fig is None:
+        fig = plt.figure()
+    plt.imshow(r[i][0], figure = fig)
+    plt.title('VOI: ' + str(v) + '\t Number of segments: ' + str(n), figure = fig)
+    
