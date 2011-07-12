@@ -15,6 +15,7 @@ class DecisionStump():
         feature_index, stump = train_decision_stump(X,Y,w)
         self.feature_index = feature_index
         self.stump = stump
+	return self	
 
     def predict(self,X):
         N, d = X.shape
