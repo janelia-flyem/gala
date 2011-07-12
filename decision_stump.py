@@ -24,8 +24,7 @@ class DecisionStump():
         s = self.stump.s
 
         Y = numpy.ones(N)
-        Y[numpy.where(X[:,feature_index]<threshold)[0]] = -1
-        Y[numpy.where(X[:,feature_index]>=threshold)[0]] = 1
+        Y[X[:,feature_index]<threshold] = -1
         return s*Y
 
 
