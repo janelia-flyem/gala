@@ -55,7 +55,7 @@ class AdaBoost(object):
         return numpy.array([[1.0-p, p] for p in prob])
         
 
-def measure_accuracy(self, Y, o, threshold=0):
+def measure_accuracy(Y, o, threshold=0):
     oo = o.copy()
     oo[numpy.where(o>threshold)[0]] = 1
     oo[numpy.where(o<threshold)[0]] = -1
