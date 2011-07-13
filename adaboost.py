@@ -14,22 +14,21 @@ class AdaBoost(object):
         N = len(self.Y)
         
         if w is None:
-            w = (1.0/N)*numpy.ones(N)
+            w = (1.0/float(N))*numpy.ones(N)
         self.weights = w
         self.weak_classifier_ensemble = []
         self.alpha = []
         
         for t in range(T):
-            weak_learner = DecisionStump()
-            weak_learner.fit(X,Y,w)
+            weak_learner = DecisionStump().fit(X,Y,w)
             Y_pred = weak_learner.predict(X)
             e = sum(0.5*w*abs((Y-Y_pred)))/sum(w)
             if e > 0.5:
                 sys.stdout.write('WARNING: ending training due to no good weak classifiers.')
                 break
-            ee = (1-e)/(e*1.0)
-            alpha = 0.5*math.log(ee+0.00001)
-            w *= numpy.exp(-alpha*Y*Y_pred) #*ww) # increase weights for wrongly classified
+            ee = (1-e)/float(e)
+            alpha = 0.5*math.log(ee)
+            w *= numpy.exp(-alpha*Y*Y_pred) # increase weights for wrongly classified
             w /= sum(w)
             self.weak_classifier_ensemble.append(weak_learner)
             self.alpha.append(alpha)
@@ -41,13 +40,7 @@ class AdaBoost(object):
 
     def predict(self,X):
         X = numpy.array(X)
-        N, d = X.shape
-        Y = numpy.zeros(N)
-        for t in range(self.T):
-            #sys.stdout.write('.')
-            weak_learner = self.weak_classifier_ensemble[t]
-            #print Y.shape, self.alpha[t], weak_learner.predict(X).shape
-            Y += self.alpha[t]*weak_learner.predict(X)
+	Y = sum([a*c.predict(X) for a,c in zip(self.alpha, self.weak_classifier_ensemble)])
         return Y
         
     def predict_proba(self, X):
@@ -60,7 +53,7 @@ def measure_accuracy(Y, o, threshold=0):
     oo[numpy.where(o>threshold)[0]] = 1
     oo[numpy.where(o<threshold)[0]] = -1
     d = (oo - Y)
-    return len(d[numpy.where(d==0)[0]])*1.0/len(Y)
+    return len(d[numpy.where(d==0)[0]])/float(len(Y))
 
 
 
