@@ -9,13 +9,13 @@ class AdaBoost(object):
     """ Class for an adaboost classifier, adapted from pyclassic. """
 
     def fit(self, X, Y, w=None, T=100):
-        self.X = X
-        self.Y = Y
+        self.X = X.copy()
+        self.Y = Y.copy()
         N = len(self.Y)
         
         if w is None:
             w = (1.0/float(N))*numpy.ones(N)
-        self.weights = w
+        self.weights = w.copy()
         self.weak_classifier_ensemble = []
         self.alpha = []
         
