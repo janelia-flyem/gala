@@ -56,8 +56,8 @@ def build_stump_1d(x,y,w):
     Idec = numpy.where(xsorted[:-1]<xsorted[1:])[0]
     if len(Idec)>0:  # determine the boundary
         ind = Idec[numpy.argmax(abs(score[Idec]))]
-	maxscore = abs(score[ind])
-	err = 0.5-0.5*maxscore # compute weighted error
+        maxscore = abs(score[ind])
+        err = 0.5-0.5*maxscore # compute weighted error
         threshold = (xsorted[ind] + xsorted[ind+1])/2 # threshold
         s = numpy.sign(score[ind]) # direction of -1 -> 1 change
     else:  # all identical; todo: add random noise?

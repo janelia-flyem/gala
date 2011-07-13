@@ -40,7 +40,7 @@ class AdaBoost(object):
 
     def predict(self,X):
         X = numpy.array(X)
-	Y = sum([a*c.predict(X) for a,c in zip(self.alpha, self.weak_classifier_ensemble)])
+        Y = sum([a*c.predict(X) for a,c in zip(self.alpha, self.weak_classifier_ensemble)])
         return Y
         
     def predict_proba(self, X):
