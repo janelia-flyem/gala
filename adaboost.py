@@ -14,7 +14,7 @@ class AdaBoost(object):
         N = len(self.Y)
         
         if w is None:
-            w = (1.0/float(N))*numpy.ones(N)
+            w = numpy.array((1.0/float(N))*numpy.ones(N))
         self.weights = w.copy()
         self.weak_classifier_ensemble = []
         self.alpha = []
