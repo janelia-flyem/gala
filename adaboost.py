@@ -40,12 +40,12 @@ class AdaBoost(object):
 
     def predict(self,X):
         X = numpy.array(X)
-        Y = sum([a*c.predict(X) for a,c in zip(self.alpha, self.weak_classifier_ensemble)])
+        Y = sum([self.alpha[i]*self.weak_classifier_ensemble[i].predict(X) for i in xrange(len(self.alpha))])
         return Y
         
     def predict_proba(self, X):
         prob = 1.0/(1.0 + numpy.exp(-self.predict(X)))
-        return numpy.array([[1.0-p, p] for p in prob])
+        return numpy.concatenate((numpy.array([1.0-prob]), numpy.array([prob]))).T
         
 
 def measure_accuracy(Y, o, threshold=0):

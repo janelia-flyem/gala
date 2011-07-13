@@ -23,10 +23,7 @@ class DecisionStump():
         threshold = self.stump.threshold
         s = self.stump.s
 
-        Y = numpy.ones(N)
-        Y[X[:,feature_index]<threshold] = -1
-        return s*Y
-
+	return s*(2.0*(X[:,feature_index]>threshold).astype(numpy.uint8)-1)
 
 class Stump:
     """1D stump"""
@@ -53,16 +50,10 @@ def build_stump_1d(x,y,w):
     score_left = numpy.cumsum(wy)
     score_right = numpy.cumsum(wy[::-1])
     score = -score_left[0:-1:1] + score_right[-1:0:-1]
-    Idec = numpy.where(xsorted[:-1]<xsorted[1:])[0]
-    if len(Idec)>0:  # determine the boundary
-        ind = Idec[numpy.argmax(abs(score[Idec]))]
-        maxscore = abs(score[ind])
-        err = 0.5-0.5*maxscore # compute weighted error
-        threshold = (xsorted[ind] + xsorted[ind+1])/2 # threshold
-        s = numpy.sign(score[ind]) # direction of -1 -> 1 change
-    else:  # all identical; todo: add random noise?
-        err = 0.5
-        threshold = 0
-        s = 1
+    ind = numpy.argmax(abs(score))
+    maxscore = abs(score[ind])
+    err = 0.5*(1.0-maxscore)
+    threshold = (xsorted[ind] + xsorted[ind+1])/2.0
+    s = numpy.sign(score[ind]) # direction of -1 -> 1 change
     return Stump(err, threshold, s)
 
