@@ -14,22 +14,22 @@ class AdaBoost(object):
         N = len(self.Y)
         
         if w is None:
-            w = numpy.array((1.0/float(N))*numpy.ones(N))
+            w = (1.0/float(N))*numpy.ones(N)
         self.weights = w.copy()
         self.weak_classifier_ensemble = []
         self.alpha = []
         
         for t in range(T):
-            weak_learner = DecisionStump().fit(X,Y,w)
-            Y_pred = weak_learner.predict(X)
-            e = sum(0.5*w*abs((Y-Y_pred)))/sum(w)
+            weak_learner = DecisionStump().fit(self.X,self.Y,self.weights)
+            Y_pred = weak_learner.predict(self.X)
+            e = sum(0.5*self.weights*abs((self.Y-Y_pred)))/sum(self.weights)
             if e > 0.5:
                 sys.stdout.write('WARNING: ending training due to no good weak classifiers.')
                 break
             ee = (1-e)/float(e)
             alpha = 0.5*math.log(ee)
-            w *= numpy.exp(-alpha*Y*Y_pred) # increase weights for wrongly classified
-            w /= sum(w)
+            self.weights *= numpy.exp(-alpha*self.Y*Y_pred) # increase weights for wrongly classified
+            self.weights /= sum(self.weights)
             self.weak_classifier_ensemble.append(weak_learner)
             self.alpha.append(alpha)
             self.T = t+1
