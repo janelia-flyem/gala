@@ -10,6 +10,7 @@ from numpy import array, mean, zeros, zeros_like, uint8, int8, where, unique, \
     log2, float, ones, arange
 from scipy.stats import sem
 from scipy.sparse import lil_matrix
+from scipy.misc import comb as nchoosek
 from scipy.ndimage.measurements import center_of_mass, label
 from networkx import Graph
 from networkx.algorithms.traversal.depth_first_search import dfs_preorder_nodes
@@ -282,7 +283,7 @@ class Rag(Graph):
         self.merge_queue.finish()
         
 
-    def learn_agglomerate(self, gt, feature_map_function):
+    def learn_agglomerate(self, gt, feature_map_function, weight_type='voi'):
         """Agglomerate while comparing to ground truth & classifying merges."""
         gtg = Rag(gt)
         cnt = contingency_table(self.get_segmentation(), gtg.get_segmentation())
@@ -304,12 +305,21 @@ class Rag(Graph):
                 features.append(feature_map_function(self, n1, n2).ravel())
                 if n2 in hard_assignment:
                     n1, n2 = n2, n1
-                # Get change in VOI
-                n = self.size
-                py1 = len(self.node[n1]['extent'])/float(n)
-                py2 = len(self.node[n2]['extent'])/float(n)
-                py = py1 + py2
-                weight =  py*log2(py) - py1*log2(py1) - py2*log2(py2)
+		# Calculate weights for weighting data points
+		n = self.size
+		len1 = len(self.node[n1]['extent'])
+		len2 = len(self.node[n2]['extent'])
+		py1 = len1/float(n)
+		py2 = len2/float(n)
+		py = py1 + py2
+		if weight_type == 'voi':
+                    weight =  py*log2(py) - py1*log2(py1) - py2*log2(py2)
+		if weight_type == 'rand':
+		    weight = (len1*len2)/float(nchoosek(n,2))
+		if weight_type == 'both':
+		    weight = (py*log2(py) - py1*log2(py1) - py2*log2(py2), (len1*len2)/float(nchoosek(n,2)))
+		else:
+		    weight = 1.0		
 
                 if n1 in hard_assignment and \
                                 (assignment[n1,:] * assignment[n2,:]).any():
