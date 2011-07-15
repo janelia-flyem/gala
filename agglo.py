@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 from heapq import heapify, heappush, heappop
 from numpy import array, mean, zeros, zeros_like, uint8, int8, where, unique, \
     finfo, size, double, transpose, newaxis, uint32, nonzero, median, exp, \
-    log2, float, ones, arange
+    log2, float, ones, arange, inf
 from scipy.stats import sem
 from scipy.sparse import lil_matrix
 from scipy.misc import comb as nchoosek
@@ -94,7 +94,9 @@ class Rag(Graph):
         else:
             self.merge_priority_function = merge_priority_function
         self.set_watershed(watershed, lowmem)
-        self.build_graph_from_watershed(allow_shared_boundaries)
+        self.ucm = array(self.watershed==0, dtype=float)
+	self.max_merge_score = -inf
+	self.build_graph_from_watershed(allow_shared_boundaries)
         self.set_ground_truth(gt_vol)
         self.merge_queue = MergeQueue()
 
@@ -226,7 +228,7 @@ class Rag(Graph):
                                         self.merge_queue.peek()[0] < threshold:
 	    merge_priority, valid, n1, n2 = self.merge_queue.pop()
             if valid:
-                self.merge_nodes(n1,n2)
+                self.merge_nodes(n1,n2,merge_score=merge_priority)
                 if save_history: history.append((n1,n2))
 		if eval_function is not None:
 		    num_segs = len(unique(self.get_segmentation()))-1
@@ -250,7 +252,7 @@ class Rag(Graph):
 	    merge_priority, valid, n1, n2 = self.merge_queue.pop()
             if valid:
                 i += 1
-                self.merge_nodes(n1, n2)
+                self.merge_nodes(n1, n2, merge_score=merge_priority)
                 if save_history: history.append((n1,n2))
 		if eval_function is not None: 
 			num_segs = len(unique(self.get_segmentation()))-1
@@ -380,11 +382,17 @@ class Rag(Graph):
                 break
         return count, nodes
 
-    def merge_nodes(self, n1, n2):
+    def merge_nodes(self, n1, n2, merge_score=0.0):
         """Merge two nodes, while updating the necessary edges."""
         self.sum_body_sizes -= len(self.node[n1]['extent']) + \
                                 len(self.node[n2]['extent'])
-        new_neighbors = [n for n in self.neighbors(n2) if n != n1]
+        # Update ultrametric contour map
+	self.max_merge_score = max(self.max_merge_score, merge_score)
+	bdry = self[n1][n2]['boundary']
+	for i in bdry:
+		self.ucm[morpho.unravel_index(i, self.segmentation.shape)] = self.max_merge_score
+
+	new_neighbors = [n for n in self.neighbors(n2) if n != n1]
         for n in new_neighbors:
             if self.has_edge(n, n1):
                 self[n1][n]['boundary'].update(self[n2][n]['boundary'])
@@ -535,6 +543,9 @@ class Rag(Graph):
 
     def get_segmentation(self):
         return morpho.juicy_center(self.segmentation, 2)
+
+    def get_ucm(self):
+	return morpho.juicy_center(self.ucm, 2)    
 
     def build_volume(self, nbunch=None):
         """Return the segmentation (numpy.ndarray) induced by the graph."""
