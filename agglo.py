@@ -317,9 +317,9 @@ class Rag(Graph):
 		py = py1 + py2
 		if weight_type == 'voi':
                     weight =  py*log2(py) - py1*log2(py1) - py2*log2(py2)
-		if weight_type == 'rand':
+		elif weight_type == 'rand':
 		    weight = (len1*len2)/float(nchoosek(n,2))
-		if weight_type == 'both':
+		elif weight_type == 'both':
 		    weight = (py*log2(py) - py1*log2(py1) - py2*log2(py2), (len1*len2)/float(nchoosek(n,2)))
 		else:
 		    weight = 1.0		
