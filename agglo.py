@@ -236,7 +236,7 @@ class Rag(Graph):
 	    return history, evaluation
 	elif save_history:
 	    return save_history
-	elif eval_functino is not None:
+	elif eval_function is not None:
 	    return evaluation
 
     def agglomerate_count(self, stepsize=100, save_history=False, eval_function=None):
