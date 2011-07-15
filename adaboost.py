@@ -8,19 +8,25 @@ import operator
 class AdaBoost(object):
     """ Class for an adaboost classifier, adapted from pyclassic. """
 
-    def fit(self, X, Y, w=None, T=100):
+    def fit(self, X, Y, w=None, w_asymmetric=None, T=100):
         self.X = X.copy()
         self.Y = Y.copy()
         N = len(self.Y)
         
         if w is None:
             w = (1.0/float(N))*numpy.ones(N)
+	if w_asymmetric is None:
+	    w_asymmetric = (1.0/float(N))*numpy.ones(N)
+	    w_asymmetric = numpy.array([i**(1.0/float(N)) for i in w_asymmetric])
         self.weights = w.copy()
+	self.weights_asymmetric = w_asymmetric.copy()
 	self.weights /= float(sum(self.weights))
         self.weak_classifier_ensemble = []
         self.alpha = []
         
         for t in range(T):
+	    # Apply asymmetric weights
+	    self.weights *= self.weights_asymmetric
             weak_learner = DecisionStump().fit(self.X,self.Y,self.weights)
             Y_pred = weak_learner.predict(self.X)
             e = sum(0.5*self.weights*abs(self.Y-Y_pred))/sum(self.weights)
