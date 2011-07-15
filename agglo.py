@@ -95,6 +95,7 @@ class Rag(Graph):
             self.merge_priority_function = merge_priority_function
         self.set_watershed(watershed, lowmem)
         self.ucm = array(self.watershed==0, dtype=float)
+	self.ucm[self.ucm==0] = -inf
 	self.max_merge_score = -inf
 	self.build_graph_from_watershed(allow_shared_boundaries)
         self.set_ground_truth(gt_vol)
@@ -382,7 +383,7 @@ class Rag(Graph):
                 break
         return count, nodes
 
-    def merge_nodes(self, n1, n2, merge_score=0.0):
+    def merge_nodes(self, n1, n2, merge_score=-inf):
         """Merge two nodes, while updating the necessary edges."""
         self.sum_body_sizes -= len(self.node[n1]['extent']) + \
                                 len(self.node[n2]['extent'])
