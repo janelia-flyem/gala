@@ -17,9 +17,8 @@ class AdaBoost(object):
             w = (1.0/float(N))*numpy.ones(N)
 	if w_asymmetric is None:
 	    w_asymmetric = (1.0/float(N))*numpy.ones(N)
-	    w_asymmetric = numpy.array([i**(1.0/float(N)) for i in w_asymmetric])
         self.weights = w.copy()
-	self.weights_asymmetric = w_asymmetric.copy()
+	self.weights_asymmetric = numpy.array([i**(1.0/float(T)) for i in w_asymmetric])
 	self.weights /= float(sum(self.weights))
         self.weak_classifier_ensemble = []
         self.alpha = []
