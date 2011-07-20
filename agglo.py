@@ -94,8 +94,11 @@ class Rag(Graph):
         else:
             self.merge_priority_function = merge_priority_function
         self.set_watershed(watershed, lowmem)
-        self.ucm = array(self.watershed==0, dtype=float)
-	self.ucm[self.ucm==0] = -inf
+	if watershed is None:
+	    self.ucm = None
+	else:
+            self.ucm = array(self.watershed==0, dtype=float)
+	    self.ucm[self.ucm==0] = -inf
 	self.max_merge_score = -inf
 	self.build_graph_from_watershed(allow_shared_boundaries)
         self.set_ground_truth(gt_vol)
@@ -388,11 +391,14 @@ class Rag(Graph):
         self.sum_body_sizes -= len(self.node[n1]['extent']) + \
                                 len(self.node[n2]['extent'])
         # Update ultrametric contour map
-	self.max_merge_score = max(self.max_merge_score, merge_score)
-	bdry = self[n1][n2]['boundary']
-	for i in bdry:
-		self.ucm[morpho.unravel_index(i, self.segmentation.shape)] = self.max_merge_score
-
+	if self.ucm is not None:
+	    self.max_merge_score = max(self.max_merge_score, merge_score)
+	    try:
+	        bdry = self[n1][n2]['boundary']
+	        for i in bdry:
+	            self.ucm[morpho.unravel_index(i, self.segmentation.shape)] = self.max_merge_score
+	    except:
+		pass
 	new_neighbors = [n for n in self.neighbors(n2) if n != n1]
         for n in new_neighbors:
             if self.has_edge(n, n1):
