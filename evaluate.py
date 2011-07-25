@@ -47,15 +47,8 @@ def voi(X, Y, cont=None, weights=numpy.ones(2)):
     """Return the variation of information metric."""
     return numpy.dot(weights, split_voi(X,Y,cont))
 
-def split_voi(X, Y, cont=None, ignore_seg_labels=[], ignore_gt_labels=[]):
-    """Return the symmetric conditional entropies associated with the VOI.
-    
-    The variation of information is defined as VI(X,Y) = H(X|Y) + H(Y|X).
-    If Y is the ground-truth segmentation, then H(Y|X) can be interpreted
-    as the amount of under-segmentation of Y and H(X|Y) is then the amount
-    of over-segmentation.  In other words, a perfect over-segmentation
-    will have H(Y|X)=0 and a perfect under-segmentation will have H(X|Y)=0.
-    """
+def voi_tables(X, Y, cont=None, ignore_seg_labels=[], ignore_gt_labels=[]):
+    """Return probability tables used for calculating voi."""
     if cont is None:
         cont = contingency_table(X, Y)
 
@@ -68,22 +61,28 @@ def split_voi(X, Y, cont=None, ignore_seg_labels=[], ignore_gt_labels=[]):
     pxy = cont/float(n)
     px = pxy.sum(axis=1)
     py = pxy.sum(axis=0)
-    # Remove zero rows/cols
-    nzx = px.nonzero()[0]
-    nzy = py.nonzero()[0]
-    px = px[nzx]
-    py = py[nzy]
-    pxy = pxy[nzx,:][:,nzy]
 
     # Calculate log conditional probabilities and entropies
     ax = numpy.newaxis
     lpygx = xlogx(pxy / px[:,ax]).sum(axis=1) # \sum_x{p_{y|x} \log{p_{y|x}}}
-    hygx = -(px*lpygx).sum() # \sum_x{p_x H(Y|X=x)} = H(Y|X)
+    hygx = -(px*lpygx) # \sum_x{p_x H(Y|X=x)} = H(Y|X)
     lpxgy = xlogx(pxy / py[ax,:]).sum(axis=0)
-    hxgy = -(py*lpxgy).sum()
+    hxgy = -(py*lpxgy)
 
+    return pxy,px,py,hxgy,hygx
+
+def split_voi(X,Y,cont=None, ignore_seg_labels=[], ignore_gt_labels=[]):
+    """Return the symmetric conditional entropies associated with the VOI.
+    
+    The variation of information is defined as VI(X,Y) = H(X|Y) + H(Y|X).
+    If Y is the ground-truth segmentation, then H(Y|X) can be interpreted
+    as the amount of under-segmentation of Y and H(X|Y) is then the amount
+    of over-segmentation.  In other words, a perfect over-segmentation
+    will have H(Y|X)=0 and a perfect under-segmentation will have H(X|Y)=0.
+    """
+    pxy,px,py,hxgy,hygx = voi_tables(X,Y,cont,ignore_seg_labels, ignore_gt_labels)
     # false merges, false splits
-    return numpy.array([hygx, hxgy])
+    return numpy.array([hygx.sum(), hxgy.sum()])
 
 def rand_values(cont_table):
     """Calculate values for rand indices."""

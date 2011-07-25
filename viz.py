@@ -78,3 +78,17 @@ def plot_voi(a, history, gt, fig=None):
     plt.xlabel('Number of segments', figure = fig)
     plt.ylabel('VOI', figure = fig)
 
+def plot_voi_parts(seg, gt, ignore_seg_labels=[], ignore_gt_labels=[]):
+    """Given a segmentation and ground truth, plot the size of segments versus the conditional entropy."""
+    pxy,px,py,hxgy,hygx = evaluate.voi_tables(seg,gt,ignore_seg_labels=ignore_seg_labels,ignore_gt_labels=ignore_gt_labels)
+    plt.figure()
+    plt.subplot(1,2,1)
+    plt.scatter(px, hygx)
+    plt.xlabel('p(seg)')
+    plt.ylabel('H(GT|SEG=seg)')
+    plt.title('Undersegmentation')
+    plt.subplot(1,2,2)
+    plt.scatter(py,hxgy)
+    plt.xlabel('p(gt)')
+    plt.ylabel('H(SEG|GT=gt)')
+    plt.title('Oversegmentation')
