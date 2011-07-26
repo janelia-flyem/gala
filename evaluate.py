@@ -61,6 +61,12 @@ def voi_tables(X, Y, cont=None, ignore_seg_labels=[], ignore_gt_labels=[]):
     pxy = cont/float(n)
     px = pxy.sum(axis=1)
     py = pxy.sum(axis=0)
+    # Remove zero rows/cols
+    nzx = px.nonzero()[0]
+    nzy = py.nonzero()[0]
+    px = px[nzx]
+    py = py[nzy]
+    pxy = pxy[nzx,:][:,nzy]
 
     # Calculate log conditional probabilities and entropies
     ax = numpy.newaxis
@@ -69,7 +75,7 @@ def voi_tables(X, Y, cont=None, ignore_seg_labels=[], ignore_gt_labels=[]):
     lpxgy = xlogx(pxy / py[ax,:]).sum(axis=0)
     hxgy = -(py*lpxgy)
 
-    return pxy,px,py,hxgy,hygx
+    return pxy,px,py,hxgy,hygx, lpygx, lpxgy
 
 def split_voi(X,Y,cont=None, ignore_seg_labels=[], ignore_gt_labels=[]):
     """Return the symmetric conditional entropies associated with the VOI.
@@ -80,7 +86,7 @@ def split_voi(X,Y,cont=None, ignore_seg_labels=[], ignore_gt_labels=[]):
     of over-segmentation.  In other words, a perfect over-segmentation
     will have H(Y|X)=0 and a perfect under-segmentation will have H(X|Y)=0.
     """
-    pxy,px,py,hxgy,hygx = voi_tables(X,Y,cont,ignore_seg_labels, ignore_gt_labels)
+    pxy,px,py,hxgy,hygx,lpygx,lpxgy = voi_tables(X,Y,cont,ignore_seg_labels, ignore_gt_labels)
     # false merges, false splits
     return numpy.array([hygx.sum(), hxgy.sum()])
 
