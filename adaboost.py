@@ -58,7 +58,7 @@ class AdaBoost(object):
         return Y
         
     def predict_proba(self, X):
-        p = 1.0/(1.0 + 2*numpy.exp(-self.predict_score(X)))
+        p = 1.0/(1.0 + numpy.exp(-2.0*self.predict_score(X)))
         return numpy.array([1-p, p])
         
 
