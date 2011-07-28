@@ -1,21 +1,32 @@
 #!/usr/bin/env python
 
+# system modules
 import sys, os, argparse
 import cPickle
+import logging
 from math import sqrt
 
+# libraries
 import h5py
 from numpy import bool, array, double, zeros, mean, random, concatenate, where,\
     uint8, ones, float32, uint32, unique, newaxis
 from scipy.stats import sem
 from scikits.learn.svm import SVC
 from scikits.learn.linear_model import LogisticRegression, LinearRegression
-from vigra.learning import RandomForest as VigraRandomForest
+try:
+    from vigra.learning import RandomForest as VigraRandomForest
+except ImportError:
+    logging.warning(' vigra library is not available. '+
+        'Cannot use random forest classifier.')
+    pass
+
+# local imports
 from agglo import best_possible_segmentation, Rag, boundary_mean, \
     classifier_probability, random_priority
 import morpho
 import iterprogress as ip
 from imio import read_h5_stack, write_h5_stack, write_image_stack
+from adaboost import AdaBoost
 
 def mean_and_sem(g, n1, n2):
     bvals = g.probabilities.ravel()[list(g[n1][n2]['boundary'])]
@@ -172,7 +183,14 @@ def select_classifier(cname, features=None, labels=None, **kwargs):
     elif 'linear-regression'.startswith(cname):
         c = LinearRegression()
     elif 'random-forest'.startswith(cname):
-        c = RandomForest()
+        try:
+            c = RandomForest()
+        except NameError:
+            logging.warning(' Tried to use random forest, but not available.'+
+                ' Falling back on adaboost.')
+            cname = 'ada'
+    if 'adaboost'.startswith(cname):
+        c = AdaBoost(**kwargs)
     if features is not None and labels is not None:
         c = c.fit(features, labels, **kwargs)
     return c
@@ -188,10 +206,10 @@ def pickled(fn):
 
 arguments = argparse.ArgumentParser(add_help=False)
 arggroup = arguments.add_argument_group('Classification options')
-arggroup.add_argument('-c', '--classifier', default='svm', 
-    help='''Choose the classifier to use. Default: svm (support vector 
-        machine). Options: svm, logistic-regression, linear-regression,
-        random-forest.'''
+arggroup.add_argument('-c', '--classifier', default='ada', 
+    help='''Choose the classifier to use. Default: adaboost. 
+        Options: svm, logistic-regression, linear-regression,
+        random-forest, adaboost'''
 )
 arggroup.add_argument('-k', '--load-classifier', 
     type=pickled, metavar='PCK_FILE',
