@@ -59,8 +59,7 @@ class AdaBoost(object):
         
     def predict_proba(self, X):
         p = 1.0/(1.0 + numpy.exp(-2.0*self.predict_score(X)))
-        return numpy.array([1-p, p])
-        
+        return numpy.concatenate((numpy.array([1.0-p]), numpy.array([p])), axis=0).T
 
 def measure_accuracy(Y, o, threshold=0):
     oo = o.copy()
