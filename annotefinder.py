@@ -69,8 +69,7 @@ class AnnoteFinder:
       self.axis.figure.canvas.draw()
     else:
       t = axis.text(x,y, "(%3.2f, %3.2f) - %s"%(x,y,annote), )
-      m = axis.scatter([x],[y], marker='d', c='r', zorder=100)
-      self.drawnAnnotations[(x,y)] =(t,m)
+      self.drawnAnnotations[(x,y)] = t
       pylab.axes(self.axis)
       if self.xmin is not None: pylab.xlim(xmin=self.xmin)
       if self.ymin is not None: pylab.ylim(ymin=self.ymin)
