@@ -1,3 +1,4 @@
+from annotefinder import AnnoteFinder
 from math import ceil
 import numpy as np
 import evaluate
@@ -80,11 +81,14 @@ def plot_voi(a, history, gt, fig=None):
 
 def plot_voi_parts(seg, gt, ignore_seg_labels=[], ignore_gt_labels=[]):
     """Given a segmentation and ground truth, plot the size of segments versus the conditional entropy."""
+    plt.ion()
     pxy,px,py,hxgy,hygx,lpygx,lpxgy = evaluate.voi_tables(seg,gt,
 	ignore_seg_labels=ignore_seg_labels,ignore_gt_labels=ignore_gt_labels)
     plt.figure()
     plt.subplot(1,2,1)
     plt.scatter(px, -lpygx, c=-px*lpygx)
+    af1 = AnnoteFinder(px, -lpygx, [str(i) for i in range(len(px))], xtol=10, ytol=10, xmin=0, ymin=0)
+    plt.connect('button_press_event', af1)
     plt.xlim(xmin=0)
     plt.ylim(ymin=0)
     plt.xlabel('p(seg)')
@@ -92,6 +96,8 @@ def plot_voi_parts(seg, gt, ignore_seg_labels=[], ignore_gt_labels=[]):
     plt.title('Undersegmentation')
     plt.subplot(1,2,2)
     plt.scatter(py,-lpxgy, c=-py*lpxgy)
+    af2 = AnnoteFinder(py, -lpxgy, [str(i) for i in range(len(py))], xtol=10, ytol=10, xmin=0, ymin=0)
+    plt.connect('button_press_event', af2)
     plt.xlim(xmin=0)
     plt.ylim(ymin=0)
     plt.xlabel('p(gt)')

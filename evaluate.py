@@ -64,15 +64,18 @@ def voi_tables(X, Y, cont=None, ignore_seg_labels=[], ignore_gt_labels=[]):
     # Remove zero rows/cols
     nzx = px.nonzero()[0]
     nzy = py.nonzero()[0]
-    px = px[nzx]
-    py = py[nzy]
-    pxy = pxy[nzx,:][:,nzy]
+    nzpx = px[nzx]
+    nzpy = py[nzy]
+    nzpxy = pxy[nzx,:][:,nzy]
 
     # Calculate log conditional probabilities and entropies
     ax = numpy.newaxis
-    lpygx = xlogx(pxy / px[:,ax]).sum(axis=1) # \sum_x{p_{y|x} \log{p_{y|x}}}
+    lpygx = numpy.zeros(numpy.shape(px))
+    lpygx[nzx] = xlogx(nzpxy / nzpx[:,ax]).sum(axis=1) # \sum_x{p_{y|x} \log{p_{y|x}}}
     hygx = -(px*lpygx) # \sum_x{p_x H(Y|X=x)} = H(Y|X)
-    lpxgy = xlogx(pxy / py[ax,:]).sum(axis=0)
+    
+    lpxgy = numpy.zeros(numpy.shape(py))
+    lpxgy[nzy] = xlogx(nzpxy / nzpy[ax,:]).sum(axis=0)
     hxgy = -(py*lpxgy)
 
     return pxy,px,py,hxgy,hygx, lpygx, lpxgy
