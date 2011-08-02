@@ -5,11 +5,13 @@ import sys, os, argparse
 import cPickle
 import logging
 from math import sqrt
+from abc import ABCMeta, abstractmethod
 
 # libraries
 import h5py
 from numpy import bool, array, double, zeros, mean, random, concatenate, where,\
-    uint8, ones, float32, uint32, unique, newaxis
+    uint8, ones, float32, uint32, unique, newaxis, zeros_like, arange
+from scipy.misc import comb as nchoosek
 from scipy.stats import sem
 from scikits.learn.svm import SVC
 from scikits.learn.linear_model import LogisticRegression, LinearRegression
@@ -27,6 +29,301 @@ import morpho
 import iterprogress as ip
 from imio import read_h5_stack, write_h5_stack, write_image_stack
 from adaboost import AdaBoost
+
+def central_moments_from_noncentral_sums(a):
+    """Compute moments about the mean from sums of x**i, for i=0, ..., len(a).
+
+    The first two moments about the mean (1 and 0) would always be 
+    uninteresting so the function returns n (the sample size) and mu (the 
+    sample mean) in their place.
+    """
+    a = a.astype(double)
+    if len(a) == 1:
+        return a
+    N = a[0]
+    a /= N
+    mu = a[1]
+    ac = zeros_like(a)
+    for n in xrange(2,len(a)):
+        js = arange(0,n+1)
+        # Formula found in Wikipedia page for "Central moment", 2011-07-31
+        ac[n] = (nchoosek(n,js) * (-1)**(n-js) * a[js] * mu**(n-js)).sum()
+    ac[0] = N
+    ac[1] = mu
+    return ac
+
+class GraphFeatures(object):
+    """Abstract base class for graph features. Used in a Composite design pattern."""
+    __metaclass__ = ABCMeta
+    @abstractmethod
+    def __init__(self, node_cache_begin_idx=0, edge_cache_begin_idx=0):
+        self.node_cache_begin_idx = node_cache_begin_idx
+        self.edge_cache_begin_idx = edge_cache_begin_idx
+
+    def __call__(self, g, n1, n2=None):
+        if n2 is None:
+            return self.compute_node_features(g, n1)
+        if len(g.node[n1]['extent']) > len(g.node[n2]['extent']):
+            n1, n2 = n2, n1
+        return self.compute_face_features(g, n1, n2)
+
+    @abstractmethod
+    def __len__(self):
+        pass
+    @abstractmethod
+    def cache_length(self):
+        pass
+
+    def node_cache_address(self):
+        return self.node_cache_begin_idx, \
+                                self.node_cache_begin_idx+self.cache_length()
+
+    def edge_cache_address(self):
+        return self.edge_cache_begin_idx, \
+                                self.edge_cache_begin_idx+self.cache_length()
+    @abstractmethod
+    def compute_edge_features(self, g, n1, n2):
+        pass
+    @abstractmethod
+    def compute_node_features(self, g, n1):
+        pass
+    @abstractmethod
+    def init_node_cache(self, g, n1, idx):
+        pass
+    @abstractmethod
+    def init_edge_cache(self, g, n1, n2, idx):
+        pass
+    @abstractmethod
+    def merge_node_caches(self, g, n1, n2):
+        pass
+    @abstractmethod
+    def merge_edge_caches(self, g, e1, e2):
+        pass
+
+class GraphHistogramFeatures(GraphFeatures):
+    def __init__(self, node_cache_begin_idx=0, edge_cache_begin_idx=0,
+                                                minp=0.0, maxp=1.0, nbins=20):
+        super(GraphHistogramFeatures, self).__init__(
+                                node_cache_begin_idx, edge_cache_begin_idx)
+        self.minp = minp
+        self.maxp = maxp
+        self.nbins = nbins
+
+    def __len__(self):
+        return self.nbins
+
+    def cache_length(self):
+        return self.nbins
+
+    def compute_face_features(self, g, n1, n2):
+        return concatenate(
+            self.compute_edge_features(g, n1, n2),
+            self.compute_node_features(g, n1),
+            self.compute_node_features(g, n2)
+        )
+
+    def compute_edge_features(self, g, n1, n2):
+        i, j = self.edge_cache_address()
+        unnormalized_hist = g[n1][n2]['feature-cache'][i:j]
+        return unnormalized_hist/len(g[n1][n2]['extent'])
+
+    def compute_node_features(self, g, n1):
+        i, j = self.node_cache_address()
+        unnormalized_hist = g.node[n1]['feature-cache'][i:j]
+        return unnormalized_hist/len(g.node[n1]['extent'])
+
+    def init_node_cache(self, g, n1, idx):
+        p = g.probabilities.ravel()[idx]
+        i, j = self.node_cache_address()
+        bin_idx = 
+        try:
+            g.node[n1]['feature-cache'][i:j] += 
+
+class GraphMomentsFeatures(object):
+    """An attempt """
+    def __init__(self, maxp=1.0, maxity=256.0, nhistbins=20, nmoments=4):
+        self.maxp = maxp
+        self.maxity = maxity
+        self.nhistbins = nhistbins
+        self.nmoments = nmoments
+        self.ival = self.maxp/self.nhistbins
+      
+    def __call__(self,g,n1,n2):
+        return self.compute_face_feature(self,g,n1,n2)
+    
+    def compute_face_features(self,g,n1,n2):
+        if len(g.node[n1]['extent']) > len(g.node[n2]['extent']):
+            # ensure n1 is always the smaller of the two nodes
+            n1, n2 = n2, n1
+    
+    def compute_node_feature(self,g,n1):
+        feature_cache = g.node[n1]['feature-cache']
+        featvec = compute_moments(qtyvec)
+        featvec =concatenate((featvec, qtyvec[self.nmoments+1:]*(1.0/qtyvec[0]) ))
+        return featvec
+    
+    def feature_compute_edge(self,g,n1,n2):
+      
+    
+    qtyvec = g[n1][n2]['cachevec']
+    featvec = compute_moments(qtyvec) #moments for bdry
+    
+    featvec= concatenate((featvec, qtyvec[self.nmoments+1:]*(1.0/qtyvec[0]) )) #hist
+    
+    node1features = self.feature_compute_node(g,n1)
+    node2features = self.feature_compute_node(g,n2)
+
+    featvec= concatenate((featvec, zeros(2*self.nmoments))) #hist
+    for i in range(self.nmoments):
+        # abs diff of i-th moment: boundary and node 1
+        featvec[i+self.nmoments+self.nhistbins]= abs(featvec[i]-node1features[i])
+        # abs diff of i-th moment: boundary and node 1
+        featvec[i+2*self.nmoments+self.nhistbins] = abs(featvec[i]-node2features[i])
+        
+    return featvec
+      
+    
+    def auxdata_init_node(self,g,n1,vxl):
+        # n1, n2 = idx of existing edge or node
+        # vxl = idx of boundary or interior voxel
+        memberset = set([vxl])
+    
+        pval=g.probabilities.ravel()[vxl]
+        if pval >1:
+            return
+        #pdb.set_trace()
+        # moments
+        qtyvec = (pval*ones(self.nmoments+1))**arange(self.nmoments+1)
+        #histograms
+        qtyvec = concatenate((qtyvec,zeros(self.nhistbins)))
+    
+        bin= min(int(floor(pval/self.ival)),self.nhistbins-1)
+        qtyvec[self.nmoments+1+bin] += 1
+    
+        g.add_node(n1, extent=memberset, cachevec= qtyvec)
+      
+    def auxdata_init_edge(self,g,n1,n2,vxl):
+        # n1, n2 = idx of existing edge or node
+        # vxl = idx of boundary or interior voxel
+        memberset = set([vxl])
+    
+        pval=g.probabilities.ravel()[vxl]
+        if pval >1:
+            return
+
+        #pdb.set_trace()
+        # moments
+        qtyvec = (pval*ones(self.nmoments+1))**arange(self.nmoments+1)
+        #histograms
+        qtyvec = concatenate((qtyvec,zeros(self.nhistbins)))
+    
+        bin= min(int(floor(pval/self.ival)),self.nhistbins-1)
+        if bin>= self.nhistbins:
+            pdb.set_trace()
+            qtyvec[self.nmoments+1+bin] += 1
+    
+        g.add_edge(n1,n2, extent = memberset, cachevec = qtyvec)
+      
+    def auxdata_update_node(self,g,n1,vxl):
+        # n1, n2 = idx of existing edge or node
+        # vxl = idx of boundary or interior voxel
+
+        pval = g.probabilities.ravel()[vxl]
+        if pval >1:
+            return
+
+        memberset = g.node[n1]['extent']
+        #pdb.set_trace()
+    
+        memberset.add(vxl)
+    
+    
+        qtyvec = g.node[n1]['cachevec'];
+
+    
+        qtyvec[range(self.nmoments+1)] += (pval*ones(self.nmoments+1))**arange(self.nmoments+1)
+    
+        # computing histogram
+        bin= min(int(floor(pval/self.ival)),self.nhistbins-1)
+        qtyvec[self.nmoments+1+bin] += 1
+    
+    def auxdata_update_edge(self,g,n1,n2,vxl):
+        # n1, n2 = idx of existing edge or node
+        # vxl = idx of boundary or interior voxel
+        pval = g.probabilities.ravel()[vxl]
+        if pval >1:
+            return
+
+        memberset = g[n1][n2]['extent']
+        #pdb.set_trace()
+    
+        memberset.add(vxl)
+    
+    
+        qtyvec = g[n1][n2]['cachevec'];
+
+        qtyvec[range(self.nmoments+1)] += (pval*ones(self.nmoments+1))**arange(self.nmoments+1)
+    
+        # computing histogram
+        bin= min(int(floor(pval/self.ival)),self.nhistbins-1)
+        qtyvec[self.nmoments+1+bin] += 1
+      
+    def auxdata_merge_nodes(self,g,n1,n2):
+      
+        #pdb.set_trace()
+    
+        memberset = g.node[n1]['extent'].union( g.node[n2]['extent'] )
+    
+        qtyvec1 = g.node[n1]['cachevec'];
+        qtyvec2 = g.node[n1]['cachevec'];
+
+        qtyvec = qtyvec1 + qtyvec2
+    
+        g.node[n1]['extent'] = memberset
+        g.node[n1]['cachevec'] = qtyvec
+    
+
+        nbr_n1= g.neighbors(n1)
+        nbr_n2= g.neighbors(n2)
+    
+        allnbrs= setdiff1d(union1d(nbr_n1,nbr_n2),set([n1,n2]))
+        commonnbrs= intersect1d(nbr_n1,nbr_n2)
+      
+      
+        for nn in allnbrs:
+            if nn in commonnbrs:
+            memberset=g[n1][nn]['extent']
+            features=g[n1][nn]['cachevec']
+            if g[n1][nn].has_key('qlink'):
+                g.merge_queue.invalidate(g[n1][nn]['qlink'])
+            g.remove_edge(n1,nn)          
+        
+            g.add_edge(n1,nn, extent=  memberset.union(g[n2][nn]['extent']),  cachevec = features + g[n2][nn]['cachevec'])
+            g.update_merge_queue(n1,nn)
+        
+            if g[n2][nn].has_key('qlink'):
+                g.merge_queue.invalidate(g[n2][nn]['qlink'])
+            g.remove_edge(n2,nn)          
+        
+        elif g.has_edge(n2,nn):
+        g.add_edge(n1,nn, extent=g[n2][nn]['extent'],cachevec=g[n2][nn]['cachevec']) 
+        g.update_merge_queue(n1,nn)
+        
+        if g[n2][nn].has_key('qlink'):
+            g.merge_queue.invalidate(g[n2][nn]['qlink'])
+        g.remove_edge(n2,nn)
+      #else if g.has_edge(nn,n2):
+        #g.add_edge(n1,nn,members=g[nn][n2]['members'],features=g[nn][n2]['cachevec']) 
+        #g.remove_edge(nn,n2)
+    
+    if g[n1][n2].has_key('qlink'):
+        g.merge_queue.invalidate(g[n1][n2]['qlink'])
+    g.remove_edge(n1,n2)
+    
+    g.remove_node(n2)
+      
+      
+
 
 def mean_and_sem(g, n1, n2):
     bvals = g.probabilities.ravel()[list(g[n1][n2]['boundary'])]
