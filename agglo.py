@@ -94,13 +94,13 @@ class Rag(Graph):
         else:
             self.merge_priority_function = merge_priority_function
         self.set_watershed(watershed, lowmem)
-	if watershed is None:
-	    self.ucm = None
-	else:
+        if watershed is None:
+            self.ucm = None
+        else:
             self.ucm = array(self.watershed==0, dtype=float)
-	    self.ucm[self.ucm==0] = -inf
-	self.max_merge_score = -inf
-	self.build_graph_from_watershed(allow_shared_boundaries)
+            self.ucm[self.ucm==0] = -inf
+        self.max_merge_score = -inf
+        self.build_graph_from_watershed(allow_shared_boundaries)
         self.set_ground_truth(gt_vol)
         self.merge_queue = MergeQueue()
 
@@ -222,53 +222,55 @@ class Rag(Graph):
         """Build a merge queue from scratch and assign to self.merge_queue."""
         self.merge_queue = self.build_merge_queue()
 
-    def agglomerate(self, threshold=128, save_history=False, eval_function=None):
+    def agglomerate(self, threshold=128, save_history=False, 
+                                                        eval_function=None):
         """Merge nodes sequentially until given edge confidence threshold."""
         if self.merge_queue.is_empty():
             self.merge_queue = self.build_merge_queue()
         history = []
-	evaluation = []
+        evaluation = []
         while len(self.merge_queue) > 0 and \
                                         self.merge_queue.peek()[0] < threshold:
-	    merge_priority, valid, n1, n2 = self.merge_queue.pop()
+            merge_priority, valid, n1, n2 = self.merge_queue.pop()
             if valid:
                 self.merge_nodes(n1,n2,merge_score=merge_priority)
                 if save_history: history.append((n1,n2))
-		if eval_function is not None:
-		    num_segs = len(unique(self.get_segmentation()))-1
-		    val = eval_function(self.get_segmentation())
+                if eval_function is not None:
+                    num_segs = len(unique(self.get_segmentation()))-1
+                    val = eval_function(self.get_segmentation())
                     evaluation.append((num_segs, val))
-	if (save_history) and (eval_function is not None):
-	    return history, evaluation
-	elif save_history:
-	    return save_history
-	elif eval_function is not None:
-	    return evaluation
+        if (save_history) and (eval_function is not None):
+            return history, evaluation
+        elif save_history:
+            return save_history
+        elif eval_function is not None:
+            return evaluation
 
-    def agglomerate_count(self, stepsize=100, save_history=False, eval_function=None):
+    def agglomerate_count(self, stepsize=100, save_history=False,
+                                                        eval_function=None):
         """Agglomerate until 'stepsize' merges have been made."""
         if self.merge_queue.is_empty():
             self.merge_queue = self.build_merge_queue()
         history = []
-	evaluation = []
+        evaluation = []
         i = 0
         while len(self.merge_queue) > 0 and i < stepsize:
-	    merge_priority, valid, n1, n2 = self.merge_queue.pop()
+            merge_priority, valid, n1, n2 = self.merge_queue.pop()
             if valid:
                 i += 1
                 self.merge_nodes(n1, n2, merge_score=merge_priority)
                 if save_history: history.append((n1,n2))
-		if eval_function is not None: 
-			num_segs = len(unique(self.get_segmentation()))-1
-			val = eval_function(self.get_segmentation())
-			evaluation.append((num_segs, val))
-	if (save_history) and (eval_function is not None):
-	    return history, evaluation
-	elif save_history:
-	    return history
-  	elif eval_function is not None:
-	    return evaluation
-	
+                if eval_function is not None: 
+                        num_segs = len(unique(self.get_segmentation()))-1
+                        val = eval_function(self.get_segmentation())
+                        evaluation.append((num_segs, val))
+        if (save_history) and (eval_function is not None):
+            return history, evaluation
+        elif save_history:
+            return history
+          elif eval_function is not None:
+            return evaluation
+        
     def agglomerate_ladder(self, threshold=1000, strictness=1):
         """Merge sequentially all nodes smaller than threshold.
         
@@ -311,21 +313,22 @@ class Rag(Graph):
                 features.append(feature_map_function(self, n1, n2).ravel())
                 if n2 in hard_assignment:
                     n1, n2 = n2, n1
-		# Calculate weights for weighting data points
-		n = self.size
-		len1 = len(self.node[n1]['extent'])
-		len2 = len(self.node[n2]['extent'])
-		py1 = len1/float(n)
-		py2 = len2/float(n)
-		py = py1 + py2
-		if weight_type == 'voi':
+                # Calculate weights for weighting data points
+                n = self.size
+                len1 = len(self.node[n1]['extent'])
+                len2 = len(self.node[n2]['extent'])
+                py1 = len1/float(n)
+                py2 = len2/float(n)
+                py = py1 + py2
+                if weight_type == 'voi':
                     weight =  py*log2(py) - py1*log2(py1) - py2*log2(py2)
-		elif weight_type == 'rand':
-		    weight = (len1*len2)/float(nchoosek(n,2))
-		elif weight_type == 'both':
-		    weight = (py*log2(py) - py1*log2(py1) - py2*log2(py2), (len1*len2)/float(nchoosek(n,2)))
-		else:
-		    weight = 1.0		
+                elif weight_type == 'rand':
+                    weight = (len1*len2)/float(nchoosek(n,2))
+                elif weight_type == 'both':
+                    weight = (py*log2(py) - py1*log2(py1) - py2*log2(py2),
+                                            (len1*len2)/float(nchoosek(n,2)))
+                else:
+                    weight = 1.0                
 
                 if n1 in hard_assignment and \
                                 (assignment[n1,:] * assignment[n2,:]).any():
@@ -391,15 +394,14 @@ class Rag(Graph):
         self.sum_body_sizes -= len(self.node[n1]['extent']) + \
                                 len(self.node[n2]['extent'])
         # Update ultrametric contour map
-	if self.ucm is not None:
-	    self.max_merge_score = max(self.max_merge_score, merge_score)
-	    try:
-	        bdry = self[n1][n2]['boundary']
-	        for i in bdry:
-	            self.ucm[morpho.unravel_index(i, self.segmentation.shape)] = self.max_merge_score
-	    except:
-		pass
-	new_neighbors = [n for n in self.neighbors(n2) if n != n1]
+        if self.ucm is not None:
+            self.max_merge_score = max(self.max_merge_score, merge_score)
+            try:
+                idxs = list(self[n1][n2]['boundary'])
+                self.ucm.ravel()[idxs] = self.max_merge_score
+            except:
+                pass
+        new_neighbors = [n for n in self.neighbors(n2) if n != n1]
         for n in new_neighbors:
             if self.has_edge(n, n1):
                 self[n1][n]['boundary'].update(self[n2][n]['boundary'])
@@ -552,7 +554,7 @@ class Rag(Graph):
         return morpho.juicy_center(self.segmentation, 2)
 
     def get_ucm(self):
-	return morpho.juicy_center(self.ucm, 2)    
+        return morpho.juicy_center(self.ucm, 2)    
 
     def build_volume(self, nbunch=None):
         """Return the segmentation (numpy.ndarray) induced by the graph."""
