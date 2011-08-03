@@ -53,12 +53,11 @@ def central_moments_from_noncentral_sums(a):
     return ac
 
 class GraphFeatures(object):
-    """Abstract base class for graph features. Used in a Composite design pattern."""
-    __metaclass__ = ABCMeta
-    @abstractmethod
+    """Null class for graph features. Base of a Composite pattern."""
     def __init__(self, node_cache_begin_idx=0, edge_cache_begin_idx=0):
         self.node_cache_begin_idx = node_cache_begin_idx
         self.edge_cache_begin_idx = edge_cache_begin_idx
+        self.parent = None
 
     def __call__(self, g, n1, n2=None):
         if n2 is None:
@@ -67,12 +66,11 @@ class GraphFeatures(object):
             n1, n2 = n2, n1
         return self.compute_face_features(g, n1, n2)
 
-    @abstractmethod
     def __len__(self):
-        pass
-    @abstractmethod
+        return 0
+
     def cache_length(self):
-        pass
+        return 0
 
     def node_cache_address(self):
         return self.node_cache_begin_idx, \
@@ -81,22 +79,44 @@ class GraphFeatures(object):
     def edge_cache_address(self):
         return self.edge_cache_begin_idx, \
                                 self.edge_cache_begin_idx+self.cache_length()
-    @abstractmethod
+
+    def compute_face_features(self, g, n1, n2):
+        return concatenate(
+            self.compute_edge_features(g, n1, n2),
+            self.compute_node_features(g, n1),
+            self.compute_node_features(g, n2)
+        )
+
     def compute_edge_features(self, g, n1, n2):
-        pass
-    @abstractmethod
+        i, j = self.edge_cache_address()
+        try:
+            cache = g[n1][n2]['feature-cache'][i:j]
+        except KeyError:
+            cache = array([])
+        return compute_edge_features_from_cache(self, g, n1, n2, cache)
+
+    def compute_edge_features_from_cache(self, g, n1, n2, cache):
+        return cache
+
     def compute_node_features(self, g, n1):
-        pass
-    @abstractmethod
+        i, j = self.node_cache_address()
+        if not g.node[n1].haskey('feature-cache'):
+            self.init_node_cache(g, n1)
+        cache = g.node[n1]['feature-cache'][i:j]
+        return compute_node_features_from_cache(self, g, n1, cache)
+
+    def compute_node_features_from_cache(self, g, n1, cache):
+        return cache
+
     def init_node_cache(self, g, n1, idx):
         pass
-    @abstractmethod
+
     def init_edge_cache(self, g, n1, n2, idx):
         pass
-    @abstractmethod
+
     def merge_node_caches(self, g, n1, n2):
         pass
-    @abstractmethod
+
     def merge_edge_caches(self, g, e1, e2):
         pass
 
@@ -108,80 +128,74 @@ class GraphHistogramFeatures(GraphFeatures):
         self.minp = minp
         self.maxp = maxp
         self.nbins = nbins
+        self.length = nbins
 
     def __len__(self):
         return self.nbins
 
+    def root_length(self):
+        if self.parent is None:
+            return self.nbins
+        else:
+            return self.parent.root_length()
+
     def cache_length(self):
         return self.nbins
 
-    def compute_face_features(self, g, n1, n2):
-        return concatenate(
-            self.compute_edge_features(g, n1, n2),
-            self.compute_node_features(g, n1),
-            self.compute_node_features(g, n2)
-        )
+    def root_cache_length(self):
+        if self.parent is None:
+            return self.nbins
+        else:
+            return self.parent.root_cache_length()
 
-    def compute_edge_features(self, g, n1, n2):
-        i, j = self.edge_cache_address()
-        unnormalized_hist = g[n1][n2]['feature-cache'][i:j]
-        return unnormalized_hist/len(g[n1][n2]['extent'])
+    def compute_edge_features_from_cache(self, g, n1, n2, cache):
+        return cache/len(g[n1][n2]['extent'])
 
-    def compute_node_features(self, g, n1):
-        i, j = self.node_cache_address()
-        unnormalized_hist = g.node[n1]['feature-cache'][i:j]
-        return unnormalized_hist/len(g.node[n1]['extent'])
+    def compute_node_features_from_cache(self, g, n1, cache):
+        return cache/len(g.node[n1]['extent'])
 
     def init_node_cache(self, g, n1, idx):
         p = g.probabilities.ravel()[idx]
         i, j = self.node_cache_address()
-        bin_idx = 
-        try:
-            g.node[n1]['feature-cache'][i:j] += 
+        bin_idx = floor((p-self.minp)/self.maxp * self.nbins)
+        if not g.node[n1].haskey('feature-cache'):
+            g.node[n1]['feature-cache'] = zeros(self.full_cache_length())
+        g.node[n1]['feature-cache'][i:j][bin_idx] += 1
+
+    def init_edge_cache(self, g, n1, n2, idx):
+        p = g.probabilities.ravel()[idx]
+        i, j = self.edge_cache_address()
+        bin_idx = floor((p-self.minp)/self.maxp * self.nbins)
+        if not g[n1][n2].haskey('feature-cache'):
+            g[n1][n2]['feature-cache'] = zeros(self.root_cache_length())
+        g[n1][n2]['feature-cache'][i:j][bin_idx] += 1
+    
+    def merge_node_caches(self, g, n1, n2):
+        i, j = self.node_cache_address()
+        g.node[n1]['feature-cache'][i:j] += g.node[n2]['feature-cache'][i:j]
+        if g.has_boundaries:
+            k, l = self.edge_cache_address()
+            g.node[n1]['feature-cache'][i:j] += g[n1][n2]['feature-cache'][k:l]
+
+    def merge_edge_caches(self, g, e1, e2):
+        u, v = e1
+        w, x = e2
+        i, j = self.edge_cache_address()
+        g[u][v]['feature-cache'][i:j] += g[w][x]['feature-cache'][i:j]
 
 class GraphMomentsFeatures(object):
     """An attempt """
-    def __init__(self, maxp=1.0, maxity=256.0, nhistbins=20, nmoments=4):
-        self.maxp = maxp
-        self.maxity = maxity
-        self.nhistbins = nhistbins
+    def __init__(self, node_cache_begin_idx=0, edge_cache_begin_idx=0, 
+                                                                nmoments=4):
+        super(GraphMomentFeatures, self).__init__(
+                                node_cache_begin_idx, edge_cache_begin_idx)
         self.nmoments = nmoments
-        self.ival = self.maxp/self.nhistbins
-      
-    def __call__(self,g,n1,n2):
-        return self.compute_face_feature(self,g,n1,n2)
     
-    def compute_face_features(self,g,n1,n2):
-        if len(g.node[n1]['extent']) > len(g.node[n2]['extent']):
-            # ensure n1 is always the smaller of the two nodes
-            n1, n2 = n2, n1
-    
-    def compute_node_feature(self,g,n1):
-        feature_cache = g.node[n1]['feature-cache']
-        featvec = compute_moments(qtyvec)
-        featvec =concatenate((featvec, qtyvec[self.nmoments+1:]*(1.0/qtyvec[0]) ))
-        return featvec
-    
-    def feature_compute_edge(self,g,n1,n2):
-      
-    
-    qtyvec = g[n1][n2]['cachevec']
-    featvec = compute_moments(qtyvec) #moments for bdry
-    
-    featvec= concatenate((featvec, qtyvec[self.nmoments+1:]*(1.0/qtyvec[0]) )) #hist
-    
-    node1features = self.feature_compute_node(g,n1)
-    node2features = self.feature_compute_node(g,n2)
+    def __len__(self):
+        return self.nmoments+1
 
-    featvec= concatenate((featvec, zeros(2*self.nmoments))) #hist
-    for i in range(self.nmoments):
-        # abs diff of i-th moment: boundary and node 1
-        featvec[i+self.nmoments+self.nhistbins]= abs(featvec[i]-node1features[i])
-        # abs diff of i-th moment: boundary and node 1
-        featvec[i+2*self.nmoments+self.nhistbins] = abs(featvec[i]-node2features[i])
-        
-    return featvec
-      
+    def compute_edge_features(self, 
+
     
     def auxdata_init_node(self,g,n1,vxl):
         # n1, n2 = idx of existing edge or node
