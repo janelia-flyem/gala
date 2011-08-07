@@ -5,11 +5,13 @@ import sys, os, argparse
 import cPickle
 import logging
 from math import sqrt
+from abc import ABCMeta, abstractmethod
 
 # libraries
 import h5py
 from numpy import bool, array, double, zeros, mean, random, concatenate, where,\
-    uint8, ones, float32, uint32, unique, newaxis
+    uint8, ones, float32, uint32, unique, newaxis, zeros_like, arange
+from scipy.misc import comb as nchoosek
 from scipy.stats import sem
 from scikits.learn.svm import SVC
 from scikits.learn.linear_model import LogisticRegression, LinearRegression
@@ -21,12 +23,115 @@ except ImportError:
     pass
 
 # local imports
-from agglo import best_possible_segmentation, Rag, boundary_mean, \
-    classifier_probability, random_priority
 import morpho
 import iterprogress as ip
 from imio import read_h5_stack, write_h5_stack, write_image_stack
 from adaboost import AdaBoost
+
+class NullFeatureManager(object):
+    def __init__(self, begin_idx=0, cache_begin_idx=0, *args, **kwargs):
+        self.begin_idx = begin_idx
+        self.cache_begin_idx = cache_begin_idx
+        self.cache_length = 0
+        self.parent = None
+    def __len__(self, *args, **kwargs):
+        return 0
+    def feature_range(self):
+        return self.begin_idx, self_begin_idx + len(self)
+    def cache_range(self):
+        return self.cache_begin_idx, self.cache_begin_idx + self.cache_length
+    def __call__(self, g, n1, n2):
+        return self.compute_features(g, n1, n2)
+    def compute_features(self, g, n1, n2):
+        if len(g.node[n1]['extent']) > len(g.node[n2]['extent']):
+            n1, n2 = n2, n1 # smaller node first
+        return concatenate(
+            self.compute_node_features(g, n1),
+            self.compute_node_features(g, n2),
+            self.compute_edge_features(g, n1, n2)
+        )
+    def create_node_cache(self, *args, **kwargs):
+        pass
+    def create_edge_cache(self, *args, **kwargs):
+        pass
+    def update_node_cache(self, *args, **kwargs):
+        pass
+    def update_edge_cache(self, *args, **kwargs):
+        pass
+    def update_node_pixels(self, *args, **kwargs):
+        pass
+    def update_edge_pixels(self, *args, **kwargs):
+        pass
+    def compute_node_features(self, *args, **kwargs):
+        return array([])
+    def compute_edge_features(self, *args, **kwargs):
+        return array([])
+
+class MomentsFeatureManager(NullFeatureManager):
+    def __init__(self, begin_idx=0, cache_begin_idx=0, nmoments=4, 
+                                                            *args, **kwargs):
+        super(MomentsFeatureManager, self).__init__(begin_idx, cache_begin_idx)
+        self.nmoments = nmoments
+        self.cache_length = nmoments+1 # we also include the 0th moment, aka n
+
+    def __len__(self):
+        return self.nmoments+1
+
+    def compute_moment_sums(self, ar, idxs):
+        values = ar.ravel()[idxs][:,newaxis]
+        return (values ** arange(self.nmoments+1)).sum(axis=0)
+
+    def create_node_cache(self, g, n):
+        node_idxs = list(g.node[n]['extent'])
+        return self.compute_moment_sums(g.probabilities, node_idxs)
+
+    def create_edge_cache(self, g, n1, n2):
+        edge_idxs = list(g[n1][n2]['boundary'])
+        return self.compute_moment_sums(g.probabilities, edge_idxs)
+
+    def update_node_cache(self, g, n1, n2, dst, src):
+        dst += src
+
+    def update_edge_cache(self, g, e1, e2, dst, src):
+        dst += src
+
+    def pixelwise_update_node_cache(self, g, n, dst, idxs, remove=False):
+        if len(idxs) == 0: return
+        a = -1.0 if remove else 1.0
+        dst += a * self.compute_moment_sums(g.probabilities, idxs)
+
+    def pixelwise_update_edge_cache(self, g, n1, n2, dst, idxs, remove=False):
+        if len(idxs) == 0: return
+        a = -1.0 if remove else 1.0
+        dst += a * self.compute_moment_sums(g.probabilities, idxs)
+
+    def compute_node_features(self, g, n):
+        return central_moments_from_noncentral_sums(g.node[n]['feature-cache'])
+
+    def compute_edge_features(self, g, n1, n2):
+        return central_moments_from_noncentral_sums(g[n1][n2]['feature-cache'])
+
+def central_moments_from_noncentral_sums(a):
+    """Compute moments about the mean from sums of x**i, for i=0, ..., len(a).
+
+    The first two moments about the mean (1 and 0) would always be 
+    uninteresting so the function returns n (the sample size) and mu (the 
+    sample mean) in their place.
+    """
+    a = a.astype(double)
+    if len(a) == 1:
+        return a
+    N = a[0]
+    a /= N
+    mu = a[1]
+    ac = zeros_like(a)
+    for n in xrange(2,len(a)):
+        js = arange(0,n+1)
+        # Formula found in Wikipedia page for "Central moment", 2011-07-31
+        ac[n] = (nchoosek(n,js) * (-1)**(n-js) * a[js] * mu**(n-js)).sum()
+    ac[0] = N
+    ac[1] = mu
+    return ac
 
 def mean_and_sem(g, n1, n2):
     bvals = g.probabilities.ravel()[list(g[n1][n2]['boundary'])]
@@ -229,6 +334,8 @@ arggroup.add_argument('-N', '--node-split-classifier', metavar='HDF5_FN',
 
 
 if __name__ == '__main__':
+    from agglo import best_possible_segmentation, Rag, boundary_mean, \
+                                classifier_probability, random_priority
     parser = argparse.ArgumentParser(
         parents=[arguments],
         description='Create an agglomeration classifier.'
