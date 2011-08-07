@@ -174,7 +174,7 @@ class Rag(Graph):
             self.watershed = None
             return
         self.boundary_body = ws.max()+1
-        self.size = ws.size
+        self.volume_size = ws.size
         self.watershed = morpho.pad(ws, [0, self.boundary_body])
         self.segmentation = self.watershed.copy()
         if lowmem:
@@ -318,7 +318,7 @@ class Rag(Graph):
                 if n2 in hard_assignment:
                     n1, n2 = n2, n1
                 # Calculate weights for weighting data points
-                n = self.size
+                n = self.volume_size
                 len1 = len(self.node[n1]['extent'])
                 len2 = len(self.node[n2]['extent'])
                 py1 = len1/float(n)
