@@ -96,17 +96,13 @@ class MomentsFeatureManager(NullFeatureManager):
         dst += src
 
     def pixelwise_update_node_cache(self, g, n, dst, idxs, remove=False):
-        if remove:
-            a = -1.0
-        else:
-            a = 1.0
+        if len(idxs) == 0: return
+        a = -1.0 if remove else 1.0
         dst += a * self.compute_moment_sums(g.probabilities, idxs)
 
     def pixelwise_update_edge_cache(self, g, n1, n2, dst, idxs, remove=False):
-        if remove:
-            a = -1.0
-        else:
-            a = 1.0
+        if len(idxs) == 0: return
+        a = -1.0 if remove else 1.0
         dst += a * self.compute_moment_sums(g.probabilities, idxs)
 
     def compute_node_features(self, g, n):

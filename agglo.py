@@ -401,18 +401,11 @@ class Rag(Graph):
             self.max_merge_score = max(self.max_merge_score, merge_score)
             idxs = list(self[n1][n2]['boundary'])
             self.ucm.ravel()[idxs] = self.max_merge_score
-        new_neighbors = [n for n in self.neighbors(n2) if n != n1]
-        for n in new_neighbors:
-            if self.has_edge(n, n1):
-                self[n1][n]['boundary'].update(self[n2][n]['boundary'])
-                self.feature_manager.update_edge_cache(self, (n1,n), (n2,n),
-                    self[n1][n]['feature-cache'], self[n2][n]['feature-cache'])
-            else:
-                self.add_edge(n, n1, attr_dict=self[n2][n])
         self.node[n1]['extent'].update(self.node[n2]['extent'])
         self.feature_manager.update_node_cache(self, n1, n2,
                 self.node[n1]['feature-cache'], self.node[n2]['feature-cache'])
         self.segmentation.ravel()[list(self.node[n2]['extent'])] = n1
+        new_neighbors = [n for n in self.neighbors(n2) if n != n1]
         for n in new_neighbors:
             self.merge_edge_properties((n2,n), (n1,n))
         # this if statement enables merging of non-adjacent nodes
@@ -448,13 +441,14 @@ class Rag(Graph):
                     except KeyError:
                         boundaries_to_edit[(n1,lb)] = [px]
         for u, v in boundaries_to_edit.keys():
-            idxs = boundaries_to_edit[(u,v)]
+            idxs = set(boundaries_to_edit[(u,v)])
             if self.has_edge(u, v):
-                self[u][v]['boundary'].update(boundaries_to_edit[(u,v)])
+                idxs = idxs - self[u][v]['boundary']
+                self[u][v]['boundary'].update(idxs)
                 self.feature_manager.pixelwise_update_edge_cache(self, u, v,
-                                            self[u][v]['feature-cache'], idxs)
+                                    self[u][v]['feature-cache'], list(idxs))
             else:
-                self.add_edge(u, v, boundary=set(boundaries_to_edit[(u,v)]))
+                self.add_edge(u, v, boundary=set(idxs))
                 self.feature_manager.create_edge_cache(self, u, v)
             self.update_merge_queue(u, v)
         for n in self.neighbors(n2):
