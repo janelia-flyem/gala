@@ -433,7 +433,7 @@ if __name__ == '__main__':
         mpf = eval(args.objective_function)
 
     wsg = Rag(args.ws, args.probs, mpf)
-    features, labels, history, ave_sizes = \
+    features, labels, weights, history, ave_sizes = \
                         wsg.learn_agglomerate(args.gt, feature_map_function)
 
     print 'shapes: ', features.shape, labels.shape

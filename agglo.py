@@ -87,7 +87,7 @@ class Rag(Graph):
         connected to both corresponding basins.
         """
         super(Rag, self).__init__(weighted=False)
-        self.boundary_probability = 10**100 #inconceivably high, but no overflow
+        self.boundary_probability = 10.0**20 # high, but no overflow
         if probabilities is not None:
             self.set_probabilities(probabilities)
         self.show_progress = show_progress
@@ -450,7 +450,8 @@ class Rag(Graph):
                                     self[u][v]['feature-cache'], list(idxs))
             else:
                 self.add_edge(u, v, boundary=set(idxs))
-                self.feature_manager.create_edge_cache(self, u, v)
+                self[u][v]['feature-cache'] = \
+                    self.feature_manager.create_edge_cache(self, u, v)
             self.update_merge_queue(u, v)
         for n in self.neighbors(n2):
             if not boundaries_to_edit.has_key((n1,n)) and n != n1:
