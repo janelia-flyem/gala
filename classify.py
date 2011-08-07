@@ -10,7 +10,9 @@ from abc import ABCMeta, abstractmethod
 # libraries
 import h5py
 from numpy import bool, array, double, zeros, mean, random, concatenate, where,\
-    uint8, ones, float32, uint32, unique, newaxis, zeros_like, arange
+    uint8, ones, float32, uint32, unique, newaxis, zeros_like, arange, floor, \
+    histogram, seterr
+seterr(divide='ignore')
 from scipy.misc import comb as nchoosek
 from scipy.stats import sem
 from scikits.learn.svm import SVC
@@ -45,11 +47,11 @@ class NullFeatureManager(object):
     def compute_features(self, g, n1, n2):
         if len(g.node[n1]['extent']) > len(g.node[n2]['extent']):
             n1, n2 = n2, n1 # smaller node first
-        return concatenate(
+        return concatenate((
             self.compute_node_features(g, n1),
             self.compute_node_features(g, n2),
             self.compute_edge_features(g, n1, n2)
-        )
+        ))
     def create_node_cache(self, *args, **kwargs):
         pass
     def create_edge_cache(self, *args, **kwargs):
@@ -132,6 +134,61 @@ def central_moments_from_noncentral_sums(a):
     ac[0] = N
     ac[1] = mu
     return ac
+
+class HistogramFeatureManager(NullFeatureManager):
+    def __init__(self, begin_idx=0, cache_begin_idx=0, nbins=4, 
+                                        minval=0.0, maxval=1.0, *args, **kwargs):
+        super(HistogramFeatureManager, self).__init__(begin_idx, 
+                                                                cache_begin_idx)
+        self.minval = minval
+        self.maxval = maxval
+        self.nbins = nbins
+        self.cache_length = nbins
+
+    def __len__(self):
+        return self.nbins
+
+    def histogram(self, vals):
+        return histogram(vals, bins=self.nbins,
+                            range=(self.minval,self.maxval))[0].astype(double)
+
+    def create_node_cache(self, g, n):
+        node_idxs = list(g.node[n]['extent'])
+        return self.histogram(g.probabilities.ravel()[node_idxs])
+
+    def create_edge_cache(self, g, n1, n2):
+        edge_idxs = list(g[n1][n2]['boundary'])
+        return self.histogram(g.probabilities.ravel()[edge_idxs])
+
+    def update_node_cache(self, g, n1, n2, dst, src):
+        dst += src
+
+    def update_edge_cache(self, g, e1, e2, dst, src):
+        dst += src
+
+    def pixelwise_update_node_cache(self, g, n, dst, idxs, remove=False):
+        if len(idxs) == 0: return
+        a = -1.0 if remove else 1.0
+        dst += a * self.histogram(g.probabilities.ravel()[idxs])
+
+    def pixelwise_update_edge_cache(self, g, n1, n2, dst, idxs, remove=False):
+        if len(idxs) == 0: return
+        a = -1.0 if remove else 1.0
+        dst += a * self.histogram(g.probabilities.ravel()[idxs])
+
+    def compute_node_features(self, g, n):
+        h = g.node[n]['feature-cache']
+        try:
+            return h/h.sum()
+        except ZeroDivisionError:
+            return h
+
+    def compute_edge_features(self, g, n1, n2):
+        h = g[n1][n2]['feature-cache']
+        try:
+            return h/h.sum()
+        except ZeroDivisionError:
+            return h
 
 def mean_and_sem(g, n1, n2):
     bvals = g.probabilities.ravel()[list(g[n1][n2]['boundary'])]
