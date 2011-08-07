@@ -21,7 +21,8 @@ import iterprogress as ip
 from ncut import ncutW
 from mergequeue import MergeQueue
 from evaluate import contingency_table, split_voi
-from classify import NullFeatureManager
+from classify import NullFeatureManager, MomentsFeatureManager, \
+    HistogramFeatureManager
 
 arguments = argparse.ArgumentParser(add_help=False)
 arggroup = arguments.add_argument_group('Agglomeration options')
@@ -76,8 +77,8 @@ class Rag(Graph):
 
     def __init__(self, watershed=None, probabilities=None, 
             merge_priority_function=None, allow_shared_boundaries=True,
-            gt_vol=None, feature_manager=NullFeatureManager(), show_progress=False,
-            lowmem=False):
+            gt_vol=None, feature_manager=MomentsFeatureManager(), 
+            show_progress=False, lowmem=False):
         """Create a graph from a watershed volume and image volume.
         
         The watershed is assumed to have dams of label 0 in between basins.

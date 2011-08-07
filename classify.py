@@ -195,25 +195,19 @@ def mean_and_sem(g, n1, n2):
     return array([mean(bvals), sem(bvals)]).reshape(1,2)
 
 def mean_sem_and_n_from_cache_dict(d):
-    try:
-        n = d['n']
-    except KeyError:
-        n = len(d['extent'])
-    m = d['sump']/n
-    v = 0 if n==1 else max(0, d['sump2']/(n-1) - n/(n-1)*m*m)
+    n, s1, s2 = d['feature-cache'][:3]
+    m = s1/n
+    v = 0 if n==1 else max(0, s2/(n-1) - n/(n-1)*m*m)
     s = sqrt(v/n)
     return m, s, n
 
 def skew_from_cache_dict(d):
-    try:
-        n = d['n']
-    except KeyError:
-        n = len(d['extent'])
-    m1 = d['sump']/n
+    n, s1, s2, s3 = d['feature-cache'][:4]
+    m1 = s1/n
     k1 = m1
-    m2 = d['sump2']/n
+    m2 = s2/n
     k2 = m2 - m1*m1
-    m3 = d['sump3']/n
+    m3 = s3/n
     k3 = m3 - 3*m2*m1 + 2*m1*m1*m1
     return k3 * k2**(-1.5)
 
