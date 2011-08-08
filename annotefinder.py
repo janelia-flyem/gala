@@ -16,7 +16,7 @@ class AnnoteFinder:
   connect('button_press_event', af)
   """
 
-  def __init__(self, xdata, ydata, annotes, axis=None, xtol=None, ytol=None, xmin=None,ymin=None):
+  def __init__(self, xdata, ydata, annotes, axis=None, xtol=None, ytol=None, xmin=None,ymin=None,xmax=None,ymax=None):
     self.data = zip(xdata, ydata, annotes)
     if xtol is None:
       xtol = ((max(xdata) - min(xdata))/float(len(xdata)))/2
@@ -32,6 +32,8 @@ class AnnoteFinder:
     self.links = []
     self.xmin=xmin
     self.ymin=ymin
+    self.xmax=xmax
+    self.ymax=ymax
 
   def distance(self, x1, x2, y1, y2):
     """
@@ -66,6 +68,8 @@ class AnnoteFinder:
       pylab.axes(self.axis)
       if self.xmin is not None: pylab.xlim(xmin=self.xmin)
       if self.ymin is not None: pylab.ylim(ymin=self.ymin)
+      if self.xmax is not None: pylab.xlim(xmax=self.xmax)
+      if self.ymax is not None: pylab.ylim(ymax=self.ymax)
       self.axis.figure.canvas.draw()
     else:
       t = axis.text(x,y, "(%3.2f, %3.2f) - %s"%(x,y,annote), )
@@ -73,6 +77,8 @@ class AnnoteFinder:
       pylab.axes(self.axis)
       if self.xmin is not None: pylab.xlim(xmin=self.xmin)
       if self.ymin is not None: pylab.ylim(ymin=self.ymin)
+      if self.xmax is not None: pylab.xlim(xmax=self.xmax)
+      if self.ymax is not None: pylab.ylim(ymax=self.ymax)
       self.axis.figure.canvas.draw()
 
   def drawSpecificAnnote(self, annote):
