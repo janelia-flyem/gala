@@ -706,6 +706,17 @@ def expected_change_voi(feature_extractor, classifier):
         return  (p*v + (1.0-p)*(-v))
     return predict
 
+def expected_change_rand(feature_extractor, classifier):
+    prob_func = classifier_probability(feature_extractor, classifier)
+    def predict(g, n1, n2):
+        p = float(prob_func(g, n1, n2)) # Prediction from the classifier
+        n = g.size
+        len1 = len(g.node[n1]['extent'])
+        len2 = len(g.node[n2]['extent'])
+        v = (len1*len2)/float(nchoosek(n,2))
+        return p*v + (1.0-p)*(-v)
+    return predict
+
 def boundary_mean_ladder(g, n1, n2, threshold, strictness=1):
     f = make_ladder(boundary_mean, threshold, strictness)
     return f(g, n1, n2)
