@@ -88,7 +88,7 @@ def plot_voi_parts(seg, gt, ignore_seg_labels=[], ignore_gt_labels=[], hyperboli
     plt.figure()
     plt.subplot(1,2,1)
     # Plot hyperbolic lines
-    x = scipy.arange(max(min(px),0), max(px), (max(px)-min(px))/100.0)
+    x = scipy.arange(max(min(px),1e-10), max(px), (max(px)-min(px))/100.0)
     for val in hyperbolic_lines:
 	plt.plot(x, val/x, 'k') 
     plt.scatter(px, -lpygx, c=-px*lpygx)
