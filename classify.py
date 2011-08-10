@@ -31,15 +31,12 @@ from imio import read_h5_stack, write_h5_stack, write_image_stack
 from adaboost import AdaBoost
 
 class NullFeatureManager(object):
-    def __init__(self, begin_idx=0, cache_begin_idx=0, *args, **kwargs):
-        self.begin_idx = begin_idx
+    def __init__(self, cache_begin_idx=0, *args, **kwargs):
         self.cache_begin_idx = cache_begin_idx
         self.cache_length = 0
-        self.parent = None
+        self.default_cache = 'feature-cache'
     def __len__(self, *args, **kwargs):
         return 0
-    def feature_range(self):
-        return self.begin_idx, self_begin_idx + len(self)
     def cache_range(self):
         return self.cache_begin_idx, self.cache_begin_idx + self.cache_length
     def __call__(self, g, n1, n2):
@@ -47,10 +44,13 @@ class NullFeatureManager(object):
     def compute_features(self, g, n1, n2):
         if len(g.node[n1]['extent']) > len(g.node[n2]['extent']):
             n1, n2 = n2, n1 # smaller node first
+        ci1, ci2 = self.cache_range()
+        c1, c2, ce = [d[self.default_cache][ci1:ci2] for d in 
+                            [g.node[n1], g.node[n2], g[n1][n2]]]
         return concatenate((
-            self.compute_node_features(g, n1),
-            self.compute_node_features(g, n2),
-            self.compute_edge_features(g, n1, n2)
+            self.compute_node_features(g, n1, c1),
+            self.compute_node_features(g, n2, c2),
+            self.compute_edge_features(g, n1, n2, ce)
         ))
     def create_node_cache(self, *args, **kwargs):
         pass
@@ -60,9 +60,9 @@ class NullFeatureManager(object):
         pass
     def update_edge_cache(self, *args, **kwargs):
         pass
-    def update_node_pixels(self, *args, **kwargs):
+    def pixelwise_update_node_cache(self, *args, **kwargs):
         pass
-    def update_edge_pixels(self, *args, **kwargs):
+    def pixelwise_update_edge_cache(self, *args, **kwargs):
         pass
     def compute_node_features(self, *args, **kwargs):
         return array([])
@@ -70,9 +70,8 @@ class NullFeatureManager(object):
         return array([])
 
 class MomentsFeatureManager(NullFeatureManager):
-    def __init__(self, begin_idx=0, cache_begin_idx=0, nmoments=4, 
-                                                            *args, **kwargs):
-        super(MomentsFeatureManager, self).__init__(begin_idx, cache_begin_idx)
+    def __init__(self, cache_begin_idx=0, nmoments=4, *args, **kwargs):
+        super(MomentsFeatureManager, self).__init__(cache_begin_idx)
         self.nmoments = nmoments
         self.cache_length = nmoments+1 # we also include the 0th moment, aka n
 
@@ -107,11 +106,17 @@ class MomentsFeatureManager(NullFeatureManager):
         a = -1.0 if remove else 1.0
         dst += a * self.compute_moment_sums(g.probabilities, idxs)
 
-    def compute_node_features(self, g, n):
-        return central_moments_from_noncentral_sums(g.node[n]['feature-cache'])
+    def compute_node_features(self, g, n, cache=None):
+        if cache is None: 
+            c1, c2 = self.cache_range()
+            cache = g.node[n][self.default_cache][c1:c2]
+        return central_moments_from_noncentral_sums(cache)
 
-    def compute_edge_features(self, g, n1, n2):
-        return central_moments_from_noncentral_sums(g[n1][n2]['feature-cache'])
+    def compute_edge_features(self, g, n1, n2, cache=None):
+        if cache is None: 
+            c1, c2 = self.cache_range()
+            cache = g[n1][n2][self.default_cache][c1:c2]
+        return central_moments_from_noncentral_sums(cache)
 
 def central_moments_from_noncentral_sums(a):
     """Compute moments about the mean from sums of x**i, for i=0, ..., len(a).
@@ -136,10 +141,9 @@ def central_moments_from_noncentral_sums(a):
     return ac
 
 class HistogramFeatureManager(NullFeatureManager):
-    def __init__(self, begin_idx=0, cache_begin_idx=0, nbins=4, 
+    def __init__(self, cache_begin_idx=0, nbins=4, 
                                         minval=0.0, maxval=1.0, *args, **kwargs):
-        super(HistogramFeatureManager, self).__init__(begin_idx, 
-                                                                cache_begin_idx)
+        super(HistogramFeatureManager, self).__init__(cache_begin_idx)
         self.minval = minval
         self.maxval = maxval
         self.nbins = nbins
@@ -176,19 +180,84 @@ class HistogramFeatureManager(NullFeatureManager):
         a = -1.0 if remove else 1.0
         dst += a * self.histogram(g.probabilities.ravel()[idxs])
 
-    def compute_node_features(self, g, n):
-        h = g.node[n]['feature-cache']
+    def compute_node_features(self, g, n, cache=None):
+        if cache is None: 
+            c1, c2 = self.cache_range()
+            cache = g.node[n1][self.default_cache][c1:c2]
         try:
-            return h/h.sum()
+            return cache/cache.sum()
         except ZeroDivisionError:
-            return h
+            return cache
 
-    def compute_edge_features(self, g, n1, n2):
-        h = g[n1][n2]['feature-cache']
+    def compute_edge_features(self, g, n1, n2, cache=None):
+        if cache is None: 
+            c1, c2 = self.cache_range()
+            cache = g[n1][n2][self.default_cache][c1:c2]
         try:
-            return h/h.sum()
+            return cache/cache.sum()
         except ZeroDivisionError:
-            return h
+            return cache
+
+class CompositeFeatureManager(NullFeatureManager):
+    def __init__(self, cache_begin_idx=0, children=[], *args, **kwargs):
+        super(CompositeFeatureManager, self).__init__(cache_begin_idx)
+        self.cache_begin_idx = cache_begin_idx
+        self.cache_length = sum([child.cache_length for child in children])
+        self.children = children
+        cache_begin_idx = 0
+        for child in children:
+            # children's cache_begin_idx is relative to their parents'
+            child.cache_begin_idx = cache_begin_idx
+            cache_begin_idx += child.cache_length
+    def __len__(self, *args, **kwargs):
+        return sum([len(child) for child in self.children])
+    def __call__(self, g, n1, n2):
+        return self.compute_features(g, n1, n2)
+    def create_node_cache(self, *args, **kwargs):
+        return concatenate(
+            [c.create_node_cache(*args, **kwargs) for c in self.children]
+        )
+    def create_edge_cache(self, *args, **kwargs):
+        return concatenate(
+            [c.create_edge_cache(*args, **kwargs) for c in self.children]
+        )
+    def update_node_cache(self, g, n1, n2, dst, src):
+        for child in self.children:
+            c1, c2 = child.cache_range()
+            child.update_node_cache(g, n1, n2, dst[c1:c2], src[c1:c2])
+    def update_edge_cache(self, g, e1, e2, dst, src):
+        for child in self.children:
+            c1, c2 = child.cache_range()
+            child.update_node_cache(g, e1, e2, dst[c1:c2], src[c1:c2])
+    def pixelwise_update_node_cache(self, g, n, dst, idxs, remove=False):
+        for child in self.children:
+            c1, c2 = child.cache_range()
+            child.pixelwise_update_node_cache(g, n, dst[c1:c2], idxs, remove)
+
+    def pixelwise_update_edge_cache(self, g, n1, n2, dst, idxs, remove=False):
+        for child in self.children:
+            c1, c2 = child.cache_range()
+            child.pixelwise_update_edge_cache(
+                g, n1, n2, dst[c1:c2], idxs, remove
+            )
+
+    def compute_node_features(self, g, n, cache=None):
+        if cache is None: cache = g.node[n][self.default_cache]
+        features = []
+        for child in self.children:
+            c1, c2 = child.cache_range()
+            features.append(child.compute_node_features(g, n, cache[c1:c2]))
+        return concatenate(features)
+
+    def compute_edge_features(self, g, n1, n2, cache=None):
+        if cache is None: cache = g.node[n][self.default_cache]
+        features = []
+        for child in self.children:
+            c1, c2 = child.cache_range()
+            features.append(
+                child.compute_edge_features(g, n1, n2, cache[c1:c2])
+            )
+        return concatenate(features)
 
 def mean_and_sem(g, n1, n2):
     bvals = g.probabilities.ravel()[list(g[n1][n2]['boundary'])]
