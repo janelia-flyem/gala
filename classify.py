@@ -11,8 +11,9 @@ from abc import ABCMeta, abstractmethod
 import h5py
 from numpy import bool, array, double, zeros, mean, random, concatenate, where,\
     uint8, ones, float32, uint32, unique, newaxis, zeros_like, arange, floor, \
-    histogram, seterr
+    histogram, seterr, nonzero, diff
 seterr(divide='ignore')
+from scipy import arange
 from scipy.misc import comb as nchoosek
 from scipy.stats import sem
 from scikits.learn.svm import SVC
@@ -142,11 +143,13 @@ def central_moments_from_noncentral_sums(a):
 
 class HistogramFeatureManager(NullFeatureManager):
     def __init__(self, cache_begin_idx=0, nbins=4, 
-                                        minval=0.0, maxval=1.0, *args, **kwargs):
+                                        minval=0.0, maxval=1.0, 
+                                        compute_percentiles=[], *args, **kwargs):
         super(HistogramFeatureManager, self).__init__(cache_begin_idx)
         self.minval = minval
         self.maxval = maxval
         self.nbins = nbins
+        self.compute_percentiles = compute_percentiles
         self.cache_length = nbins
 
     def __len__(self):
@@ -155,6 +158,17 @@ class HistogramFeatureManager(NullFeatureManager):
     def histogram(self, vals):
         return histogram(vals, bins=self.nbins,
                             range=(self.minval,self.maxval))[0].astype(double)
+    def percentiles(self, h):
+        ps = []
+        hcum = h.cumsum()
+        binvals = arange(self.minval,self.maxval+1e-10,(self.maxval-self.minval)/float(self.nbins))
+        binvals = binvals[1:] + diff(binvals)*0.5
+        for p in self.compute_percentiles:
+            binnum = nonzero(hcum>p)[0][0]
+            x = (p-hcum[binnum-1]) * (binvals[binnum]-binvals[binnum-1]) / \
+                                    (hcum[binnum]-hcum[binnum-1]) + binvals[binnum-1]
+            ps.append(x)
+        return ps
 
     def create_node_cache(self, g, n):
         node_idxs = list(g.node[n]['extent'])
@@ -185,7 +199,9 @@ class HistogramFeatureManager(NullFeatureManager):
             c1, c2 = self.cache_range()
             cache = g.node[n1][self.default_cache][c1:c2]
         try:
-            return cache/cache.sum()
+            h = cache/cache.sum()
+            ps = self.percentiles(h)
+            return concatenate((h, ps))
         except ZeroDivisionError:
             return cache
 
@@ -194,7 +210,9 @@ class HistogramFeatureManager(NullFeatureManager):
             c1, c2 = self.cache_range()
             cache = g[n1][n2][self.default_cache][c1:c2]
         try:
-            return cache/cache.sum()
+            h = cache/cache.sum()
+            ps = self.percentiles(h)
+            return concatenate((h,ps))
         except ZeroDivisionError:
             return cache
 
