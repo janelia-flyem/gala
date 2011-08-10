@@ -17,7 +17,7 @@ class AdaBoost(object):
         else:
             self.progressbar = NoProgressBar()
 
-    def fit(self, X, Y, w=None, w_asymmetric=None, T=100):
+    def fit(self, X, Y, w=None, w_asymmetric=None, T=100, **kwargs):
         self.X = X.copy()
         self.Y = Y.copy()
         N = len(self.Y)

@@ -5,11 +5,15 @@ import sys, os, argparse
 import cPickle
 import logging
 from math import sqrt
+from abc import ABCMeta, abstractmethod
 
 # libraries
 import h5py
 from numpy import bool, array, double, zeros, mean, random, concatenate, where,\
-    uint8, ones, float32, uint32, unique, newaxis
+    uint8, ones, float32, uint32, unique, newaxis, zeros_like, arange, floor, \
+    histogram, seterr
+seterr(divide='ignore')
+from scipy.misc import comb as nchoosek
 from scipy.stats import sem
 from scikits.learn.svm import SVC
 from scikits.learn.linear_model import LogisticRegression, LinearRegression
@@ -21,37 +25,258 @@ except ImportError:
     pass
 
 # local imports
-from agglo import best_possible_segmentation, Rag, boundary_mean, \
-    classifier_probability, random_priority
 import morpho
 import iterprogress as ip
 from imio import read_h5_stack, write_h5_stack, write_image_stack
 from adaboost import AdaBoost
+
+class NullFeatureManager(object):
+    def __init__(self, cache_begin_idx=0, *args, **kwargs):
+        self.cache_begin_idx = cache_begin_idx
+        self.cache_length = 0
+        self.default_cache = 'feature-cache'
+    def __len__(self, *args, **kwargs):
+        return 0
+    def cache_range(self):
+        return self.cache_begin_idx, self.cache_begin_idx + self.cache_length
+    def __call__(self, g, n1, n2):
+        return self.compute_features(g, n1, n2)
+    def compute_features(self, g, n1, n2):
+        if len(g.node[n1]['extent']) > len(g.node[n2]['extent']):
+            n1, n2 = n2, n1 # smaller node first
+        ci1, ci2 = self.cache_range()
+        c1, c2, ce = [d[self.default_cache][ci1:ci2] for d in 
+                            [g.node[n1], g.node[n2], g[n1][n2]]]
+        return concatenate((
+            self.compute_node_features(g, n1, c1),
+            self.compute_node_features(g, n2, c2),
+            self.compute_edge_features(g, n1, n2, ce)
+        ))
+    def create_node_cache(self, *args, **kwargs):
+        pass
+    def create_edge_cache(self, *args, **kwargs):
+        pass
+    def update_node_cache(self, *args, **kwargs):
+        pass
+    def update_edge_cache(self, *args, **kwargs):
+        pass
+    def pixelwise_update_node_cache(self, *args, **kwargs):
+        pass
+    def pixelwise_update_edge_cache(self, *args, **kwargs):
+        pass
+    def compute_node_features(self, *args, **kwargs):
+        return array([])
+    def compute_edge_features(self, *args, **kwargs):
+        return array([])
+
+class MomentsFeatureManager(NullFeatureManager):
+    def __init__(self, cache_begin_idx=0, nmoments=4, *args, **kwargs):
+        super(MomentsFeatureManager, self).__init__(cache_begin_idx)
+        self.nmoments = nmoments
+        self.cache_length = nmoments+1 # we also include the 0th moment, aka n
+
+    def __len__(self):
+        return self.nmoments+1
+
+    def compute_moment_sums(self, ar, idxs):
+        values = ar.ravel()[idxs][:,newaxis]
+        return (values ** arange(self.nmoments+1)).sum(axis=0)
+
+    def create_node_cache(self, g, n):
+        node_idxs = list(g.node[n]['extent'])
+        return self.compute_moment_sums(g.probabilities, node_idxs)
+
+    def create_edge_cache(self, g, n1, n2):
+        edge_idxs = list(g[n1][n2]['boundary'])
+        return self.compute_moment_sums(g.probabilities, edge_idxs)
+
+    def update_node_cache(self, g, n1, n2, dst, src):
+        dst += src
+
+    def update_edge_cache(self, g, e1, e2, dst, src):
+        dst += src
+
+    def pixelwise_update_node_cache(self, g, n, dst, idxs, remove=False):
+        if len(idxs) == 0: return
+        a = -1.0 if remove else 1.0
+        dst += a * self.compute_moment_sums(g.probabilities, idxs)
+
+    def pixelwise_update_edge_cache(self, g, n1, n2, dst, idxs, remove=False):
+        if len(idxs) == 0: return
+        a = -1.0 if remove else 1.0
+        dst += a * self.compute_moment_sums(g.probabilities, idxs)
+
+    def compute_node_features(self, g, n, cache=None):
+        if cache is None: 
+            c1, c2 = self.cache_range()
+            cache = g.node[n][self.default_cache][c1:c2]
+        return central_moments_from_noncentral_sums(cache)
+
+    def compute_edge_features(self, g, n1, n2, cache=None):
+        if cache is None: 
+            c1, c2 = self.cache_range()
+            cache = g[n1][n2][self.default_cache][c1:c2]
+        return central_moments_from_noncentral_sums(cache)
+
+def central_moments_from_noncentral_sums(a):
+    """Compute moments about the mean from sums of x**i, for i=0, ..., len(a).
+
+    The first two moments about the mean (1 and 0) would always be 
+    uninteresting so the function returns n (the sample size) and mu (the 
+    sample mean) in their place.
+    """
+    a = a.astype(double)
+    if len(a) == 1:
+        return a
+    N = a[0]
+    a /= N
+    mu = a[1]
+    ac = zeros_like(a)
+    for n in xrange(2,len(a)):
+        js = arange(0,n+1)
+        # Formula found in Wikipedia page for "Central moment", 2011-07-31
+        ac[n] = (nchoosek(n,js) * (-1)**(n-js) * a[js] * mu**(n-js)).sum()
+    ac[0] = N
+    ac[1] = mu
+    return ac
+
+class HistogramFeatureManager(NullFeatureManager):
+    def __init__(self, cache_begin_idx=0, nbins=4, 
+                                        minval=0.0, maxval=1.0, *args, **kwargs):
+        super(HistogramFeatureManager, self).__init__(cache_begin_idx)
+        self.minval = minval
+        self.maxval = maxval
+        self.nbins = nbins
+        self.cache_length = nbins
+
+    def __len__(self):
+        return self.nbins
+
+    def histogram(self, vals):
+        return histogram(vals, bins=self.nbins,
+                            range=(self.minval,self.maxval))[0].astype(double)
+
+    def create_node_cache(self, g, n):
+        node_idxs = list(g.node[n]['extent'])
+        return self.histogram(g.probabilities.ravel()[node_idxs])
+
+    def create_edge_cache(self, g, n1, n2):
+        edge_idxs = list(g[n1][n2]['boundary'])
+        return self.histogram(g.probabilities.ravel()[edge_idxs])
+
+    def update_node_cache(self, g, n1, n2, dst, src):
+        dst += src
+
+    def update_edge_cache(self, g, e1, e2, dst, src):
+        dst += src
+
+    def pixelwise_update_node_cache(self, g, n, dst, idxs, remove=False):
+        if len(idxs) == 0: return
+        a = -1.0 if remove else 1.0
+        dst += a * self.histogram(g.probabilities.ravel()[idxs])
+
+    def pixelwise_update_edge_cache(self, g, n1, n2, dst, idxs, remove=False):
+        if len(idxs) == 0: return
+        a = -1.0 if remove else 1.0
+        dst += a * self.histogram(g.probabilities.ravel()[idxs])
+
+    def compute_node_features(self, g, n, cache=None):
+        if cache is None: 
+            c1, c2 = self.cache_range()
+            cache = g.node[n1][self.default_cache][c1:c2]
+        try:
+            return cache/cache.sum()
+        except ZeroDivisionError:
+            return cache
+
+    def compute_edge_features(self, g, n1, n2, cache=None):
+        if cache is None: 
+            c1, c2 = self.cache_range()
+            cache = g[n1][n2][self.default_cache][c1:c2]
+        try:
+            return cache/cache.sum()
+        except ZeroDivisionError:
+            return cache
+
+class CompositeFeatureManager(NullFeatureManager):
+    def __init__(self, cache_begin_idx=0, children=[], *args, **kwargs):
+        super(CompositeFeatureManager, self).__init__(cache_begin_idx)
+        self.cache_begin_idx = cache_begin_idx
+        self.cache_length = sum([child.cache_length for child in children])
+        self.children = children
+        cache_begin_idx = 0
+        for child in children:
+            # children's cache_begin_idx is relative to their parents'
+            child.cache_begin_idx = cache_begin_idx
+            cache_begin_idx += child.cache_length
+    def __len__(self, *args, **kwargs):
+        return sum([len(child) for child in self.children])
+    def __call__(self, g, n1, n2):
+        return self.compute_features(g, n1, n2)
+    def create_node_cache(self, *args, **kwargs):
+        return concatenate(
+            [c.create_node_cache(*args, **kwargs) for c in self.children]
+        )
+    def create_edge_cache(self, *args, **kwargs):
+        return concatenate(
+            [c.create_edge_cache(*args, **kwargs) for c in self.children]
+        )
+    def update_node_cache(self, g, n1, n2, dst, src):
+        for child in self.children:
+            c1, c2 = child.cache_range()
+            child.update_node_cache(g, n1, n2, dst[c1:c2], src[c1:c2])
+    def update_edge_cache(self, g, e1, e2, dst, src):
+        for child in self.children:
+            c1, c2 = child.cache_range()
+            child.update_node_cache(g, e1, e2, dst[c1:c2], src[c1:c2])
+    def pixelwise_update_node_cache(self, g, n, dst, idxs, remove=False):
+        for child in self.children:
+            c1, c2 = child.cache_range()
+            child.pixelwise_update_node_cache(g, n, dst[c1:c2], idxs, remove)
+
+    def pixelwise_update_edge_cache(self, g, n1, n2, dst, idxs, remove=False):
+        for child in self.children:
+            c1, c2 = child.cache_range()
+            child.pixelwise_update_edge_cache(
+                g, n1, n2, dst[c1:c2], idxs, remove
+            )
+
+    def compute_node_features(self, g, n, cache=None):
+        if cache is None: cache = g.node[n][self.default_cache]
+        features = []
+        for child in self.children:
+            c1, c2 = child.cache_range()
+            features.append(child.compute_node_features(g, n, cache[c1:c2]))
+        return concatenate(features)
+
+    def compute_edge_features(self, g, n1, n2, cache=None):
+        if cache is None: cache = g.node[n][self.default_cache]
+        features = []
+        for child in self.children:
+            c1, c2 = child.cache_range()
+            features.append(
+                child.compute_edge_features(g, n1, n2, cache[c1:c2])
+            )
+        return concatenate(features)
 
 def mean_and_sem(g, n1, n2):
     bvals = g.probabilities.ravel()[list(g[n1][n2]['boundary'])]
     return array([mean(bvals), sem(bvals)]).reshape(1,2)
 
 def mean_sem_and_n_from_cache_dict(d):
-    try:
-        n = d['n']
-    except KeyError:
-        n = len(d['extent'])
-    m = d['sump']/n
-    v = 0 if n==1 else max(0, d['sump2']/(n-1) - n/(n-1)*m*m)
+    n, s1, s2 = d['feature-cache'][:3]
+    m = s1/n
+    v = 0 if n==1 else max(0, s2/(n-1) - n/(n-1)*m*m)
     s = sqrt(v/n)
     return m, s, n
 
 def skew_from_cache_dict(d):
-    try:
-        n = d['n']
-    except KeyError:
-        n = len(d['extent'])
-    m1 = d['sump']/n
+    n, s1, s2, s3 = d['feature-cache'][:4]
+    m1 = s1/n
     k1 = m1
-    m2 = d['sump2']/n
+    m2 = s2/n
     k2 = m2 - m1*m1
-    m3 = d['sump3']/n
+    m3 = s3/n
     k3 = m3 - 3*m2*m1 + 2*m1*m1*m1
     return k3 * k2**(-1.5)
 
@@ -229,6 +454,8 @@ arggroup.add_argument('-N', '--node-split-classifier', metavar='HDF5_FN',
 
 
 if __name__ == '__main__':
+    from agglo import best_possible_segmentation, Rag, boundary_mean, \
+                                classifier_probability, random_priority
     parser = argparse.ArgumentParser(
         parents=[arguments],
         description='Create an agglomeration classifier.'
@@ -275,7 +502,7 @@ if __name__ == '__main__':
         mpf = eval(args.objective_function)
 
     wsg = Rag(args.ws, args.probs, mpf)
-    features, labels, history, ave_sizes = \
+    features, labels, weights, history, ave_sizes = \
                         wsg.learn_agglomerate(args.gt, feature_map_function)
 
     print 'shapes: ', features.shape, labels.shape

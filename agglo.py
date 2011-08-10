@@ -1,10 +1,10 @@
-import itertools
-combinations, izip = itertools.combinations, itertools.izip
+# built-ins
 from itertools import combinations, izip
 import argparse
 import random
+
+# libraries
 import matplotlib.pyplot as plt
-from heapq import heapify, heappush, heappop
 from numpy import array, mean, zeros, zeros_like, uint8, int8, where, unique, \
     finfo, size, double, transpose, newaxis, uint32, nonzero, median, exp, \
     log2, float, ones, arange, inf
@@ -14,11 +14,15 @@ from scipy.misc import comb as nchoosek
 from scipy.ndimage.measurements import center_of_mass, label
 from networkx import Graph
 from networkx.algorithms.traversal.depth_first_search import dfs_preorder_nodes
+
+# local modules
 import morpho
 import iterprogress as ip
 from ncut import ncutW
 from mergequeue import MergeQueue
 from evaluate import contingency_table, split_voi
+from classify import NullFeatureManager, MomentsFeatureManager, \
+    HistogramFeatureManager
 
 arguments = argparse.ArgumentParser(add_help=False)
 arggroup = arguments.add_argument_group('Agglomeration options')
@@ -73,9 +77,7 @@ class Rag(Graph):
 
     def __init__(self, watershed=None, probabilities=None, 
             merge_priority_function=None, allow_shared_boundaries=True,
-            gt_vol=None,
-            edge_feature_init_fct=None, edge_feature_merge_fct=None, 
-            node_feature_init_fct=None, node_feature_merge_fct=None,
+            gt_vol=None, feature_manager=MomentsFeatureManager(), 
             show_progress=False, lowmem=False):
         """Create a graph from a watershed volume and image volume.
         
@@ -85,7 +87,7 @@ class Rag(Graph):
         connected to both corresponding basins.
         """
         super(Rag, self).__init__(weighted=False)
-        self.boundary_probability = 10**100 #inconceivably high, but no overflow
+        self.boundary_probability = 10.0**20 # high, but no overflow
         if probabilities is not None:
             self.set_probabilities(probabilities)
         self.show_progress = show_progress
@@ -94,13 +96,14 @@ class Rag(Graph):
         else:
             self.merge_priority_function = merge_priority_function
         self.set_watershed(watershed, lowmem)
-	if watershed is None:
-	    self.ucm = None
-	else:
+        if watershed is None:
+            self.ucm = None
+        else:
             self.ucm = array(self.watershed==0, dtype=float)
-	    self.ucm[self.ucm==0] = -inf
-	self.max_merge_score = -inf
-	self.build_graph_from_watershed(allow_shared_boundaries)
+            self.ucm[self.ucm==0] = -inf
+        self.max_merge_score = -inf
+        self.build_graph_from_watershed(allow_shared_boundaries)
+        self.set_feature_manager(feature_manager)
         self.set_ground_truth(gt_vol)
         self.merge_queue = MergeQueue()
 
@@ -130,14 +133,8 @@ class Rag(Graph):
             for l1,l2 in combinations(adj_labels, 2):
                 if self.has_edge(l1, l2): 
                     self[l1][l2]['boundary'].add(idx)
-                    self[l1][l2]['sump'] += p
-                    self[l1][l2]['sump2'] += p*p
-                    self[l1][l2]['sump3'] += p*p*p
-                    self[l1][l2]['n'] += 1
                 else: 
-                    self.add_edge(l1, l2, 
-                        boundary=set([idx]), sump=p, sump2=p*p, sump3=p*p*p, n=1
-                    )
+                    self.add_edge(l1, l2, boundary=set([idx]))
         nonzero_idxs = idxs[self.watershed.ravel()[idxs] != 0]
         for idx in with_progress(nonzero_idxs, title='Building nodes... '):
             nodeid = self.watershed.ravel()[idx]
@@ -146,15 +143,22 @@ class Rag(Graph):
             p = double(self.probabilities.ravel()[idx])
             try:
                 self.node[nodeid]['extent'].add(idx)
-                self.node[nodeid]['sump'] += p
-                self.node[nodeid]['sump2'] += p*p
-                self.node[nodeid]['sump3'] += p*p*p
             except KeyError:
                 self.node[nodeid]['extent'] = set([idx])
-                self.node[nodeid]['sump'] = p
-                self.node[nodeid]['sump2'] = p*p
-                self.node[nodeid]['sump3'] = p*p*p
                 self.node[nodeid]['absorbed'] = [nodeid]
+
+    def set_feature_manager(self, feature_manager):
+        self.feature_manager = feature_manager
+        if self.feature_manager.cache_length > 0:
+            self.compute_feature_caches()
+
+    def compute_feature_caches(self):
+        for n in self.nodes_iter():
+            self.node[n]['feature-cache'] = \
+                            self.feature_manager.create_node_cache(self, n)
+        for n1, n2 in self.edges_iter():
+            self[n1][n2]['feature-cache'] = \
+                            self.feature_manager.create_edge_cache(self, n1, n2)
 
     def get_neighbor_idxs_fast(self, idxs):
         return self.pixel_neighbors[idxs]
@@ -170,7 +174,7 @@ class Rag(Graph):
             self.watershed = None
             return
         self.boundary_body = ws.max()+1
-        self.size = ws.size
+        self.volume_size = ws.size
         self.watershed = morpho.pad(ws, [0, self.boundary_body])
         self.segmentation = self.watershed.copy()
         if lowmem:
@@ -222,53 +226,55 @@ class Rag(Graph):
         """Build a merge queue from scratch and assign to self.merge_queue."""
         self.merge_queue = self.build_merge_queue()
 
-    def agglomerate(self, threshold=128, save_history=False, eval_function=None):
+    def agglomerate(self, threshold=128, save_history=False, 
+                                                        eval_function=None):
         """Merge nodes sequentially until given edge confidence threshold."""
         if self.merge_queue.is_empty():
             self.merge_queue = self.build_merge_queue()
         history = []
-	evaluation = []
+        evaluation = []
         while len(self.merge_queue) > 0 and \
                                         self.merge_queue.peek()[0] < threshold:
-	    merge_priority, valid, n1, n2 = self.merge_queue.pop()
+            merge_priority, valid, n1, n2 = self.merge_queue.pop()
             if valid:
                 self.merge_nodes(n1,n2,merge_score=merge_priority)
                 if save_history: history.append((n1,n2))
-		if eval_function is not None:
-		    num_segs = len(unique(self.get_segmentation()))-1
-		    val = eval_function(self.get_segmentation())
+                if eval_function is not None:
+                    num_segs = len(unique(self.get_segmentation()))-1
+                    val = eval_function(self.get_segmentation())
                     evaluation.append((num_segs, val))
-	if (save_history) and (eval_function is not None):
-	    return history, evaluation
-	elif save_history:
-	    return save_history
-	elif eval_function is not None:
-	    return evaluation
+        if (save_history) and (eval_function is not None):
+            return history, evaluation
+        elif save_history:
+            return save_history
+        elif eval_function is not None:
+            return evaluation
 
-    def agglomerate_count(self, stepsize=100, save_history=False, eval_function=None):
+    def agglomerate_count(self, stepsize=100, save_history=False,
+                                                        eval_function=None):
         """Agglomerate until 'stepsize' merges have been made."""
         if self.merge_queue.is_empty():
             self.merge_queue = self.build_merge_queue()
         history = []
-	evaluation = []
+        evaluation = []
         i = 0
         while len(self.merge_queue) > 0 and i < stepsize:
-	    merge_priority, valid, n1, n2 = self.merge_queue.pop()
+            merge_priority, valid, n1, n2 = self.merge_queue.pop()
             if valid:
                 i += 1
                 self.merge_nodes(n1, n2, merge_score=merge_priority)
                 if save_history: history.append((n1,n2))
-		if eval_function is not None: 
-			num_segs = len(unique(self.get_segmentation()))-1
-			val = eval_function(self.get_segmentation())
-			evaluation.append((num_segs, val))
-	if (save_history) and (eval_function is not None):
-	    return history, evaluation
-	elif save_history:
-	    return history
-  	elif eval_function is not None:
-	    return evaluation
-	
+                if eval_function is not None: 
+                        num_segs = len(unique(self.get_segmentation()))-1
+                        val = eval_function(self.get_segmentation())
+                        evaluation.append((num_segs, val))
+        if (save_history) and (eval_function is not None):
+            return history, evaluation
+        elif save_history:
+            return history
+        elif eval_function is not None:
+            return evaluation
+        
     def agglomerate_ladder(self, threshold=1000, strictness=1):
         """Merge sequentially all nodes smaller than threshold.
         
@@ -311,21 +317,22 @@ class Rag(Graph):
                 features.append(feature_map_function(self, n1, n2).ravel())
                 if n2 in hard_assignment:
                     n1, n2 = n2, n1
-		# Calculate weights for weighting data points
-		n = self.size
-		len1 = len(self.node[n1]['extent'])
-		len2 = len(self.node[n2]['extent'])
-		py1 = len1/float(n)
-		py2 = len2/float(n)
-		py = py1 + py2
-		if weight_type == 'voi':
+                # Calculate weights for weighting data points
+                n = self.volume_size
+                len1 = len(self.node[n1]['extent'])
+                len2 = len(self.node[n2]['extent'])
+                py1 = len1/float(n)
+                py2 = len2/float(n)
+                py = py1 + py2
+                if weight_type == 'voi':
                     weight =  py*log2(py) - py1*log2(py1) - py2*log2(py2)
-		elif weight_type == 'rand':
-		    weight = (len1*len2)/float(nchoosek(n,2))
-		elif weight_type == 'both':
-		    weight = (py*log2(py) - py1*log2(py1) - py2*log2(py2), (len1*len2)/float(nchoosek(n,2)))
-		else:
-		    weight = 1.0		
+                elif weight_type == 'rand':
+                    weight = (len1*len2)/float(nchoosek(n,2))
+                elif weight_type == 'both':
+                    weight = (py*log2(py) - py1*log2(py1) - py2*log2(py2),
+                                            (len1*len2)/float(nchoosek(n,2)))
+                else:
+                    weight = 1.0                
 
                 if n1 in hard_assignment and \
                                 (assignment[n1,:] * assignment[n2,:]).any():
@@ -391,75 +398,64 @@ class Rag(Graph):
         self.sum_body_sizes -= len(self.node[n1]['extent']) + \
                                 len(self.node[n2]['extent'])
         # Update ultrametric contour map
-	if self.ucm is not None:
-	    self.max_merge_score = max(self.max_merge_score, merge_score)
-	    try:
-	        bdry = self[n1][n2]['boundary']
-	        for i in bdry:
-	            self.ucm[morpho.unravel_index(i, self.segmentation.shape)] = self.max_merge_score
-	    except:
-		pass
-	new_neighbors = [n for n in self.neighbors(n2) if n != n1]
-        for n in new_neighbors:
-            if self.has_edge(n, n1):
-                self[n1][n]['boundary'].update(self[n2][n]['boundary'])
-                self[n1][n]['sump'] += self[n2][n]['sump']
-                self[n1][n]['sump2'] += self[n2][n]['sump2']
-                self[n1][n]['n'] += self[n2][n]['n']
-            else:
-                self.add_edge(n, n1, attr_dict=self[n2][n])
+        if self.ucm is not None:
+            self.max_merge_score = max(self.max_merge_score, merge_score)
+            idxs = list(self[n1][n2]['boundary'])
+            self.ucm.ravel()[idxs] = self.max_merge_score
         self.node[n1]['extent'].update(self.node[n2]['extent'])
-        self.node[n1]['sump'] += self.node[n2]['sump']
-        self.node[n1]['sump2'] += self.node[n2]['sump2']
+        self.feature_manager.update_node_cache(self, n1, n2,
+                self.node[n1]['feature-cache'], self.node[n2]['feature-cache'])
         self.segmentation.ravel()[list(self.node[n2]['extent'])] = n1
-        for n in self.neighbors(n2):
-            if n != n1:
-                self.merge_edge_properties((n2,n), (n1,n))
+        new_neighbors = [n for n in self.neighbors(n2) if n != n1]
+        for n in new_neighbors:
+            self.merge_edge_properties((n2,n), (n1,n))
+        # this if statement enables merging of non-adjacent nodes
         if self.has_edge(n1,n2):
-            boundary = array(list(self[n1][n2]['boundary']))
-            boundary_neighbor_pixels = self.segmentation.ravel()[
-                self.neighbor_idxs(boundary)
-            ]
-            add = ( (boundary_neighbor_pixels == 0) + 
-                (boundary_neighbor_pixels == n1) + 
-                (boundary_neighbor_pixels == n2) ).all(axis=1)
-            check = True-add
-            self.node[n1]['extent'].update(boundary[add])
-            boundary_probs = self.probabilities.ravel()[boundary[add]]
-            self.node[n1]['sump'] += boundary_probs.sum()
-            self.node[n1]['sump2'] += (boundary_probs*boundary_probs).sum()
-            self.segmentation.ravel()[boundary[add]] = n1
-            boundaries_to_edit = {}
-            for px in boundary[check]:
-                for lb in unique(
-                            self.segmentation.ravel()[self.neighbor_idxs(px)]):
-                    if lb != n1 and lb != 0:
-                        try:
-                            boundaries_to_edit[(n1,lb)].append(px)
-                        except KeyError:
-                            boundaries_to_edit[(n1,lb)] = [px]
-            for u, v in boundaries_to_edit.keys():
-                p = self.probabilities.ravel()[boundaries_to_edit[(u,v)]]\
-                                                                .astype(double)
-                if self.has_edge(u, v):
-                    self[u][v]['boundary'].update(boundaries_to_edit[(u,v)])
-                    self[u][v]['sump'] += p.sum()
-                    self[u][v]['sump2'] += (p*p).sum()
-                    self[u][v]['n'] += len(p)
-                else:
-                    self.add_edge(u, v, 
-                        boundary=set(boundaries_to_edit[(u,v)]),
-                        sump=p.sum(), sump2=(p*p).sum(), n=len(p)
-                    )
-                self.update_merge_queue(u, v)
-            for n in new_neighbors:
-                if not boundaries_to_edit.has_key((n1,n)):
-                    self.update_merge_queue(n1, n)
+            self.refine_post_merge_boundaries(n1, n2)
         self.rig[n1] += self.rig[n2]
         self.rig[n2] = 0
         self.node[n1]['absorbed'].extend(self.node[n2]['absorbed'])
         self.remove_node(n2)
         self.sum_body_sizes += len(self.node[n1]['extent'])
+
+    def refine_post_merge_boundaries(self, n1, n2):
+        boundary = array(list(self[n1][n2]['boundary']))
+        boundary_neighbor_pixels = self.segmentation.ravel()[
+            self.neighbor_idxs(boundary)
+        ]
+        add = ( (boundary_neighbor_pixels == 0) + 
+            (boundary_neighbor_pixels == n1) + 
+            (boundary_neighbor_pixels == n2) ).all(axis=1)
+        check = True-add
+        self.node[n1]['extent'].update(boundary[add])
+        boundary_probs = self.probabilities.ravel()[boundary[add]]
+        self.feature_manager.pixelwise_update_node_cache(self, n1,
+                        self.node[n1]['feature-cache'], boundary[add])
+        self.segmentation.ravel()[boundary[add]] = n1
+        boundaries_to_edit = {}
+        for px in boundary[check]:
+            for lb in unique(
+                        self.segmentation.ravel()[self.neighbor_idxs(px)]):
+                if lb != n1 and lb != 0:
+                    try:
+                        boundaries_to_edit[(n1,lb)].append(px)
+                    except KeyError:
+                        boundaries_to_edit[(n1,lb)] = [px]
+        for u, v in boundaries_to_edit.keys():
+            idxs = set(boundaries_to_edit[(u,v)])
+            if self.has_edge(u, v):
+                idxs = idxs - self[u][v]['boundary']
+                self[u][v]['boundary'].update(idxs)
+                self.feature_manager.pixelwise_update_edge_cache(self, u, v,
+                                    self[u][v]['feature-cache'], list(idxs))
+            else:
+                self.add_edge(u, v, boundary=set(idxs))
+                self[u][v]['feature-cache'] = \
+                    self.feature_manager.create_edge_cache(self, u, v)
+            self.update_merge_queue(u, v)
+        for n in self.neighbors(n2):
+            if not boundaries_to_edit.has_key((n1,n)) and n != n1:
+                self.update_merge_queue(n1, n)
 
     def split_node(self, u, n=2, **kwargs):
         node_extent = list(self.node[u]['extent'])
@@ -483,9 +479,8 @@ class Rag(Graph):
             self.add_edge(u, v, attr_dict=self[w][x])
         else:
             self[u][v]['boundary'].update(self[w][x]['boundary'])
-            self[u][v]['sump'] += self[w][x]['sump']
-            self[u][v]['sump2'] += self[w][x]['sump2']
-            self[u][v]['n'] += self[w][x]['n']
+            self.feature_manager.update_edge_cache(self, (u, v), (w, x),
+                    self[u][v]['feature-cache'], self[w][x]['feature-cache'])
         try:
             self.merge_queue.invalidate(self[w][x]['qlink'])
             self.update_merge_queue(u, v)
@@ -552,7 +547,7 @@ class Rag(Graph):
         return morpho.juicy_center(self.segmentation, 2)
 
     def get_ucm(self):
-	return morpho.juicy_center(self.ucm, 2)    
+        return morpho.juicy_center(self.ucm, 2)    
 
     def build_volume(self, nbunch=None):
         """Return the segmentation (numpy.ndarray) induced by the graph."""
@@ -660,7 +655,8 @@ def boundary_median(g, n1, n2):
     return median(g.probabilities.ravel()[list(g[n1][n2]['boundary'])])
 
 def approximate_boundary_mean(g, n1, n2):
-    return g[n1][n2]['sump'] / g[n1][n2]['n']
+    n, sum_xs = g[n1][n2]['feature-cache'][0:2]
+    return sum_xs/n
 
 def make_ladder(priority_function, threshold, strictness=1):
     def ladder_function(g, n1, n2):
