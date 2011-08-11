@@ -7,7 +7,7 @@ import random
 import matplotlib.pyplot as plt
 from numpy import array, mean, zeros, zeros_like, uint8, int8, where, unique, \
     finfo, size, double, transpose, newaxis, uint32, nonzero, median, exp, \
-    log2, float, ones, arange, inf
+    log2, float, ones, arange, inf, flatnonzero
 from scipy.stats import sem
 from scipy.sparse import lil_matrix
 from scipy.misc import comb as nchoosek
@@ -96,6 +96,7 @@ class Rag(Graph):
         else:
             self.merge_priority_function = merge_priority_function
         self.set_watershed(watershed, lowmem)
+        self.pad_thickness = 2 if (self.segmentation==0).any() else 1
         if watershed is None:
             self.ucm = None
         else:
@@ -113,39 +114,31 @@ class Rag(Graph):
             return
         if idxs is None:
             idxs = arange(self.watershed.size)
-        zero_idxs = idxs[self.watershed.ravel()[idxs] == 0]
-        if self.show_progress:
-            def with_progress(seq, length=None, title='Progress: '):
-                return ip.with_progress(seq, length, title,
-                                                ip.StandardProgressBar())
-        else:
-            def with_progress(seq, length=None, title='Progress: '):
-                return ip.with_progress(seq, length, title, ip.NoProgressBar())
+            self.add_node(self.boundary_body, 
+                extent=set(flatnonzero(self.watershed==self.boundary_body)))
+        inner_idxs = idxs[self.watershed.ravel()[idxs] != self.boundary_body]
         if not hasattr(self, 'probabilities'):
             self.probabilities = zeros(self.watershed.shape, uint8)
-        for idx in with_progress(zero_idxs, title='Building edges... '):
+        if self.show_progress:
+            pbar = ip.StandardProgressBar()
+        else:
+            pbar = ip.NoProgressBar()
+        for idx in ip.with_progress(inner_idxs, title='Graph... ', pbar=pbar):
             ns = self.neighbor_idxs(idx)
             adj_labels = self.watershed.ravel()[ns]
             adj_labels = unique(adj_labels[adj_labels != 0])
-            if len(adj_labels) > 2 and not allow_shared_boundaries:
-                continue
             p = double(self.probabilities.ravel()[idx])
-            for l1,l2 in combinations(adj_labels, 2):
-                if self.has_edge(l1, l2): 
-                    self[l1][l2]['boundary'].add(idx)
-                else: 
-                    self.add_edge(l1, l2, boundary=set([idx]))
-        nonzero_idxs = idxs[self.watershed.ravel()[idxs] != 0]
-        for idx in with_progress(nonzero_idxs, title='Building nodes... '):
             nodeid = self.watershed.ravel()[idx]
-            if not allow_shared_boundaries and not self.has_node(nodeid):
-                self.add_node(nodeid)
-            p = double(self.probabilities.ravel()[idx])
-            try:
-                self.node[nodeid]['extent'].add(idx)
-            except KeyError:
-                self.node[nodeid]['extent'] = set([idx])
-                self.node[nodeid]['absorbed'] = [nodeid]
+            if allow_shared_boundaries or not len(adj_labels) > 2:
+                for l1,l2 in combinations(adj_labels, 2):
+                    if self.has_edge(l1, l2): 
+                        self[l1][l2]['boundary'].add(idx)
+                    else: 
+                        self.add_edge(l1, l2, boundary=set([idx]))
+            if nodeid != 0:
+                if not self.has_node(nodeid):
+                    self.add_node(nodeid)
+                self.node[nodeid].setdefault('extent', set()).add(idx)
 
     def set_feature_manager(self, feature_manager):
         self.feature_manager = feature_manager
@@ -175,7 +168,10 @@ class Rag(Graph):
             return
         self.boundary_body = ws.max()+1
         self.volume_size = ws.size
-        self.watershed = morpho.pad(ws, [0, self.boundary_body])
+        if (ws==0).any():
+            self.watershed = morpho.pad(ws, [0, self.boundary_body])
+        else:
+            self.watershed = morpho.pad(ws, self.boundary_body)
         self.segmentation = self.watershed.copy()
         if lowmem:
             self.neighbor_idxs = self.get_neighbor_idxs_lean
@@ -186,10 +182,14 @@ class Rag(Graph):
 
     def set_ground_truth(self, gt=None):
         if gt is not None:
-            self.gt = morpho.pad(gt, [0, gt.max()+1])
-            self.rig = contingency_table(self.watershed, self.gt)
-            self.rig[[0,self.boundary_body],:] = 0
-            self.rig[:,[0, gt.max()+1]] = 0
+            gtm = gt.max()+1
+            gt_ignore = [0, gtm] if (gt==0).any() else [gtm]
+            seg_ignore = [0, self.boundary_body] if \
+                        (self.segmentation==0).any() else [self.boundary_body]
+            self.gt = morpho.pad(gt, gt_ignore)
+            self.rig = contingency_table(self.segmentation, self.gt)
+            self.rig[:, gt_ignore] = 0
+            self.rig[seg_ignore, :] = 0
         else:
             self.gt = None
             # null pattern to transparently allow merging of nodes.
@@ -414,7 +414,6 @@ class Rag(Graph):
             self.refine_post_merge_boundaries(n1, n2)
         self.rig[n1] += self.rig[n2]
         self.rig[n2] = 0
-        self.node[n1]['absorbed'].extend(self.node[n2]['absorbed'])
         self.remove_node(n2)
         self.sum_body_sizes += len(self.node[n1]['extent'])
 
@@ -514,7 +513,7 @@ class Rag(Graph):
         boundary.ravel()[boundary_idxs] = 3
         boundary.ravel()[list(self.node[n1]['extent'])] = 1
         boundary.ravel()[list(self.node[n2]['extent'])] = 2
-        boundary = morpho.juicy_center(boundary, 2)
+        boundary = morpho.juicy_center(boundary, self.pad_thickness)
         x, y, z = array(center_of_mass(boundary==3)).round().astype(uint32)
         def imshow_grey(im):
             _ = plt.imshow(im, cmap=plt.cm.gray, interpolation='nearest')
@@ -544,10 +543,10 @@ class Rag(Graph):
 
 
     def get_segmentation(self):
-        return morpho.juicy_center(self.segmentation, 2)
+        return morpho.juicy_center(self.segmentation, self.pad_thickness)
 
     def get_ucm(self):
-        return morpho.juicy_center(self.ucm, 2)    
+        return morpho.juicy_center(self.ucm, self.pad_thickness)    
 
     def build_volume(self, nbunch=None):
         """Return the segmentation (numpy.ndarray) induced by the graph."""
@@ -556,7 +555,7 @@ class Rag(Graph):
             nbunch = self.nodes()
         for n in nbunch:
             v.ravel()[list(self.node[n]['extent'])] = n
-        return morpho.juicy_center(v,2)
+        return morpho.juicy_center(v,self.pad_thickness)
 
     def orphans(self):
         """List of all the nodes that do not touch the volume boundary."""
