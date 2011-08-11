@@ -34,6 +34,12 @@ arggroup.add_argument('--seed', metavar='FN',
     help='''use the volume in FN to seed the watershed. By default, connected
         components of 0-valued pixels will be used as the seeds.'''
 )
+arggroup.add_argument('--build-dams', default=True, action='store_true',
+    help='''Build dams when two or more basins collide. (default)'''
+)
+arggroup.add_argument('--no-dams', action='store_false', dest='build_dams',
+    help='''Don't build dams in the watershed. Every pixel has a label.'''
+)
 
 def manhattan_distance(a, b):
     return sum(abs(a-b))
@@ -49,7 +55,7 @@ def diamondse(sz, dimension):
     return se
 
 
-def watershed(a, seeds=None, show_progress=False):
+def watershed(a, seeds=None, dams=True, show_progress=False):
     seeded = seeds is not None
     if not seeded:
         ws = zeros(shape(a), uint32)
@@ -57,7 +63,9 @@ def watershed(a, seeds=None, show_progress=False):
         ws = seeds
     levels = unique(a)
     a = pad(a, a.max()+1)
+    ar = a.ravel()
     ws = pad(ws, 0)
+    wsr = ws.ravel()
     maxlabel = iinfo(ws.dtype).max
     sel = diamondse(3, a.ndim)
     current_label = 0
@@ -73,31 +81,32 @@ def watershed(a, seeds=None, show_progress=False):
             return ip.with_progress(it, *args,pbar=ip.NoProgressBar(),**kwargs)
     for i, level in with_progress(enumerate(levels), length=len(levels)):
         idxs_adjacent_to_labels = queue([idx for idx in level_pixels[level] if
-                                            any(ws.ravel()[neighbors[idx]])])
+                                            any(wsr[neighbors[idx]])])
         while len(idxs_adjacent_to_labels) > 0:
             idx = idxs_adjacent_to_labels.popleft()
-            adj_labels = ws.ravel()[neighbors[idx]]
-            adj_labels = unique(adj_labels[
-                ((adj_labels != 0) * (adj_labels != maxlabel)).astype(bool)
-            ])
-            if len(adj_labels) > 1:
-                ws.ravel()[idx] = maxlabel # build a dam
-            elif len(adj_labels) == 1 and ws.ravel()[idx] == 0:
-                ws.ravel()[idx] = adj_labels[0]
-                ns = neighbors[idx]
-                idxs_adjacent_to_labels.extend(ns[((ws.ravel()[ns] == 0) * 
-                                    (a.ravel()[ns] == level)).astype(bool) ])
+            nidxs = neighbors[idx] # neighbors
+            lnidxs = nidxs[
+                ((wsr[nidxs] != 0) * (wsr[nidxs] != maxlabel)).astype(bool)
+            ] # labeled neighbors
+            adj_labels = unique(wsr[lnidxs])
+            if len(adj_labels) > 1 and dams: # build a dam
+                wsr[idx] = maxlabel 
+            else: # assign a label
+                wsr[idx] = wsr[lnidxs][ar[lnidxs].argmin()]
+                idxs_adjacent_to_labels.extend(nidxs[((wsr[nidxs] == 0) * 
+                                    (ar[nidxs] == level)).astype(bool) ])
         if seeded:
             if i+1 < len(levels):
-                not_adj = where((ws.ravel() == 0) * (a.ravel() == level))[0]
+                not_adj = where((wsr == 0) * (ar == level))[0]
                 level_pixels[levels[i+1]].extend(not_adj)
-                a.ravel()[not_adj] = levels[i+1]
+                ar[not_adj] = levels[i+1]
         else:
             new_labels, num_new = label((ws == 0) * (a == level), sel)
             new_labels = (current_label + new_labels) * (new_labels != 0)
             current_label += num_new
             ws += new_labels
-    ws[ws==maxlabel] = 0
+    if dams:
+        ws[ws==maxlabel] = 0
     return juicy_center(ws)
 
 def smallest_int_dtype(number, signed=False, mindtype=None):
@@ -214,7 +223,8 @@ if __name__ == '__main__':
         v = filters.gaussian_filter(v, args.gaussian_filter)
     if args.seed is not None:
         args.seed, _ = label(args.seed == 0, diamondse(3, args.seed.ndim))
-    ws = watershed(v, seeds=args.seed, show_progress=args.show_progress)
+    ws = watershed(v, seeds=args.seed, dams=args.build_dams,
+                                            show_progress=args.show_progress)
     if os.access(args.fout, os.F_OK):
         os.remove(args.fout)
     imio.write_h5_stack(ws, args.fout)
