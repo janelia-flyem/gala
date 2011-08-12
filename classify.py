@@ -160,14 +160,16 @@ class HistogramFeatureManager(NullFeatureManager):
                             range=(self.minval,self.maxval))[0].astype(double)
     def percentiles(self, h):
         ps = []
-        hcum = h.cumsum()
+        hcum = concatenate(([0], h.cumsum()))
         binvals = arange(self.minval,self.maxval+1e-10,(self.maxval-self.minval)/float(self.nbins))
-        binvals = binvals[1:] + diff(binvals)*0.5
         for p in self.compute_percentiles:
             binnum = nonzero(hcum>p)[0][0]
-            x = (p-hcum[binnum-1]) * (binvals[binnum]-binvals[binnum-1]) / \
-                                    (hcum[binnum]-hcum[binnum-1]) + binvals[binnum-1]
-            ps.append(x)
+            if hcum[binnum] == hcum[binnum+1]:
+                ps.append(binvals[binnum]*0.5 + binvals[binnum+1]*0.5)
+            else:
+                x = (p-hcum[binnum]) * (binvals[binnum+1]-binvals[binnum]) / \
+                                    (hcum[binnum+1]-hcum[binnum]) + binvals[binnum]
+                ps.append(x)
         return ps
 
     def create_node_cache(self, g, n):
