@@ -1,6 +1,7 @@
 from annotefinder import AnnoteFinder
 from math import ceil
 import numpy as np
+import scipy
 import evaluate
 import matplotlib
 plt = matplotlib.pyplot
@@ -79,27 +80,34 @@ def plot_voi(a, history, gt, fig=None):
     plt.xlabel('Number of segments', figure = fig)
     plt.ylabel('VOI', figure = fig)
 
-def plot_voi_parts(seg, gt, ignore_seg_labels=[], ignore_gt_labels=[]):
+def plot_voi_parts(seg, gt, ignore_seg_labels=[], ignore_gt_labels=[], hyperbolic_lines = scipy.arange(1e-5,1e-1,7e-3)):
     """Given a segmentation and ground truth, plot the size of segments versus the conditional entropy."""
     plt.ion()
     pxy,px,py,hxgy,hygx,lpygx,lpxgy = evaluate.voi_tables(seg,gt,
 	ignore_seg_labels=ignore_seg_labels,ignore_gt_labels=ignore_gt_labels)
     plt.figure()
     plt.subplot(1,2,1)
+    # Plot hyperbolic lines
+    x = scipy.arange(max(min(px),1e-10), max(px), (max(px)-min(px))/100.0)
+    for val in hyperbolic_lines:
+	plt.plot(x, val/x, 'k') 
     plt.scatter(px, -lpygx, c=-px*lpygx)
-    af1 = AnnoteFinder(px, -lpygx, [str(i) for i in range(len(px))], xtol=10, ytol=10, xmin=0, ymin=0)
+    af1 = AnnoteFinder(px, -lpygx, [str(i) for i in range(len(px))], xtol=10, ytol=10, xmin=0, ymin=0, xmax = max(px), ymax=max(-lpygx))
     plt.connect('button_press_event', af1)
-    plt.xlim(xmin=0)
-    plt.ylim(ymin=0)
+    plt.xlim(xmin=0, xmax=max(px))
+    plt.ylim(ymin=0, ymax=max(-lpygx))
     plt.xlabel('p(seg)')
     plt.ylabel('H(GT|SEG=seg)')
     plt.title('Undersegmentation')
     plt.subplot(1,2,2)
+    # Plot hyperbolic lines
+    for val in hyperbolic_lines:
+	plt.plot(x, val/x, 'k') 
     plt.scatter(py,-lpxgy, c=-py*lpxgy)
-    af2 = AnnoteFinder(py, -lpxgy, [str(i) for i in range(len(py))], xtol=10, ytol=10, xmin=0, ymin=0)
+    af2 = AnnoteFinder(py, -lpxgy, [str(i) for i in range(len(py))], xtol=10, ytol=10, xmin=0, ymin=0, xmax=max(py), ymax=max(-lpxgy))
     plt.connect('button_press_event', af2)
-    plt.xlim(xmin=0)
-    plt.ylim(ymin=0)
+    plt.xlim(xmin=0, xmax=max(py))
+    plt.ylim(ymin=0, ymax=max(-lpxgy))
     plt.xlabel('p(gt)')
     plt.ylabel('H(SEG|GT=gt)')
     plt.title('Oversegmentation')
