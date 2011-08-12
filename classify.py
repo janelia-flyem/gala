@@ -160,10 +160,10 @@ class HistogramFeatureManager(NullFeatureManager):
                             range=(self.minval,self.maxval))[0].astype(double)
     def percentiles(self, h):
         ps = []
-        hcum = concatenate(([0], h.cumsum()))
+        hcum = concatenate(([0.0], h.cumsum()))
         binvals = arange(self.minval,self.maxval+1e-10,(self.maxval-self.minval)/float(self.nbins))
         for p in self.compute_percentiles:
-            binnum = nonzero(hcum>p)[0][0]
+            binnum = nonzero(hcum>=p)[0][0]-1
             if hcum[binnum+1] == hcum[binnum]:
                 ps.append(binvals[binnum]*0.5 + binvals[binnum+1]*0.5)
             else:
