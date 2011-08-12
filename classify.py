@@ -164,7 +164,7 @@ class HistogramFeatureManager(NullFeatureManager):
         binvals = arange(self.minval,self.maxval+1e-10,(self.maxval-self.minval)/float(self.nbins))
         for p in self.compute_percentiles:
             binnum = nonzero(hcum>p)[0][0]
-            if hcum[binnum-1] == hcum[binnum]:
+            if hcum[binnum+1] == hcum[binnum]:
                 ps.append(binvals[binnum]*0.5 + binvals[binnum+1]*0.5)
             else:
                 ps.append((p-hcum[binnum]) * (binvals[binnum+1]-binvals[binnum]) / \
