@@ -96,7 +96,6 @@ class Rag(Graph):
         else:
             self.merge_priority_function = merge_priority_function
         self.set_watershed(watershed, lowmem)
-        self.pad_thickness = 2 if (self.segmentation==0).any() else 1
         if watershed is None:
             self.ucm = None
         else:
@@ -173,6 +172,7 @@ class Rag(Graph):
         else:
             self.watershed = morpho.pad(ws, self.boundary_body)
         self.segmentation = self.watershed.copy()
+        self.pad_thickness = 2 if (self.segmentation==0).any() else 1
         if lowmem:
             self.neighbor_idxs = self.get_neighbor_idxs_lean
         else:
