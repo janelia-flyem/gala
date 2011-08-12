@@ -11,7 +11,7 @@ from abc import ABCMeta, abstractmethod
 import h5py
 from numpy import bool, array, double, zeros, mean, random, concatenate, where,\
     uint8, ones, float32, uint32, unique, newaxis, zeros_like, arange, floor, \
-    histogram, seterr
+    histogram, seterr, __version__ as numpy_version, unravel_index
 seterr(divide='ignore')
 from scipy.misc import comb as nchoosek
 from scipy.stats import sem
@@ -53,9 +53,9 @@ class NullFeatureManager(object):
             self.compute_edge_features(g, n1, n2, ce)
         ))
     def create_node_cache(self, *args, **kwargs):
-        pass
+        return array([])
     def create_edge_cache(self, *args, **kwargs):
-        pass
+        return array([])
     def update_node_cache(self, *args, **kwargs):
         pass
     def update_edge_cache(self, *args, **kwargs):
@@ -197,6 +197,64 @@ class HistogramFeatureManager(NullFeatureManager):
             return cache/cache.sum()
         except ZeroDivisionError:
             return cache
+
+class SquigglinessFeatureManager(NullFeatureManager):
+    def __init__(self, cache_begin_idx=0, ndim=3, *args, **kwargs):
+        super(SquigglinessFeatureManager, self).__init__(cache_begin_idx)
+        self.cache_length = 2*ndim
+        # cache is min and max coordinates of bounding box
+        if numpy_version < '1.6.0':
+            self.compute_bounding_box = self.compute_bounding_box_old
+            # uses older, slower version of numpy.unravel_index
+
+    def __len__(self):
+        return 1
+
+    def compute_bounding_box(self, indices, shape):
+        d = self.ndim
+        unraveled_indices = concatenate(
+            unravel_index(indices, shape)).reshape((-1,d), order='F')
+        m = unraveled_indices.min(axis=0)
+        M = unraveled_indices.max(axis=0)+ones(d)
+        return m, M
+
+    def compute_bounding_box_old(self, indices, shape):
+        d = self.ndim
+        unraveled_indices = concatenate(
+            [unravel_index(idx, shape) for idx in indices]).reshape((-1,d))
+        m = unraveled_indices.min(axis=0)
+        M = unraveled_indices.max(axis=0)+ones(d)
+        return m, M
+
+    def create_edge_cache(self, g, n1, n2):
+        edge_idxs = g[n1][n2]['boundary']
+        return concatenate(
+            self.compute_bounding_box(edge_idxs, g.segmentation.shape)
+        )
+
+    def update_edge_cache(self, g, e1, e2, dst, src):
+        dst[:self.ndim] = \
+            concatenate((dst[newaxis,:self.ndim], src[newaxis,:self.ndim]),
+            axis=0).min(axis=0)
+        dst[self.ndim:] = \
+            concatenate((dst[newaxis,self.ndim:], src[newaxis,self.ndim:]),
+            axis=0).max(axis=0)
+
+    def pixelwise_update_edge_cache(self, g, n1, n2, dst, idxs, remove=False):
+        if remove:
+            pass
+            # dst = self.create_edge_cache(g, n1, n2)
+        if len(idxs) == 0: return
+        b = concatenate(self.compute_bounding_box(idxs, g.segmentation.shape))
+        self.update_edge_cache(g, (n1,n2), None, dst, b)
+
+    def compute_edge_features(self, g, n1, n2, cache=None):
+        if cache is None: 
+            c1, c2 = self.cache_range()
+            cache = g[n1][n2][self.default_cache][c1:c2]
+        m, M = cache[:self.ndim], cache[self.ndim:]
+        plane_surface = (M-m).sort()[1:].prod() * (3.0-g.pad_thickness)
+        return len(g[n1][n2]['boundary']) / plane_surface
 
 class CompositeFeatureManager(NullFeatureManager):
     def __init__(self, cache_begin_idx=0, children=[], *args, **kwargs):
