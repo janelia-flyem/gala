@@ -12,7 +12,7 @@ import h5py
 from numpy import bool, array, double, zeros, mean, random, concatenate, where,\
     uint8, ones, float32, uint32, unique, newaxis, zeros_like, arange, floor, \
     histogram, seterr, __version__ as numpy_version, unravel_index, diff, \
-    nonzero
+    nonzero, sort
 seterr(divide='ignore')
 from scipy import arange
 from scipy.misc import comb as nchoosek
@@ -201,27 +201,30 @@ class HistogramFeatureManager(NullFeatureManager):
         if cache is None: 
             c1, c2 = self.cache_range()
             cache = g.node[n1][self.default_cache][c1:c2]
-        try:
-            h = cache/cache.sum()
-            ps = self.percentiles(h)
-            return concatenate((h, ps))
-        except ZeroDivisionError:
-            return cache
+        s = cache.sum()
+        if s == 0:
+            h = zeros_like(cache)
+        else:
+            h = cache/s
+        ps = self.percentiles(h)
+        return concatenate((h,ps))
 
     def compute_edge_features(self, g, n1, n2, cache=None):
         if cache is None: 
             c1, c2 = self.cache_range()
             cache = g[n1][n2][self.default_cache][c1:c2]
-        try:
-            h = cache/cache.sum()
-            ps = self.percentiles(h)
-            return concatenate((h,ps))
-        except ZeroDivisionError:
-            return cache
+        s = cache.sum()
+        if s == 0:
+            h = zeros_like(cache)
+        else:
+            h = cache/s
+        ps = self.percentiles(h)
+        return concatenate((h,ps))
 
 class SquigglinessFeatureManager(NullFeatureManager):
     def __init__(self, cache_begin_idx=0, ndim=3, *args, **kwargs):
         super(SquigglinessFeatureManager, self).__init__(cache_begin_idx)
+        self.ndim = ndim
         self.cache_length = 2*ndim
         # cache is min and max coordinates of bounding box
         if numpy_version < '1.6.0':
@@ -274,8 +277,8 @@ class SquigglinessFeatureManager(NullFeatureManager):
             c1, c2 = self.cache_range()
             cache = g[n1][n2][self.default_cache][c1:c2]
         m, M = cache[:self.ndim], cache[self.ndim:]
-        plane_surface = (M-m).sort()[1:].prod() * (3.0-g.pad_thickness)
-        return len(g[n1][n2]['boundary']) / plane_surface
+        plane_surface = sort(M-m)[1:].prod() * (3.0-g.pad_thickness)
+        return array([len(g[n1][n2]['boundary']) / plane_surface])
 
 class CompositeFeatureManager(NullFeatureManager):
     def __init__(self, cache_begin_idx=0, children=[], *args, **kwargs):
