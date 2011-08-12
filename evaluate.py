@@ -43,9 +43,9 @@ def xlogx(x, out=None):
     y[nz] *= numpy.log2(y[nz])
     return y
 
-def voi(X, Y, cont=None, weights=numpy.ones(2)):
+def voi(X, Y, cont=None, weights=numpy.ones(2), ignore_seg_labels=[], ignore_gt_labels=[]):
     """Return the variation of information metric."""
-    return numpy.dot(weights, split_voi(X,Y,cont))
+    return numpy.dot(weights, split_voi(X,Y,cont, ignore_seg_labels, ignore_gt_labels))
 
 def voi_tables(X, Y, cont=None, ignore_seg_labels=[], ignore_gt_labels=[]):
     """Return probability tables used for calculating voi."""
