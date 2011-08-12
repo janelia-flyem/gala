@@ -295,19 +295,26 @@ class Rag(Graph):
         self.merge_queue.finish()
         
 
-    def learn_agglomerate(self, gt, feature_map_function, weight_type='voi'):
+    def learn_agglomerate(self, gts, feature_map_function, weight_type='voi'):
         """Agglomerate while comparing to ground truth & classifying merges."""
-        gtg = Rag(gt)
-        cnt = contingency_table(self.get_segmentation(), gtg.get_segmentation())
-        assignment = cnt == cnt.max(axis=1)[:,newaxis]
-        hard_assignment = where(assignment.sum(axis=1) > 1)[0]
+        # Compute data for all ground truths
+        gtg = []
+        cnt = []
+        assignment = []
+        for gt in gts:
+            gtg.append(Rag(gt))
+            cnt.append(contingency_table(self.get_segmentation(), gtg[-1].get_segmentation()))
+            assignment.append(cnt[-1] == cnt[-1].max(axis=1)[:,newaxis])
+
+        hard_assignment = set.intersection(*[set(where(a.sum(axis=1) > 1)[0]) for a in assignment])
         # 'hard assignment' nodes are nodes that have most of their overlap
         # with the 0-label in gt, or that have equal amounts of overlap between
         # two other labels
+        # to be a hard assigment, it must be hard in all ground truth segmentations
         if self.merge_queue.is_empty(): self.rebuild_merge_queue()
         features, labels, weights = [], [], []
         history, ave_size = [], []
-        while self.number_of_nodes() > gtg.number_of_nodes():
+        while self.number_of_nodes() > max([g.number_of_nodes() for g in gtg]):
             merge_priority, valid, n1, n2 = self.merge_queue.pop()
             if merge_priority == self.boundary_probability or \
                                                 self.boundary_body in [n1, n2]:
@@ -334,11 +341,14 @@ class Rag(Graph):
                 else:
                     weight = 1.0                
 
+                # If n1 is a hard assignment and one of the segments it's
+                # assigned to is n2 in some ground truth
                 if n1 in hard_assignment and \
-                                (assignment[n1,:] * assignment[n2,:]).any():
+                                any([(a[n1,:] * a[n2,:]).any() for a in assignment]):
                     m = boundary_mean(self, n1, n2)
                     ms = [boundary_mean(self, n1, n) for n in 
                                                             self.neighbors(n1)]
+                    # Only merge them if n1's boundary mean is minimum for n2
                     if m == min(ms):
                         ave_size.append(self.sum_body_sizes / 
                                                 (self.number_of_nodes()-1))
@@ -352,7 +362,10 @@ class Rag(Graph):
                     history.append([n1, n2])
                     ave_size.append(self.sum_body_sizes / 
                                                 (self.number_of_nodes()-1))
-                    if (assignment[n1,:] == assignment[n2,:]).all():
+                    # Get the fraction of times that n1 and n2 are assigned to 
+                    # the same segment in the ground truths
+                    together = [(a[n1,:]==a[n2,:]).all() for a in assignment]
+                    if sum(together)/float(len(together)) > 0.5:
                         self.merge_nodes(n1, n2)
                         labels.append(-1)
                         weights.append(weight)
