@@ -204,9 +204,10 @@ class HistogramFeatureManager(NullFeatureManager):
         s = cache.sum()
         if s == 0:
             h = zeros_like(cache)
+            ps = zeros(len(self.compute_percentiles))
         else:
             h = cache/s
-        ps = self.percentiles(h)
+            ps = self.percentiles(h)
         return concatenate((h,ps))
 
     def compute_edge_features(self, g, n1, n2, cache=None):
