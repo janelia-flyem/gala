@@ -217,9 +217,10 @@ class HistogramFeatureManager(NullFeatureManager):
         s = cache.sum()
         if s == 0:
             h = zeros_like(cache)
+            ps = zeros(len(self.compute_percentiles))
         else:
             h = cache/s
-        ps = self.percentiles(h)
+            ps = self.percentiles(h)
         return concatenate((h,ps))
 
 class SquigglinessFeatureManager(NullFeatureManager):
