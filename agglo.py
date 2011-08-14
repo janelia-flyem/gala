@@ -88,14 +88,14 @@ class Rag(Graph):
         """
         super(Rag, self).__init__(weighted=False)
         self.boundary_probability = 10.0**20 # high, but no overflow
-        if probabilities is not None:
-            self.set_probabilities(probabilities)
         self.show_progress = show_progress
         if merge_priority_function is None:
             self.merge_priority_function = boundary_mean
         else:
             self.merge_priority_function = merge_priority_function
         self.set_watershed(watershed, lowmem)
+        if probabilities is not None:
+            self.set_probabilities(probabilities)
         if watershed is None:
             self.ucm = None
         else:
@@ -159,8 +159,11 @@ class Rag(Graph):
         return morpho.get_neighbor_idxs(self.watershed, idxs)
 
     def set_probabilities(self, probs):
-        self.probabilities = morpho.pad(probs, [self.boundary_probability, 0])
-
+        if self.pad_thickness==2:
+            self.probabilities = morpho.pad(probs, [self.boundary_probability, 0])
+        else:
+            self.probabilities = morpho.pad(probs, [self.boundary_probability])
+  
     def set_watershed(self, ws=None, lowmem=False):
         if ws is None:
             self.watershed = None
