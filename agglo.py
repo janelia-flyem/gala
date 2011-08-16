@@ -100,6 +100,7 @@ class Rag(Graph):
         else:
             self.ucm = array(self.watershed==0, dtype=float)
             self.ucm[self.ucm==0] = -inf
+            self.ucm_r = self.ucm.ravel()
         self.max_merge_score = -inf
         self.build_graph_from_watershed(allow_shared_boundaries)
         self.set_feature_manager(feature_manager)
@@ -114,19 +115,20 @@ class Rag(Graph):
             idxs = arange(self.watershed.size)
             self.add_node(self.boundary_body, 
                 extent=set(flatnonzero(self.watershed==self.boundary_body)))
-        inner_idxs = idxs[self.watershed.ravel()[idxs] != self.boundary_body]
+        inner_idxs = idxs[self.watershed_r[idxs] != self.boundary_body]
         if not hasattr(self, 'probabilities'):
             self.probabilities = zeros(self.watershed.shape, uint8)
+            self.probabilities_r = self.probabilities.ravel()
         if self.show_progress:
             pbar = ip.StandardProgressBar()
         else:
             pbar = ip.NoProgressBar()
         for idx in ip.with_progress(inner_idxs, title='Graph... ', pbar=pbar):
             ns = self.neighbor_idxs(idx)
-            adj_labels = self.watershed.ravel()[ns]
+            adj_labels = self.watershed_r[ns]
             adj_labels = unique(adj_labels[adj_labels != 0])
-            p = double(self.probabilities.ravel()[idx])
-            nodeid = self.watershed.ravel()[idx]
+            p = double(self.probabilities_r[idx])
+            nodeid = self.watershed_r[idx]
             if nodeid != 0:
                 adj_labels = adj_labels[adj_labels != nodeid]
                 edges = zip(repeat(nodeid), adj_labels)
@@ -166,6 +168,7 @@ class Rag(Graph):
 
     def set_probabilities(self, probs):
         self.probabilities = morpho.pad(probs, self.pad_thickness*[0])
+        self.probabilities_r = self.probabilities.ravel()
   
     def set_watershed(self, ws=None, lowmem=False):
         if ws is None:
@@ -178,6 +181,8 @@ class Rag(Graph):
         else:
             self.watershed = morpho.pad(ws, self.boundary_body)
         self.segmentation = self.watershed.copy()
+        self.watershed_r = self.watershed.ravel()
+        self.segmentation_r = self.segmentation.ravel() # reduce fct calls
         self.pad_thickness = 2 if (self.segmentation==0).any() else 1
         if lowmem:
             self.neighbor_idxs = self.get_neighbor_idxs_lean
@@ -421,11 +426,11 @@ class Rag(Graph):
         if self.ucm is not None:
             self.max_merge_score = max(self.max_merge_score, merge_score)
             idxs = list(self[n1][n2]['boundary'])
-            self.ucm.ravel()[idxs] = self.max_merge_score
+            self.ucm_r[idxs] = self.max_merge_score
         self.node[n1]['extent'].update(self.node[n2]['extent'])
         self.feature_manager.update_node_cache(self, n1, n2,
                 self.node[n1]['feature-cache'], self.node[n2]['feature-cache'])
-        self.segmentation.ravel()[list(self.node[n2]['extent'])] = n1
+        self.segmentation_r[list(self.node[n2]['extent'])] = n1
         new_neighbors = [n for n in self.neighbors(n2) if n != n1]
         for n in new_neighbors:
             self.merge_edge_properties((n2,n), (n1,n))
@@ -439,7 +444,7 @@ class Rag(Graph):
 
     def refine_post_merge_boundaries(self, n1, n2):
         boundary = array(list(self[n1][n2]['boundary']))
-        boundary_neighbor_pixels = self.segmentation.ravel()[
+        boundary_neighbor_pixels = self.segmentation_r[
             self.neighbor_idxs(boundary)
         ]
         add = ( (boundary_neighbor_pixels == 0) + 
@@ -447,14 +452,14 @@ class Rag(Graph):
             (boundary_neighbor_pixels == n2) ).all(axis=1)
         check = True-add
         self.node[n1]['extent'].update(boundary[add])
-        boundary_probs = self.probabilities.ravel()[boundary[add]]
+        boundary_probs = self.probabilities_r[boundary[add]]
         self.feature_manager.pixelwise_update_node_cache(self, n1,
                         self.node[n1]['feature-cache'], boundary[add])
-        self.segmentation.ravel()[boundary[add]] = n1
+        self.segmentation_r[boundary[add]] = n1
         boundaries_to_edit = {}
         for px in boundary[check]:
             for lb in unique(
-                        self.segmentation.ravel()[self.neighbor_idxs(px)]):
+                        self.segmentation_r[self.neighbor_idxs(px)]):
                 if lb != n1 and lb != 0:
                     try:
                         boundaries_to_edit[(n1,lb)].append(px)
@@ -480,7 +485,7 @@ class Rag(Graph):
         node_extent = list(self.node[u]['extent'])
         node_borders = set().union(
                         *[self[u][v]['boundary'] for v in self.neighbors(u)])
-        labels = unique(self.watershed.ravel()[node_extent])
+        labels = unique(self.watershed_r[node_extent])
         if labels[0] == 0:
             labels = labels[1:]
         self.remove_node(u)
@@ -556,7 +561,7 @@ class Rag(Graph):
             features = f(self, n1, n2)
             _ = plt.scatter(arange(len(features)), features)
         else:
-            _ = plt.hist(self.probabilities.ravel()[boundary_idxs], bins=25)
+            _ = plt.hist(self.probabilities_r[boundary_idxs], bins=25)
         plt.title('feature vector. prob = %.4f' % 
                                 self.merge_priority_function(self, n1, n2))
         return fig
@@ -668,10 +673,10 @@ class Rag(Graph):
 ############################
 
 def boundary_mean(g, n1, n2):
-    return mean(g.probabilities.ravel()[list(g[n1][n2]['boundary'])])
+    return mean(g.probabilities_r[list(g[n1][n2]['boundary'])])
 
 def boundary_median(g, n1, n2):
-    return median(g.probabilities.ravel()[list(g[n1][n2]['boundary'])])
+    return median(g.probabilities_r[list(g[n1][n2]['boundary'])])
 
 def approximate_boundary_mean(g, n1, n2):
     n, sum_xs = g[n1][n2]['feature-cache'][0:2]
@@ -737,7 +742,7 @@ def boundary_mean_ladder(g, n1, n2, threshold, strictness=1):
     return f(g, n1, n2)
 
 def boundary_mean_plus_sem(g, n1, n2, alpha=-6):
-    bvals = g.probabilities.ravel()[list(g[n1][n2]['boundary'])]
+    bvals = g.probabilities_r[list(g[n1][n2]['boundary'])]
     return mean(bvals) + alpha*sem(bvals)
 
 def random_priority(g, n1, n2):
