@@ -1,5 +1,5 @@
 # built-ins
-from itertools import combinations, izip
+from itertools import combinations, izip, repeat
 import argparse
 import random
 
@@ -87,7 +87,6 @@ class Rag(Graph):
         connected to both corresponding basins.
         """
         super(Rag, self).__init__(weighted=False)
-        self.boundary_probability = 10.0**20 # high, but no overflow
         self.show_progress = show_progress
         if merge_priority_function is None:
             self.merge_priority_function = boundary_mean
@@ -128,16 +127,23 @@ class Rag(Graph):
             adj_labels = unique(adj_labels[adj_labels != 0])
             p = double(self.probabilities.ravel()[idx])
             nodeid = self.watershed.ravel()[idx]
-            if allow_shared_boundaries or not len(adj_labels) > 2:
-                for l1,l2 in combinations(adj_labels, 2):
+            if nodeid != 0:
+                adj_labels = adj_labels[adj_labels != nodeid]
+                edges = zip(repeat(nodeid), adj_labels)
+                if not self.has_node(nodeid):
+                    self.add_node(nodeid, extent=set())
+                try:
+                    self.node[nodeid]['extent'].add(idx)
+                except KeyError:
+                    self.node[nodeid]['extent'] = set([idx])
+            else:
+                edges = combinations(adj_labels, 2)
+            if allow_shared_boundaries or len(edges) == 1:
+                for l1,l2 in edges:
                     if self.has_edge(l1, l2): 
                         self[l1][l2]['boundary'].add(idx)
                     else: 
                         self.add_edge(l1, l2, boundary=set([idx]))
-            if nodeid != 0:
-                if not self.has_node(nodeid):
-                    self.add_node(nodeid)
-                self.node[nodeid].setdefault('extent', set()).add(idx)
 
     def set_feature_manager(self, feature_manager):
         self.feature_manager = feature_manager
@@ -159,10 +165,7 @@ class Rag(Graph):
         return morpho.get_neighbor_idxs(self.watershed, idxs)
 
     def set_probabilities(self, probs):
-        if self.pad_thickness==2:
-            self.probabilities = morpho.pad(probs, [self.boundary_probability, 0])
-        else:
-            self.probabilities = morpho.pad(probs, [self.boundary_probability])
+        self.probabilities = morpho.pad(probs, self.pad_thickness*[0])
   
     def set_watershed(self, ws=None, lowmem=False):
         if ws is None:
@@ -218,6 +221,8 @@ class Rag(Graph):
         """
         queue_items = []
         for l1, l2 in self.edges_iter():
+            if l1 == self.boundary_body or l2 == self.boundary_body:
+                continue
             w = self.merge_priority_function(self,l1,l2)
             qitem = [w, True, l1, l2]
             queue_items.append(qitem)
@@ -293,7 +298,7 @@ class Rag(Graph):
             self.merge_priority_function, threshold, strictness
         )
         self.rebuild_merge_queue()
-        self.agglomerate(self.boundary_probability/10)
+        self.agglomerate(inf)
         self.merge_priority_function = original_merge_priority_function
         self.merge_queue.finish()
         
@@ -319,8 +324,7 @@ class Rag(Graph):
         history, ave_size = [], []
         while self.number_of_nodes() > max([g.number_of_nodes() for g in gtg]):
             merge_priority, valid, n1, n2 = self.merge_queue.pop()
-            if merge_priority == self.boundary_probability or \
-                                                self.boundary_body in [n1, n2]:
+            if self.boundary_body in [n1, n2]:
                 print 'Warning: agglomeration done early...'
                 break
             if valid:
@@ -498,9 +502,9 @@ class Rag(Graph):
                     self[u][v]['feature-cache'], self[w][x]['feature-cache'])
         try:
             self.merge_queue.invalidate(self[w][x]['qlink'])
-            self.update_merge_queue(u, v)
         except KeyError:
             pass
+        self.update_merge_queue(u, v)
 
     def update_merge_queue(self, u, v):
         """Update the merge queue item for edge (u,v). Add new by default."""
@@ -694,7 +698,7 @@ def make_ladder(priority_function, threshold, strictness=1):
 def classifier_probability(feature_extractor, classifier):
     def predict(g, n1, n2):
         if n1 == g.boundary_body or n2 == g.boundary_body:
-            return g.boundary_probability
+            return inf
         features = feature_extractor(g, n1, n2)
         try:
             prediction = classifier.predict_proba(features)[0,1]
@@ -738,7 +742,7 @@ def boundary_mean_plus_sem(g, n1, n2, alpha=-6):
 
 def random_priority(g, n1, n2):
     if n1 == g.boundary_body or n2 == g.boundary_body:
-        return g.boundary_probability
+        return inf
     return random.random()
 
 def best_possible_segmentation(ws, gt):
