@@ -7,7 +7,7 @@ import random
 import matplotlib.pyplot as plt
 from numpy import array, mean, zeros, zeros_like, uint8, int8, where, unique, \
     finfo, size, double, transpose, newaxis, uint32, nonzero, median, exp, \
-    log2, float, ones, arange, inf, flatnonzero
+    log2, float, ones, arange, inf, flatnonzero, intersect1d
 from scipy.stats import sem
 from scipy.sparse import lil_matrix
 from scipy.misc import comb as nchoosek
@@ -189,7 +189,6 @@ class Rag(Graph):
         else:
             self.pixel_neighbors = morpho.build_neighbors_array(self.watershed)
             self.neighbor_idxs = self.get_neighbor_idxs_fast
-        self.sum_body_sizes = double(self.get_segmentation().astype(bool).sum())
 
     def set_ground_truth(self, gt=None):
         if gt is not None:
@@ -311,59 +310,48 @@ class Rag(Graph):
     def learn_agglomerate(self, gts, feature_map_function, weight_type='voi'):
         """Agglomerate while comparing to ground truth & classifying merges."""
         # Compute data for all ground truths
+        if type(gts) != list:
+            gts = [gts]
         gtg = []
         cnt = []
         assignment = []
         for gt in gts:
             gtg.append(Rag(gt))
-            cnt.append(contingency_table(self.get_segmentation(), gtg[-1].get_segmentation()))
+            cnt.append(contingency_table(self.get_segmentation(), 
+                                        gtg[-1].get_segmentation()))
             assignment.append(cnt[-1] == cnt[-1].max(axis=1)[:,newaxis])
-
-        hard_assignment = set.intersection(*[set(where(a.sum(axis=1) > 1)[0]) for a in assignment])
+        hard_assignment = reduce(
+            intersect1d, [where(a.sum(axis=1) > 1)[0] for a in assignment])
         # 'hard assignment' nodes are nodes that have most of their overlap
         # with the 0-label in gt, or that have equal amounts of overlap between
         # two other labels
         # to be a hard assigment, it must be hard in all ground truth segmentations
         if self.merge_queue.is_empty(): self.rebuild_merge_queue()
-        features, labels, weights = [], [], []
-        history, ave_size = [], []
-        while self.number_of_nodes() > max([g.number_of_nodes() for g in gtg]):
+        features, labels, weights, history = [], [], [], []
+        while len(self.merge_queue) > 0:
             merge_priority, valid, n1, n2 = self.merge_queue.pop()
-            if self.boundary_body in [n1, n2]:
-                print 'Warning: agglomeration done early...'
-                break
             if valid:
                 features.append(feature_map_function(self, n1, n2).ravel())
                 if n2 in hard_assignment:
                     n1, n2 = n2, n1
                 # Calculate weights for weighting data points
-                n = self.volume_size
-                len1 = len(self.node[n1]['extent'])
-                len2 = len(self.node[n2]['extent'])
-                py1 = len1/float(n)
-                py2 = len2/float(n)
-                py = py1 + py2
-                if weight_type == 'voi':
-                    weight =  py*log2(py) - py1*log2(py1) - py2*log2(py2)
-                elif weight_type == 'rand':
-                    weight = (len1*len2)/float(nchoosek(n,2))
-                elif weight_type == 'both':
-                    weight = (py*log2(py) - py1*log2(py1) - py2*log2(py2),
-                                            (len1*len2)/float(nchoosek(n,2)))
-                else:
-                    weight = 1.0                
+                s1, s2 = [len(self.node[n]['extent']) for n in [n1, n2]]
+                dvoi = compute_local_voi_change(s1, s2, self.volume_size)
+                drand = compute_local_rand_change(s1, s2, self.volume_size)
+                if weight_type=='voi': weights.append(dvoi)
+                elif weight_type=='rand': weights.append(drand)
+                elif weight_type=='both': weights.append((dvoi, drand))
+                else: weights.append(1.0)
 
                 # If n1 is a hard assignment and one of the segments it's
                 # assigned to is n2 in some ground truth
                 if n1 in hard_assignment and \
-                                any([(a[n1,:] * a[n2,:]).any() for a in assignment]):
+                        any([(a[n1,:] * a[n2,:]).any() for a in assignment]):
                     m = boundary_mean(self, n1, n2)
                     ms = [boundary_mean(self, n1, n) for n in 
                                                             self.neighbors(n1)]
                     # Only merge them if n1's boundary mean is minimum for n2
                     if m == min(ms):
-                        ave_size.append(self.sum_body_sizes / 
-                                                (self.number_of_nodes()-1))
                         history.append([n2, n1])
                         self.merge_nodes(n2, n1)
                         labels.append(-1)
@@ -372,8 +360,6 @@ class Rag(Graph):
                         _ = features.pop() # remove last item
                 else:
                     history.append([n1, n2])
-                    ave_size.append(self.sum_body_sizes / 
-                                                (self.number_of_nodes()-1))
                     # Get the fraction of times that n1 and n2 are assigned to 
                     # the same segment in the ground truths
                     together = [(a[n1,:]==a[n2,:]).all() for a in assignment]
@@ -385,7 +371,7 @@ class Rag(Graph):
                         labels.append(1)
                         weights.append(weight)
         return array(features).astype(double), array(labels), array(weights), \
-                                            array(history), array(ave_size)
+                                            array(history)
 
     def replay_merge_history(self, merge_seq, labels=None, num_errors=1):
         """Agglomerate according to a merge sequence, optionally labeled.
@@ -420,8 +406,6 @@ class Rag(Graph):
 
     def merge_nodes(self, n1, n2, merge_score=-inf):
         """Merge two nodes, while updating the necessary edges."""
-        self.sum_body_sizes -= len(self.node[n1]['extent']) + \
-                                len(self.node[n2]['extent'])
         # Update ultrametric contour map
         if self.ucm is not None:
             self.max_merge_score = max(self.max_merge_score, merge_score)
@@ -440,7 +424,6 @@ class Rag(Graph):
         self.rig[n1] += self.rig[n2]
         self.rig[n2] = 0
         self.remove_node(n2)
-        self.sum_body_sizes += len(self.node[n1]['extent'])
 
     def refine_post_merge_boundaries(self, n1, n2):
         boundary = array(list(self[n1][n2]['boundary']))
@@ -715,27 +698,35 @@ def classifier_probability(feature_extractor, classifier):
 def expected_change_voi(feature_extractor, classifier):
     prob_func = classifier_probability(feature_extractor, classifier)
     def predict(g, n1, n2):
-        p = float(prob_func(g, n1, n2)) # Prediction from the classifier
-        n = g.volume_size
-        py1 = len(g.node[n1]['extent'])/float(n)
-        py2 = len(g.node[n2]['extent'])/float(n)
-        py = py1 + py2
-        # Calculate change in VOI
-        v = -float(py1*log2(py1) + py2*log2(py2) - py*log2(py))
+        p = prob_func(g, n1, n2) # Prediction from the classifier
+        # Calculate change in VOI if n1 and n2 should not be merged
+        v = compute_local_voi_change(
+            len(g.node[n1]['extent']), len(g.node[n2]['extent']), g.volume_size
+        )
         # Return expected change
         return  (p*v + (1.0-p)*(-v))
     return predict
 
+def compute_local_voi_change(s1, s2, n):
+    """Compute change in VOI if we merge disjoint sizes s1,s2 in a volume n."""
+    py1 = float(s1)/n
+    py2 = float(s2)/n
+    py = py1+py2
+    return -(py1*log2(py1) + py2*log2(py2) - py*log2(py))
+    
 def expected_change_rand(feature_extractor, classifier):
     prob_func = classifier_probability(feature_extractor, classifier)
     def predict(g, n1, n2):
         p = float(prob_func(g, n1, n2)) # Prediction from the classifier
-        n = g.volume_size
-        len1 = len(g.node[n1]['extent'])
-        len2 = len(g.node[n2]['extent'])
-        v = (len1*len2)/float(nchoosek(n,2))
+        v = compute_local_rand_change(
+            len(g.node[n1]['extent']), len(g.node[n2]['extent']), g.volume_size
+        )
         return p*v + (1.0-p)*(-v)
     return predict
+
+def compute_local_rand_change(s1, s2, n):
+    """Compute change in rand if we merge disjoint sizes s1,s2 in volume n."""
+    return float(s1*s2)/nchoosek(n,2)
 
 def boundary_mean_ladder(g, n1, n2, threshold, strictness=1):
     f = make_ladder(boundary_mean, threshold, strictness)
