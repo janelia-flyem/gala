@@ -107,6 +107,17 @@ class Rag(Graph):
         self.set_ground_truth(gt_vol)
         self.merge_queue = MergeQueue()
 
+    def __copy__(self):
+        g = super(Rag, self).copy()
+        g.watershed_r = g.watershed.ravel()
+        g.segmentation_r = g.segmentation.ravel()
+        g.ucm_r = g.ucm.ravel()
+        g.probabilities_r = g.probabilities.ravel()
+        return g
+
+    def copy(self):
+        return self.__copy__()
+
     def build_graph_from_watershed(self, 
                                     allow_shared_boundaries=True, idxs=None):
         if self.watershed is None:
@@ -238,54 +249,44 @@ class Rag(Graph):
         """Build a merge queue from scratch and assign to self.merge_queue."""
         self.merge_queue = self.build_merge_queue()
 
-    def agglomerate(self, threshold=128, save_history=False, 
-                                                        eval_function=None):
+    def agglomerate(self, threshold=0.5, save_history=False):
         """Merge nodes sequentially until given edge confidence threshold."""
         if self.merge_queue.is_empty():
             self.merge_queue = self.build_merge_queue()
-        history = []
-        evaluation = []
+        history, evaluation = [], []
         while len(self.merge_queue) > 0 and \
                                         self.merge_queue.peek()[0] < threshold:
             merge_priority, valid, n1, n2 = self.merge_queue.pop()
             if valid:
+                self.update_ucm(n1,n2,merge_priority)
                 self.merge_nodes(n1,n2,merge_score=merge_priority)
-                if save_history: history.append((n1,n2))
-                if eval_function is not None:
-                    num_segs = len(unique(self.get_segmentation()))-1
-                    val = eval_function(self.get_segmentation())
-                    evaluation.append((num_segs, val))
-        if (save_history) and (eval_function is not None):
+                if save_history: 
+                    history.append((n1,n2))
+                    evaluation.append(
+                        (self.number_of_nodes()-1, self.split_voi())
+                    )
+        if save_history:
             return history, evaluation
-        elif save_history:
-            return save_history
-        elif eval_function is not None:
-            return evaluation
 
-    def agglomerate_count(self, stepsize=100, save_history=False,
-                                                        eval_function=None):
+    def agglomerate_count(self, stepsize=100, save_history=False):
         """Agglomerate until 'stepsize' merges have been made."""
         if self.merge_queue.is_empty():
             self.merge_queue = self.build_merge_queue()
-        history = []
-        evaluation = []
+        history, evaluation = [], []
         i = 0
         while len(self.merge_queue) > 0 and i < stepsize:
             merge_priority, valid, n1, n2 = self.merge_queue.pop()
             if valid:
                 i += 1
-                self.merge_nodes(n1, n2, merge_score=merge_priority)
-                if save_history: history.append((n1,n2))
-                if eval_function is not None: 
-                        num_segs = len(unique(self.get_segmentation()))-1
-                        val = eval_function(self.get_segmentation())
-                        evaluation.append((num_segs, val))
-        if (save_history) and (eval_function is not None):
+                self.update_ucm(n1,n2,merge_priority)
+                self.merge_nodes(n1,n2,merge_score=merge_priority)
+                if save_history: 
+                    history.append((n1,n2))
+                    evaluation.append(
+                        (self.number_of_nodes()-1, self.split_voi())
+                    )
+        if save_history:
             return history, evaluation
-        elif save_history:
-            return history
-        elif eval_function is not None:
-            return evaluation
         
     def agglomerate_ladder(self, threshold=1000, strictness=1):
         """Merge sequentially all nodes smaller than threshold.
@@ -307,11 +308,11 @@ class Rag(Graph):
         self.merge_queue.finish()
         
 
-    def learn_agglomerate(self, gts, feature_map_function, weight_type='voi'):
+    def learn_agglomerate(self, gts, feature_map_function, *args, **kwargs):
         """Agglomerate while comparing to ground truth & classifying merges."""
         # Compute data for all ground truths
         if type(gts) != list:
-            gts = [gts]
+            gts = [gts] # allow using single ground truth as input
         gtg = []
         cnt = []
         assignment = []
@@ -325,7 +326,7 @@ class Rag(Graph):
         # 'hard assignment' nodes are nodes that have most of their overlap
         # with the 0-label in gt, or that have equal amounts of overlap between
         # two other labels
-        # to be a hard assigment, it must be hard in all ground truth segmentations
+        # to be a hard assigment, must be hard in all ground truth segmentations
         if self.merge_queue.is_empty(): self.rebuild_merge_queue()
         features, labels, weights, history = [], [], [], []
         while len(self.merge_queue) > 0:
@@ -335,13 +336,12 @@ class Rag(Graph):
                 if n2 in hard_assignment:
                     n1, n2 = n2, n1
                 # Calculate weights for weighting data points
+                history.append([n1, n2])
                 s1, s2 = [len(self.node[n]['extent']) for n in [n1, n2]]
-                dvoi = compute_local_voi_change(s1, s2, self.volume_size)
-                drand = compute_local_rand_change(s1, s2, self.volume_size)
-                if weight_type=='voi': weights.append(dvoi)
-                elif weight_type=='rand': weights.append(drand)
-                elif weight_type=='both': weights.append((dvoi, drand))
-                else: weights.append(1.0)
+                weights.append(
+                    (compute_local_voi_change(s1, s2, self.volume_size),
+                    compute_local_rand_change(s1, s2, self.volume_size))
+                )
 
                 # If n1 is a hard assignment and one of the segments it's
                 # assigned to is n2 in some ground truth
@@ -352,24 +352,21 @@ class Rag(Graph):
                                                             self.neighbors(n1)]
                     # Only merge them if n1's boundary mean is minimum for n2
                     if m == min(ms):
-                        history.append([n2, n1])
                         self.merge_nodes(n2, n1)
                         labels.append(-1)
-                        weights.append(weight)
                     else:
                         _ = features.pop() # remove last item
+                        _ = history.pop()
+                        _ = weights.pop()
                 else:
-                    history.append([n1, n2])
                     # Get the fraction of times that n1 and n2 are assigned to 
                     # the same segment in the ground truths
                     together = [(a[n1,:]==a[n2,:]).all() for a in assignment]
                     if sum(together)/float(len(together)) > 0.5:
                         self.merge_nodes(n1, n2)
                         labels.append(-1)
-                        weights.append(weight)
                     else:
                         labels.append(1)
-                        weights.append(weight)
         return array(features).astype(double), array(labels), array(weights), \
                                             array(history)
 
@@ -404,13 +401,15 @@ class Rag(Graph):
                 break
         return count, nodes
 
-    def merge_nodes(self, n1, n2, merge_score=-inf):
-        """Merge two nodes, while updating the necessary edges."""
-        # Update ultrametric contour map
+    def update_ucm(self, n1, n2, score=-inf):
+        """Update ultrametric contour map."""
         if self.ucm is not None:
             self.max_merge_score = max(self.max_merge_score, merge_score)
             idxs = list(self[n1][n2]['boundary'])
             self.ucm_r[idxs] = self.max_merge_score
+
+    def merge_nodes(self, n1, n2):
+        """Merge two nodes, while updating the necessary edges."""
         self.node[n1]['extent'].update(self.node[n2]['extent'])
         self.feature_manager.update_node_cache(self, n1, n2,
                 self.node[n1]['feature-cache'], self.node[n2]['feature-cache'])
@@ -596,7 +595,7 @@ class Rag(Graph):
         elif self.gt is not None:
             return split_voi(None, None, self.rig)
         else:
-            return split_voi(self.get_segmentation(), gt, [0], [0])
+            return split_voi(self.get_segmentation(), gt, None, [0], [0])
 
     def write(self, fout, format='GraphML'):
         pass
