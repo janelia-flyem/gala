@@ -281,7 +281,7 @@ class Rag(Graph):
             if valid:
                 i += 1
                 self.update_ucm(n1,n2,merge_priority)
-                self.merge_nodes(n1,n2,merge_score=merge_priority)
+                self.merge_nodes(n1,n2)
                 if save_history: 
                     history.append((n1,n2))
                     evaluation.append(
@@ -429,7 +429,8 @@ class Rag(Graph):
         self.feature_manager.update_node_cache(self, n1, n2,
                 self.node[n1]['feature-cache'], self.node[n2]['feature-cache'])
         self.segmentation_r[list(self.node[n2]['extent'])] = n1
-        new_neighbors = [n for n in self.neighbors(n2) if n != n1]
+        new_neighbors = [n for n in self.neighbors(n2)
+                                        if n not in [n1, self.boundary_body]]
         for n in new_neighbors:
             self.merge_edge_properties((n2,n), (n1,n))
         # this if statement enables merging of non-adjacent nodes
@@ -491,7 +492,6 @@ class Rag(Graph):
         )
         self.ncut(num_clusters=n, nodes=labels, **kwargs)
 
-
     def merge_edge_properties(self, src, dst):
         """Merge the properties of edge src into edge dst."""
         u, v = dst
@@ -510,6 +510,8 @@ class Rag(Graph):
 
     def update_merge_queue(self, u, v):
         """Update the merge queue item for edge (u,v). Add new by default."""
+        if self.boundary_body in [u, v]:
+            return
         if self[u][v].has_key('qlink'):
             self.merge_queue.invalidate(self[u][v]['qlink'])
         if not self.merge_queue.is_null_queue:
