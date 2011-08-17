@@ -7,7 +7,7 @@ import random
 import matplotlib.pyplot as plt
 from numpy import array, mean, zeros, zeros_like, uint8, int8, where, unique, \
     finfo, size, double, transpose, newaxis, uint32, nonzero, median, exp, \
-    log2, float, ones, arange, inf, flatnonzero, intersect1d
+    log2, float, ones, arange, inf, flatnonzero, intersect1d, dtype
 from scipy.stats import sem
 from scipy.sparse import lil_matrix
 from scipy.misc import comb as nchoosek
@@ -178,6 +178,8 @@ class Rag(Graph):
         return morpho.get_neighbor_idxs(self.watershed, idxs)
 
     def set_probabilities(self, probs):
+        if probs.dtype not in map(dtype, ['float64', 'float32', 'float16']):
+            probs = probs.astype(double)
         self.probabilities = morpho.pad(probs, self.pad_thickness*[0])
         self.probabilities_r = self.probabilities.ravel()
   
@@ -571,11 +573,26 @@ class Rag(Graph):
     def build_volume(self, nbunch=None):
         """Return the segmentation (numpy.ndarray) induced by the graph."""
         v = zeros_like(self.watershed)
+        vr = v.ravel()
         if nbunch is None:
             nbunch = self.nodes()
         for n in nbunch:
-            v.ravel()[list(self.node[n]['extent'])] = n
+            vr[list(self.node[n]['extent'])] = n
         return morpho.juicy_center(v,self.pad_thickness)
+
+    def build_boundary_map(self, ebunch=None):
+        if len(self.merge_queue) == 0:
+            self.rebuild_merge_queue()
+        m = zeros(self.probabilities.shape, double)
+        mr = m.ravel()
+        if ebunch is None:
+            ebunch = self.edges_iter()
+        ebunch = sorted([(self[u][v]['weight'], u, v) for u, v in ebunch 
+                                            if self.boundary_body not in [u,v]])
+        for w, u, v in ebunch:
+            b = list(self[u][v]['boundary'])
+            mr[b] = w
+        return morpho.juicy_center(m, self.pad_thickness)
 
     def orphans(self):
         """List of all the nodes that do not touch the volume boundary."""
