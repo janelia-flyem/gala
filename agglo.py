@@ -177,10 +177,13 @@ class Rag(Graph):
     def get_neighbor_idxs_lean(self, idxs):
         return morpho.get_neighbor_idxs(self.watershed, idxs)
 
-    def set_probabilities(self, probs):
+    def set_probabilities(self, probs, normalize=True):
         if probs.dtype not in map(dtype, ['float64', 'float32', 'float16']):
             probs = probs.astype(double)
-        self.probabilities = morpho.pad(probs, self.pad_thickness*[0])
+        if normalize:
+            probs -= probs.min() # ensure probs.min() == 0
+            probs /= probs.max() # ensure probs.max() == 1
+        self.probabilities = morpho.pad(probs, [inf]+(self.pad_thickness-1)*[0])
         self.probabilities_r = self.probabilities.ravel()
   
     def set_watershed(self, ws=None, lowmem=False):
