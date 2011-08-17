@@ -259,7 +259,7 @@ class Rag(Graph):
             merge_priority, valid, n1, n2 = self.merge_queue.pop()
             if valid:
                 self.update_ucm(n1,n2,merge_priority)
-                self.merge_nodes(n1,n2,merge_score=merge_priority)
+                self.merge_nodes(n1,n2)
                 if save_history: 
                     history.append((n1,n2))
                     evaluation.append(
@@ -307,6 +307,19 @@ class Rag(Graph):
         self.merge_priority_function = original_merge_priority_function
         self.merge_queue.finish()
         
+    def one_shot_agglomeration(self, threshold=0.5):
+        g = self.copy()
+        if len(g.merge_queue) == 0:
+            g.rebuild_merge_queue()
+        for u, v, d in g.edges(data=True):
+            if g.boundary_body in [u,v] or d['weight'] > threshold:
+                g.remove_edge(u, v)
+                try:
+                    g.merge_queue.invalidate(d['qlink'])
+                except KeyError:
+                    pass
+        g.agglomerate(inf)
+        return g.get_segmentation()
 
     def learn_agglomerate(self, gts, feature_map_function, *args, **kwargs):
         """Agglomerate while comparing to ground truth & classifying merges."""
@@ -404,7 +417,7 @@ class Rag(Graph):
     def update_ucm(self, n1, n2, score=-inf):
         """Update ultrametric contour map."""
         if self.ucm is not None:
-            self.max_merge_score = max(self.max_merge_score, merge_score)
+            self.max_merge_score = max(self.max_merge_score, score)
             idxs = list(self[n1][n2]['boundary'])
             self.ucm_r[idxs] = self.max_merge_score
 
