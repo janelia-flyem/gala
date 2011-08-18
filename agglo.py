@@ -314,6 +314,7 @@ class Rag(Graph):
         self.agglomerate(inf)
         self.merge_priority_function = original_merge_priority_function
         self.merge_queue.finish()
+        self.rebuild_merge_queue()
         
     def one_shot_agglomeration(self, threshold=0.5):
         g = self.copy()
@@ -717,7 +718,7 @@ def make_ladder(priority_function, threshold, strictness=1):
         if ladder_condition:
             return priority_function(g, n1, n2)
         else:
-            return finfo(float).max / size(g.segmentation)
+            return inf
     return ladder_function
 
 def classifier_probability(feature_extractor, classifier):
