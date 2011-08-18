@@ -220,7 +220,10 @@ class Rag(Graph):
             self.gt = None
             # null pattern to transparently allow merging of nodes.
             # Bonus feature: counts how many sp's went into a single node.
-            self.rig = ones(self.watershed.max()+1)
+            try:
+                self.rig = ones(self.watershed.max()+1)
+            except AttributeError:
+                self.rig = ones(self.number_of_nodes()+1)
 
     def build_merge_queue(self):
         """Build a queue of node pairs to be merged in a specific priority.
