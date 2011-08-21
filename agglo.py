@@ -14,6 +14,7 @@ from scipy.misc import comb as nchoosek
 from scipy.ndimage.measurements import center_of_mass, label
 from networkx import Graph
 from networkx.algorithms.traversal.depth_first_search import dfs_preorder_nodes
+from networkx.algorithms.components.connected import connected_components
 
 # local modules
 import morpho
@@ -323,11 +324,9 @@ class Rag(Graph):
         for u, v, d in g.edges(data=True):
             if g.boundary_body in [u,v] or d['weight'] > threshold:
                 g.remove_edge(u, v)
-                try:
-                    g.merge_queue.invalidate(d['qlink'])
-                except KeyError:
-                    pass
-        g.agglomerate(inf)
+        ccs = connected_components(g)
+        for cc in ccs:
+            g.merge_node_list(cc)
         return g.get_segmentation()
 
     def learn_agglomerate(self, gts, feature_map_function, *args, **kwargs):
@@ -485,6 +484,15 @@ class Rag(Graph):
         for n in self.neighbors(n2):
             if not boundaries_to_edit.has_key((n1,n)) and n != n1:
                 self.update_merge_queue(n1, n)
+
+    def merge_node_list(self, nodes=None):
+        sp_subgraph = self.subgraph(nodes)
+        if len(sp_subgraph) > 0:
+            node_dfs = list(dfs_preorder_nodes(sp_subgraph)) 
+            # dfs_preorder_nodes returns iter, convert to list
+            source_node, other_nodes = node_dfs[0], node_dfs[1:]
+            for current_node in other_nodes:
+                self.merge_nodes(source_node, current_node)
 
     def split_node(self, u, n=2, **kwargs):
         node_extent = list(self.node[u]['extent'])
@@ -789,11 +797,5 @@ def best_possible_segmentation(ws, gt):
     # currently ignoring hard assignment nodes
     assignment[hard_assignment,:] = 0
     for gt_node in range(1,cnt.shape[1]):
-        sp_subgraph = ws.subgraph(where(assignment[:,gt_node])[0])
-        if len(sp_subgraph) > 0:
-            sp_dfs = list(dfs_preorder_nodes(sp_subgraph)) 
-                    # dfs_preorder_nodes returns iter, convert to list
-            source_sp, other_sps = sp_dfs[0], sp_dfs[1:]
-            for current_sp in other_sps:
-                ws.merge_nodes(source_sp, current_sp)
+        ws.merge_node_list(where(assignment[:,gt_node])[0])
     return ws.get_segmentation()
