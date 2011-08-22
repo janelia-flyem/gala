@@ -7,7 +7,8 @@ import random
 import matplotlib.pyplot as plt
 from numpy import array, mean, zeros, zeros_like, uint8, int8, where, unique, \
     finfo, size, double, transpose, newaxis, uint32, nonzero, median, exp, \
-    log2, float, ones, arange, inf, flatnonzero, intersect1d, dtype
+    log2, float, ones, arange, inf, flatnonzero, intersect1d, dtype, squeeze, \
+    product
 from scipy.stats import sem
 from scipy.sparse import lil_matrix
 from scipy.misc import comb as nchoosek
@@ -139,7 +140,6 @@ class Rag(Graph):
             ns = self.neighbor_idxs(idx)
             adj_labels = self.watershed_r[ns]
             adj_labels = unique(adj_labels[adj_labels != 0])
-            p = double(self.probabilities_r[idx])
             nodeid = self.watershed_r[idx]
             if nodeid != 0:
                 adj_labels = adj_labels[adj_labels != nodeid]
@@ -184,8 +184,21 @@ class Rag(Graph):
         if normalize:
             probs -= probs.min() # ensure probs.min() == 0
             probs /= probs.max() # ensure probs.max() == 1
-        self.probabilities = morpho.pad(probs, [inf]+(self.pad_thickness-1)*[0])
-        self.probabilities_r = self.probabilities.ravel()
+        sp = probs.shape
+        sw = self.watershed.shape
+        p_ndim = probs.ndim
+        w_ndim = self.watershed.ndim
+        padding = [inf]+(self.pad_thickness-1)*[0]
+        if p_ndim == w_ndim:
+            axes = range(p_ndim)
+        elif p_ndim == w_ndim+1:
+            if sp[1:] == sw:
+                sp = sp[1:]+[sp[0]]
+                probs = probs.transpose(sp)
+            axes = range(p_ndim-1)
+        self.probabilities = morpho.pad(probs, padding, axes)
+        self.probabilities_r = squeeze(self.probabilities.reshape(
+                (product([self.probabilities.shape[ax] for ax in axes]), -1)))
   
     def set_watershed(self, ws=None, lowmem=False):
         if ws is None:
