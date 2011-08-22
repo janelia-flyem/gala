@@ -81,16 +81,16 @@ class MomentsFeatureManager(NullFeatureManager):
         return self.nmoments+1
 
     def compute_moment_sums(self, ar, idxs):
-        values = ar.ravel()[idxs][:,newaxis]
-        return (values ** arange(self.nmoments+1)).sum(axis=0)
+        values = ar[idxs][...,newaxis]
+        return (values ** arange(self.nmoments+1)).sum(axis=0).T
 
     def create_node_cache(self, g, n):
         node_idxs = list(g.node[n]['extent'])
-        return self.compute_moment_sums(g.probabilities, node_idxs)
+        return self.compute_moment_sums(g.probabilities_r, node_idxs)
 
     def create_edge_cache(self, g, n1, n2):
         edge_idxs = list(g[n1][n2]['boundary'])
-        return self.compute_moment_sums(g.probabilities, edge_idxs)
+        return self.compute_moment_sums(g.probabilities_r, edge_idxs)
 
     def update_node_cache(self, g, n1, n2, dst, src):
         dst += src
@@ -101,12 +101,12 @@ class MomentsFeatureManager(NullFeatureManager):
     def pixelwise_update_node_cache(self, g, n, dst, idxs, remove=False):
         if len(idxs) == 0: return
         a = -1.0 if remove else 1.0
-        dst += a * self.compute_moment_sums(g.probabilities, idxs)
+        dst += a * self.compute_moment_sums(g.probabilities_r, idxs)
 
     def pixelwise_update_edge_cache(self, g, n1, n2, dst, idxs, remove=False):
         if len(idxs) == 0: return
         a = -1.0 if remove else 1.0
-        dst += a * self.compute_moment_sums(g.probabilities, idxs)
+        dst += a * self.compute_moment_sums(g.probabilities_r, idxs)
 
     def compute_node_features(self, g, n, cache=None):
         if cache is None: 
@@ -130,14 +130,16 @@ def central_moments_from_noncentral_sums(a):
     a = a.astype(double)
     if len(a) == 1:
         return a
-    N = a[0]
+    N = a.copy()[0]
     a /= N
-    mu = a[1]
+    mu = a.copy()[1]
     ac = zeros_like(a)
-    for n in xrange(2,len(a)):
-        js = arange(0,n+1)
+    for n in range(2,len(a)):
+        js = arange(n+1)
+        if a.ndim > 1: js = js[:,newaxis]
         # Formula found in Wikipedia page for "Central moment", 2011-07-31
-        ac[n] = (nchoosek(n,js) * (-1)**(n-js) * a[js] * mu**(n-js)).sum()
+        ac[n] = (nchoosek(n,js) * 
+                    (-1)**(n-js) * a[js.ravel()] * mu**(n-js)).sum(axis=0)
     ac[0] = N
     ac[1] = mu
     return ac
