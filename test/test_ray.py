@@ -27,6 +27,25 @@ class TestMorphologicalOperations(unittest.TestCase):
             self.assertTrue((wss[i]==self.results[i]).all(),
                                     'Watershed test number %i failed.'%(i+1))
 
+    def test_watershed_seeded_dams(self):
+        landscape = numpy.array([1,0,1,2,1,3,2,0,2,4,1,0])
+        seeds_bool = landscape==0
+        seeds_unique = label(seeds_bool)[0]
+        regular_watershed_result = numpy.array([1,1,1,0,4,0,2,2,2,0,3,3])
+        nodam_watershed_result = numpy.array([1,1,1,4,4,4,2,2,2,3,3,3])
+        seeded_watershed_result = numpy.array([1,1,1,1,1,0,2,2,2,0,3,3])
+        seeded_nodam_ws_result = numpy.array([1,1,1,1,1,1,2,2,2,3,3,3])
+        regular_watershed = morpho.watershed(landscape)
+        self.assertTrue((regular_watershed == regular_watershed_result).all())
+        seeded_watershed1 = morpho.watershed(landscape, seeds_bool)
+        seeded_watershed2 = morpho.watershed(landscape, seeds_unique)
+        self.assertTrue((seeded_watershed1 == seeded_watershed_result).all())
+        self.assertTrue((seeded_watershed2 == seeded_watershed_result).all())
+        nodam_watershed = morpho.watershed(landscape, None, False)
+        self.assertTrue((nodam_watershed == nodam_watershed_result).all())
+        seeded_nodam_ws = morpho.watershed(landscape, seeds_bool, False)
+        self.assertTrue((seeded_nodam_ws == seeded_nodam_ws_result).all())
+
 class TestAgglomeration(unittest.TestCase):
     def setUp(self):
         test_idxs = range(1,5)

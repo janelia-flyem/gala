@@ -61,10 +61,13 @@ def watershed(a, seeds=None, dams=True, show_progress=False):
     if not seeded:
         ws = zeros(shape(a), uint32)
     else:
+        if seeds.dtype == bool:
+            seeds = label(seeds)[0]
         ws = seeds
     levels = unique(a)
     a = pad(a, a.max()+1)
     ar = a.ravel()
+    arc = ar.copy() if seeded else ar
     ws = pad(ws, 0)
     wsr = ws.ravel()
     maxlabel = iinfo(ws.dtype).max
@@ -93,7 +96,7 @@ def watershed(a, seeds=None, dams=True, show_progress=False):
             if len(adj_labels) > 1 and dams: # build a dam
                 wsr[idx] = maxlabel 
             else: # assign a label
-                wsr[idx] = wsr[lnidxs][ar[lnidxs].argmin()]
+                wsr[idx] = wsr[lnidxs][arc[lnidxs].argmin()]
                 idxs_adjacent_to_labels.extend(nidxs[((wsr[nidxs] == 0) * 
                                     (ar[nidxs] == level)).astype(bool) ])
         if seeded:
