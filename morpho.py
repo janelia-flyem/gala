@@ -9,7 +9,8 @@ from numpy import   shape, reshape, \
                     unique, \
                     where, unravel_index, newaxis, \
                     ceil, floor, prod, cumprod, \
-                    concatenate
+                    concatenate, \
+                    ndarray
 import itertools
 from collections import deque as queue
 from scipy.ndimage import filters
@@ -60,10 +61,13 @@ def watershed(a, seeds=None, dams=True, show_progress=False):
     if not seeded:
         ws = zeros(shape(a), uint32)
     else:
+        if seeds.dtype == bool:
+            seeds = label(seeds)[0]
         ws = seeds
     levels = unique(a)
     a = pad(a, a.max()+1)
     ar = a.ravel()
+    arc = ar.copy() if seeded else ar
     ws = pad(ws, 0)
     wsr = ws.ravel()
     maxlabel = iinfo(ws.dtype).max
@@ -92,7 +96,7 @@ def watershed(a, seeds=None, dams=True, show_progress=False):
             if len(adj_labels) > 1 and dams: # build a dam
                 wsr[idx] = maxlabel 
             else: # assign a label
-                wsr[idx] = wsr[lnidxs][ar[lnidxs].argmin()]
+                wsr[idx] = wsr[lnidxs][arc[lnidxs].argmin()]
                 idxs_adjacent_to_labels.extend(nidxs[((wsr[nidxs] == 0) * 
                                     (ar[nidxs] == level)).astype(bool) ])
         if seeded:
@@ -130,14 +134,25 @@ def smallest_int_dtype(number, signed=False, mindtype=None):
         if iinfo(int64).min <= number <= iinfo(int64).max:
             return int64
 
-def pad(ar, vals):
+def _is_container(a):
     try:
-        padding_thickness = len(vals)
+        n = len(a)
+        return True
     except TypeError:
-        padding_thickness = 1
+        return False
+
+def pad(ar, vals, axes=None):
+    if axes is None:
+        axes = range(ar.ndim)
+    if not _is_container(vals):
         vals = [vals]
+    if not _is_container(axes):
+        axes = [axes]
+    padding_thickness = len(vals)
+    newshape = array(ar.shape)
+    for ax in axes:
+        newshape[ax] += 2
     vals = array(vals)
-    newshape = array(ar.shape)+2
     if ar.dtype == double or ar.dtype == float:
         new_dtype = double
     elif ar.dtype == bool:
@@ -157,11 +172,11 @@ def pad(ar, vals):
         new_dtype = max([smallest_int_dtype(extremeval, signed), ar.dtype])
     ar2 = zeros(newshape, dtype=new_dtype)
     center = ones(newshape, dtype=bool)
-    for i in xrange(ar.ndim):
-        ar2.swapaxes(0,i)[0,...] = vals[0]
-        ar2.swapaxes(0,i)[-1,...] = vals[0]
-        center.swapaxes(0,i)[0,...] = False
-        center.swapaxes(0,i)[-1,...] = False
+    for ax in axes:
+        ar2.swapaxes(0,ax)[0,...] = vals[0]
+        ar2.swapaxes(0,ax)[-1,...] = vals[0]
+        center.swapaxes(0,ax)[0,...] = False
+        center.swapaxes(0,ax)[-1,...] = False
     ar2[center] = ar.ravel()
     if padding_thickness == 1:
         return ar2

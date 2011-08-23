@@ -12,16 +12,30 @@ def pixel_wise_boundary_precision_recall(aseg, gt):
     fn = (gt * (1-aseg)).sum()
     return tp/(tp+fp), tp/(tp+fn)
 
-def edit_distance(aseg, gt, ws):
+def edit_distance(aseg, gt, ws=None):
+    if ws is None:
+        return edit_distance_to_bps(aseg, gt)
     return edit_distance_to_bps(aseg, agglo.best_possible_segmentation(ws, gt))
 
 def edit_distance_to_bps(aseg, bps):
-    r = agglo.Rug(aseg, bps)
-    r.overlaps = r.overlaps.astype(numpy.bool)
-    false_splits = (r.overlaps.sum(axis=0)-1)[1:].sum()
-    false_merges = (r.overlaps.sum(axis=1)-1)[1:].sum()
+    aseg = relabel_from_one(aseg)
+    bps = relabel_from_one(bps)
+    r = contingency_table(aseg, bps).astype(numpy.bool)
+    if (bps==0).any(): r[:,0] = 0
+    if (aseg==0).any(): r[0,:] = 0
+    false_splits = (r.sum(axis=0)-1)[1:].sum()
+    false_merges = (r.sum(axis=1)-1)[1:].sum()
     return (false_merges, false_splits)
 
+def relabel_from_one(a):
+    labels = numpy.unique(a)
+    labels = labels[labels!=0]
+    if labels.max() == len(labels):
+        return a
+    b = a.copy()
+    for i, label in enumerate(labels):
+        b[a==label] = i+1
+    return b
 
 def contingency_table(seg, gt):
     """Return the contingency table for all regions in matched segmentations."""

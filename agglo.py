@@ -7,13 +7,15 @@ import random
 import matplotlib.pyplot as plt
 from numpy import array, mean, zeros, zeros_like, uint8, int8, where, unique, \
     finfo, size, double, transpose, newaxis, uint32, nonzero, median, exp, \
-    log2, float, ones, arange, inf, flatnonzero
+    log2, float, ones, arange, inf, flatnonzero, intersect1d, dtype, squeeze, \
+    product
 from scipy.stats import sem
 from scipy.sparse import lil_matrix
 from scipy.misc import comb as nchoosek
 from scipy.ndimage.measurements import center_of_mass, label
 from networkx import Graph
 from networkx.algorithms.traversal.depth_first_search import dfs_preorder_nodes
+from networkx.algorithms.components.connected import connected_components
 
 # local modules
 import morpho
@@ -107,6 +109,17 @@ class Rag(Graph):
         self.set_ground_truth(gt_vol)
         self.merge_queue = MergeQueue()
 
+    def __copy__(self):
+        g = super(Rag, self).copy()
+        g.watershed_r = g.watershed.ravel()
+        g.segmentation_r = g.segmentation.ravel()
+        g.ucm_r = g.ucm.ravel()
+        g.probabilities_r = g.probabilities.ravel()
+        return g
+
+    def copy(self):
+        return self.__copy__()
+
     def build_graph_from_watershed(self, 
                                     allow_shared_boundaries=True, idxs=None):
         if self.watershed is None:
@@ -127,7 +140,6 @@ class Rag(Graph):
             ns = self.neighbor_idxs(idx)
             adj_labels = self.watershed_r[ns]
             adj_labels = unique(adj_labels[adj_labels != 0])
-            p = double(self.probabilities_r[idx])
             nodeid = self.watershed_r[idx]
             if nodeid != 0:
                 adj_labels = adj_labels[adj_labels != nodeid]
@@ -166,9 +178,27 @@ class Rag(Graph):
     def get_neighbor_idxs_lean(self, idxs):
         return morpho.get_neighbor_idxs(self.watershed, idxs)
 
-    def set_probabilities(self, probs):
-        self.probabilities = morpho.pad(probs, self.pad_thickness*[0])
-        self.probabilities_r = self.probabilities.ravel()
+    def set_probabilities(self, probs, normalize=True):
+        if probs.dtype not in map(dtype, ['float64', 'float32', 'float16']):
+            probs = probs.astype(double)
+        if normalize:
+            probs -= probs.min() # ensure probs.min() == 0
+            probs /= probs.max() # ensure probs.max() == 1
+        sp = probs.shape
+        sw = self.watershed.shape
+        p_ndim = probs.ndim
+        w_ndim = self.watershed.ndim
+        padding = [inf]+(self.pad_thickness-1)*[0]
+        if p_ndim == w_ndim:
+            axes = range(p_ndim)
+        elif p_ndim == w_ndim+1:
+            if sp[1:] == sw:
+                sp = sp[1:]+[sp[0]]
+                probs = probs.transpose(sp)
+            axes = range(p_ndim-1)
+        self.probabilities = morpho.pad(probs, padding, axes)
+        self.probabilities_r = squeeze(self.probabilities.reshape(
+                (product([self.probabilities.shape[ax] for ax in axes]), -1)))
   
     def set_watershed(self, ws=None, lowmem=False):
         if ws is None:
@@ -189,7 +219,6 @@ class Rag(Graph):
         else:
             self.pixel_neighbors = morpho.build_neighbors_array(self.watershed)
             self.neighbor_idxs = self.get_neighbor_idxs_fast
-        self.sum_body_sizes = double(self.get_segmentation().astype(bool).sum())
 
     def set_ground_truth(self, gt=None):
         if gt is not None:
@@ -205,7 +234,10 @@ class Rag(Graph):
             self.gt = None
             # null pattern to transparently allow merging of nodes.
             # Bonus feature: counts how many sp's went into a single node.
-            self.rig = ones(self.watershed.max()+1)
+            try:
+                self.rig = ones(self.watershed.max()+1)
+            except AttributeError:
+                self.rig = ones(self.number_of_nodes()+1)
 
     def build_merge_queue(self):
         """Build a queue of node pairs to be merged in a specific priority.
@@ -239,54 +271,44 @@ class Rag(Graph):
         """Build a merge queue from scratch and assign to self.merge_queue."""
         self.merge_queue = self.build_merge_queue()
 
-    def agglomerate(self, threshold=128, save_history=False, 
-                                                        eval_function=None):
+    def agglomerate(self, threshold=0.5, save_history=False):
         """Merge nodes sequentially until given edge confidence threshold."""
         if self.merge_queue.is_empty():
             self.merge_queue = self.build_merge_queue()
-        history = []
-        evaluation = []
+        history, evaluation = [], []
         while len(self.merge_queue) > 0 and \
                                         self.merge_queue.peek()[0] < threshold:
             merge_priority, valid, n1, n2 = self.merge_queue.pop()
             if valid:
-                self.merge_nodes(n1,n2,merge_score=merge_priority)
-                if save_history: history.append((n1,n2))
-                if eval_function is not None:
-                    num_segs = len(unique(self.get_segmentation()))-1
-                    val = eval_function(self.get_segmentation())
-                    evaluation.append((num_segs, val))
-        if (save_history) and (eval_function is not None):
+                self.update_ucm(n1,n2,merge_priority)
+                self.merge_nodes(n1,n2)
+                if save_history: 
+                    history.append((n1,n2))
+                    evaluation.append(
+                        (self.number_of_nodes()-1, self.split_voi())
+                    )
+        if save_history:
             return history, evaluation
-        elif save_history:
-            return save_history
-        elif eval_function is not None:
-            return evaluation
 
-    def agglomerate_count(self, stepsize=100, save_history=False,
-                                                        eval_function=None):
+    def agglomerate_count(self, stepsize=100, save_history=False):
         """Agglomerate until 'stepsize' merges have been made."""
         if self.merge_queue.is_empty():
             self.merge_queue = self.build_merge_queue()
-        history = []
-        evaluation = []
+        history, evaluation = [], []
         i = 0
         while len(self.merge_queue) > 0 and i < stepsize:
             merge_priority, valid, n1, n2 = self.merge_queue.pop()
             if valid:
                 i += 1
-                self.merge_nodes(n1, n2, merge_score=merge_priority)
-                if save_history: history.append((n1,n2))
-                if eval_function is not None: 
-                        num_segs = len(unique(self.get_segmentation()))-1
-                        val = eval_function(self.get_segmentation())
-                        evaluation.append((num_segs, val))
-        if (save_history) and (eval_function is not None):
+                self.update_ucm(n1,n2,merge_priority)
+                self.merge_nodes(n1,n2)
+                if save_history: 
+                    history.append((n1,n2))
+                    evaluation.append(
+                        (self.number_of_nodes()-1, self.split_voi())
+                    )
+        if save_history:
             return history, evaluation
-        elif save_history:
-            return history
-        elif eval_function is not None:
-            return evaluation
         
     def agglomerate_ladder(self, threshold=1000, strictness=1):
         """Merge sequentially all nodes smaller than threshold.
@@ -306,86 +328,81 @@ class Rag(Graph):
         self.agglomerate(inf)
         self.merge_priority_function = original_merge_priority_function
         self.merge_queue.finish()
+        self.rebuild_merge_queue()
         
+    def one_shot_agglomeration(self, threshold=0.5):
+        g = self.copy()
+        if len(g.merge_queue) == 0:
+            g.rebuild_merge_queue()
+        for u, v, d in g.edges(data=True):
+            if g.boundary_body in [u,v] or d['weight'] > threshold:
+                g.remove_edge(u, v)
+        ccs = connected_components(g)
+        for cc in ccs:
+            g.merge_node_list(cc)
+        return g.get_segmentation()
 
-    def learn_agglomerate(self, gts, feature_map_function, weight_type='voi'):
+    def learn_agglomerate(self, gts, feature_map_function, *args, **kwargs):
         """Agglomerate while comparing to ground truth & classifying merges."""
         # Compute data for all ground truths
+        if type(gts) != list:
+            gts = [gts] # allow using single ground truth as input
         gtg = []
         cnt = []
         assignment = []
         for gt in gts:
             gtg.append(Rag(gt))
-            cnt.append(contingency_table(self.get_segmentation(), gtg[-1].get_segmentation()))
+            cnt.append(contingency_table(self.get_segmentation(), 
+                                        gtg[-1].get_segmentation()))
             assignment.append(cnt[-1] == cnt[-1].max(axis=1)[:,newaxis])
-
-        hard_assignment = set.intersection(*[set(where(a.sum(axis=1) > 1)[0]) for a in assignment])
+        hard_assignment = reduce(
+            intersect1d, [where(a.sum(axis=1) > 1)[0] for a in assignment])
         # 'hard assignment' nodes are nodes that have most of their overlap
         # with the 0-label in gt, or that have equal amounts of overlap between
         # two other labels
-        # to be a hard assigment, it must be hard in all ground truth segmentations
+        # to be a hard assigment, must be hard in all ground truth segmentations
         if self.merge_queue.is_empty(): self.rebuild_merge_queue()
-        features, labels, weights = [], [], []
-        history, ave_size = [], []
-        while self.number_of_nodes() > max([g.number_of_nodes() for g in gtg]):
+        features, labels, weights, history = [], [], [], []
+        while len(self.merge_queue) > 0:
             merge_priority, valid, n1, n2 = self.merge_queue.pop()
-            if self.boundary_body in [n1, n2]:
-                print 'Warning: agglomeration done early...'
-                break
             if valid:
                 features.append(feature_map_function(self, n1, n2).ravel())
                 if n2 in hard_assignment:
                     n1, n2 = n2, n1
                 # Calculate weights for weighting data points
-                n = self.volume_size
-                len1 = len(self.node[n1]['extent'])
-                len2 = len(self.node[n2]['extent'])
-                py1 = len1/float(n)
-                py2 = len2/float(n)
-                py = py1 + py2
-                if weight_type == 'voi':
-                    weight =  py*log2(py) - py1*log2(py1) - py2*log2(py2)
-                elif weight_type == 'rand':
-                    weight = (len1*len2)/float(nchoosek(n,2))
-                elif weight_type == 'both':
-                    weight = (py*log2(py) - py1*log2(py1) - py2*log2(py2),
-                                            (len1*len2)/float(nchoosek(n,2)))
-                else:
-                    weight = 1.0                
+                history.append([n1, n2])
+                s1, s2 = [len(self.node[n]['extent']) for n in [n1, n2]]
+                weights.append(
+                    (compute_local_voi_change(s1, s2, self.volume_size),
+                    compute_local_rand_change(s1, s2, self.volume_size))
+                )
 
                 # If n1 is a hard assignment and one of the segments it's
                 # assigned to is n2 in some ground truth
                 if n1 in hard_assignment and \
-                                any([(a[n1,:] * a[n2,:]).any() for a in assignment]):
+                        any([(a[n1,:] * a[n2,:]).any() for a in assignment]):
                     m = boundary_mean(self, n1, n2)
                     ms = [boundary_mean(self, n1, n) for n in 
                                                             self.neighbors(n1)]
                     # Only merge them if n1's boundary mean is minimum for n2
                     if m == min(ms):
-                        ave_size.append(self.sum_body_sizes / 
-                                                (self.number_of_nodes()-1))
-                        history.append([n2, n1])
                         self.merge_nodes(n2, n1)
                         labels.append(-1)
-                        weights.append(weight)
                     else:
                         _ = features.pop() # remove last item
+                        _ = history.pop()
+                        _ = weights.pop()
                 else:
-                    history.append([n1, n2])
-                    ave_size.append(self.sum_body_sizes / 
-                                                (self.number_of_nodes()-1))
                     # Get the fraction of times that n1 and n2 are assigned to 
                     # the same segment in the ground truths
                     together = [(a[n1,:]==a[n2,:]).all() for a in assignment]
                     if sum(together)/float(len(together)) > 0.5:
                         self.merge_nodes(n1, n2)
                         labels.append(-1)
-                        weights.append(weight)
                     else:
                         labels.append(1)
-                        weights.append(weight)
         return array(features).astype(double), array(labels), array(weights), \
-                                            array(history), array(ave_size)
+                                            array(history)
 
     def replay_merge_history(self, merge_seq, labels=None, num_errors=1):
         """Agglomerate according to a merge sequence, optionally labeled.
@@ -418,20 +435,21 @@ class Rag(Graph):
                 break
         return count, nodes
 
-    def merge_nodes(self, n1, n2, merge_score=-inf):
-        """Merge two nodes, while updating the necessary edges."""
-        self.sum_body_sizes -= len(self.node[n1]['extent']) + \
-                                len(self.node[n2]['extent'])
-        # Update ultrametric contour map
+    def update_ucm(self, n1, n2, score=-inf):
+        """Update ultrametric contour map."""
         if self.ucm is not None:
-            self.max_merge_score = max(self.max_merge_score, merge_score)
+            self.max_merge_score = max(self.max_merge_score, score)
             idxs = list(self[n1][n2]['boundary'])
             self.ucm_r[idxs] = self.max_merge_score
+
+    def merge_nodes(self, n1, n2):
+        """Merge two nodes, while updating the necessary edges."""
         self.node[n1]['extent'].update(self.node[n2]['extent'])
         self.feature_manager.update_node_cache(self, n1, n2,
                 self.node[n1]['feature-cache'], self.node[n2]['feature-cache'])
         self.segmentation_r[list(self.node[n2]['extent'])] = n1
-        new_neighbors = [n for n in self.neighbors(n2) if n != n1]
+        new_neighbors = [n for n in self.neighbors(n2)
+                                        if n not in [n1, self.boundary_body]]
         for n in new_neighbors:
             self.merge_edge_properties((n2,n), (n1,n))
         # this if statement enables merging of non-adjacent nodes
@@ -440,7 +458,6 @@ class Rag(Graph):
         self.rig[n1] += self.rig[n2]
         self.rig[n2] = 0
         self.remove_node(n2)
-        self.sum_body_sizes += len(self.node[n1]['extent'])
 
     def refine_post_merge_boundaries(self, n1, n2):
         boundary = array(list(self[n1][n2]['boundary']))
@@ -481,6 +498,15 @@ class Rag(Graph):
             if not boundaries_to_edit.has_key((n1,n)) and n != n1:
                 self.update_merge_queue(n1, n)
 
+    def merge_node_list(self, nodes=None):
+        sp_subgraph = self.subgraph(nodes)
+        if len(sp_subgraph) > 0:
+            node_dfs = list(dfs_preorder_nodes(sp_subgraph)) 
+            # dfs_preorder_nodes returns iter, convert to list
+            source_node, other_nodes = node_dfs[0], node_dfs[1:]
+            for current_node in other_nodes:
+                self.merge_nodes(source_node, current_node)
+
     def split_node(self, u, n=2, **kwargs):
         node_extent = list(self.node[u]['extent'])
         node_borders = set().union(
@@ -493,7 +519,6 @@ class Rag(Graph):
             idxs=array(list(set().union(node_extent, node_borders)))
         )
         self.ncut(num_clusters=n, nodes=labels, **kwargs)
-
 
     def merge_edge_properties(self, src, dst):
         """Merge the properties of edge src into edge dst."""
@@ -513,6 +538,8 @@ class Rag(Graph):
 
     def update_merge_queue(self, u, v):
         """Update the merge queue item for edge (u,v). Add new by default."""
+        if self.boundary_body in [u, v]:
+            return
         if self[u][v].has_key('qlink'):
             self.merge_queue.invalidate(self[u][v]['qlink'])
         if not self.merge_queue.is_null_queue:
@@ -576,11 +603,26 @@ class Rag(Graph):
     def build_volume(self, nbunch=None):
         """Return the segmentation (numpy.ndarray) induced by the graph."""
         v = zeros_like(self.watershed)
+        vr = v.ravel()
         if nbunch is None:
             nbunch = self.nodes()
         for n in nbunch:
-            v.ravel()[list(self.node[n]['extent'])] = n
+            vr[list(self.node[n]['extent'])] = n
         return morpho.juicy_center(v,self.pad_thickness)
+
+    def build_boundary_map(self, ebunch=None):
+        if len(self.merge_queue) == 0:
+            self.rebuild_merge_queue()
+        m = zeros(self.probabilities.shape, double)
+        mr = m.ravel()
+        if ebunch is None:
+            ebunch = self.edges_iter()
+        ebunch = sorted([(self[u][v]['weight'], u, v) for u, v in ebunch 
+                                            if self.boundary_body not in [u,v]])
+        for w, u, v in ebunch:
+            b = list(self[u][v]['boundary'])
+            mr[b] = w
+        return morpho.juicy_center(m, self.pad_thickness)
 
     def orphans(self):
         """List of all the nodes that do not touch the volume boundary."""
@@ -613,7 +655,7 @@ class Rag(Graph):
         elif self.gt is not None:
             return split_voi(None, None, self.rig)
         else:
-            return split_voi(self.get_segmentation(), gt, [0], [0])
+            return split_voi(self.get_segmentation(), gt, None, [0], [0])
 
     def write(self, fout, format='GraphML'):
         pass
@@ -697,7 +739,7 @@ def make_ladder(priority_function, threshold, strictness=1):
         if ladder_condition:
             return priority_function(g, n1, n2)
         else:
-            return finfo(float).max / size(g.segmentation)
+            return inf
     return ladder_function
 
 def classifier_probability(feature_extractor, classifier):
@@ -715,27 +757,35 @@ def classifier_probability(feature_extractor, classifier):
 def expected_change_voi(feature_extractor, classifier):
     prob_func = classifier_probability(feature_extractor, classifier)
     def predict(g, n1, n2):
-        p = float(prob_func(g, n1, n2)) # Prediction from the classifier
-        n = g.volume_size
-        py1 = len(g.node[n1]['extent'])/float(n)
-        py2 = len(g.node[n2]['extent'])/float(n)
-        py = py1 + py2
-        # Calculate change in VOI
-        v = -float(py1*log2(py1) + py2*log2(py2) - py*log2(py))
+        p = prob_func(g, n1, n2) # Prediction from the classifier
+        # Calculate change in VOI if n1 and n2 should not be merged
+        v = compute_local_voi_change(
+            len(g.node[n1]['extent']), len(g.node[n2]['extent']), g.volume_size
+        )
         # Return expected change
         return  (p*v + (1.0-p)*(-v))
     return predict
 
+def compute_local_voi_change(s1, s2, n):
+    """Compute change in VOI if we merge disjoint sizes s1,s2 in a volume n."""
+    py1 = float(s1)/n
+    py2 = float(s2)/n
+    py = py1+py2
+    return -(py1*log2(py1) + py2*log2(py2) - py*log2(py))
+    
 def expected_change_rand(feature_extractor, classifier):
     prob_func = classifier_probability(feature_extractor, classifier)
     def predict(g, n1, n2):
         p = float(prob_func(g, n1, n2)) # Prediction from the classifier
-        n = g.volume_size
-        len1 = len(g.node[n1]['extent'])
-        len2 = len(g.node[n2]['extent'])
-        v = (len1*len2)/float(nchoosek(n,2))
+        v = compute_local_rand_change(
+            len(g.node[n1]['extent']), len(g.node[n2]['extent']), g.volume_size
+        )
         return p*v + (1.0-p)*(-v)
     return predict
+
+def compute_local_rand_change(s1, s2, n):
+    """Compute change in rand if we merge disjoint sizes s1,s2 in volume n."""
+    return float(s1*s2)/nchoosek(n,2)
 
 def boundary_mean_ladder(g, n1, n2, threshold, strictness=1):
     f = make_ladder(boundary_mean, threshold, strictness)
@@ -760,11 +810,5 @@ def best_possible_segmentation(ws, gt):
     # currently ignoring hard assignment nodes
     assignment[hard_assignment,:] = 0
     for gt_node in range(1,cnt.shape[1]):
-        sp_subgraph = ws.subgraph(where(assignment[:,gt_node])[0])
-        if len(sp_subgraph) > 0:
-            sp_dfs = list(dfs_preorder_nodes(sp_subgraph)) 
-                    # dfs_preorder_nodes returns iter, convert to list
-            source_sp, other_sps = sp_dfs[0], sp_dfs[1:]
-            for current_sp in other_sps:
-                ws.merge_nodes(source_sp, current_sp)
+        ws.merge_node_list(where(assignment[:,gt_node])[0])
     return ws.get_segmentation()

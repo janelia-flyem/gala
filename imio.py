@@ -182,6 +182,7 @@ def write_h5_stack(npy_vol, fn, **kwargs):
     if group in fout:
         del fout[group]
     fout.create_dataset(group, data=npy_vol, **kwargs)
+    fout.close()
 
 
 #######################
