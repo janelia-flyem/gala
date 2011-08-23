@@ -12,13 +12,14 @@ import h5py
 from numpy import bool, array, double, zeros, mean, random, concatenate, where,\
     uint8, ones, float32, uint32, unique, newaxis, zeros_like, arange, floor, \
     histogram, seterr, __version__ as numpy_version, unravel_index, diff, \
-    nonzero, sort
+    nonzero, sort, log
 seterr(divide='ignore')
 from scipy import arange
 from scipy.misc import comb as nchoosek
 from scipy.stats import sem
 from scikits.learn.svm import SVC
 from scikits.learn.linear_model import LogisticRegression, LinearRegression
+from evaluate import xlogx
 try:
     from vigra.learning import RandomForest as VigraRandomForest
 except ImportError:
@@ -52,7 +53,8 @@ class NullFeatureManager(object):
         return concatenate((
             self.compute_node_features(g, n1, c1),
             self.compute_node_features(g, n2, c2),
-            self.compute_edge_features(g, n1, n2, ce)
+            self.compute_edge_features(g, n1, n2, ce),
+            self.compute_difference_features(g, n1, n2, c1, c2)
         ))
     def create_node_cache(self, *args, **kwargs):
         return array([])
@@ -70,6 +72,9 @@ class NullFeatureManager(object):
         return array([])
     def compute_edge_features(self, *args, **kwargs):
         return array([])
+    def compute_distance_features(self, *args, **kwargs):
+        return array([])
+    
 
 class MomentsFeatureManager(NullFeatureManager):
     def __init__(self, cache_begin_idx=0, nmoments=4, *args, **kwargs):
@@ -197,6 +202,10 @@ class HistogramFeatureManager(NullFeatureManager):
         a = -1.0 if remove else 1.0
         dst += a * self.histogram(g.probabilities.ravel()[idxs])
 
+    def KL_divergence(self,P,Q):
+	"""Return the Kullback-Leibler Divergence between two normalized histograms"""
+	return xlogx(P,P/Q).sum()   	
+
     def compute_node_features(self, g, n, cache=None):
         if cache is None: 
             c1, c2 = self.cache_range()
@@ -208,6 +217,7 @@ class HistogramFeatureManager(NullFeatureManager):
         else:
             h = cache/s
             ps = self.percentiles(h)
+        
         return concatenate((h,ps))
 
     def compute_edge_features(self, g, n1, n2, cache=None):
@@ -222,6 +232,36 @@ class HistogramFeatureManager(NullFeatureManager):
             h = cache/s
             ps = self.percentiles(h)
         return concatenate((h,ps))
+
+    def compute_difference_features(self,g, n1, n2, cache1=None, cache2=None):
+        if cache1 is None:
+            c1, c2 = self.cache_range()
+            cache1 = g[n1][n2][self.default_cache][c1:c2]
+        s = cache1.sum()
+        if s == 0:
+            h1 = zeros_like(cache1)
+        else:
+            h1 = cache1/s
+        
+        if cache2 is None:
+            c1, c2 = self.cache_range()
+            cache2 = g[n1][n2][self.default_cache][c1:c2]
+        s = cache2.sum()
+        if s == 0:
+            h2 = zeros_like(cache2)
+        else:
+            h2 = cache2/s
+        
+        hmean = 0.5 * (h1 + h2)
+        ind = nonzero(hmean)[0]
+	kl1 = self.KL_divergence(h1[ind], hmean[ind])
+        kl2 = self.KL_divergence(h2[ind], hmean[ind])
+        js = 0.5*(kl1 + kl2)
+        l1 = (abs(h2-h1)).sum()
+        l2 = sqrt( ((h2-h1)**2).sum() )
+        return array([js, l1, l2])
+
+          
 
 class SquigglinessFeatureManager(NullFeatureManager):
     def __init__(self, cache_begin_idx=0, ndim=3, *args, **kwargs):
