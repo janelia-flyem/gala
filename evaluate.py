@@ -117,8 +117,9 @@ def adj_rand_index(seg, gt, cont=None):
     if cont is None:
         cont = contingency_table(seg, gt)
     a, b, c, d = rand_values(cont)
-    return (nchoosek(n,2)*(a+d) - ((a+b)*(a+c) + (c+d)*(b+d)))/(
-        nchoosek(n,2)**2 - ((a+b)*(a+c) + (c+d)*(b+d)))
+    nk = a+b+c+d
+    return (nk*(a+d) - ((a+b)*(a+c) + (c+d)*(b+d)))/(
+        nk**2 - ((a+b)*(a+c) + (c+d)*(b+d)))
 
 def fm_index(seg, gt, cont=None):
     """ Return the Fowlkes-Mallows index. """
