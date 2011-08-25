@@ -103,6 +103,7 @@ def watershed(a, seeds=None, dams=True, show_progress=False, smooth_thresh=0.0, 
                                             any(wsr[neighbors[idx]])])
         while len(idxs_adjacent_to_labels) > 0:
             idx = idxs_adjacent_to_labels.popleft()
+            if wsr[idx]> 0: continue # in case we already processed it
             nidxs = neighbors[idx] # neighbors
             lnidxs = nidxs[
                 ((wsr[nidxs] != 0) * (wsr[nidxs] != maxlabel)).astype(bool)
