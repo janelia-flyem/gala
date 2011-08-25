@@ -72,7 +72,7 @@ class NullFeatureManager(object):
         return array([])
     def compute_edge_features(self, *args, **kwargs):
         return array([])
-    def compute_distance_features(self, *args, **kwargs):
+    def compute_difference_features(self, *args, **kwargs):
         return array([])
     
 
@@ -236,7 +236,7 @@ class HistogramFeatureManager(NullFeatureManager):
     def compute_difference_features(self,g, n1, n2, cache1=None, cache2=None):
         if cache1 is None:
             c1, c2 = self.cache_range()
-            cache1 = g[n1][n2][self.default_cache][c1:c2]
+            cache1 = g.node[n1][self.default_cache][c1:c2]
         s = cache1.sum()
         if s == 0:
             h1 = zeros_like(cache1)
@@ -245,7 +245,7 @@ class HistogramFeatureManager(NullFeatureManager):
         
         if cache2 is None:
             c1, c2 = self.cache_range()
-            cache2 = g[n1][n2][self.default_cache][c1:c2]
+            cache2 = g.node[n2][self.default_cache][c1:c2]
         s = cache2.sum()
         if s == 0:
             h2 = zeros_like(cache2)
@@ -382,7 +382,20 @@ class CompositeFeatureManager(NullFeatureManager):
                 child.compute_edge_features(g, n1, n2, cache[c1:c2])
             )
         return concatenate(features)
+    
+    def compute_difference_features(self, g, n1, n2, cache1=None, cache2=None):
+        if cache1 is None: cache1 = g.node[n1][self.default_cache]
+        if cache2 is None: cahce2 = g.node[n2][self.default_cache]
+        features = []
+        for child in self.children:
+            c1, c2 = child.cache_range()
+            features.append(
+                child.compute_difference_features(g, n1, n2, cache1[c1:c2], cache2[c1:c2])
+            )
+        return concatenate(features)
 
+        
+    
 def mean_and_sem(g, n1, n2):
     bvals = g.probabilities.ravel()[list(g[n1][n2]['boundary'])]
     return array([mean(bvals), sem(bvals)]).reshape(1,2)
