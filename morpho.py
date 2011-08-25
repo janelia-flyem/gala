@@ -197,14 +197,20 @@ def build_neighbors_array(ar):
     idxs = arange(ar.size, dtype=uint32)
     return get_neighbor_idxs(ar, idxs)
 
-def get_neighbor_idxs(ar, idxs):
+def get_neighbor_idxs(ar, idxs, connectivity=1):
     if isscalar(idxs): # in case only a single idx is given
         idxs = [idxs]
     idxs = array(idxs) # in case a list or other array-like is given
-    steps = array(ar.strides)/ar.itemsize
-    steps = concatenate((steps, -steps))
-    return idxs[:,newaxis] + steps
-
+    strides = array(ar.strides)/ar.itemsize
+    if connectivity == 1: 
+        steps = (strides, -strides)
+    else:
+        steps = []
+        for i in range(1,connectivity+1):
+            prod = array(list(itertools.product(*([[1,-1]]*i))))
+            i_strides = array(list(itertools.combinations(strides,i))).T
+            steps.append(prod.dot(i_strides).ravel())
+    return idxs[:,newaxis] + concatenate(steps)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
