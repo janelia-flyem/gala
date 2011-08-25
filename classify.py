@@ -151,8 +151,7 @@ def central_moments_from_noncentral_sums(a):
 
 class HistogramFeatureManager(NullFeatureManager):
     def __init__(self, cache_begin_idx=0, nbins=4, 
-                                        minval=0.0, maxval=1.0, 
-                                        compute_percentiles=[], *args, **kwargs):
+            minval=0.0, maxval=1.0, compute_percentiles=[], *args, **kwargs):
         super(HistogramFeatureManager, self).__init__(cache_begin_idx)
         self.minval = minval
         self.maxval = maxval
@@ -176,8 +175,10 @@ class HistogramFeatureManager(NullFeatureManager):
             if hcum[binnum+1] == hcum[binnum]:
                 ps.append(binvals[binnum]*0.5 + binvals[binnum+1]*0.5)
             else:
-                ps.append((p-hcum[binnum]) * (binvals[binnum+1]-binvals[binnum]) / \
-                                    (hcum[binnum+1]-hcum[binnum]) + binvals[binnum])
+                ps.append(
+                    (p-hcum[binnum]) * (binvals[binnum+1]-binvals[binnum]) / \
+                    (hcum[binnum+1]-hcum[binnum]) + binvals[binnum]
+                )
         return ps
 
     def create_node_cache(self, g, n):
@@ -205,8 +206,8 @@ class HistogramFeatureManager(NullFeatureManager):
         dst += a * self.histogram(g.probabilities.ravel()[idxs])
 
     def KL_divergence(self,P,Q):
-	"""Return the Kullback-Leibler Divergence between two normalized histograms"""
-	return xlogx(P,P/Q).sum()   	
+        """Return the Kullback-Leibler Divergence between two histograms."""
+        return xlogx(P,P/Q).sum()
 
     def compute_node_features(self, g, n, cache=None):
         if cache is None: 
@@ -256,7 +257,7 @@ class HistogramFeatureManager(NullFeatureManager):
         
         hmean = 0.5 * (h1 + h2)
         ind = nonzero(hmean)[0]
-	kl1 = self.KL_divergence(h1[ind], hmean[ind])
+        kl1 = self.KL_divergence(h1[ind], hmean[ind])
         kl2 = self.KL_divergence(h2[ind], hmean[ind])
         js = 0.5*(kl1 + kl2)
         l1 = (abs(h2-h1)).sum()
