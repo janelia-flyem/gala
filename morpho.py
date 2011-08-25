@@ -56,20 +56,31 @@ def diamondse(sz, dimension):
     return se
 
 def morphological_reconstruction(marker, mask):
+    """Perform morphological reconstruction of the marker into the mask.
+    
+    See the Matlab image processing toolbox documentation for details:
+    http://www.mathworks.com/help/toolbox/images/f18-16264.html
+
+    This implementation uses a full connectivity element.
+    """
     diff = True
     while diff:
-        markernew = grey_dilation(marker, tuple([3]*len(marker.shape)))
+        markernew = grey_dilation(marker, [3]*marker.ndim)
         markernew = minimum(markernew, mask)
         diff = (markernew-marker).max() > 0
         marker = markernew
     return marker
 
-def imhmin(a, thresh):
+def hminima(a, thresh):
     """Suppress all minima that are shallower than thresh."""
     maxval = a.max()
-    return maxval - morphological_reconstruction((maxval - a) - thresh, maxval - a)
+    ainv = maxval-a
+    return maxval - morphological_reconstruction(ainv-thresh, ainv)
 
-def watershed(a, seeds=None, dams=True, show_progress=False, smooth_thresh=0.0, connectivity=1):
+imhmin = hminima
+
+def watershed(a, seeds=None, smooth_thresh=0.0,
+                            dams=True, show_progress=False, connectivity=1):
     seeded = seeds is not None
     if not seeded:
         ws = zeros(shape(a), uint32)
@@ -78,7 +89,7 @@ def watershed(a, seeds=None, dams=True, show_progress=False, smooth_thresh=0.0, 
             seeds = label(seeds)[0]
         ws = seeds
     if smooth_thresh > 0.0:
-        a = imhmin(a, smooth_thresh)
+        a = hminima(a, smooth_thresh)
     levels = unique(a)
     a = pad(a, a.max()+1)
     ar = a.ravel()
@@ -90,15 +101,10 @@ def watershed(a, seeds=None, dams=True, show_progress=False, smooth_thresh=0.0, 
     current_label = 0
     neighbors = build_neighbors_array(a, connectivity)
     level_pixels = build_levels_dict(a)
-    if show_progress:
-        def with_progress(it, *args, **kwargs): 
-            return ip.with_progress(
-                it, *args, pbar=ip.StandardProgressBar('Watershed...'), **kwargs
-            )
-    else:
-        def with_progress(it, *args, **kwargs):
-            return ip.with_progress(it, *args,pbar=ip.NoProgressBar(),**kwargs)
-    for i, level in with_progress(enumerate(levels), length=len(levels)):
+    if show_progress: wspbar = ip.StandardProgressBar('Watershed...')
+    else: wspbar = ip.NoProgressBar()
+    for i, level in ip.with_progress(enumerate(levels), 
+                                            pbar=wspbar, length=len(levels)):
         idxs_adjacent_to_labels = queue([idx for idx in level_pixels[level] if
                                             any(wsr[neighbors[idx]])])
         while len(idxs_adjacent_to_labels) > 0:
