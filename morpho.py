@@ -10,10 +10,10 @@ from numpy import   shape, reshape, \
                     where, unravel_index, newaxis, \
                     ceil, floor, prod, cumprod, \
                     concatenate, \
-                    ndarray
+                    ndarray, minimum
 import itertools
 from collections import deque as queue
-from scipy.ndimage import filters
+from scipy.ndimage import filters, grey_dilation
 from scipy.ndimage.measurements import label
 #from scipy.spatial.distance import cityblock as manhattan_distance
 import iterprogress as ip
@@ -55,8 +55,21 @@ def diamondse(sz, dimension):
             se[tuple(i)] = 1
     return se
 
+def morphological_reconstruction(marker, mask):
+    diff = True
+    while diff:
+        markernew = grey_dilation(marker, tuple([3]*len(marker.shape)))
+        markernew = minimum(markernew, mask)
+        diff = (markernew-marker).max() > 0
+        marker = markernew
+    return marker
 
-def watershed(a, seeds=None, dams=True, show_progress=False):
+def imhmin(a, thresh):
+    """Suppress all minima that are shallower than thresh."""
+    maxval = a.max()
+    return maxval - morphological_reconstruction((maxval - a) - thresh, maxval - a)
+
+def watershed(a, seeds=None, dams=True, show_progress=False, smooth_thresh=0.0, connectivity=1):
     seeded = seeds is not None
     if not seeded:
         ws = zeros(shape(a), uint32)
@@ -64,6 +77,8 @@ def watershed(a, seeds=None, dams=True, show_progress=False):
         if seeds.dtype == bool:
             seeds = label(seeds)[0]
         ws = seeds
+    if smooth_thresh > 0.0:
+        a = imhmin(a, smooth_thresh)
     levels = unique(a)
     a = pad(a, a.max()+1)
     ar = a.ravel()
@@ -73,7 +88,7 @@ def watershed(a, seeds=None, dams=True, show_progress=False):
     maxlabel = iinfo(ws.dtype).max
     sel = diamondse(3, a.ndim)
     current_label = 0
-    neighbors = build_neighbors_array(a)
+    neighbors = build_neighbors_array(a, connectivity)
     level_pixels = build_levels_dict(a)
     if show_progress:
         def with_progress(it, *args, **kwargs): 
@@ -95,7 +110,7 @@ def watershed(a, seeds=None, dams=True, show_progress=False):
             adj_labels = unique(wsr[lnidxs])
             if len(adj_labels) > 1 and dams: # build a dam
                 wsr[idx] = maxlabel 
-            else: # assign a label
+            elif len(adj_labels) >= 1: # assign a label
                 wsr[idx] = wsr[lnidxs][arc[lnidxs].argmin()]
                 idxs_adjacent_to_labels.extend(nidxs[((wsr[nidxs] == 0) * 
                                     (ar[nidxs] == level)).astype(bool) ])
@@ -193,9 +208,9 @@ def juicy_center(ar, skinsize=1):
 def build_levels_dict(a):
     return dict( ((l, list(where(a.ravel()==l)[0])) for l in unique(a)) )
 
-def build_neighbors_array(ar):
+def build_neighbors_array(ar, connectivity=1):
     idxs = arange(ar.size, dtype=uint32)
-    return get_neighbor_idxs(ar, idxs)
+    return get_neighbor_idxs(ar, idxs, connectivity)
 
 def get_neighbor_idxs(ar, idxs, connectivity=1):
     if isscalar(idxs): # in case only a single idx is given
