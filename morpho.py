@@ -12,7 +12,7 @@ from numpy import   shape, reshape, \
                     concatenate, \
                     ndarray, minimum
 import itertools
-from collections import deque as queue
+from collections import defaultdict, deque as queue
 from scipy.ndimage import filters, grey_dilation
 from scipy.ndimage.measurements import label
 #from scipy.spatial.distance import cityblock as manhattan_distance
@@ -207,7 +207,10 @@ def juicy_center(ar, skinsize=1):
     return ar
 
 def build_levels_dict(a):
-    return dict( ((l, list(where(a.ravel()==l)[0])) for l in unique(a)) )
+    d = defaultdict(list)
+    for loc,val in enumerate(a.ravel()):
+        d[val].append(loc)
+    return d
 
 def build_neighbors_array(ar, connectivity=1):
     idxs = arange(ar.size, dtype=uint32)
