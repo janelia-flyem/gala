@@ -93,6 +93,13 @@ class TestAgglomeration(unittest.TestCase):
         gtfns = [rundir+'/test-%02i-groundtruth.h5'%i for i in test_idxs]
         self.results = [imio.read_h5_stack(fn) for fn in gtfns]
 
+    def test_8_connectivity(self):
+        p = numpy.array([[0,0.5,0],[0.5,1.0,0.5],[0,0.5,0]])
+        ws = numpy.array([[1,0,2],[0,0,0],[3,0,4]], numpy.uint32)
+        g = agglo.Rag(ws, p, connectivity=2)
+        self.assertTrue(agglo.boundary_mean(g, 1, 2) == 0.75)
+        self.assertTrue(agglo.boundary_mean(g, 1, 4) == 1.0)
+
     def test_empty_rag(self):
         g = agglo.Rag()
         self.assertTrue(g.nodes() == [])

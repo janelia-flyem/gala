@@ -1,5 +1,5 @@
 # built-ins
-from itertools import combinations, izip, repeat
+from itertools import combinations, izip, repeat, product
 import argparse
 import random
 
@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 from numpy import array, mean, zeros, zeros_like, uint8, int8, where, unique, \
     finfo, size, double, transpose, newaxis, uint32, nonzero, median, exp, \
     log2, float, ones, arange, inf, flatnonzero, intersect1d, dtype, squeeze, \
-    product, __version__ as numpyversion
+    __version__ as numpyversion
 from scipy.stats import sem
 from scipy.sparse import lil_matrix
 from scipy.misc import comb as nchoosek
@@ -131,10 +131,8 @@ class Rag(Graph):
             self.add_node(self.boundary_body, 
                     extent=set(flatnonzero(self.watershed==self.boundary_body)))
         inner_idxs = idxs[self.watershed_r[idxs] != self.boundary_body]
-        if self.show_progress:
-            pbar = ip.StandardProgressBar()
-        else:
-            pbar = ip.NoProgressBar()
+        pbar = ip.StandardProgressBar() if self.show_progress \
+                                        else ip.NoProgressBar()
         for idx in ip.with_progress(inner_idxs, title='Graph... ', pbar=pbar):
             ns = self.neighbor_idxs(idx)
             adj_labels = self.watershed_r[ns]
@@ -150,7 +148,11 @@ class Rag(Graph):
                 except KeyError:
                     self.node[nodeid]['extent'] = set([idx])
             else:
-                edges = list(combinations(adj_labels, 2))
+                if len(adj_labels) == 0: continue
+                if adj_labels[-1] != self.boundary_body:
+                    edges = list(combinations(adj_labels, 2))
+                else:
+                    edges = list(product([self.boundary_body], adj_labels[:-1]))
             if allow_shared_boundaries or len(edges) == 1:
                 for l1,l2 in edges:
                     if self.has_edge(l1, l2): 
