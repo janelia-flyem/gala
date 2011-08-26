@@ -80,7 +80,7 @@ class Rag(Graph):
     def __init__(self, watershed=None, probabilities=None, 
             merge_priority_function=None, allow_shared_boundaries=True,
             gt_vol=None, feature_manager=MomentsFeatureManager(), 
-            show_progress=False, lowmem=False):
+            show_progress=False, lowmem=False, connectivity=1):
         """Create a graph from a watershed volume and image volume.
         
         The watershed is assumed to have dams of label 0 in between basins.
@@ -94,7 +94,7 @@ class Rag(Graph):
             self.merge_priority_function = boundary_mean
         else:
             self.merge_priority_function = merge_priority_function
-        self.set_watershed(watershed, lowmem)
+        self.set_watershed(watershed, lowmem, connectivity)
         if probabilities is not None:
             self.set_probabilities(probabilities)
         if watershed is None:
@@ -175,11 +175,11 @@ class Rag(Graph):
     def get_neighbor_idxs_fast(self, idxs):
         return self.pixel_neighbors[idxs]
 
-    def get_neighbor_idxs_lean(self, idxs):
-        return morpho.get_neighbor_idxs(self.watershed, idxs)
+    def get_neighbor_idxs_lean(self, idxs, connectivity=1):
+        return morpho.get_neighbor_idxs(self.watershed, idxs, connectivity)
 
     def set_probabilities(self, probs, normalize=True):
-        if probs.dtype not in map(dtype, ['float64', 'float32', 'float16']):
+        if probs.dtype not in map(dtype, ['float64', 'float32']):
             probs = probs.astype(double)
         if normalize:
             probs -= probs.min() # ensure probs.min() == 0
@@ -200,7 +200,7 @@ class Rag(Graph):
         self.probabilities_r = squeeze(self.probabilities.reshape(
                 (product([self.probabilities.shape[ax] for ax in axes]), -1)))
   
-    def set_watershed(self, ws=None, lowmem=False):
+    def set_watershed(self, ws=None, lowmem=False, connectivity=1):
         if ws is None:
             self.watershed = None
             return
@@ -215,9 +215,9 @@ class Rag(Graph):
         self.segmentation_r = self.segmentation.ravel() # reduce fct calls
         self.pad_thickness = 2 if (self.segmentation==0).any() else 1
         if lowmem:
-            self.neighbor_idxs = self.get_neighbor_idxs_lean
+            self.neighbor_idxs = lambda x: self.get_neighbor_idxs_lean(x, connectivity)
         else:
-            self.pixel_neighbors = morpho.build_neighbors_array(self.watershed)
+            self.pixel_neighbors = morpho.build_neighbors_array(self.watershed, connectivity)
             self.neighbor_idxs = self.get_neighbor_idxs_fast
 
     def set_ground_truth(self, gt=None):
