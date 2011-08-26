@@ -164,6 +164,8 @@ def _is_container(a):
         return False
 
 def pad(ar, vals, axes=None):
+    if ar.size == 0:
+        return ar
     if axes is None:
         axes = range(ar.ndim)
     if not _is_container(vals):

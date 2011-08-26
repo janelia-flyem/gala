@@ -93,6 +93,11 @@ class TestAgglomeration(unittest.TestCase):
         gtfns = [rundir+'/test-%02i-groundtruth.h5'%i for i in test_idxs]
         self.results = [imio.read_h5_stack(fn) for fn in gtfns]
 
+    def test_empty_rag(self):
+        g = agglo.Rag()
+        self.assertTrue(g.nodes() == [])
+        self.assertTrue(g.copy().nodes() == [])
+
     def test_one_shot(self):
         i = 0
         g = agglo.Rag(self.wss[i], self.probs[i], agglo.boundary_mean)
