@@ -374,7 +374,9 @@ class CompositeFeatureManager(NullFeatureManager):
         return concatenate(features)
 
     def compute_edge_features(self, g, n1, n2, cache=None):
-        if cache is None: cache = g.node[n][self.default_cache]
+        if cache is None:
+            c1, c2 = self.cache_range()
+            cache = g[n1][n2][self.default_cache][c1:c2]
         features = []
         for child in self.children:
             c1, c2 = child.cache_range()
