@@ -1,6 +1,8 @@
 
 import sys, os
 import unittest
+import time
+
 import numpy
 from scipy.ndimage.measurements import label
 
@@ -8,6 +10,14 @@ rundir = os.path.dirname(os.path.realpath(sys.argv[0]))
 sys.path.append(rundir)
 
 import imio, morpho, agglo
+
+def time_me(function):
+    def wrapped(*args, **kwargs):
+        start = time.time()
+        r = function(*args, **kwargs)
+        end = time.time()
+        return (end-start)*1000
+    return wrapped
 
 class TestMorphologicalOperations(unittest.TestCase):
     def setUp(self):
@@ -59,6 +69,18 @@ class TestMorphologicalOperations(unittest.TestCase):
         saddle_result = numpy.array([[1,1,0],[0,0,3],[2,2,0]])
         saddle_ws = morpho.watershed(saddle_landscape)
         self.assertTrue((saddle_ws==saddle_result).all())
+
+    def test_watershed_plateau_performance(self):
+        """Test time taken by watershed on plateaus is acceptable.
+        
+        Versions prior to 2d319e performed redundant computations in the
+        idxs_adjacent_to_labels queue which resulted in an explosion in 
+        runtime on plateaus. This test checks against that behavior.
+        """
+        plat = numpy.ones((11,11))
+        plat[5,5] = 0
+        tws = time_me(morpho.watershed)
+        self.assertTrue(tws(plat) < 100)
 
 class TestAgglomeration(unittest.TestCase):
     def setUp(self):
