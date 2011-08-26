@@ -125,10 +125,10 @@ class Rag(Graph):
 
     def build_graph_from_watershed(self, 
                                     allow_shared_boundaries=True, idxs=None):
+        if self.watershed.size == 0: return # stop processing for empty graphs
         if idxs is None:
             idxs = arange(self.watershed.size)
-            if self.watershed.size > 0:
-                self.add_node(self.boundary_body, 
+            self.add_node(self.boundary_body, 
                     extent=set(flatnonzero(self.watershed==self.boundary_body)))
         inner_idxs = idxs[self.watershed_r[idxs] != self.boundary_body]
         if self.show_progress:
