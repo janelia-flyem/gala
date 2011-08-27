@@ -180,10 +180,7 @@ class Rag(Graph):
         return morpho.get_neighbor_idxs(self.watershed, idxs, connectivity)
 
     def set_probabilities(self, probs=array([]), normalize=True):
-        float_dtypes = ['float64', 'float32']
-        if numpyversion >= '1.6.0': float_dtypes.append('float16')
-        if probs.dtype not in map(dtype, float_dtypes):
-            probs = probs.astype(double)
+        probs = probs.astype(double)
         if normalize and len(probs) > 1:
             probs -= probs.min() # ensure probs.min() == 0
             probs /= probs.max() # ensure probs.max() == 1
