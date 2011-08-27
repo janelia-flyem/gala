@@ -117,13 +117,13 @@ class MomentsFeatureManager(NullFeatureManager):
         if cache is None: 
             c1, c2 = self.cache_range()
             cache = g.node[n][self.default_cache][c1:c2]
-        return central_moments_from_noncentral_sums(cache)
+        return central_moments_from_noncentral_sums(cache).ravel()
 
     def compute_edge_features(self, g, n1, n2, cache=None):
         if cache is None: 
             c1, c2 = self.cache_range()
             cache = g[n1][n2][self.default_cache][c1:c2]
-        return central_moments_from_noncentral_sums(cache)
+        return central_moments_from_noncentral_sums(cache).ravel()
 
 def central_moments_from_noncentral_sums(a):
     """Compute moments about the mean from sums of x**i, for i=0, ..., len(a).
@@ -163,8 +163,16 @@ class HistogramFeatureManager(NullFeatureManager):
         return self.nbins
 
     def histogram(self, vals):
-        return histogram(vals, bins=self.nbins,
+        if vals.ndim == 1:
+            return histogram(vals, bins=self.nbins,
                             range=(self.minval,self.maxval))[0].astype(double)
+        elif vals.ndim == 2:
+            return concatenate([self.histogram(vals_i) for vals_i in vals.T])
+        else:
+            raise ValueError('HistogramFeatureManager.histogram expects '+
+                'either a 1-d or 2-d array of probabilities. Got %i-d array.'%
+                vals.ndim)
+
     def percentiles(self, h):
         ps = []
         hcum = concatenate(([0.0], h.cumsum()))
@@ -183,11 +191,11 @@ class HistogramFeatureManager(NullFeatureManager):
 
     def create_node_cache(self, g, n):
         node_idxs = list(g.node[n]['extent'])
-        return self.histogram(g.probabilities.ravel()[node_idxs])
+        return self.histogram(g.probabilities_r[node_idxs])
 
     def create_edge_cache(self, g, n1, n2):
         edge_idxs = list(g[n1][n2]['boundary'])
-        return self.histogram(g.probabilities.ravel()[edge_idxs])
+        return self.histogram(g.probabilities_r[edge_idxs])
 
     def update_node_cache(self, g, n1, n2, dst, src):
         dst += src
@@ -198,12 +206,12 @@ class HistogramFeatureManager(NullFeatureManager):
     def pixelwise_update_node_cache(self, g, n, dst, idxs, remove=False):
         if len(idxs) == 0: return
         a = -1.0 if remove else 1.0
-        dst += a * self.histogram(g.probabilities.ravel()[idxs])
+        dst += a * self.histogram(g.probabilities_r[idxs])
 
     def pixelwise_update_edge_cache(self, g, n1, n2, dst, idxs, remove=False):
         if len(idxs) == 0: return
         a = -1.0 if remove else 1.0
-        dst += a * self.histogram(g.probabilities.ravel()[idxs])
+        dst += a * self.histogram(g.probabilities_r[idxs])
 
     def KL_divergence(self,P,Q):
         """Return the Kullback-Leibler Divergence between two histograms."""
@@ -400,7 +408,7 @@ class CompositeFeatureManager(NullFeatureManager):
         
     
 def mean_and_sem(g, n1, n2):
-    bvals = g.probabilities.ravel()[list(g[n1][n2]['boundary'])]
+    bvals = g.probabilities_r[list(g[n1][n2]['boundary'])]
     return array([mean(bvals), sem(bvals)]).reshape(1,2)
 
 def mean_sem_and_n_from_cache_dict(d):
