@@ -758,7 +758,7 @@ def classifier_probability(feature_extractor, classifier):
         return prediction
     return predict
 
-def expected_change_voi(feature_extractor, classifier):
+def expected_change_voi(feature_extractor, classifier, alpha=1.0, beta=1.0):
     prob_func = classifier_probability(feature_extractor, classifier)
     def predict(g, n1, n2):
         p = prob_func(g, n1, n2) # Prediction from the classifier
@@ -767,7 +767,7 @@ def expected_change_voi(feature_extractor, classifier):
             len(g.node[n1]['extent']), len(g.node[n2]['extent']), g.volume_size
         )
         # Return expected change
-        return  (p*v + (1.0-p)*(-v))
+        return  (p*alpha*v + (1.0-p)*(-beta*v))
     return predict
 
 def compute_local_voi_change(s1, s2, n):
