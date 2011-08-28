@@ -1,5 +1,5 @@
 # built-ins
-from itertools import combinations, izip, repeat
+from itertools import combinations, izip, repeat, product
 import argparse
 import random
 
@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 from numpy import array, mean, zeros, zeros_like, uint8, int8, where, unique, \
     finfo, size, double, transpose, newaxis, uint32, nonzero, median, exp, \
     log2, float, ones, arange, inf, flatnonzero, intersect1d, dtype, squeeze, \
-    product
+    __version__ as numpyversion
 from scipy.stats import sem
 from scipy.sparse import lil_matrix
 from scipy.misc import comb as nchoosek
@@ -77,7 +77,7 @@ def conditional_countdown(seq, start=1, pred=bool):
 class Rag(Graph):
     """Region adjacency graph for segmentation of nD volumes."""
 
-    def __init__(self, watershed=None, probabilities=None, 
+    def __init__(self, watershed=array([]), probabilities=array([]), 
             merge_priority_function=None, allow_shared_boundaries=True,
             gt_vol=None, feature_manager=MomentsFeatureManager(), 
             show_progress=False, lowmem=False, connectivity=1):
@@ -95,8 +95,7 @@ class Rag(Graph):
         else:
             self.merge_priority_function = merge_priority_function
         self.set_watershed(watershed, lowmem, connectivity)
-        if probabilities is not None:
-            self.set_probabilities(probabilities)
+        self.set_probabilities(probabilities)
         if watershed is None:
             self.ucm = None
         else:
@@ -110,7 +109,11 @@ class Rag(Graph):
         self.merge_queue = MergeQueue()
 
     def __copy__(self):
+        f = self.neighbor_idxs
+        del self.neighbor_idxs
         g = super(Rag, self).copy()
+        g.neighbor_idxs = f
+        self.neighbor_idxs = f
         g.watershed_r = g.watershed.ravel()
         g.segmentation_r = g.segmentation.ravel()
         g.ucm_r = g.ucm.ravel()
@@ -122,20 +125,14 @@ class Rag(Graph):
 
     def build_graph_from_watershed(self, 
                                     allow_shared_boundaries=True, idxs=None):
-        if self.watershed is None:
-            return
+        if self.watershed.size == 0: return # stop processing for empty graphs
         if idxs is None:
             idxs = arange(self.watershed.size)
             self.add_node(self.boundary_body, 
-                extent=set(flatnonzero(self.watershed==self.boundary_body)))
+                    extent=set(flatnonzero(self.watershed==self.boundary_body)))
         inner_idxs = idxs[self.watershed_r[idxs] != self.boundary_body]
-        if not hasattr(self, 'probabilities'):
-            self.probabilities = zeros(self.watershed.shape, uint8)
-            self.probabilities_r = self.probabilities.ravel()
-        if self.show_progress:
-            pbar = ip.StandardProgressBar()
-        else:
-            pbar = ip.NoProgressBar()
+        pbar = ip.StandardProgressBar() if self.show_progress \
+                                        else ip.NoProgressBar()
         for idx in ip.with_progress(inner_idxs, title='Graph... ', pbar=pbar):
             ns = self.neighbor_idxs(idx)
             adj_labels = self.watershed_r[ns]
@@ -151,7 +148,11 @@ class Rag(Graph):
                 except KeyError:
                     self.node[nodeid]['extent'] = set([idx])
             else:
-                edges = combinations(adj_labels, 2)
+                if len(adj_labels) == 0: continue
+                if adj_labels[-1] != self.boundary_body:
+                    edges = list(combinations(adj_labels, 2))
+                else:
+                    edges = list(product([self.boundary_body], adj_labels[:-1]))
             if allow_shared_boundaries or len(edges) == 1:
                 for l1,l2 in edges:
                     if self.has_edge(l1, l2): 
@@ -178,10 +179,9 @@ class Rag(Graph):
     def get_neighbor_idxs_lean(self, idxs, connectivity=1):
         return morpho.get_neighbor_idxs(self.watershed, idxs, connectivity)
 
-    def set_probabilities(self, probs, normalize=True):
-        if probs.dtype not in map(dtype, ['float64', 'float32']):
-            probs = probs.astype(double)
-        if normalize:
+    def set_probabilities(self, probs=array([]), normalize=True):
+        probs = probs.astype(double)
+        if normalize and len(probs) > 1:
             probs -= probs.min() # ensure probs.min() == 0
             probs /= probs.max() # ensure probs.max() == 1
         sp = probs.shape
@@ -190,21 +190,22 @@ class Rag(Graph):
         w_ndim = self.watershed.ndim
         padding = [inf]+(self.pad_thickness-1)*[0]
         if p_ndim == w_ndim:
-            axes = range(p_ndim)
+            self.probabilities = morpho.pad(probs, padding)
+            self.probabilities_r = self.probabilities.ravel()
         elif p_ndim == w_ndim+1:
             if sp[1:] == sw:
                 sp = sp[1:]+[sp[0]]
                 probs = probs.transpose(sp)
             axes = range(p_ndim-1)
-        self.probabilities = morpho.pad(probs, padding, axes)
-        self.probabilities_r = squeeze(self.probabilities.reshape(
-                (product([self.probabilities.shape[ax] for ax in axes]), -1)))
+            self.probabilities = morpho.pad(probs, padding, axes)
+            self.probabilities_r = self.probabilities.reshape(
+                                                (self.watershed.size, -1))
   
-    def set_watershed(self, ws=None, lowmem=False, connectivity=1):
-        if ws is None:
-            self.watershed = None
-            return
-        self.boundary_body = ws.max()+1
+    def set_watershed(self, ws=array([]), lowmem=False, connectivity=1):
+        try:
+            self.boundary_body = ws.max()+1
+        except ValueError: # empty watershed given
+            self.boundary_body = -1
         self.volume_size = ws.size
         if (ws==0).any():
             self.watershed = morpho.pad(ws, [0, self.boundary_body])
@@ -215,9 +216,12 @@ class Rag(Graph):
         self.segmentation_r = self.segmentation.ravel() # reduce fct calls
         self.pad_thickness = 2 if (self.segmentation==0).any() else 1
         if lowmem:
-            self.neighbor_idxs = lambda x: self.get_neighbor_idxs_lean(x, connectivity)
+            def neighbor_idxs(x): 
+                return self.get_neighbor_idxs_lean(x, connectivity)
+            self.neighbor_idxs = neighbor_idxs
         else:
-            self.pixel_neighbors = morpho.build_neighbors_array(self.watershed, connectivity)
+            self.pixel_neighbors = \
+                morpho.build_neighbors_array(self.watershed, connectivity)
             self.neighbor_idxs = self.get_neighbor_idxs_fast
 
     def set_ground_truth(self, gt=None):
@@ -236,7 +240,7 @@ class Rag(Graph):
             # Bonus feature: counts how many sp's went into a single node.
             try:
                 self.rig = ones(self.watershed.max()+1)
-            except AttributeError:
+            except ValueError:
                 self.rig = ones(self.number_of_nodes()+1)
 
     def build_merge_queue(self):
