@@ -162,7 +162,7 @@ class Rag(Graph):
 
     def set_feature_manager(self, feature_manager):
         self.feature_manager = feature_manager
-        if self.feature_manager.cache_length > 0:
+        if len(self.feature_manager) > 0:
             self.compute_feature_caches()
 
     def compute_feature_caches(self):
