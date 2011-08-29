@@ -160,7 +160,7 @@ class HistogramFeatureManager(NullFeatureManager):
     def histogram(self, vals):
         if vals.ndim == 1:
             return histogram(vals, bins=self.nbins,
-                range=(self.minval,self.maxval))[0].astype(double).reshape((1,-1))
+                range=(self.minval,self.maxval))[0].astype(double)[newaxis,:]
         elif vals.ndim == 2:
             return concatenate([self.histogram(vals_i) for vals_i in vals.T], 0)
         else:
@@ -196,27 +196,27 @@ class HistogramFeatureManager(NullFeatureManager):
 
     def create_node_cache(self, g, n):
         node_idxs = list(g.node[n]['extent'])
-        return self.histogram(g.probabilities_r[node_idxs])
+        return [self.histogram(g.probabilities_r[node_idxs])]
 
     def create_edge_cache(self, g, n1, n2):
         edge_idxs = list(g[n1][n2]['boundary'])
-        return self.histogram(g.probabilities_r[edge_idxs])
+        return [self.histogram(g.probabilities_r[edge_idxs])]
 
     def update_node_cache(self, g, n1, n2, dst, src):
-        dst += src
+        dst[self.cache_idx] += src[self.cache_idx]
 
     def update_edge_cache(self, g, e1, e2, dst, src):
-        dst += src
+        dst[self.cache_idx] += src[self.cache_idx]
 
     def pixelwise_update_node_cache(self, g, n, dst, idxs, remove=False):
         if len(idxs) == 0: return
         a = -1.0 if remove else 1.0
-        dst += a * self.histogram(g.probabilities_r[idxs])
+        dst[self.cache_idx] += a * self.histogram(g.probabilities_r[idxs])
 
     def pixelwise_update_edge_cache(self, g, n1, n2, dst, idxs, remove=False):
         if len(idxs) == 0: return
         a = -1.0 if remove else 1.0
-        dst += a * self.histogram(g.probabilities_r[idxs])
+        dst[self.cache_idx] += a * self.histogram(g.probabilities_r[idxs])
 
     def KL_divergence(self,p,q):
         """Return the Kullback-Leibler Divergence between two histograms."""
@@ -233,7 +233,7 @@ class HistogramFeatureManager(NullFeatureManager):
 
     def compute_node_features(self, g, n, cache=None):
         if cache is None: 
-            cache = g.node[n1][self.default_cache]
+            cache = g.node[n1][self.default_cache][self.cache_idx]
         s = cache.sum()
         if s == 0:
             h = zeros_like(cache)
@@ -246,7 +246,7 @@ class HistogramFeatureManager(NullFeatureManager):
 
     def compute_edge_features(self, g, n1, n2, cache=None):
         if cache is None: 
-            cache = g[n1][n2][self.default_cache]
+            cache = g[n1][n2][self.default_cache][self.cache_idx]
         h, ps = self.normalized_histogram_from_cache(cache, 
                                                     self.compute_percentiles)
         return concatenate((h,ps), axis=1).ravel()
