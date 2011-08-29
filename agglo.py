@@ -777,14 +777,14 @@ def compute_local_voi_change(s1, s2, n):
     py = py1+py2
     return -(py1*log2(py1) + py2*log2(py2) - py*log2(py))
     
-def expected_change_rand(feature_extractor, classifier):
+def expected_change_rand(feature_extractor, classifier, alpha=1.0, beta=1.0):
     prob_func = classifier_probability(feature_extractor, classifier)
     def predict(g, n1, n2):
         p = float(prob_func(g, n1, n2)) # Prediction from the classifier
         v = compute_local_rand_change(
             len(g.node[n1]['extent']), len(g.node[n2]['extent']), g.volume_size
         )
-        return p*v + (1.0-p)*(-v)
+        return p*v*alpha + (1.0-p)*(-beta*v)
     return predict
 
 def compute_local_rand_change(s1, s2, n):
