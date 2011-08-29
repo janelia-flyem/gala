@@ -185,7 +185,8 @@ class Rag(Graph):
             probs -= probs.min() # ensure probs.min() == 0
             probs /= probs.max() # ensure probs.max() == 1
         sp = probs.shape
-        sw = self.watershed.shape
+        sw = tuple(array(self.watershed.shape, dtype=int)-\
+                    2*self.pad_thickness*ones(self.watershed.ndim, dtype=int))
         p_ndim = probs.ndim
         w_ndim = self.watershed.ndim
         padding = [inf]+(self.pad_thickness-1)*[0]

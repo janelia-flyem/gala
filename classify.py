@@ -12,7 +12,7 @@ import h5py
 from numpy import bool, array, double, zeros, mean, random, concatenate, where,\
     uint8, ones, float32, uint32, unique, newaxis, zeros_like, arange, floor, \
     histogram, seterr, __version__ as numpy_version, unravel_index, diff, \
-    nonzero, sort, log
+    nonzero, sort, log, inf
 seterr(divide='ignore')
 from scipy import arange
 from scipy.misc import comb as nchoosek
@@ -39,10 +39,13 @@ class NullFeatureManager(object):
         self.default_cache = 'feature-cache'
     def __len__(self, *args, **kwargs):
         return 0
-    def __call__(self, g, n1, n2):
+    def __call__(self, g, n1, n2=None):
         return self.compute_features(g, n1, n2)
 
-    def compute_features(self, g, n1, n2):
+    def compute_features(self, g, n1, n2=None):
+        if n2 is None:
+            c1 = g.node[n1][self.default_cache][self.cache_idx]
+            return self.compute_node_features(g, n1, c1)
         if len(g.node[n1]['extent']) > len(g.node[n2]['extent']):
             n1, n2 = n2, n1 # smaller node first
         c1, c2, ce = [d[self.default_cache][self.cache_idx] for d in 
@@ -152,6 +155,10 @@ class HistogramFeatureManager(NullFeatureManager):
         self.minval = minval
         self.maxval = maxval
         self.nbins = nbins
+        try:
+            _ = len(compute_percentiles)
+        except TypeError: # single percentile value given
+            compute_percentiles = [compute_percentiles]
         self.compute_percentiles = compute_percentiles
 
     def __len__(self):
@@ -169,13 +176,14 @@ class HistogramFeatureManager(NullFeatureManager):
                 vals.ndim)
 
     def percentiles(self, h, desired_percentiles):
-        ps = array([len(desired_percentiles), h.ndim])
-        if h.ndim == 1: h = h.reshape((1,-1))
-        hcum = concatenate(([0.0]*len(h), h.cumsum(axis=1)), axis=1)
+        if h.ndim == 1 or any([i==1 for i in h.shape]): h = h.reshape((-1,1))
+        hcum = concatenate((zeros((h.shape[1],1)), h.cumsum(axis=0)), axis=0)
         bin_edges = arange(self.minval,self.maxval+1e-10,
                         (self.maxval-self.minval)/float(self.nbins))
+        if bin_edges.ndim == 1: bin_edges = bin_edges[:,newaxis]
+        ps = zeros([len(desired_percentiles), h.shape[1]], dtype=double)
         for i, p in enumerate(desired_percentiles):
-            b = (hcum>=p).argmax(axis=1)-1
+            b = (hcum>=p).argmax(axis=0)-1
             slope = (bin_edges[b+1]-bin_edges[b]) / (hcum[b+1]-hcum[b])
             delta = p - hcum[b]
             estim = bin_edges[b] + delta*slope
@@ -234,14 +242,8 @@ class HistogramFeatureManager(NullFeatureManager):
     def compute_node_features(self, g, n, cache=None):
         if cache is None: 
             cache = g.node[n1][self.default_cache][self.cache_idx]
-        s = cache.sum()
-        if s == 0:
-            h = zeros_like(cache)
-            ps = zeros([len(self.compute_percentiles), h.shape[1]])
-        else:
-            h = cache/s
-            ps = self.percentiles(h)
-        
+        h, ps = self.normalized_histogram_from_cache(cache, 
+                                                     self.compute_percentiles)
         return concatenate((h,ps), axis=1).ravel()
 
     def compute_edge_features(self, g, n1, n2, cache=None):
