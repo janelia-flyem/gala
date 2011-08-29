@@ -205,7 +205,7 @@ def pad(ar, vals, axes=None):
     if padding_thickness == 1:
         return ar2
     else:
-        return pad(ar2, vals[1:])
+        return pad(ar2, vals[1:], axes)
         
 def juicy_center(ar, skinsize=1):
     for i in xrange(ar.ndim):
