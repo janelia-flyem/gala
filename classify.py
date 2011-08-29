@@ -176,30 +176,32 @@ class HistogramFeatureManager(NullFeatureManager):
                 vals.ndim)
 
     def percentiles(self, h, desired_percentiles):
-        if h.ndim == 1 or any([i==1 for i in h.shape]): h = h.reshape((-1,1))
-        hcum = concatenate((zeros((h.shape[1],1)), h.cumsum(axis=0)), axis=0)
-        bin_edges = arange(self.minval,self.maxval+1e-10,
+        if h.ndim == 1 or any([i==1 for i in h.shape]): h = h.reshape((1,-1))
+        h = h.T
+        nchannels = h.shape[1]
+        hcum = concatenate((zeros((1,nchannels)), h.cumsum(axis=0)), axis=0)
+        bin_edges = zeros((self.nbins+1, nchannels))
+        for i in range(nchannels):
+            bin_edges[:,i] = arange(self.minval,self.maxval+1e-10,
                         (self.maxval-self.minval)/float(self.nbins))
-        if bin_edges.ndim == 1: bin_edges = bin_edges[:,newaxis]
         ps = zeros([len(desired_percentiles), h.shape[1]], dtype=double)
         for i, p in enumerate(desired_percentiles):
-            b = (hcum>=p).argmax(axis=0)-1
-            slope = (bin_edges[b+1]-bin_edges[b]) / (hcum[b+1]-hcum[b])
-            delta = p - hcum[b]
-            estim = bin_edges[b] + delta*slope
+            b2 = (hcum>=p).argmax(axis=0)
+            b1 = (b2-1, arange(nchannels,dtype=int))
+            b2 = (b2, arange(nchannels,dtype=int))
+            slope = (bin_edges[b2]-bin_edges[b1]) / (hcum[b2]-hcum[b1])
+            delta = p - hcum[b1]
+            estim = bin_edges[b1] + delta*slope
             error = slope==inf
-            estim[error] = (bin_edges[b+1]+bin_edges[b])[error]/2
+            estim[error] = (bin_edges[b2]+bin_edges[b1])[error]/2
             ps[i] = estim
         return ps.T
 
     def normalized_histogram_from_cache(self, cache, desired_percentiles):
-        s = cache.sum()
-        if s == 0:
-            h = zeros_like(cache)
-            ps = zeros([len(desired_percentiles), h.shape[1]])
-        else:
-            h = cache/s
-            ps = self.percentiles(h, desired_percentiles)
+        s = cache.sum(axis=1)[:,newaxis]
+        s[s==0] = 1
+        h = cache/s
+        ps = self.percentiles(h, desired_percentiles)
         return h, ps
 
     def create_node_cache(self, g, n):
@@ -286,7 +288,7 @@ class SquigglinessFeatureManager(NullFeatureManager):
     def compute_bounding_box(self, indices, shape):
         d = self.ndim
         unraveled_indices = concatenate(
-            unravel_index(indices, shape)).reshape((-1,d), order='F')
+            unravel_index(list(indices), shape)).reshape((-1,d), order='F')
         m = unraveled_indices.min(axis=0)
         M = unraveled_indices.max(axis=0)+ones(d)
         return m, M
@@ -301,11 +303,12 @@ class SquigglinessFeatureManager(NullFeatureManager):
 
     def create_edge_cache(self, g, n1, n2):
         edge_idxs = g[n1][n2]['boundary']
-        return concatenate(
+        return [concatenate(
             self.compute_bounding_box(edge_idxs, g.segmentation.shape)
-        )
+        )]
 
     def update_edge_cache(self, g, e1, e2, dst, src):
+        dst, src = [d[self.cache_idx] for d in [dst, src]]
         dst[:self.ndim] = \
             concatenate((dst[newaxis,:self.ndim], src[newaxis,:self.ndim]),
             axis=0).min(axis=0)
@@ -314,6 +317,7 @@ class SquigglinessFeatureManager(NullFeatureManager):
             axis=0).max(axis=0)
 
     def pixelwise_update_edge_cache(self, g, n1, n2, dst, idxs, remove=False):
+        dst = dst[self.cache_idx]
         if remove:
             pass
             # dst = self.create_edge_cache(g, n1, n2)
@@ -323,15 +327,15 @@ class SquigglinessFeatureManager(NullFeatureManager):
 
     def compute_edge_features(self, g, n1, n2, cache=None):
         if cache is None: 
-            cache = g[n1][n2][self.default_cache][i]
+            cache = g[n1][n2][self.default_cache][self.cache_idx]
         m, M = cache[:self.ndim], cache[self.ndim:]
         plane_surface = sort(M-m)[1:].prod() * (3.0-g.pad_thickness)
         return array([len(g[n1][n2]['boundary']) / plane_surface])
 
 class CompositeFeatureManager(NullFeatureManager):
-    def __init__(self, cache_begin_idx=0, children=[], *args, **kwargs):
-        super(CompositeFeatureManager, self).__init__(cache_begin_idx)
-        self.cache_begin_idx = cache_begin_idx
+    def __init__(self, cache_idx=0, children=[], *args, **kwargs):
+        super(CompositeFeatureManager, self).__init__(cache_idx)
+        self.cache_idx = cache_idx
         self.children = children
         cache_begin_idx = 0
         for i, child in enumerate(children):
@@ -340,9 +344,6 @@ class CompositeFeatureManager(NullFeatureManager):
     
     def __len__(self, *args, **kwargs):
         return sum([len(child) for child in self.children])
-    
-    def __call__(self, g, n1, n2):
-        return self.compute_features(g, n1, n2)
     
     def create_node_cache(self, *args, **kwargs):
         return [c.create_node_cache(*args, **kwargs) for c in self.children]
