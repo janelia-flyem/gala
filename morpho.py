@@ -10,10 +10,10 @@ from numpy import   shape, reshape, \
                     where, unravel_index, newaxis, \
                     ceil, floor, prod, cumprod, \
                     concatenate, \
-                    ndarray
+                    ndarray, minimum
 import itertools
-from collections import deque as queue
-from scipy.ndimage import filters
+from collections import defaultdict, deque as queue
+from scipy.ndimage import filters, grey_dilation
 from scipy.ndimage.measurements import label
 #from scipy.spatial.distance import cityblock as manhattan_distance
 import iterprogress as ip
@@ -55,8 +55,32 @@ def diamondse(sz, dimension):
             se[tuple(i)] = 1
     return se
 
+def morphological_reconstruction(marker, mask):
+    """Perform morphological reconstruction of the marker into the mask.
+    
+    See the Matlab image processing toolbox documentation for details:
+    http://www.mathworks.com/help/toolbox/images/f18-16264.html
 
-def watershed(a, seeds=None, dams=True, show_progress=False):
+    This implementation uses a full connectivity element.
+    """
+    diff = True
+    while diff:
+        markernew = grey_dilation(marker, [3]*marker.ndim)
+        markernew = minimum(markernew, mask)
+        diff = (markernew-marker).max() > 0
+        marker = markernew
+    return marker
+
+def hminima(a, thresh):
+    """Suppress all minima that are shallower than thresh."""
+    maxval = a.max()
+    ainv = maxval-a
+    return maxval - morphological_reconstruction(ainv-thresh, ainv)
+
+imhmin = hminima
+
+def watershed(a, seeds=None, smooth_thresh=0.0,
+                            dams=True, show_progress=False, connectivity=1):
     seeded = seeds is not None
     if not seeded:
         ws = zeros(shape(a), uint32)
@@ -64,6 +88,8 @@ def watershed(a, seeds=None, dams=True, show_progress=False):
         if seeds.dtype == bool:
             seeds = label(seeds)[0]
         ws = seeds
+    if smooth_thresh > 0.0:
+        a = hminima(a, smooth_thresh)
     levels = unique(a)
     a = pad(a, a.max()+1)
     ar = a.ravel()
@@ -73,21 +99,17 @@ def watershed(a, seeds=None, dams=True, show_progress=False):
     maxlabel = iinfo(ws.dtype).max
     sel = diamondse(3, a.ndim)
     current_label = 0
-    neighbors = build_neighbors_array(a)
+    neighbors = build_neighbors_array(a, connectivity)
     level_pixels = build_levels_dict(a)
-    if show_progress:
-        def with_progress(it, *args, **kwargs): 
-            return ip.with_progress(
-                it, *args, pbar=ip.StandardProgressBar('Watershed...'), **kwargs
-            )
-    else:
-        def with_progress(it, *args, **kwargs):
-            return ip.with_progress(it, *args,pbar=ip.NoProgressBar(),**kwargs)
-    for i, level in with_progress(enumerate(levels), length=len(levels)):
+    if show_progress: wspbar = ip.StandardProgressBar('Watershed...')
+    else: wspbar = ip.NoProgressBar()
+    for i, level in ip.with_progress(enumerate(levels), 
+                                            pbar=wspbar, length=len(levels)):
         idxs_adjacent_to_labels = queue([idx for idx in level_pixels[level] if
                                             any(wsr[neighbors[idx]])])
         while len(idxs_adjacent_to_labels) > 0:
             idx = idxs_adjacent_to_labels.popleft()
+            if wsr[idx]> 0: continue # in case we already processed it
             nidxs = neighbors[idx] # neighbors
             lnidxs = nidxs[
                 ((wsr[nidxs] != 0) * (wsr[nidxs] != maxlabel)).astype(bool)
@@ -95,7 +117,7 @@ def watershed(a, seeds=None, dams=True, show_progress=False):
             adj_labels = unique(wsr[lnidxs])
             if len(adj_labels) > 1 and dams: # build a dam
                 wsr[idx] = maxlabel 
-            else: # assign a label
+            elif len(adj_labels) >= 1: # assign a label
                 wsr[idx] = wsr[lnidxs][arc[lnidxs].argmin()]
                 idxs_adjacent_to_labels.extend(nidxs[((wsr[nidxs] == 0) * 
                                     (ar[nidxs] == level)).astype(bool) ])
@@ -142,6 +164,8 @@ def _is_container(a):
         return False
 
 def pad(ar, vals, axes=None):
+    if ar.size == 0:
+        return ar
     if axes is None:
         axes = range(ar.ndim)
     if not _is_container(vals):
@@ -191,20 +215,29 @@ def juicy_center(ar, skinsize=1):
     return ar
 
 def build_levels_dict(a):
-    return dict( ((l, list(where(a.ravel()==l)[0])) for l in unique(a)) )
+    d = defaultdict(list)
+    for loc,val in enumerate(a.ravel()):
+        d[val].append(loc)
+    return d
 
-def build_neighbors_array(ar):
+def build_neighbors_array(ar, connectivity=1):
     idxs = arange(ar.size, dtype=uint32)
-    return get_neighbor_idxs(ar, idxs)
+    return get_neighbor_idxs(ar, idxs, connectivity)
 
-def get_neighbor_idxs(ar, idxs):
+def get_neighbor_idxs(ar, idxs, connectivity=1):
     if isscalar(idxs): # in case only a single idx is given
         idxs = [idxs]
     idxs = array(idxs) # in case a list or other array-like is given
-    steps = array(ar.strides)/ar.itemsize
-    steps = concatenate((steps, -steps))
-    return idxs[:,newaxis] + steps
-
+    strides = array(ar.strides)/ar.itemsize
+    if connectivity == 1: 
+        steps = (strides, -strides)
+    else:
+        steps = []
+        for i in range(1,connectivity+1):
+            prod = array(list(itertools.product(*([[1,-1]]*i))))
+            i_strides = array(list(itertools.combinations(strides,i))).T
+            steps.append(prod.dot(i_strides).ravel())
+    return idxs[:,newaxis] + concatenate(steps)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(

@@ -1,6 +1,8 @@
 
 import sys, os
 import unittest
+import time
+
 import numpy
 from scipy.ndimage.measurements import label
 
@@ -8,6 +10,14 @@ rundir = os.path.dirname(os.path.realpath(sys.argv[0]))
 sys.path.append(rundir)
 
 import imio, morpho, agglo
+
+def time_me(function):
+    def wrapped(*args, **kwargs):
+        start = time.time()
+        r = function(*args, **kwargs)
+        end = time.time()
+        return (end-start)*1000
+    return wrapped
 
 class TestMorphologicalOperations(unittest.TestCase):
     def setUp(self):
@@ -19,32 +29,58 @@ class TestMorphologicalOperations(unittest.TestCase):
             imio.read_h5_stack(rundir+'/test-%02i-watershed.h5'%i)
             for i in test_idxs
         ]
+        self.landscape = numpy.array([1,0,1,2,1,3,2,0,2,4,1,0])
 
-    def test_watershed(self):
+    def test_watershed_images(self):
         wss = [morpho.watershed(self.probs[i]) for i in range(3)] + \
             [morpho.watershed(self.probs[3], dams=False)]
         for i in range(self.num_tests):
             self.assertTrue((wss[i]==self.results[i]).all(),
                                     'Watershed test number %i failed.'%(i+1))
 
-    def test_watershed_seeded_dams(self):
-        landscape = numpy.array([1,0,1,2,1,3,2,0,2,4,1,0])
-        seeds_bool = landscape==0
-        seeds_unique = label(seeds_bool)[0]
+    def test_watershed(self):
         regular_watershed_result = numpy.array([1,1,1,0,4,0,2,2,2,0,3,3])
-        nodam_watershed_result = numpy.array([1,1,1,4,4,4,2,2,2,3,3,3])
-        seeded_watershed_result = numpy.array([1,1,1,1,1,0,2,2,2,0,3,3])
-        seeded_nodam_ws_result = numpy.array([1,1,1,1,1,1,2,2,2,3,3,3])
-        regular_watershed = morpho.watershed(landscape)
+        regular_watershed = morpho.watershed(self.landscape)
         self.assertTrue((regular_watershed == regular_watershed_result).all())
-        seeded_watershed1 = morpho.watershed(landscape, seeds_bool)
-        seeded_watershed2 = morpho.watershed(landscape, seeds_unique)
+
+    def test_watershed_nodams(self):
+        nodam_watershed_result = numpy.array([1,1,1,4,4,4,2,2,2,3,3,3])
+        nodam_watershed = morpho.watershed(self.landscape, None, 0.0, False)
+        self.assertTrue((nodam_watershed == nodam_watershed_result).all())
+
+    def test_watershed_seeded(self):
+        seeds_bool = self.landscape==0
+        seeds_unique = label(seeds_bool)[0]
+        seeded_watershed_result = numpy.array([1,1,1,1,1,0,2,2,2,0,3,3])
+        seeded_watershed1 = morpho.watershed(self.landscape, seeds_bool)
+        seeded_watershed2 = morpho.watershed(self.landscape, seeds_unique)
         self.assertTrue((seeded_watershed1 == seeded_watershed_result).all())
         self.assertTrue((seeded_watershed2 == seeded_watershed_result).all())
-        nodam_watershed = morpho.watershed(landscape, None, False)
-        self.assertTrue((nodam_watershed == nodam_watershed_result).all())
-        seeded_nodam_ws = morpho.watershed(landscape, seeds_bool, False)
+
+    def test_watershed_seeded_nodams(self):
+        seeds_bool = self.landscape==0
+        seeded_nodam_ws_result = numpy.array([1,1,1,1,1,1,2,2,2,3,3,3])
+        seeded_nodam_ws = \
+                morpho.watershed(self.landscape, seeds_bool, 0.0, False)
         self.assertTrue((seeded_nodam_ws == seeded_nodam_ws_result).all())
+        
+    def test_watershed_saddle_basin(self):
+        saddle_landscape = numpy.array([[0,0,3],[2,1,2],[0,0,3]])
+        saddle_result = numpy.array([[1,1,0],[0,0,3],[2,2,0]])
+        saddle_ws = morpho.watershed(saddle_landscape)
+        self.assertTrue((saddle_ws==saddle_result).all())
+
+    def test_watershed_plateau_performance(self):
+        """Test time taken by watershed on plateaus is acceptable.
+        
+        Versions prior to 2d319e performed redundant computations in the
+        idxs_adjacent_to_labels queue which resulted in an explosion in 
+        runtime on plateaus. This test checks against that behavior.
+        """
+        plat = numpy.ones((11,11))
+        plat[5,5] = 0
+        tws = time_me(morpho.watershed)
+        self.assertTrue(tws(plat) < 100)
 
 class TestAgglomeration(unittest.TestCase):
     def setUp(self):
@@ -56,6 +92,18 @@ class TestAgglomeration(unittest.TestCase):
         self.wss = [imio.read_h5_stack(fn) for fn in wsfns]
         gtfns = [rundir+'/test-%02i-groundtruth.h5'%i for i in test_idxs]
         self.results = [imio.read_h5_stack(fn) for fn in gtfns]
+
+    def test_8_connectivity(self):
+        p = numpy.array([[0,0.5,0],[0.5,1.0,0.5],[0,0.5,0]])
+        ws = numpy.array([[1,0,2],[0,0,0],[3,0,4]], numpy.uint32)
+        g = agglo.Rag(ws, p, connectivity=2)
+        self.assertTrue(agglo.boundary_mean(g, 1, 2) == 0.75)
+        self.assertTrue(agglo.boundary_mean(g, 1, 4) == 1.0)
+
+    def test_empty_rag(self):
+        g = agglo.Rag()
+        self.assertTrue(g.nodes() == [])
+        self.assertTrue(g.copy().nodes() == [])
 
     def test_one_shot(self):
         i = 0
