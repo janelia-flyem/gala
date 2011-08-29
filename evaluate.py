@@ -1,5 +1,4 @@
 import numpy
-import agglo
 from scipy.sparse import coo_matrix
 from scipy.ndimage.measurements import label
 from scipy.misc import comb as nchoosek
@@ -15,6 +14,7 @@ def pixel_wise_boundary_precision_recall(aseg, gt):
 def edit_distance(aseg, gt, ws=None):
     if ws is None:
         return edit_distance_to_bps(aseg, gt)
+    import agglo
     return edit_distance_to_bps(aseg, agglo.best_possible_segmentation(ws, gt))
 
 def edit_distance_to_bps(aseg, bps):
