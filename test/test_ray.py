@@ -2,6 +2,8 @@
 import sys, os
 import unittest
 import time
+import cPickle as pck
+from copy import deepcopy as copy
 
 import numpy
 from scipy.ndimage.measurements import label
@@ -139,33 +141,74 @@ class TestAgglomeration(unittest.TestCase):
         self.assertTrue((g.get_segmentation()==self.results[i]).all(),
                         'No dam agglomeration failed.')
 
+
+
+def feature_profile(g, f, n1=1, n2=2):
+    out = []
+    out.append(copy(g[n1][n2]['feature-cache']))
+    out.append(copy(g.node[n1]['feature-cache']))
+    out.append(copy(g.node[n2]['feature-cache']))
+    out.append(f(g,n1,n2))
+    out.append(f(g,n1))
+    out.append(f(g,n2))
+    return out
+
+def list_of_feature_arrays(g, f, edges=[(1,2)], merges=[]):
+    e1, edges = edges[0], edges[1:]
+    out = feature_profile(g, f, *e1)
+    for edge, merge in zip(edges, merges):
+        g.merge_nodes(*merge)
+        out.extend(feature_profile(g, f, *edge))
+    return out
+
+def equal_lists_or_arrays(a1, a2, eps=1e-15):
+    """Return True if ls1 and ls2 are arrays equal within eps or equal lists.
+    
+    The equality relationship can be nested. For example, lists of lists of 
+    arrays that have identical structure will match.
+    """
+    if type(a1) == list and type(a2) == list:
+        return all([equal_lists_or_arrays(i1, i2, eps) for i1, i2 in zip(a1,a2)])
+    elif type(a1) == numpy.ndarray and type(a2) == numpy.ndarray:
+        return (abs((a1-a2)) < eps).all()
+    elif type(a1) == float and type(a2) == float:
+        return abs((a1-a2)) < eps
+    else:
+        return a1 == a2
+
 class TestFeatures(unittest.TestCase):
     def setUp(self):
-        self.probs1 = imio.read_h5_stack(rundir+'/test-05-probabilities.h5')
+        self.probs2 = imio.read_h5_stack(rundir+'/test-05-probabilities.h5')
+        self.probs1 = self.probs2[...,0]
         self.wss1 = imio.read_h5_stack(rundir+'/test-05-watershed.h5')
-        self.probs2 = imio.read_h5_stack(rundir+'/test-05-probabilities-2c.h5')
         self.f1, self.f2, self.f3 = classify.MomentsFeatureManager(2), \
             classify.HistogramFeatureManager(3,compute_percentiles=[0.5]),\
             classify.SquigglinessFeatureManager(ndim=2)
         self.f4 = classify.CompositeFeatureManager(
                                             children=[self.f1,self.f2,self.f3])
 
+    def run_matched_test(self, f, fn, 
+                            edges=[(1,2),(1,3),(1,4)], merges=[(1,2),(1,3)]):
+        g = agglo.Rag(self.wss1, self.probs1, feature_manager=f)
+        o = list_of_feature_arrays(g, f, edges, merges)
+        r = pck.load(open(fn, 'r'))
+        self.assertTrue(equal_lists_or_arrays(o, r))
+
     def test_1channel_moment_features(self):
-        eps = 1e-15
-        f1 = self.f1
-        g1 = agglo.Rag(self.wss1, self.probs1, feature_manager=f1)
-        fc = g1[1][2]['feature-cache']
-        self.assertTrue(len(fc)==3, 'MomentsFeatureManager cache len is wrong.')
-        self.assertTrue((fc==numpy.array([3,2.7,2.45])).all(), 
-                        'Boundary moments cache is wrong: %s'%fc[0])
-        fc = g1.node[1]['feature-cache']
-        self.assertTrue((fc==numpy.array([5,0.5,0.07])).all(),
-                        'Node moments cache is wrong: %s'%fc[0])
-        f = f1(g1, 1, 2)
-        self.assertTrue(abs((f-numpy.array(
-            [4,0.4,0.01,5,0.1,0.004,3,0.9,0.02/3])).sum()) < eps,
-            'Moments feature vector is wrong: %s'%f)
-        self.assertTrue((f1(g1, 1, 2)[3:6] == f1(g1, 1)).all())
+        f = self.f1
+        self.run_matched_test(f, 'test/test-05-moments-1channel-12-13.pck')
+
+    def test_1channel_histogram_features(self):
+        f = self.f2
+        self.run_matched_test(f, 'test/test-05-histogram-1channel-12-13.pck')
+
+    def test_1_channel_squiggliness_feature(self):
+        f = self.f3
+        self.run_matched_test(f, 'test/test-05-squiggle-1channel-12-13.pck')
+
+    def test_1_channel_composite_feature(self):
+        f = self.f4
+        self.run_matched_test(f, 'test/test-05-composite-1channel-12-13.pck')
 
 
 if __name__ == '__main__':
