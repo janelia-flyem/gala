@@ -349,7 +349,7 @@ class CompositeFeatureManager(NullFeatureManager):
     
     def update_edge_cache(self, g, e1, e2, dst, src):
         for i, child in enumerate(self.children):
-            child.update_node_cache(g, e1, e2, dst[i], src[i])
+            child.update_edge_cache(g, e1, e2, dst[i], src[i])
     
     def pixelwise_update_node_cache(self, g, n, dst, idxs, remove=False):
         for i, child in enumerate(self.children):
