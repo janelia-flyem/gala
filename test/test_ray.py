@@ -8,7 +8,7 @@ from copy import deepcopy as copy
 import numpy
 from scipy.ndimage.measurements import label
 
-rundir = os.path.dirname(os.path.realpath(sys.argv[0]))
+rundir = os.path.dirname(__file__)
 sys.path.append(rundir)
 
 import imio, morpho, agglo, classify
@@ -187,9 +187,11 @@ class TestFeatures(unittest.TestCase):
         self.f4 = classify.CompositeFeatureManager(
                                             children=[self.f1,self.f2,self.f3])
 
-    def run_matched_test(self, f, fn, 
+    def run_matched_test(self, f, fn, c=1,
                             edges=[(1,2),(1,3),(1,4)], merges=[(1,2),(1,3)]):
-        g = agglo.Rag(self.wss1, self.probs1, feature_manager=f)
+        if c == 1: p = self.probs1
+        else: p = self.probs2
+        g = agglo.Rag(self.wss1, p, feature_manager=f)
         o = list_of_feature_arrays(g, f, edges, merges)
         r = pck.load(open(fn, 'r'))
         self.assertTrue(equal_lists_or_arrays(o, r))
@@ -198,17 +200,29 @@ class TestFeatures(unittest.TestCase):
         f = self.f1
         self.run_matched_test(f, 'test/test-05-moments-1channel-12-13.pck')
 
+    def test_2channel_moment_features(self):
+        f = self.f1
+        self.run_matched_test(f, 'test/test-05-moments-2channel-12-13.pck', 2)
+
     def test_1channel_histogram_features(self):
         f = self.f2
         self.run_matched_test(f, 'test/test-05-histogram-1channel-12-13.pck')
 
-    def test_1_channel_squiggliness_feature(self):
+    def test_2channel_histogram_features(self):
+        f = self.f2
+        self.run_matched_test(f, 'test/test-05-histogram-2channel-12-13.pck', 2)
+
+    def test_1channel_squiggliness_feature(self):
         f = self.f3
         self.run_matched_test(f, 'test/test-05-squiggle-1channel-12-13.pck')
 
-    def test_1_channel_composite_feature(self):
+    def test_1channel_composite_feature(self):
         f = self.f4
         self.run_matched_test(f, 'test/test-05-composite-1channel-12-13.pck')
+
+    def test_2channel_composite_feature(self):
+        f = self.f4
+        self.run_matched_test(f, 'test/test-05-composite-2channel-12-13.pck', 2)
 
 
 if __name__ == '__main__':
