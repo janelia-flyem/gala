@@ -84,7 +84,7 @@ class TestMorphologicalOperations(unittest.TestCase):
 
 class TestAgglomeration(unittest.TestCase):
     def setUp(self):
-        test_idxs = range(1,6)
+        test_idxs = range(1,5)
         self.num_tests = len(test_idxs)
         pfns = [rundir+'/test-%02i-probabilities.h5'%i for i in test_idxs]
         wsfns = [rundir+'/test-%02i-watershed.h5'%i for i in test_idxs]
@@ -139,25 +139,33 @@ class TestAgglomeration(unittest.TestCase):
         self.assertTrue((g.get_segmentation()==self.results[i]).all(),
                         'No dam agglomeration failed.')
 
-    def test_1channel_prob_features(self):
-        i = 4
+class TestFeatures(unittest.TestCase):
+    def setUp(self):
+        self.probs1 = imio.read_h5_stack(rundir+'/test-05-probabilities.h5')
+        self.wss1 = imio.read_h5_stack(rundir+'/test-05-watershed.h5')
+        self.probs2 = imio.read_h5_stack(rundir+'/test-05-probabilities-2c.h5')
+        self.f1, self.f2, self.f3 = classify.MomentsFeatureManager(2), \
+            classify.HistogramFeatureManager(3,compute_percentiles=[0.5]),\
+            classify.SquigglinessFeatureManager(ndim=2)
+        self.f4 = classify.CompositeFeatureManager(
+                                            children=[self.f1,self.f2,self.f3])
+
+    def test_1channel_moment_features(self):
         eps = 1e-15
-        f1, f2, f3 = classify.MomentsFeatureManager(0,2), \
-            classify.HistogramFeatureManager(0,3,compute_percentiles=[0.5]),\
-            classify.SquigglinessFeatureManager()
-        f4 = classify.CompositeFeatureManager(children=[f1,f2,f3])
-        g1 = agglo.Rag(self.wss[i], self.probs[i], feature_manager=f1)
+        f1 = self.f1
+        g1 = agglo.Rag(self.wss1, self.probs1, feature_manager=f1)
         fc = g1[1][2]['feature-cache']
-        self.assertTrue(len(fc)==1, 'MomentsFeatureManager cache len is wrong.')
-        self.assertTrue((fc[0]==numpy.array([3,2.7,2.45])).all(), 
+        self.assertTrue(len(fc)==3, 'MomentsFeatureManager cache len is wrong.')
+        self.assertTrue((fc==numpy.array([3,2.7,2.45])).all(), 
                         'Boundary moments cache is wrong: %s'%fc[0])
         fc = g1.node[1]['feature-cache']
-        self.assertTrue((fc[0]==numpy.array([5,0.5,0.07])).all(),
+        self.assertTrue((fc==numpy.array([5,0.5,0.07])).all(),
                         'Node moments cache is wrong: %s'%fc[0])
         f = f1(g1, 1, 2)
         self.assertTrue(abs((f-numpy.array(
             [4,0.4,0.01,5,0.1,0.004,3,0.9,0.02/3])).sum()) < eps,
             'Moments feature vector is wrong: %s'%f)
+        self.assertTrue((f1(g1, 1, 2)[3:6] == f1(g1, 1)).all())
 
 
 if __name__ == '__main__':

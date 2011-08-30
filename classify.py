@@ -227,7 +227,10 @@ class HistogramFeatureManager(NullFeatureManager):
         a = -1.0 if remove else 1.0
         dst += a * self.histogram(g.probabilities_r[idxs])
 
-    def KL_divergence(self,p,q):
+    def JS_divergence(self, p, q):
+        m = (p+q)/2
+        return (self.KL_divergence(p, m) + self.KL_divergence(q, m))/2
+    def KL_divergence(self, p, q):
         """Return the Kullback-Leibler Divergence between two histograms."""
         kl = []
         if p.ndim == 1: 
@@ -265,10 +268,7 @@ class HistogramFeatureManager(NullFeatureManager):
             cache2 = g.node[n2][self.default_cache]
         h2, _ = self.normalized_histogram_from_cache(cache2, 
                                                     self.compute_percentiles)
-        kl1 = self.KL_divergence(h1, h2)
-        kl2 = self.KL_divergence(h2, h1)
-        js = 0.5*(kl1 + kl2)
-        return js
+        return self.JS_divergence(h1, h2)
 
           
 
