@@ -180,6 +180,9 @@ class Rag(Graph):
         return morpho.get_neighbor_idxs(self.watershed, idxs, connectivity)
 
     def set_probabilities(self, probs=array([]), normalize=True):
+        if len(probs == 0):
+            self.probabilities = zeros_like(self.watershed)
+            self.probabilities_r = self.probabilities.ravel()
         probs = probs.astype(double)
         if normalize and len(probs) > 1:
             probs -= probs.min() # ensure probs.min() == 0
