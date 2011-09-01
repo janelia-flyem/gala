@@ -94,7 +94,7 @@ def read_image_stack(fn, *args, **kwargs):
         stack = read_h5_stack(join_path(d,fn), *args, **kwargs)
     return squeeze(stack)
 
-def read_image_stack_single_arg(fn):
+def single_arg_read_image_stack(fn):
     """Read an image stack and print exceptions as they occur.
     
     argparse.ArgumentParser() subsumes exceptions when they occur in the 

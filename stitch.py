@@ -8,7 +8,7 @@ from morpho import juicy_center
 from numpy import zeros, bool, hstack, vstack, newaxis, array, savetxt
 from scipy.ndimage.filters import median_filter, gaussian_filter
 from scipy.ndimage.measurements import label
-from ray import read_image_stack_single_arg
+from ray import single_arg_read_image_stack
 
 class EvalAction(argparse.Action):
     def __call__(parser, namespace, values, option_string=None):
@@ -50,7 +50,7 @@ if __name__ == '__main__':
         help='Specify a crop in the first and second array dimensions.'
     )
     parser.add_argument('-w', '--watershed', metavar='WS_FN',
-        type=read_image_stack_single_arg,
+        type=single_arg_read_image_stack,
         help='Use a precomputed watershed volume from file.'
     )
     parser.add_argument('-t', '--thresholds', nargs='+', default=[128],
