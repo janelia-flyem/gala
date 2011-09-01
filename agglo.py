@@ -109,15 +109,15 @@ class Rag(Graph):
         self.merge_queue = MergeQueue()
 
     def __copy__(self):
-        f = self.neighbor_idxs
-        del self.neighbor_idxs
+        f = self.neighbor_idxs; del self.neighbor_idxs
+        pr_shape = self.probabilities_r.shape
         g = super(Rag, self).copy()
         g.neighbor_idxs = f
         self.neighbor_idxs = f
         g.watershed_r = g.watershed.ravel()
         g.segmentation_r = g.segmentation.ravel()
         g.ucm_r = g.ucm.ravel()
-        g.probabilities_r = g.probabilities.ravel()
+        g.probabilities_r = g.probabilities.reshape(pr_shape)
         return g
 
     def copy(self):
@@ -350,18 +350,16 @@ class Rag(Graph):
             g.merge_node_list(cc)
         return g.get_segmentation()
 
-    def learn_agglomerate(self, gts, feature_map_function, *args, **kwargs):
+    def learn_agglomerate(self, gts, feature_map_function, min_num_samples=1,
+                                                *args, **kwargs):
         """Agglomerate while comparing to ground truth & classifying merges."""
         # Compute data for all ground truths
         if type(gts) != list:
             gts = [gts] # allow using single ground truth as input
-        gtg = []
         cnt = []
         assignment = []
         for gt in gts:
-            gtg.append(Rag(gt))
-            cnt.append(contingency_table(self.get_segmentation(), 
-                                        gtg[-1].get_segmentation()))
+            cnt.append(contingency_table(self.get_segmentation(), gt))
             assignment.append(cnt[-1] == cnt[-1].max(axis=1)[:,newaxis])
         hard_assignment = reduce(
             intersect1d, [where(a.sum(axis=1) > 1)[0] for a in assignment])
@@ -369,46 +367,49 @@ class Rag(Graph):
         # with the 0-label in gt, or that have equal amounts of overlap between
         # two other labels
         # to be a hard assigment, must be hard in all ground truth segmentations
-        if self.merge_queue.is_empty(): self.rebuild_merge_queue()
         features, labels, weights, history = [], [], [], []
-        while len(self.merge_queue) > 0:
-            merge_priority, valid, n1, n2 = self.merge_queue.pop()
-            if valid:
-                features.append(feature_map_function(self, n1, n2).ravel())
-                if n2 in hard_assignment:
-                    n1, n2 = n2, n1
-                # Calculate weights for weighting data points
-                history.append([n1, n2])
-                s1, s2 = [len(self.node[n]['extent']) for n in [n1, n2]]
-                weights.append(
-                    (compute_local_voi_change(s1, s2, self.volume_size),
-                    compute_local_rand_change(s1, s2, self.volume_size))
-                )
+        while len(features) < min_num_samples:
+            g = self.copy()
+            if g.merge_queue.is_empty(): g.rebuild_merge_queue()
+            while len(g.merge_queue) > 0:
+                merge_priority, valid, n1, n2 = g.merge_queue.pop()
+                if valid:
+                    features.append(feature_map_function(g, n1, n2).ravel())
+                    if n2 in hard_assignment:
+                        n1, n2 = n2, n1
+                    # Calculate weights for weighting data points
+                    history.append([n1, n2])
+                    s1, s2 = [len(g.node[n]['extent']) for n in [n1, n2]]
+                    weights.append(
+                        (compute_local_voi_change(s1, s2, g.volume_size),
+                        compute_local_rand_change(s1, s2, g.volume_size))
+                    )
 
-                # If n1 is a hard assignment and one of the segments it's
-                # assigned to is n2 in some ground truth
-                if n1 in hard_assignment and \
+                    # If n1 is a hard assignment and one of the segments it's
+                    # assigned to is n2 in some ground truth
+                    if False and n1 in hard_assignment and \
                         any([(a[n1,:] * a[n2,:]).any() for a in assignment]):
-                    m = boundary_mean(self, n1, n2)
-                    ms = [boundary_mean(self, n1, n) for n in 
-                                                            self.neighbors(n1)]
-                    # Only merge them if n1's boundary mean is minimum for n2
-                    if m == min(ms):
-                        self.merge_nodes(n2, n1)
-                        labels.append(-1)
+                        m = boundary_mean(g, n1, n2)
+                        ms = [boundary_mean(g, n1, n) for n in 
+                                                            g.neighbors(n1)]
+                        # Only merge them if n1 boundary mean is minimum for n2
+                        if m == min(ms):
+                            g.merge_nodes(n2, n1)
+                            labels.append(-1)
+                        else:
+                            _ = features.pop() # remove last item
+                            _ = history.pop()
+                            _ = weights.pop()
                     else:
-                        _ = features.pop() # remove last item
-                        _ = history.pop()
-                        _ = weights.pop()
-                else:
-                    # Get the fraction of times that n1 and n2 are assigned to 
-                    # the same segment in the ground truths
-                    together = [(a[n1,:]==a[n2,:]).all() for a in assignment]
-                    if sum(together)/float(len(together)) > 0.5:
-                        self.merge_nodes(n1, n2)
-                        labels.append(-1)
-                    else:
-                        labels.append(1)
+                        # Get the fraction of times that n1 and n2 assigned to 
+                        # same segment in the ground truths
+                        together = [(a[n1,:]==a[n2,:]).all() 
+                                                        for a in assignment]
+                        if sum(together)/float(len(together)) > 0.5:
+                            g.merge_nodes(n1, n2)
+                            labels.append(-1)
+                        else:
+                            labels.append(1)
         return array(features).astype(double), array(labels), array(weights), \
                                             array(history)
 
