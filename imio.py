@@ -1,14 +1,19 @@
 
 import os
 import argparse
+import re
+from os.path import split as split_path, join as join_path
+from fnmatch import filter as fnfilter
 
 import h5py, Image, numpy
 
-from fnmatch import filter as fnfilter
-from os.path import split as split_path, join as join_path
 from numpy import array, asarray, uint8, uint16, uint32, zeros, squeeze, \
     fromstring, ndim
 import numpy as np
+try:
+    from numpy import imread
+except ImportError:
+    from matplotlib.pyplot import imread
 
 arguments = argparse.ArgumentParser(add_help=False)
 arggroup = arguments.add_argument_group('Image IO options')
@@ -20,13 +25,33 @@ arggroup.add_argument('-m', '--median-filter', action='store_true',
     default=False, help='Run a median filter on the input image.'
 )
 
+def tryint(s):
+    try:
+        return int(s)
+    except ValueError:
+        return s
+
+def alphanumeric_key(s):
+    """Turn a string into a list of string and number chunks.
+
+    "z23a" --> ["z", 23, "a"]
+
+    Copied from 
+    http://stackoverflow.com/questions/4623446/how-do-you-sort-files-numerically/4623518#4623518
+    on 2011-09-01
+    """
+    return [tryint(c) for c in re.split('([0-9]+)', s)]
+
+supported_image_extensions = ['png', 'tif', 'jpg']
+
 def read_image_stack(fn, *args, **kwargs):
-    """Read a 3D volume of images in .png or .h5 format into a numpy.ndarray.
+    """Read a 3D volume of images in image or .h5 format into a numpy.ndarray.
 
     The format is automatically detected from the (first) filename.
 
     A 'crop' keyword argument is supported, as a list of 
-    [xmax, xmin, ymax, ymin, zmax, zmin].
+    [xmax, xmin, ymax, ymin, zmax, zmin]. Use 'None' for no crop in that 
+    coordinate.
 
     If reading in .h5 format, keyword arguments are passed through to
     read_h5_stack().
@@ -40,24 +65,33 @@ def read_image_stack(fn, *args, **kwargs):
     else:
         crop = [None,None,None,None,None,None]
         kwargs['crop'] = crop
-    if fn.endswith('.png'):
+    if fn[-3:] in supported_image_extensions:
         xmin, xmax, ymin, ymax, zmin, zmax = crop
-        if len(args) > 0 and type(args[0]) == str and args[0].endswith('png'):
+        if len(args) > 0 and type(args[0]) == str and \
+                                                    args[0].endswith(fn[-3:]):
+            # input is a list of filenames
             fns = [fn] + [split_path(f)[1] for f in args]
         else:
+            # input is a filename pattern to match
             fns = fnfilter(os.listdir(d), fn)
-        fns.sort()
+        fns.sort(key=alphanumeric_key) # sort filenames numerically
         fns = fns[zmin:zmax]
-        ims = (Image.open(join_path(d,fn)) for fn in fns)
-        ars = (asarray(im) for im in ims)
-        w, h = asarray(Image.open(join_path(d,fns[0])))\
-                                                [xmin:xmax,ymin:ymax].shape
-        dtype = asarray(Image.open(join_path(d,fns[0]))).dtype
-        stack = zeros([w,h,len(fns)], dtype)
+        try:
+            im0 = imread(join_path(d,fns[0]))
+            ars = (imread(join_path(d,fn)) for fn in fns)
+        except RuntimeError: # 'Unknown image mode' error for certain .tifs
+            im0 = Image.open(join_path(d,fns[0]))
+            im0 = array(im0.getdata()).reshape((im0.size[1], im0.size[0], -1))
+            ims = (Image.open(join_path(d,fn)) for fn in fns)
+            ars = (array(im.getdata()).reshape((im.size[1], im.size[0], -1))
+                                                                for im in ims)
+        w, h = im0[xmin:xmax,ymin:ymax].shape[:2]
+        dtype = im0.dtype
+        stack = zeros(im0.shape+(len(fns),), dtype)
         for i, im in enumerate(ars):
-            stack[:,:,i] = im[xmin:xmax,ymin:ymax]
+            stack[...,i] = im[xmin:xmax,ymin:ymax]
     if fn.endswith('.h5'):
-        stack = read_h5_stack('/'.join([d,fn]), *args, **kwargs)
+        stack = read_h5_stack(join_path(d,fn), *args, **kwargs)
     return squeeze(stack)
 
 def read_image_stack_single_arg(fn):
