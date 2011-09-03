@@ -370,7 +370,7 @@ class Rag(Graph):
         features, labels, weights, history = [], [], [], []
         while len(features) < min_num_samples:
             g = self.copy()
-            if g.merge_queue.is_empty(): g.rebuild_merge_queue()
+            g.rebuild_merge_queue()
             while len(g.merge_queue) > 0:
                 merge_priority, valid, n1, n2 = g.merge_queue.pop()
                 if valid:
