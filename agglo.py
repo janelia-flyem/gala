@@ -2,6 +2,7 @@
 from itertools import combinations, izip, repeat, product
 import argparse
 import random
+import sys
 
 # libraries
 import matplotlib.pyplot as plt
@@ -109,15 +110,22 @@ class Rag(Graph):
         self.merge_queue = MergeQueue()
 
     def __copy__(self):
-        f = self.neighbor_idxs; del self.neighbor_idxs
+        if sys.version_info[:2] < (2,7):
+            # Python versions prior to 2.7 don't handle deepcopy of function
+            # objects well. Thus, keep a reference and remove from Rag object
+            f = self.neighbor_idxs; del self.neighbor_idxs
+            F = self.feature_manager; del self.feature_manager
         pr_shape = self.probabilities_r.shape
         g = super(Rag, self).copy()
-        g.neighbor_idxs = f
-        self.neighbor_idxs = f
         g.watershed_r = g.watershed.ravel()
         g.segmentation_r = g.segmentation.ravel()
         g.ucm_r = g.ucm.ravel()
         g.probabilities_r = g.probabilities.reshape(pr_shape)
+        if sys.version_info[:2] < (2,7):
+            g.neighbor_idxs = f
+            self.neighbor_idxs = f
+            g.feature_manager = F
+            self.feature_manager = F
         return g
 
     def copy(self):
