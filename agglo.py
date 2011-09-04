@@ -370,6 +370,8 @@ class Rag(Graph):
         features, labels, weights, history = [], [], [], []
         while len(features) < min_num_samples:
             g = self.copy()
+            g.show_progress = False # bug in MergeQueue usage causes
+                                    # progressbar crash.
             g.rebuild_merge_queue()
             while len(g.merge_queue) > 0:
                 merge_priority, valid, n1, n2 = g.merge_queue.pop()
