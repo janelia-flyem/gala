@@ -66,7 +66,7 @@ def inspect_segs_3D(*args, **kwargs):
     return fig
 
 def plot_voi(a, history, gt, fig=None):
-    """ Plot the voi from segmentations based on a Rag and a sequence of merges. """
+    """Plot the voi from segmentations based on Rag and sequence of merges."""
     v = []
     n = []
     seg = a.get_segmentation()
@@ -84,13 +84,13 @@ def plot_voi_parts(seg, gt, ignore_seg_labels=[], ignore_gt_labels=[], hyperboli
     """Given a segmentation and ground truth, plot the size of segments versus the conditional entropy."""
     plt.ion()
     pxy,px,py,hxgy,hygx,lpygx,lpxgy = evaluate.voi_tables(seg,gt,
-	ignore_seg_labels=ignore_seg_labels,ignore_gt_labels=ignore_gt_labels)
+        ignore_seg_labels=ignore_seg_labels,ignore_gt_labels=ignore_gt_labels)
     plt.figure()
     plt.subplot(1,2,1)
     # Plot hyperbolic lines
     x = scipy.arange(max(min(px),1e-10), max(px), (max(px)-min(px))/100.0)
     for val in hyperbolic_lines:
-	plt.plot(x, val/x, 'k') 
+        plt.plot(x, val/x, 'k') 
     plt.scatter(px, -lpygx, c=-px*lpygx)
     af1 = AnnoteFinder(px, -lpygx, [str(i) for i in range(len(px))], xtol=10, ytol=10, xmin=0, ymin=0, xmax = max(px), ymax=max(-lpygx))
     plt.connect('button_press_event', af1)
@@ -102,7 +102,7 @@ def plot_voi_parts(seg, gt, ignore_seg_labels=[], ignore_gt_labels=[], hyperboli
     plt.subplot(1,2,2)
     # Plot hyperbolic lines
     for val in hyperbolic_lines:
-	plt.plot(x, val/x, 'k') 
+        plt.plot(x, val/x, 'k') 
     plt.scatter(py,-lpxgy, c=-py*lpxgy)
     af2 = AnnoteFinder(py, -lpxgy, [str(i) for i in range(len(py))], xtol=10, ytol=10, xmin=0, ymin=0, xmax=max(py), ymax=max(-lpxgy))
     plt.connect('button_press_event', af2)
