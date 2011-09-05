@@ -80,34 +80,41 @@ def plot_voi(a, history, gt, fig=None):
     plt.xlabel('Number of segments', figure = fig)
     plt.ylabel('VOI', figure = fig)
 
-def plot_voi_parts(seg, gt, ignore_seg_labels=[], ignore_gt_labels=[], hyperbolic_lines = scipy.arange(1e-5,1e-1,7e-3)):
-    """Given a segmentation and ground truth, plot the size of segments versus the conditional entropy."""
+def plot_voi_breakdown_panel(px, h, title, xlab, ylab, hlines):
+    x = scipy.arange(max(min(px),1e-10), max(px), (max(px)-min(px))/100.0)
+    for val in hlines:
+        plt.plot(x, val/x, 'g:') 
+    plt.scatter(px, h, c=px*h)
+    af = AnnoteFinder(px, h, [str(i) for i in range(len(px))], 
+        xtol=10, ytol=10, xmin=-0.05*max(px), ymin=-0.05*max(px), 
+        xmax = 1.05*max(px), ymax=1.05*max(h))
+    plt.connect('button_press_event', af)
+    plt.xlim(xmin=-0.05*max(px), xmax=1.05*max(px))
+    plt.ylim(ymin=-0.05*max(h), ymax=1.05*max(h))
+    plt.xlabel(xlab)
+    plt.ylabel(ylab)
+    plt.title(title)
+
+
+def plot_voi_breakdown(seg, gt, ignore_seg=[], ignore_gt=[], hlines=None):
+    """Plot conditional entropy H(Y|X) vs P(X) for both seg|gt and gt|seg."""
     plt.ion()
     pxy,px,py,hxgy,hygx,lpygx,lpxgy = evaluate.voi_tables(seg,gt,
-        ignore_seg_labels=ignore_seg_labels,ignore_gt_labels=ignore_gt_labels)
+            ignore_seg_labels=ignore_seg, ignore_gt_labels=ignore_gt)
+    cu = -px*lpygx
+    co = -py*lpxgy
+    if hlines is None:
+        hlines = []
+    elif hlines == True:
+        hlines = 10
+    if type(hlines) == int:
+        minc = min(cu[cu!=0].min(), co[co!=0].min())
+        maxc = max(cu[cu!=0].max(), co[co!=0].max())
+        hlines = np.arange(maxc/hlines, maxc, maxc/hlines)
     plt.figure()
     plt.subplot(1,2,1)
-    # Plot hyperbolic lines
-    x = scipy.arange(max(min(px),1e-10), max(px), (max(px)-min(px))/100.0)
-    for val in hyperbolic_lines:
-        plt.plot(x, val/x, 'k') 
-    plt.scatter(px, -lpygx, c=-px*lpygx)
-    af1 = AnnoteFinder(px, -lpygx, [str(i) for i in range(len(px))], xtol=10, ytol=10, xmin=0, ymin=0, xmax = max(px), ymax=max(-lpygx))
-    plt.connect('button_press_event', af1)
-    plt.xlim(xmin=0, xmax=max(px))
-    plt.ylim(ymin=0, ymax=max(-lpygx))
-    plt.xlabel('p(seg)')
-    plt.ylabel('H(GT|SEG=seg)')
-    plt.title('Undersegmentation')
+    plot_voi_breakdown_panel(px, -lpygx, 
+                        'Undersegmentation', 'p(S=seg)', 'H(G|S=seg)', hlines)
     plt.subplot(1,2,2)
-    # Plot hyperbolic lines
-    for val in hyperbolic_lines:
-        plt.plot(x, val/x, 'k') 
-    plt.scatter(py,-lpxgy, c=-py*lpxgy)
-    af2 = AnnoteFinder(py, -lpxgy, [str(i) for i in range(len(py))], xtol=10, ytol=10, xmin=0, ymin=0, xmax=max(py), ymax=max(-lpxgy))
-    plt.connect('button_press_event', af2)
-    plt.xlim(xmin=0, xmax=max(py))
-    plt.ylim(ymin=0, ymax=max(-lpxgy))
-    plt.xlabel('p(gt)')
-    plt.ylabel('H(SEG|GT=gt)')
-    plt.title('Oversegmentation')
+    plot_voi_breakdown_panel(py, -lpxgy, 
+                            'Oversegmentation', 'p(G=gt)', 'H(S|G=gt)', hlines)
