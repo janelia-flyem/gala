@@ -505,6 +505,14 @@ class RandomForest(object):
         for attr in attrs:
             setattr(self, attr, array(f[attr]))
 
+def save_training_data_to_disk(data, fn, names=None, info='N/A'):
+    if names is None:
+        names = ['features', 'labels', 'weights', 'history']
+    fout = h5py.File(fn, 'w')
+    for data_elem, name in zip(data, names):
+        fout[name] = data_elem
+    fout.attrs['info'] = info
+    fout.close()
 
 def boundary_overlap_threshold(boundary_idxs, gt, tol_false, tol_true):
     """Return -1, 0 or 1 by thresholding overlaps between boundaries."""
