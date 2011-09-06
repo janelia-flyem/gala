@@ -514,6 +514,15 @@ def save_training_data_to_disk(data, fn, names=None, info='N/A'):
     fout.attrs['info'] = info
     fout.close()
 
+def load_training_data_from_disk(fn, names=None, info='N/A'):
+    if names is None:
+        names = ['features', 'labels', 'weights', 'history']
+    fin = h5py.File(fn, 'r')
+    data = []
+    for name in names:
+        data.append(array(fin[name]))
+    return data
+
 def boundary_overlap_threshold(boundary_idxs, gt, tol_false, tol_true):
     """Return -1, 0 or 1 by thresholding overlaps between boundaries."""
     n = len(boundary_idxs)
