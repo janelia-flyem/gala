@@ -170,11 +170,14 @@ def equal_lists_or_arrays(a1, a2, eps=1e-15):
     if type(a1) == list and type(a2) == list:
         return all([equal_lists_or_arrays(i1, i2, eps) for i1, i2 in zip(a1,a2)])
     elif type(a1) == numpy.ndarray and type(a2) == numpy.ndarray:
-        return (abs((a1-a2)) < eps).all()
+        return len(a1) == len(a2) and (abs((a1-a2)) < eps).all()
     elif type(a1) == float and type(a2) == float:
         return abs((a1-a2)) < eps
     else:
-        return a1 == a2
+        try:
+            return a1 == a2
+        except ValueError:
+            return False
 
 class TestFeatures(unittest.TestCase):
     def setUp(self):
