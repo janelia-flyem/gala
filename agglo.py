@@ -4,7 +4,7 @@ import argparse
 import random
 
 # libraries
-import matplotlib.pyplot as plt
+#import matplotlib.pyplot as plt
 from numpy import array, mean, zeros, zeros_like, uint8, int8, where, unique, \
     finfo, size, double, transpose, newaxis, uint32, nonzero, median, exp, \
     log2, float, ones, arange, inf, flatnonzero, intersect1d, dtype, squeeze, \
@@ -180,7 +180,7 @@ class Rag(Graph):
         return morpho.get_neighbor_idxs(self.watershed, idxs, connectivity)
 
     def set_probabilities(self, probs=array([]), normalize=True):
-        if len(probs == 0):
+        if len(probs) == 0:
             self.probabilities = zeros_like(self.watershed)
             self.probabilities_r = self.probabilities.ravel()
         probs = probs.astype(double)
@@ -622,7 +622,7 @@ class Rag(Graph):
     def build_boundary_map(self, ebunch=None):
         if len(self.merge_queue) == 0:
             self.rebuild_merge_queue()
-        m = zeros(self.probabilities.shape, double)
+        m = zeros(self.watershed.shape, double)
         mr = m.ravel()
         if ebunch is None:
             ebunch = self.edges_iter()
@@ -811,13 +811,12 @@ def random_priority(g, n1, n2):
 
 def best_possible_segmentation(ws, gt):
     """Build the best possible segmentation given a superpixel map."""
-    ws = Rag(ws)
-    gt = Rag(gt)
-    cnt = contingency_table(ws.get_segmentation(), gt.get_segmentation())
+    cnt = contingency_table(ws, gt)
     assignment = cnt == cnt.max(axis=1)[:,newaxis]
     hard_assignment = where(assignment.sum(axis=1) > 1)[0]
     # currently ignoring hard assignment nodes
     assignment[hard_assignment,:] = 0
+    ws = Rag(ws)
     for gt_node in range(1,cnt.shape[1]):
         ws.merge_node_list(where(assignment[:,gt_node])[0])
     return ws.get_segmentation()
