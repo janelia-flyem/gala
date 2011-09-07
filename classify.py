@@ -123,6 +123,23 @@ class MomentsFeatureManager(NullFeatureManager):
             cache = g[n1][n2][self.default_cache]
         return central_moments_from_noncentral_sums(cache).ravel()
 
+    def compute_difference_features(self,g, n1, n2, cache1=None, cache2=None, nthroot=False):
+        if cache1 is None:
+            cache1 = g.node[n1][self.default_cache]
+        m1 = central_moments_from_noncentral_sums(cache1)
+
+        if cache2 is None:
+            cache2 = g.node[n2][self.default_cache]
+        m2 = central_moments_from_noncentral_sums(cache2)
+       
+        if m1.ndim==1:
+            m1 = m1[:,newaxis]
+            m2 = m2[:,newaxis]
+        if nthroot:
+            m1[2:] = sgn(m1[2:]) * (abs(m1[2:]) ** (1.0/arange(2, len(m1))))
+            m2[2:] = sgn(m2[2:]) * (abs(m2[2:]) ** (1.0/arange(2, len(m2))))
+        return abs(m1-m2).ravel()
+
 def central_moments_from_noncentral_sums(a):
     """Compute moments about the mean from sums of x**i, for i=0, ..., len(a).
 

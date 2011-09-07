@@ -8,22 +8,19 @@ class DecisionStump():
     """ Class for a decision stump, adapted from pyclassic. """
 
     def fit(self, X, Y, w):
-        self.X = X
-        self.Y = Y
-        self.weights = w
-
         feature_index, stump = train_decision_stump(X,Y,w)
         self.feature_index = feature_index
         self.stump = stump
-	return self	
+        return self	
 
     def predict(self,X):
+        if len(X.shape)==1:
+            X = numpy.array([X])
         N, d = X.shape
         feature_index = self.feature_index
         threshold = self.stump.threshold
         s = self.stump.s
-
-	return s*(2.0*(X[:,feature_index]>threshold).astype(numpy.uint8)-1)
+        return s*(2.0*(X[:,feature_index]>threshold).astype(numpy.uint8)-1)
 
 class Stump:
     """1D stump"""
@@ -59,6 +56,9 @@ def build_stump_1d(x,y,w):
     score2 = -score_left_neg[0:-1:1] + score_right_pos[-2::-1]
     # using idx will ensure that we don't split between nodes with identical x values
     idx = numpy.nonzero((xsorted[:-1] < xsorted[1:]).astype(numpy.uint8))[0]
+    if len(idx)==0:
+        return Stump(-numpy.inf, 0, 0)
+
     score = numpy.where(abs(score1)>abs(score2), score1, score2)
     ind = idx[numpy.argmax(abs(score[idx]))]
     maxscore = abs(score[ind])
