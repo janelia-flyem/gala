@@ -20,7 +20,7 @@ class DecisionTree():
         if len(X)<2 or len(unique(Y)) < 2 or curr_depth >= depth:
             tree.stump = 1.0 if abs(sum(yw[yw>=0]))>abs(sum(yw[yw<0])) else -1.0
             return tree
-       # TODO: cbeck for inconsistent data
+        # TODO: check for inconsistent data
 
         # Learn the decision stump
         stump = DecisionStump().fit(X,Y,w)
@@ -34,6 +34,9 @@ class DecisionTree():
         return tree
 
     def predict(self, X, curr_node=None):
+        if len(X.shape)==1:
+            X = array([X])
+        
         if curr_node is None:
             curr_node = self.head
 
@@ -44,8 +47,10 @@ class DecisionTree():
         side1 = curr_node.stump.predict(X)>=0
         side2 = curr_node.stump.predict(X)<0
         
-        pred[side1] = self.predict(X[side1], curr_node.left)
-        pred[side2] = self.predict(X[side2], curr_node.right)
+        if sum(side1)>0:
+            pred[side1] = self.predict(X[side1], curr_node.left)
+        if sum(side2)>0:
+            pred[side2] = self.predict(X[side2], curr_node.right)
 
         return pred
 
