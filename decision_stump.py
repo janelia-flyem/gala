@@ -15,10 +15,8 @@ class DecisionStump():
 
     def predict(self,X):
         if len(X.shape)==1:
-            N = X.shape[0]
-            d = 1
-        else:
-            N, d = X.shape
+            X = numpy.array([X])
+        N, d = X.shape
         feature_index = self.feature_index
         threshold = self.stump.threshold
         s = self.stump.s
