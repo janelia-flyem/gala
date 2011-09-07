@@ -27,11 +27,11 @@ arggroup.add_argument('-S', '--save-watershed', metavar='FILE',
     help='Write the watershed result to FILE (overwrites).'
 )
 arggroup.add_argument('-w', '--watershed', metavar='WS_FN',
-    type=imio.read_image_stack_single_arg,
+    type=imio.single_arg_read_image_stack,
     help='Use a precomputed watershed volume from file.'
 )
 arggroup.add_argument('--seed', metavar='FN', 
-    type=imio.read_image_stack_single_arg,
+    type=imio.single_arg_read_image_stack,
     help='''use the volume in FN to seed the watershed. By default, connected
         components of 0-valued pixels will be used as the seeds.'''
 )

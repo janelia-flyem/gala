@@ -8,8 +8,7 @@ from numpy import unique
 from scipy.ndimage.filters import median_filter
 
 # local modules
-from imio import read_image_stack, write_h5_stack, arguments as imioargs, \
-    read_image_stack_single_arg
+from imio import read_image_stack, write_h5_stack, arguments as imioargs
 from agglo import Rag, classifier_probability, boundary_mean, random_priority, \
     approximate_boundary_mean, arguments as aggloargs
 from morpho import watershed, juicy_center, arguments as morphoargs
