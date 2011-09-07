@@ -6,7 +6,7 @@ import operator
 import numpy
 
 # local modules
-from decision_stump import DecisionStump
+from decision_tree import DecisionTree
 from iterprogress import with_progress, NoProgressBar, StandardProgressBar
 
 class AdaBoost(object):
@@ -17,7 +17,7 @@ class AdaBoost(object):
         else:
             self.progressbar = NoProgressBar()
 
-    def fit(self, X, Y, w=None, w_asymmetric=None, T=100, **kwargs):
+    def fit(self, X, Y, w=None, w_asymmetric=None, depth=1, T=100, **kwargs):
         self.X = X.copy()
         self.Y = Y.copy()
         N = len(self.Y)
@@ -36,7 +36,7 @@ class AdaBoost(object):
         for t in with_progress(range(T), pbar=self.progressbar):
             # Apply asymmetric weights
             self.weights *= self.weights_asymmetric
-            weak_learner = DecisionStump().fit(self.X,self.Y,self.weights)
+            weak_learner = DecisionTree().fit(self.X,self.Y,self.weights, depth=depth)
             Y_pred = weak_learner.predict(self.X)
             e = sum(0.5*self.weights*abs(self.Y-Y_pred))/sum(self.weights)
             if e > 0.5:
