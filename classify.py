@@ -76,9 +76,10 @@ class NullFeatureManager(object):
     
 
 class MomentsFeatureManager(NullFeatureManager):
-    def __init__(self, nmoments=4, *args, **kwargs):
+    def __init__(self, nmoments=4, use_diff_features=True, *args, **kwargs):
         super(MomentsFeatureManager, self).__init__()
         self.nmoments = nmoments
+        self.use_diff_features = use_diff_features
 
     def __len__(self):
         return self.nmoments+1
@@ -123,7 +124,10 @@ class MomentsFeatureManager(NullFeatureManager):
             cache = g[n1][n2][self.default_cache]
         return central_moments_from_noncentral_sums(cache).ravel()
 
-    def compute_difference_features(self,g, n1, n2, cache1=None, cache2=None, nthroot=False):
+    def compute_difference_features(self,g, n1, n2, cache1=None, cache2=None,
+                                                            nthroot=False):
+        if not self.use_diff_features:
+            return array([])
         if cache1 is None:
             cache1 = g.node[n1][self.default_cache]
         m1 = central_moments_from_noncentral_sums(cache1)

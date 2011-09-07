@@ -181,7 +181,7 @@ class TestFeatures(unittest.TestCase):
         self.probs2 = imio.read_h5_stack(rundir+'/test-05-probabilities.h5')
         self.probs1 = self.probs2[...,0]
         self.wss1 = imio.read_h5_stack(rundir+'/test-05-watershed.h5')
-        self.f1, self.f2, self.f3 = classify.MomentsFeatureManager(2), \
+        self.f1, self.f2, self.f3 = classify.MomentsFeatureManager(2, False), \
             classify.HistogramFeatureManager(3,compute_percentiles=[0.5]),\
             classify.SquigglinessFeatureManager(ndim=2)
         self.f4 = classify.CompositeFeatureManager(
