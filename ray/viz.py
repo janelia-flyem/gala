@@ -132,14 +132,26 @@ def plot_voi_parts(*args, **kwargs):
     kwargs['subplot'] = True
     plot_voi_breakdown(*args, **kwargs)
 
-def plot_split_voi(ucm, gt, ignore_seg=[], ignore_gt=[], 
-                                                linespec='k-', npoints=100):
-    ts = np.unique(ucm)[1:]
-    if len(ts) > 2*npoints:
-        ts = ts[np.arange(1, len(ts), len(ts)/npoints)]
-    result = np.zeros((2,len(ts)))
-    for i, t in enumerate(ts):
-        seg = label(ucm<t)[0]
-        result[:,i] = evaluate.split_voi(seg, gt, None, ignore_seg, ignore_gt)
-    plt.plot(result[0], result[1], linespec)
-    return np.concatenate((ts[np.newaxis, :], result), 0)
+def plot_split_voi(ucms, gt, ignore_seg=[], ignore_gt=[], 
+                                                linespecs=['k-'], npoints=100):
+    if type(ucms) not in [list, tuple]:
+        ucms = [ucms]
+    if type(linespecs) not in [list, tuple]:
+        linespecs = [linespecs]
+    if len(linespecs) < len(ucms):
+        linespecs = cycle(linespecs)
+    results = []
+    for ucm, linespec in zip(ucms, linespecs):
+        ts = np.unique(ucm)[1:]
+        if len(ts) > 2*npoints:
+            ts = ts[np.arange(1, len(ts), len(ts)/npoints)]
+        result = np.zeros((2,len(ts)))
+        for i, t in enumerate(ts):
+            seg = label(ucm<t)[0]
+            result[:,i] = evaluate.split_voi(seg, gt, None, 
+                                                        ignore_seg, ignore_gt)
+        results.append(
+            (plt.plot(result[0], result[1], linespec),
+            np.concatenate((ts[np.newaxis, :], result), 0))
+        )
+    return results
