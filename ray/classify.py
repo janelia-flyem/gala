@@ -509,6 +509,10 @@ class RandomForest(object):
         for attr in attrs:
             setattr(self, attr, array(f[attr]))
 
+def read_rf_info(fn):
+    f = h5py.File(fn)
+    return map(array, [f['oob'], f['feature_importance']])
+
 def save_training_data_to_disk(data, fn, names=None, info='N/A'):
     if names is None:
         names = ['features', 'labels', 'weights', 'history']
