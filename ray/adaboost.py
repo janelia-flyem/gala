@@ -1,6 +1,7 @@
 # system modules
 import sys, math, random, logging
 import operator
+import cPickle
 
 # libraries
 import numpy
@@ -60,6 +61,25 @@ class AdaBoost(object):
     def predict_proba(self, X):
         p = 1.0/(1.0 + numpy.exp(-2.0*self.predict_score(X)))
         return numpy.concatenate((numpy.array([1.0-p]), numpy.array([p])), axis=0).T
+    
+    def save_to_disk(self, fn):
+        o = open(fn, 'w')
+        data = [self.X, self.Y, self.weights, self.weights_asymmetric,
+            self.alpha, self.weak_classifier_ensemble]
+        cPickle.dump(data, o, protocol=-1)
+        o.close()
+
+    def load_from_disk(self, fn):
+        o = open(fn, 'r')
+        data = cPickle.load(o)
+        o.close()
+        self.X = data[0]
+        self.Y = data[1]
+        self.weights = data[2]
+        self.weights_asymmetric = data[3]
+        self.alpha = data[4]
+        self.weak_classifier_ensemble = data[5]
+        
 
 def measure_accuracy(Y, o, threshold=0):
     oo = o.copy()
