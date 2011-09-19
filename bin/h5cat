@@ -18,7 +18,7 @@ if __name__ == '__main__':
     parser.add_argument('fin', help='The input HDF5 file.')
 
     args = parser.parse_args()
-    f = h5py.File(args.fin)
+    f = h5py.File(args.fin, 'r')
     if args.group is not None:
         groups = [args.group]
     else:
