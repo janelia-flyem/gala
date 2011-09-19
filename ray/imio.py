@@ -4,6 +4,7 @@ import argparse
 import re
 from os.path import split as split_path, join as join_path
 from fnmatch import filter as fnfilter
+import logging
 
 import h5py, Image, numpy
 
@@ -13,7 +14,12 @@ import numpy as np
 try:
     from numpy import imread
 except ImportError:
-    from matplotlib.pyplot import imread
+    try:
+        from matplotlib.pyplot import imread
+    except RuntimeError:
+        logging.warning('unable to load numpy.imread or matplotlib.imread')
+        def imread(*args, **kwargs):
+            raise RuntimeError('Function imread not imported.')
 
 arguments = argparse.ArgumentParser(add_help=False)
 arggroup = arguments.add_argument_group('Image IO options')
@@ -56,7 +62,7 @@ def read_image_stack(fn, *args, **kwargs):
     If reading in .h5 format, keyword arguments are passed through to
     read_h5_stack().
     """
-    d, fn = split_path(fn)
+    d, fn = split_path(os.path.expanduser(fn))
     if len(d) == 0: d = '.'
     if kwargs.has_key('crop'):
         crop = kwargs['crop']
@@ -114,6 +120,7 @@ shiv_type_elem_dict = {
 }
 
 def read_shiv_raw_stack(ws_fn, sp2body_fn):
+    ws_fn, sp2body_fn = map(os.path.expanduser, [ws_fn, sp2body_fn])
     ws = read_shiv_raw_array(ws_fn)
     sp2b = read_shiv_raw_array(sp2body_fn)[1]
     ar = sp2b[ws]
@@ -148,6 +155,7 @@ def read_h5_stack(fn, *args, **kwargs):
     the array information; default: 'stack') and 'crop' (format as in 
     read_image_stack())
     """
+    fn = os.path.expanduser(fn)
     if len(args) > 0:
         group = args[0]
     elif kwargs.has_key('group'):
@@ -186,6 +194,7 @@ def write_png_image_stack(npy_vol, fn, **kwargs):
 
     Only 8-bit and 16-bit single-channel images are currently supported.
     """
+    fn = os.path.expanduser(fn)
     if numpy.max(npy_vol) < 2**16:
         mode = 'I'
         npy_vol = uint16(npy_vol)
@@ -203,6 +212,7 @@ def write_h5_stack(npy_vol, fn, **kwargs):
     - 'compression': The type of compression. (default: None)
     - 'chunks': Chunk size in the HDF5 file. (default: None)
     """
+    fn = os.path.expanduser(fn)
     if not kwargs.has_key('compression'):
         kwargs['compression'] = None
     if not kwargs.has_key('chunks'):
