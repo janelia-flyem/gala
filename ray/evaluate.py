@@ -61,6 +61,18 @@ def voi(X, Y, cont=None, weights=numpy.ones(2), ignore_seg_labels=[], ignore_gt_
     """Return the variation of information metric."""
     return numpy.dot(weights, split_voi(X,Y,cont, ignore_seg_labels, ignore_gt_labels))
 
+def voi_by_threshold(ucm, gt, ignore_seg=[0], ignore_gt=[0], npoints=None):
+    ts = numpy.unique(ucm)[1:]
+    if npoints is None:
+        npoints = len(ts)
+    if len(ts) > 2*npoints:
+        ts = ts[numpy.arange(1, len(ts), len(ts)/npoints)]
+    result = numpy.zeros((2,len(ts)))
+    for i, t in enumerate(ts):
+        seg = label(ucm<t)[0]
+        result[:,i] = split_voi(seg, gt, None, ignore_seg, ignore_gt)
+    return ts, result
+
 def voi_tables(X, Y, cont=None, ignore_seg_labels=[], ignore_gt_labels=[]):
     """Return probability tables used for calculating voi."""
     if cont is None:
