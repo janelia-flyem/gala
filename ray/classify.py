@@ -12,7 +12,7 @@ import h5py
 from numpy import bool, array, double, zeros, mean, random, concatenate, where,\
     uint8, ones, float32, uint32, unique, newaxis, zeros_like, arange, floor, \
     histogram, seterr, __version__ as numpy_version, unravel_index, diff, \
-    nonzero, sort, log, inf
+    nonzero, sort, log, inf, argsort
 seterr(divide='ignore')
 from scipy import arange
 from scipy.misc import comb as nchoosek
@@ -475,6 +475,10 @@ class RandomForest(object):
     def predict_proba(self, features):
         features = self.check_features_vector(features)
         return self.rf.predictProbabilities(features)
+
+    def predict(self, features):
+        features = self.check_features_vector(features)
+        return self.rf.predictLabels(features)
 
     def check_features_vector(self, features):
         if features.dtype != float32:
