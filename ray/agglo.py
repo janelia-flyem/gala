@@ -9,7 +9,7 @@ import sys
 from numpy import array, mean, zeros, zeros_like, uint8, int8, where, unique, \
     finfo, size, double, transpose, newaxis, uint32, nonzero, median, exp, \
     log2, float, ones, arange, inf, flatnonzero, intersect1d, dtype, squeeze, \
-    __version__ as numpyversion
+    sign, __version__ as numpyversion
 from scipy.stats import sem
 from scipy.sparse import lil_matrix
 from scipy.misc import comb as nchoosek
@@ -358,70 +358,89 @@ class Rag(Graph):
             g.merge_node_list(cc)
         return g.get_segmentation()
 
-    def learn_agglomerate(self, gts, feature_map_function, min_num_samples=1,
-                                                *args, **kwargs):
+    def learn_agglomerate(self, gts, feature_map, min_num_samples=1,
+                                                            *args, **kwargs):
         """Agglomerate while comparing to ground truth & classifying merges."""
-        # Compute data for all ground truths
         if type(gts) != list:
             gts = [gts] # allow using single ground truth as input
-        cnt = []
-        assignment = []
+        ctables = []
         for gt in gts:
-            cnt.append(contingency_table(self.get_segmentation(), gt))
-            assignment.append(cnt[-1] == cnt[-1].max(axis=1)[:,newaxis])
-        hard_assignment = reduce(
-            intersect1d, [where(a.sum(axis=1) > 1)[0] for a in assignment])
-        # 'hard assignment' nodes are nodes that have most of their overlap
-        # with the 0-label in gt, or that have equal amounts of overlap between
-        # two other labels
-        # to be a hard assigment, must be hard in all ground truth segmentations
-        features, labels, weights, history = [], [], [], []
-        while len(features) < min_num_samples:
+            ctables.append(contingency_table(self.get_segmentation(), gt))
+        data = []
+        while sum(map(len, data)) < min_num_samples:
             g = self.copy()
             g.show_progress = False # bug in MergeQueue usage causes
                                     # progressbar crash.
             g.rebuild_merge_queue()
-            while len(g.merge_queue) > 0:
-                merge_priority, valid, n1, n2 = g.merge_queue.pop()
-                if valid:
-                    features.append(feature_map_function(g, n1, n2).ravel())
-                    if n2 in hard_assignment:
-                        n1, n2 = n2, n1
-                    # Calculate weights for weighting data points
-                    history.append([n1, n2])
-                    s1, s2 = [len(g.node[n]['extent']) for n in [n1, n2]]
-                    weights.append(
-                        (compute_local_voi_change(s1, s2, g.volume_size),
-                        compute_local_rand_change(s1, s2, g.volume_size))
-                    )
+            data.append(g._learn_agglomerate(assignment, feature_map, mode))
+        data = concatenate(data, axis=0)
+        af = data[:,:-5].view('|S%d'%(data.itemsize*(data.shape[1]-5)))
+        _, uids = unique(af, return_index=True)
+        data = data[uids]
+        features, labels = data[:,:-5], data[:,-5]
+        weights, history = data[:,-4:-2], data[:,-2:]
+        return features, labels, weights, history
 
-                    # If n1 is a hard assignment and one of the segments it's
-                    # assigned to is n2 in some ground truth
-                    if False and n1 in hard_assignment and \
-                        any([(a[n1,:] * a[n2,:]).any() for a in assignment]):
-                        m = boundary_mean(g, n1, n2)
-                        ms = [boundary_mean(g, n1, n) for n in 
-                                                            g.neighbors(n1)]
-                        # Only merge them if n1 boundary mean is minimum for n2
-                        if m == min(ms):
-                            g.merge_nodes(n2, n1)
-                            labels.append(-1)
-                        else:
-                            _ = features.pop() # remove last item
-                            _ = history.pop()
-                            _ = weights.pop()
-                    else:
-                        # Get the fraction of times that n1 and n2 assigned to 
-                        # same segment in the ground truths
-                        together = [(a[n1,:]==a[n2,:]).all() 
-                                                        for a in assignment]
-                        if sum(together)/float(len(together)) > 0.5:
-                            g.merge_nodes(n1, n2)
-                            labels.append(-1)
-                        else:
-                            labels.append(1)
-        return array(features).astype(double), array(labels), array(weights), \
-                                            array(history)
+    def _learn_agglomerate(self, ctables, feature_map, mode='forbidden'):
+        """Learn the agglomeration process using various strategies.
+
+        Arguments:
+            - one or more contingency tables between own segments and gold
+            standard segmentations
+            - a feature map function {Graph, node1, node2} |--> array([float])
+            [- a learning mode]
+
+        Value:
+            A learning data matrix of shape 
+            [n_training_examples x (n_features + 5)]. The elements after the
+            features are the label, the approximate magnitude of the VOI 
+            change, the approximate magnitude of the Rand index change, and
+            the two nodes that were sampled.
+
+        Possible modes:
+            - forbidden: assign automatic regions to gold standard segments.
+            Any region pairs assigned to different gs segments are used as
+            training examples but never merged.
+            - voi-sign: compute the voi change resulting from merging candidate
+            regions. Use the sign of the change as the training label. Merge
+            regardless of label.
+        """
+        if mode == 'forbidden':
+            assignments = []
+            for ctable in ctables:
+                assignments.append(ctable == ctable.max(axis=1)[:,newaxis])
+        while len(g.merge_queue) > 0:
+            merge_priority, valid, n1, n2 = g.merge_queue.pop()
+            if valid:
+                features.append(feature_map_function(g, n1, n2).ravel())
+                # Calculate weights for weighting data points
+                history.append([n1, n2])
+                s1, s2 = [len(g.node[n]['extent']) for n in [n1, n2]]
+                weights.append(
+                    (compute_local_voi_change(s1, s2, g.volume_size),
+                    compute_local_rand_change(s1, s2, g.volume_size))
+                )
+                # Get the fraction of times that n1 and n2 assigned to 
+                # same segment in the ground truths
+                if mode == 'forbidden':
+                    together = \
+                        [(-1)**(a[n1,:]==a[n2,:]).all() for a in assignments]
+                elif mode == 'voi-sign':
+                    together = [compute_true_delta_voi(ctable, n1, n2) for 
+                                                            ctable in ctables]
+                label = sign(mean(together))
+                labels.append(label)
+                if mode != 'forbidden' or label < 0:
+                    for ctable in ctables:
+                        ctable[n1] += ctable[n2]
+                        ctable[n2] = 0
+                    g.merge_nodes(n1, n2)
+        return concatenate(
+            [array(features).astype(double), array(labels).astype(double),
+            array(weights).astype(double), array(history).astype(double)],
+            axis=1)
+
+
 
     def replay_merge_history(self, merge_seq, labels=None, num_errors=1):
         """Agglomerate according to a merge sequence, optionally labeled.
@@ -792,6 +811,16 @@ def compute_local_voi_change(s1, s2, n):
     py = py1+py2
     return -(py1*log2(py1) + py2*log2(py2) - py*log2(py))
     
+def compute_true_delta_voi(ctable, n1, n2):
+    p1 = ctable[n1].sum()
+    p2 = ctable[n2].sum()
+    p3 = p1+p2
+    p1g_log_p1g = xlogx(ctable[n1]).sum()
+    p2g_log_p2g = xlogx(ctable[n2]).sum()
+    p3g_log_p3g = xlogx(ctable[n1]+ctable[n2]).sum()
+    return p3*log2(p3) - p1*log2(p1) - p2*log2(p2) - \
+                                2*(p3g_log_p3g - p1g_log_p1g - p2g_log_p2g)
+
 def expected_change_rand(feature_extractor, classifier, alpha=1.0, beta=1.0):
     prob_func = classifier_probability(feature_extractor, classifier)
     def predict(g, n1, n2):
