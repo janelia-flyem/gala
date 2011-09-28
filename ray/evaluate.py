@@ -37,7 +37,7 @@ def relabel_from_one(a):
         b[a==label] = i+1
     return b
 
-def contingency_table(seg, gt):
+def contingency_table(seg, gt, ignore_seg=[0], ignore_gt=[0], norm=True):
     """Return the contingency table for all regions in matched segmentations."""
     gtr = gt.ravel()
     segr = seg.ravel() 
@@ -45,6 +45,10 @@ def contingency_table(seg, gt):
     ij[0,:] = segr
     ij[1,:] = gtr
     cont = coo_matrix((numpy.ones((len(gtr))), ij)).toarray()
+    cont[:, ignore_gt] = 0
+    cont[ignore_seg,:] = 0
+    if norm:
+        cont /= float(cont.sum())
     return cont
 
 def xlogx(x, out=None):
@@ -57,9 +61,9 @@ def xlogx(x, out=None):
     y[nz] *= numpy.log2(y[nz])
     return y
 
-def voi(X, Y, cont=None, weights=numpy.ones(2), ignore_seg_labels=[], ignore_gt_labels=[]):
+def voi(X, Y, cont=None, weights=numpy.ones(2), ignore_seg=[], ignore_gt=[]):
     """Return the variation of information metric."""
-    return numpy.dot(weights, split_voi(X,Y,cont, ignore_seg_labels, ignore_gt_labels))
+    return numpy.dot(weights, split_voi(X,Y,cont, ignore_seg, ignore_gt))
 
 def voi_by_threshold(ucm, gt, ignore_seg=[0], ignore_gt=[0], npoints=None):
     ts = numpy.unique(ucm)[1:]
@@ -73,18 +77,16 @@ def voi_by_threshold(ucm, gt, ignore_seg=[0], ignore_gt=[0], npoints=None):
         result[:,i] = split_voi(seg, gt, None, ignore_seg, ignore_gt)
     return ts, result
 
-def voi_tables(X, Y, cont=None, ignore_seg_labels=[], ignore_gt_labels=[]):
+def voi_tables(X, Y, cont=None, ignore_seg=[0], ignore_gt=[0]):
     """Return probability tables used for calculating voi."""
     if cont is None:
-        cont = contingency_table(X, Y)
-
-    # Zero out ignored labels
-    cont[:, ignore_gt_labels] = 0
-    cont[ignore_seg_labels,:] = 0
-    n = cont.sum()
+        pxy = contingency_table(X, Y, ignore_seg, ignore_gt)
+    else:
+        cont[:, ignore_gt] = 0
+        cont[ignore_seg,:] = 0
+        pxy = cont/float(cont.sum())
 
     # Calculate probabilities
-    pxy = cont/float(n)
     px = pxy.sum(axis=1)
     py = pxy.sum(axis=0)
     # Remove zero rows/cols
