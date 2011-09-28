@@ -465,7 +465,7 @@ class RandomForest(object):
     def __init__(self, ntrees=255, online=False, use_feature_importance=False):
         self.rf = VigraRandomForest(treeCount=ntrees, 
                                             prepare_online_learning=online)
-        self.feature_importance = feature_importance
+        self.use_feature_importance = use_feature_importance
         self.online = online
         self.learned_range = 0
 
@@ -473,9 +473,8 @@ class RandomForest(object):
         features = self.check_features_vector(features)
         labels = self.check_labels_vector(labels)
         if self.online:
-            self.features = zeros((features.shape[0]*2, features.shape[1]),
-                                                        features.dtype)
-            self.labels = zeros((labels.shape[0]*2, 1), labels.dtype)
+            self.features = features.copy()
+            self.labels = labels.copy()
         if self.use_feature_importance:
             self.oob, self.feature_importance = \
                         self.rf.learnRFWithFeatureSelection(features, labels)
@@ -493,14 +492,14 @@ class RandomForest(object):
                                   self.features.shape[1]), refcheck=False)
             self.labels.resize((self.labels.shape[0]*2, self.labels.shape[1]),
                                                            refcheck=False)
-        self.features[learned_range:new_learned_range] = features
+        self.features[self.learned_range:new_learned_range] = features
         self.rf.onlineLearn(self.features[:new_learned_range], 
-                            self.labels[:new_learned_range], learned_range)
+                    self.labels[:new_learned_range], self.learned_range, False)
         self.learned_range = new_learned_range
 
     def predict_proba(self, features):
         if self.learned_range == 0:
-            return random.rand()
+            return random.rand(len(features), 1)
         features = self.check_features_vector(features)
         return self.rf.predictProbabilities(features)
 

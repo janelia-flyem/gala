@@ -3,13 +3,15 @@ from itertools import combinations, izip, repeat, product
 import argparse
 import random
 import sys
+import logging
+from copy import deepcopy
 
 # libraries
 #import matplotlib.pyplot as plt
 from numpy import array, mean, zeros, zeros_like, uint8, int8, where, unique, \
     finfo, size, double, transpose, newaxis, uint32, nonzero, median, exp, \
     log2, float, ones, arange, inf, flatnonzero, intersect1d, dtype, squeeze, \
-    sign, __version__ as numpyversion
+    sign, concatenate, bincount, __version__ as numpyversion
 from scipy.stats import sem
 from scipy.sparse import lil_matrix
 from scipy.misc import comb as nchoosek
@@ -23,9 +25,9 @@ import morpho
 import iterprogress as ip
 from ncut import ncutW
 from mergequeue import MergeQueue
-from evaluate import contingency_table, split_voi
+from evaluate import contingency_table, split_voi, xlogx
 from classify import NullFeatureManager, MomentsFeatureManager, \
-    HistogramFeatureManager
+    HistogramFeatureManager, RandomForest
 
 arguments = argparse.ArgumentParser(add_help=False)
 arggroup = arguments.add_argument_group('Agglomeration options')
@@ -361,25 +363,53 @@ class Rag(Graph):
     def learn_agglomerate(self, gts, feature_map, min_num_samples=1,
                                                             *args, **kwargs):
         """Agglomerate while comparing to ground truth & classifying merges."""
+        mode = kwargs.get('mode', 'forbidden')
+        if not 'forbidden' in mode and not 'voi-sign' in mode:
+            if type(mode) == list: mode.append('forbidden')
+            else: mode = [mode, 'forbidden']
+        max_numcycles = kwargs.get('max-numcycles', 10)
         if type(gts) != list:
             gts = [gts] # allow using single ground truth as input
-        ctables = []
-        for gt in gts:
-            ctables.append(contingency_table(self.get_segmentation(), gt))
+        ctables = [contingency_table(self.get_segmentation(), gt) for gt in gts]
+        master_ctables = ctables
         data = []
-        while sum(map(len, data)) < min_num_samples:
+        for numcycles in range(max_numcycles):
+            if 'forbidden' not in mode: 
+                ctables = deepcopy(master_ctables)
+            if sum(map(len, [d[0] for d in data])) > min_num_samples:
+                break
             g = self.copy()
+            if 'on-policy' in mode:
+                g.merge_priority_function = boundary_mean
+            else:
+                g.merge_priority_function = random_priority
+            if numcycles > 0 and ('active' in mode or 'on-policy' in mode):
+                cl = kwargs.get('classifier', RandomForest())
+                cl = cl.fit(*data[0][:2])
+                if type(cl) == RandomForest:
+                    logging.info('classifier oob error: %.2f'%cl.oob)
+                g.merge_priority_function = \
+                                        classifier_probability(feature_map, cl)
             g.show_progress = False # bug in MergeQueue usage causes
                                     # progressbar crash.
             g.rebuild_merge_queue()
-            data.append(g._learn_agglomerate(assignment, feature_map, mode))
-        data = concatenate(data, axis=0)
-        af = data[:,:-5].view('|S%d'%(data.itemsize*(data.shape[1]-5)))
-        _, uids = unique(af, return_index=True)
-        data = data[uids]
-        features, labels = data[:,:-5], data[:,-5]
-        weights, history = data[:,-4:-2], data[:,-2:]
-        return features, labels, weights, history
+            data.append(g._learn_agglomerate(ctables, feature_map, mode))
+            data = self._unique_learning_data_elements(data)
+            logging.debug('data size: %d'%len(data[0][0])) #DBG
+        return data[0]
+
+    def _unique_learning_data_elements(self, data):
+        f, l, w, h = map(concatenate, zip(*data))
+        af = f.view('|S%d'%(f.itemsize*(len(f[0]))))
+        _, uids, iids = unique(af, return_index=True, return_inverse=True)
+        bcs = bincount(iids) #DBG
+        logging.debug( #DBG
+            'repeat feature vec min %d, mean %.2f, median %.2f, max %d.' %
+            (bcs.min(), mean(bcs), median(bcs), bcs.max())
+        )
+        def get_uniques(ar): return ar[uids]
+        return [map(get_uniques, [f, l, w, h])]
+
 
     def _learn_agglomerate(self, ctables, feature_map, mode='forbidden'):
         """Learn the agglomeration process using various strategies.
@@ -405,14 +435,16 @@ class Rag(Graph):
             regions. Use the sign of the change as the training label. Merge
             regardless of label.
         """
-        if mode == 'forbidden':
+        if 'forbidden' in mode:
             assignments = []
             for ctable in ctables:
                 assignments.append(ctable == ctable.max(axis=1)[:,newaxis])
+        g = self
+        features, labels, weights, history = [], [], [], []
         while len(g.merge_queue) > 0:
             merge_priority, valid, n1, n2 = g.merge_queue.pop()
             if valid:
-                features.append(feature_map_function(g, n1, n2).ravel())
+                features.append(feature_map(g, n1, n2).ravel())
                 # Calculate weights for weighting data points
                 history.append([n1, n2])
                 s1, s2 = [len(g.node[n]['extent']) for n in [n1, n2]]
@@ -422,25 +454,23 @@ class Rag(Graph):
                 )
                 # Get the fraction of times that n1 and n2 assigned to 
                 # same segment in the ground truths
-                if mode == 'forbidden':
+                if 'forbidden' in mode:
                     together = \
                         [(-1)**(a[n1,:]==a[n2,:]).all() for a in assignments]
-                elif mode == 'voi-sign':
+                elif 'voi-sign' in mode:
                     together = [compute_true_delta_voi(ctable, n1, n2) for 
                                                             ctable in ctables]
                 label = sign(mean(together))
                 labels.append(label)
-                if mode != 'forbidden' or label < 0:
+                if label != label:
+                    raise RuntimeError('NaN label found.')
+                if 'forbidden' not in mode or label < 0:
                     for ctable in ctables:
                         ctable[n1] += ctable[n2]
                         ctable[n2] = 0
                     g.merge_nodes(n1, n2)
-        return concatenate(
-            [array(features).astype(double), array(labels).astype(double),
-            array(weights).astype(double), array(history).astype(double)],
-            axis=1)
-
-
+        return (array(features).astype(double), array(labels),
+            array(weights), array(history))
 
     def replay_merge_history(self, merge_seq, labels=None, num_errors=1):
         """Agglomerate according to a merge sequence, optionally labeled.
