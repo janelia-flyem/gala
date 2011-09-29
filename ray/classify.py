@@ -22,6 +22,8 @@ from scikits.learn.linear_model import LogisticRegression, LinearRegression
 from evaluate import xlogx
 try:
     from vigra.learning import RandomForest as VigraRandomForest
+    from vigra.__version__ import version as vigra_version
+    vigra_version = tuple(map(int, vigra_version.split('.')))
 except ImportError:
     logging.warning(' vigra library is not available. '+
         'Cannot use random forest classifier.')
@@ -525,17 +527,21 @@ class RandomForest(object):
         return labels
 
     def save_to_disk(self, fn, rfgroupname='rf', overwrite=True):
-        self.rf.writeHDF5(fn, rfgroupname, overwrite)
+        if vigra_version < (1,8,0):
+            self.rf.writeHDF5(fn+'.rf', rfgroupname, overwrite)
+        else:
+            self.rf.writeHDF5(fn+'.vrf', rfgroupname)
         attr_list = ['oob', 'feature_importance', 'features', 'labels', 
                     'use_feature_importance', 'online', 'learned_range']
-        f = h5py.File(fn)
+        f = h5py.File(fn+'.rf')
         for attr in attr_list:
             if hasattr(self, attr):
                 f[attr] = getattr(self, attr)
 
     def load_from_disk(self, fn, rfgroupname='rf'):
-        self.rf = VigraRandomForest(fn, rfgroupname)
-        f = h5py.File(fn, 'r')
+        vrf_fn = fn+'.vrf' if vigra_version >= (1,8,0) else fn+'.rf'
+        self.rf = VigraRandomForest(vrf_fn, rfgroupname)
+        f = h5py.File(fn+'.rf', 'r')
         groups = []
         f.visit(groups.append)
         attrs = [g for g in groups if g != rfgroupname]
