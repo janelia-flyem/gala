@@ -10,11 +10,13 @@ from numpy import   shape, reshape, \
                     where, unravel_index, newaxis, \
                     ceil, floor, prod, cumprod, \
                     concatenate, \
-                    ndarray, minimum
+                    ndarray, minimum, bincount
 import itertools
 from collections import defaultdict, deque as queue
 from scipy.ndimage import filters, grey_dilation
 from scipy.ndimage.measurements import label
+from scipy.ndimage.morphology import binary_opening, \
+    generate_binary_structure, iterate_structure
 #from scipy.spatial.distance import cityblock as manhattan_distance
 import iterprogress as ip
 import imio
@@ -45,16 +47,10 @@ arggroup.add_argument('--no-dams', action='store_false', dest='build_dams',
 def manhattan_distance(a, b):
     return sum(abs(a-b))
 
-def diamondse(sz, dimension):
-    d = floor(sz/2)+1 # ceil has problems if sz.dtype is int
-    sz = sz * ones(dimension)
-    se = zeros(sz)
-    ctr = floor(sz/2)
-    for i in [array(unravel_index(j,sz)) for j in range(se.size)]:
-        if manhattan_distance(i, ctr) < d:
-            se[tuple(i)] = 1
-    return se
-
+def diamondse(radius, dimension):
+    se = generate_binary_structure(dimension, 1)
+    return iterate_structure(se, radius)
+    
 def morphological_reconstruction(marker, mask):
     """Perform morphological reconstruction of the marker into the mask.
     
@@ -79,15 +75,29 @@ def hminima(a, thresh):
 
 imhmin = hminima
 
-def watershed(a, seeds=None, smooth_thresh=0.0,
-                            dams=True, show_progress=False, connectivity=1):
+def remove_small_connected_components(a, min_size=64, in_place=False):
+    if a.dtype == bool:
+        a = label(a)[0]
+    elif not in_place:
+        a = a.copy()
+    component_sizes = bincount(a.ravel())
+    too_small = component_sizes < min_size
+    too_small_locations = too_small[a]
+    a[too_small_locations] = 0
+    return a
+
+def watershed(a, seeds=None, smooth_thresh=0.0, smooth_seeds=False, 
+        minimum_seed_size=0, dams=True, show_progress=False, connectivity=1):
     seeded = seeds is not None
-    if not seeded:
-        ws = zeros(shape(a), uint32)
-    else:
+    sel = generate_binary_structure(a.ndim, connectivity)
+    if seeded:
         if seeds.dtype == bool:
-            seeds = label(seeds)[0]
+            seeds = label(seeds, sel)[0]
         ws = seeds
+        if smooth_seeds:
+            seeds = label(binary_opening(seeds, sel), sel)[0]
+    else:
+        ws = zeros(shape(a), uint32)
     if smooth_thresh > 0.0:
         a = hminima(a, smooth_thresh)
     levels = unique(a)
@@ -97,7 +107,6 @@ def watershed(a, seeds=None, smooth_thresh=0.0,
     ws = pad(ws, 0)
     wsr = ws.ravel()
     maxlabel = iinfo(ws.dtype).max
-    sel = diamondse(3, a.ndim)
     current_label = 0
     neighbors = build_neighbors_array(a, connectivity)
     level_pixels = build_levels_dict(a)
