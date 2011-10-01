@@ -367,7 +367,7 @@ class Rag(Graph):
         if not 'forbidden' in mode and not 'voi-sign' in mode:
             if type(mode) == list: mode.append('forbidden')
             else: mode = [mode, 'forbidden']
-        max_numcycles = kwargs.get('max-numcycles', 10)
+        max_numcycles = kwargs.get('max_numcycles', 10)
         if type(gts) != list:
             gts = [gts] # allow using single ground truth as input
         ctables = [contingency_table(self.get_segmentation(), gt) for gt in gts]
@@ -384,7 +384,7 @@ class Rag(Graph):
             else:
                 g.merge_priority_function = random_priority
             if numcycles > 0 and ('active' in mode or 'on-policy' in mode):
-                cl = kwargs.get('classifier', RandomForest())
+                cl = kwargs.get('classifier', RandomForest(100))
                 cl = cl.fit(*data[0][:2])
                 if type(cl) == RandomForest:
                     logging.info('classifier oob error: %.2f'%cl.oob)
