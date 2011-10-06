@@ -9,7 +9,7 @@ import logging
 import h5py, Image, numpy
 
 from numpy import array, asarray, uint8, uint16, uint32, zeros, squeeze, \
-    fromstring, ndim
+    fromstring, ndim, concatenate, newaxis
 import numpy as np
 try:
     from numpy import imread
@@ -48,7 +48,7 @@ def alphanumeric_key(s):
     """
     return [tryint(c) for c in re.split('([0-9]+)', s)]
 
-supported_image_extensions = ['png', 'tif', 'jpg']
+supported_image_extensions = ['png', 'tif', 'tiff', 'jpg', 'jpeg']
 
 def read_image_stack(fn, *args, **kwargs):
     """Read a 3D volume of images in image or .h5 format into a numpy.ndarray.
@@ -64,38 +64,32 @@ def read_image_stack(fn, *args, **kwargs):
     """
     d, fn = split_path(os.path.expanduser(fn))
     if len(d) == 0: d = '.'
-    if kwargs.has_key('crop'):
-        crop = kwargs['crop']
-        if len(crop) == 4:
-            crop.extend([None,None])
-    else:
-        crop = [None,None,None,None,None,None]
-        kwargs['crop'] = crop
-    if fn[-3:] in supported_image_extensions:
+    crop = kwargs.get('crop', [None]*6)
+    if len(crop) == 4: crop.extend([None]*2)
+    if any([fn.endswith(ext) for ext in supported_image_extensions]):
         xmin, xmax, ymin, ymax, zmin, zmax = crop
-        if len(args) > 0 and type(args[0]) == str and \
-                                                    args[0].endswith(fn[-3:]):
+        if len(args) > 0 and type(args[0]) == str and args[0].endswith(fn[-3:]):
             # input is a list of filenames
             fns = [fn] + [split_path(f)[1] for f in args]
         else:
             # input is a filename pattern to match
             fns = fnfilter(os.listdir(d), fn)
-        fns.sort(key=alphanumeric_key) # sort filenames numerically
-        fns = fns[zmin:zmax]
-        try:
-            im0 = imread(join_path(d,fns[0]))
-            ars = (imread(join_path(d,fn)) for fn in fns)
-        except RuntimeError: # 'Unknown image mode' error for certain .tifs
-            im0 = Image.open(join_path(d,fns[0]))
-            im0 = array(im0.getdata()).reshape((im0.size[1], im0.size[0], -1))
-            ims = (Image.open(join_path(d,fn)) for fn in fns)
-            ars = (array(im.getdata()).reshape((im.size[1], im.size[0], -1))
-                                                                for im in ims)
-        w, h = im0[xmin:xmax,ymin:ymax].shape[:2]
-        dtype = im0.dtype
-        stack = zeros(im0.shape+(len(fns),), dtype)
-        for i, im in enumerate(ars):
-            stack[...,i] = im[xmin:xmax,ymin:ymax]
+        if len(fns) == 1 and fns[0].endswith('.tif'):
+            stack = read_multi_page_tif(join_path(d,fns[0]), crop)
+        else:
+            fns.sort(key=alphanumeric_key) # sort filenames numerically
+            fns = fns[zmin:zmax]
+            try:
+                im0 = imread(join_path(d,fns[0]))
+                ars = (imread(join_path(d,fn)) for fn in fns)
+            except RuntimeError: # 'Unknown image mode' error for certain .tifs
+                im0 = pil_to_numpy(Image.open(join_path(d,fns[0])))
+                ars = (pil_to_numpy(Image.open(join_path(d,fn))) for fn in fns)
+            w, h = im0[xmin:xmax,ymin:ymax].shape[:2]
+            dtype = im0.dtype
+            stack = zeros(im0.shape+(len(fns),), dtype)
+            for i, im in enumerate(ars):
+                stack[...,i] = im[xmin:xmax,ymin:ymax]
     if fn.endswith('.h5'):
         stack = read_h5_stack(join_path(d,fn), *args, **kwargs)
     return squeeze(stack)
@@ -113,6 +107,26 @@ def single_arg_read_image_stack(fn):
         print err
         raise
 
+def pil_to_numpy(img):
+    return array(img.getdata()).reshape((img.size[1], img.size[0], -1))
+
+def read_multi_page_tif(fn, crop=[None]*6):
+    """Read a multi-page tif file and return a numpy array."""
+    xmin, xmax, ymin, ymax, zmin, zmax = crop
+    img = Image.open(fn)
+    pages = []
+    if zmin is not None and zmin > 0:
+        img.seek(zmin)
+    eof = False
+    while not eof and img.tell() != zmax:
+        pages.append(pil_to_numpy(img)[...,newaxis])
+        try:
+            img.seek(img.tell()+1)
+        except EOFError:
+            eof = True
+    return concatenate(pages, axis=-1)
+        
+
 shiv_type_elem_dict = {
     0:np.int8, 1:np.uint8, 2:np.int16, 3:np.uint16,
     4:np.int32, 5:np.uint32, 6:np.int64, 7:np.uint64,
@@ -126,8 +140,8 @@ def read_shiv_raw_stack(ws_fn, sp2body_fn):
     ar = sp2b[ws]
     return remove_merged_boundaries(ar)
 
-import morpho
 def remove_merged_boundaries(ar):
+    import morpho
     arp = morpho.pad(ar, [0,ar.max()+1])
     arpr = arp.ravel()
     zero_idxs = (arpr == 0).nonzero()[0]
