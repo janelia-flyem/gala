@@ -5,11 +5,14 @@ import re
 from os.path import split as split_path, join as join_path
 from fnmatch import filter as fnfilter
 import logging
+import itertools as it
 
 import h5py, Image, numpy
 
+from scipy.ndimage.measurements import label
+
 from numpy import array, asarray, uint8, uint16, uint32, zeros, squeeze, \
-    fromstring, ndim, concatenate, newaxis
+    fromstring, ndim, concatenate, newaxis, swapaxes, savetxt, unique
 import numpy as np
 try:
     from numpy import imread
@@ -161,7 +164,6 @@ def read_shiv_raw_array(fn):
     ar = fromstring(fin.read(), ar_dtype).reshape(ar_shape, order='F')
     return ar
 
-
 def read_h5_stack(fn, *args, **kwargs):
     """Read a volume in HDF5 format into numpy.ndarray.
 
@@ -189,6 +191,53 @@ def read_h5_stack(fn, *args, **kwargs):
         a = a[xmin:xmax,ymin:ymax,zmin:zmax]
     return array(a)
 
+def ucm_to_raveler(ucm, region_threshold=0.5, sp_threshold=0, **kwargs):
+    sps = label(ucm<sp_threshold)[0]
+    regions = label(ucm<=region_threshold)[0]
+    return segs_to_raveler(sps, regions, **kwargs)
+
+def segs_to_raveler(sps, regions, **kwargs):
+    import morpho
+    min_sp_size = kwargs.get('min_sp_size', 64)
+    sps_out = []
+    sps_per_plane = []
+    sp_to_region = []
+    for i, sp_map in enumerate(sps):
+        sp_map, n = label(
+            morpho.remove_small_connected_components(sp_map, min_sp_size, True)
+        )
+        sps_out.append(sp_map[newaxis,...])
+        sps_per_plane.append(n)
+        valid = (sp_map != 0) + (regions[i] == 0)
+        sp_to_region.append(unique(
+            zip(it.repeat(i), sp_map[valid], regions[i][valid])))
+    logging.warning('total superpixels before: ' + str(len(unique(sps))) +
+                    'total superpixels after: ' + str(sum(sps_per_plane)))
+    sps_out = concatenate(sps_out, axis=0)
+    sp_to_region = concatenate(sp_to_region, axis=0)
+    modified = ((sps_out == 0)*(sps != 0)).astype(bool)
+    return sps_out, sp_to_region, modified
+
+def write_to_raveler(sps, sp_to_region, modified, directory, gray=None):
+    if not os.path.exists(directory):
+        os.makedirs(directory)
+    if not os.path.exists(directory+'/superpixel_maps'):
+        os.mkdir(directory+'/superpixel_maps')
+    write_png_image_stack(sps, 
+        join_path(directory,'superpixel_maps/sp_map.%05i.png'), axis=0)
+    savetxt(join_path(directory, 'superpixel_to_segment_map.txt'),
+                                                        sp_to_region, '%i') 
+    all_regions = unique(sp_to_region[:,-1])
+    savetxt(join_path(directory, 'segment_to_body_map.txt'), 
+        concatenate((all_regions[:,newaxis], all_regions[:,newaxis]), axis=1),
+        '%i')
+    if gray is not None:
+        if not os.path.exists(directory+'/grayscale_maps'):
+            os.mkdir(directory+'/grayscale_maps')
+        write_png_image_stack(gray, 
+                join_path(directory,'grayscale_maps/img.%05d.png'), axis=0)
+    write_h5_stack(modified, join_path(directory, 'modified.h5'))
+
 def write_image_stack(npy_vol, fn, **kwargs):
     """Write a numpy.ndarray 3D volume to a stack of images or an HDF5 file.
     """
@@ -208,15 +257,22 @@ def write_png_image_stack(npy_vol, fn, **kwargs):
 
     Only 8-bit and 16-bit single-channel images are currently supported.
     """
+    import morpho
+    axis = kwargs.get('axis', -1)
+    npy_vol = swapaxes(npy_vol, 0, axis)
     fn = os.path.expanduser(fn)
     if numpy.max(npy_vol) < 2**16:
-        mode = 'I'
+        mode = 'I;16'
+        mode_base = 'I'
         npy_vol = uint16(npy_vol)
     else:
         mode = 'RGBA'
+        mode_base = 'RGBA'
         npy_vol = uint32(npy_vol)
-    for z in range(npy_vol.shape[2]):
-        Image.fromarray(npy_vol[:,:,z], mode).save(fn % z)
+    for z, pl in enumerate(npy_vol):
+        im = Image.new(mode_base, pl.shape)
+        im.fromstring(pl.tostring(), 'raw', mode)
+        im.save(fn % z)
 
 def write_h5_stack(npy_vol, fn, **kwargs):
     """Write a numpy.ndarray 3D volume to an HDF5 file.
