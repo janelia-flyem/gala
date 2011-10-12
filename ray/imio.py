@@ -12,7 +12,7 @@ import h5py, Image, numpy
 from scipy.ndimage.measurements import label
 
 from numpy import array, asarray, uint8, uint16, uint32, zeros, squeeze, \
-    fromstring, ndim, concatenate, newaxis, swapaxes, savetxt, unique
+    fromstring, ndim, concatenate, newaxis, swapaxes, savetxt, unique, double
 import numpy as np
 try:
     from numpy import imread
@@ -191,34 +191,45 @@ def read_h5_stack(fn, *args, **kwargs):
         a = a[xmin:xmax,ymin:ymax,zmin:zmax]
     return array(a)
 
-def ucm_to_raveler(ucm, region_threshold=0.5, sp_threshold=0, **kwargs):
+def ucm_to_raveler(ucm, body_threshold=0.5, sp_threshold=0, **kwargs):
     sps = label(ucm<sp_threshold)[0]
-    regions = label(ucm<=region_threshold)[0]
-    return segs_to_raveler(sps, regions, **kwargs)
+    bodies = label(ucm<=body_threshold)[0]
+    return segs_to_raveler(sps, bodies, **kwargs)
 
-def segs_to_raveler(sps, regions, **kwargs):
+def segs_to_raveler(sps, bodies, **kwargs):
     import morpho
     min_sp_size = kwargs.get('min_sp_size', 64)
     sps_out = []
     sps_per_plane = []
-    sp_to_region = []
-    for i, sp_map in enumerate(sps):
-        sp_map, n = label(
+    sp_to_segment = []
+    segment_to_body = [array([[0,0]])]
+    total_nsegs = 0
+    for i, (sp_map, body_map) in enumerate(zip(sps, bodies)):
+        sp_map, nsps = label(
             morpho.remove_small_connected_components(sp_map, min_sp_size, True)
         )
+        segment_map, nsegs = label(body_map)
+        segment_map += total_nsegs
+        segment_map *= sp_map.astype(bool)
+        total_nsegs += nsegs
         sps_out.append(sp_map[newaxis,...])
-        sps_per_plane.append(n)
-        valid = (sp_map != 0) + (regions[i] == 0)
-        sp_to_region.append(unique(
-            zip(it.repeat(i), sp_map[valid], regions[i][valid])))
-    logging.warning('total superpixels before: ' + str(len(unique(sps))) +
+        sps_per_plane.append(nsps)
+        valid = (sp_map != 0) + (segment_map == 0)
+        sp_to_segment.append(unique(
+            zip(it.repeat(i), sp_map[valid], segment_map[valid])))
+        valid = segment_map != 0
+        segment_to_body.append(unique(
+                                zip(segment_map[valid], body_map[valid])))
+    logging.info('total superpixels before: ' + str(len(unique(sps))) +
                     'total superpixels after: ' + str(sum(sps_per_plane)))
     sps_out = concatenate(sps_out, axis=0)
-    sp_to_region = concatenate(sp_to_region, axis=0)
+    sp_to_segment = concatenate(sp_to_segment, axis=0)
+    segment_to_body = concatenate(segment_to_body, axis=0)
     modified = ((sps_out == 0)*(sps != 0)).astype(bool)
-    return sps_out, sp_to_region, modified
+    return sps_out, sp_to_segment, segment_to_body, modified
 
-def write_to_raveler(sps, sp_to_region, modified, directory, gray=None):
+def write_to_raveler(sps, sp_to_segment, segment_to_body, modified, directory,
+                                                                    gray=None):
     if not os.path.exists(directory):
         os.makedirs(directory)
     if not os.path.exists(directory+'/superpixel_maps'):
@@ -226,11 +237,9 @@ def write_to_raveler(sps, sp_to_region, modified, directory, gray=None):
     write_png_image_stack(sps, 
         join_path(directory,'superpixel_maps/sp_map.%05i.png'), axis=0)
     savetxt(join_path(directory, 'superpixel_to_segment_map.txt'),
-                                                        sp_to_region, '%i') 
-    all_regions = unique(sp_to_region[:,-1])
-    savetxt(join_path(directory, 'segment_to_body_map.txt'), 
-        concatenate((all_regions[:,newaxis], all_regions[:,newaxis]), axis=1),
-        '%i')
+                                                        sp_to_segment, '%i') 
+    savetxt(join_path(directory, 'segment_to_body_map.txt'), segment_to_body,
+                                                                        '%i')
     if gray is not None:
         if not os.path.exists(directory+'/grayscale_maps'):
             os.mkdir(directory+'/grayscale_maps')
