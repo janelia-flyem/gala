@@ -268,9 +268,17 @@ def write_png_image_stack(npy_vol, fn, **kwargs):
     """
     import morpho
     axis = kwargs.get('axis', -1)
+    bitdepth = kwargs.get('bitdepth', 16)
     npy_vol = swapaxes(npy_vol, 0, axis)
     fn = os.path.expanduser(fn)
-    if numpy.max(npy_vol) < 2**16:
+    if 0 <= npy_vol.max() <= 1 and npy_vol.dtype == double:
+        imdtype = uint16 if bitdepth == 16 else uint8
+        npy_vol = ((2**bitdepth-1)*npy_vol).astype(imdtype)
+    if 1 < npy_vol.max() < 256:
+        mode = 'I;8'
+        mode_base = 'I'
+        npy_vol = uint8(npy_vol)
+    elif 256 <= numpy.max(npy_vol) < 2**16:
         mode = 'I;16'
         mode_base = 'I'
         npy_vol = uint16(npy_vol)
