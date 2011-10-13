@@ -5,6 +5,7 @@ import random
 import sys
 import logging
 from copy import deepcopy
+from math import isnan
 
 # libraries
 #import matplotlib.pyplot as plt
@@ -381,13 +382,13 @@ class Rag(Graph):
         if not 'forbidden' in mode and not 'voi-sign' in mode:
             if type(mode) == list: mode.append('forbidden')
             else: mode = [mode, 'forbidden']
-        max_numcycles = kwargs.get('max_numcycles', 10)
+        max_numepochs = kwargs.get('max_numepochs', 10)
         if type(gts) != list:
             gts = [gts] # allow using single ground truth as input
         ctables = [contingency_table(self.get_segmentation(), gt) for gt in gts]
         master_ctables = ctables
         data = []
-        for numcycles in range(max_numcycles):
+        for numepochs in range(max_numepochs):
             if 'forbidden' not in mode: 
                 ctables = deepcopy(master_ctables)
             if sum(map(len, [d[0] for d in data])) > min_num_samples:
@@ -397,7 +398,7 @@ class Rag(Graph):
                 g.merge_priority_function = boundary_mean
             else:
                 g.merge_priority_function = random_priority
-            if numcycles > 0 and ('active' in mode or 'on-policy' in mode):
+            if numepochs > 0 and ('active' in mode or 'on-policy' in mode):
                 cl = kwargs.get('classifier', RandomForest(100))
                 cl = cl.fit(*data[0][:2])
                 if type(cl) == RandomForest:
@@ -411,6 +412,36 @@ class Rag(Graph):
             data = self._unique_learning_data_elements(data)
             logging.debug('data size: %d'%len(data[0][0])) #DBG
         return data[0]
+
+    def learn_flat(self, gts, feature_map, *args, **kwargs):
+        if type(gts) != list:
+            gts = [gts] # allow using single ground truth as input
+        ctables = [contingency_table(self.get_segmentation(), gt) for gt in gts]
+        assignments = [(ct == ct.max(axis=1)[:,newaxis]) for ct in ctables]
+        return map(array,
+            zip(*[self.learn_edge(e, ctables, assignments, feature_map)
+                                                for e in self.edges()])
+        )
+
+    def learn_edge(self, edge, ctables, assignments, feature_map):
+        n1, n2 = edge
+        features = feature_map(self, n1, n2).ravel()
+        # Calculate weights for weighting data points
+        s1, s2 = [len(self.node[n]['extent']) for n in [n1, n2]]
+        weights = \
+            compute_local_voi_change(s1, s2, self.volume_size), \
+            compute_local_rand_change(s1, s2, self.volume_size)
+        # Get the fraction of times that n1 and n2 assigned to
+        # same segment in the ground truths
+        cont_labels = [
+            [(-1)**(a[n1,:]==a[n2,:]).all() for a in assignments],
+            [compute_true_delta_voi(ctable, n1, n2) for ctable in ctables],
+            [compute_true_delta_rand(ctable, n1, n2) for ctable in ctables]
+        ]
+        labels = [sign(mean(cont_label)) for cont_label in cont_labels]
+        if any(map(isnan, labels)):
+            raise RuntimeError('NaN label found.')
+        return features, labels, weights, (n1,n2)
 
     def _unique_learning_data_elements(self, data):
         f, l, w, h = map(concatenate, zip(*data))
