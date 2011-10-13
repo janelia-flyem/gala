@@ -436,7 +436,8 @@ class Rag(Graph):
         cont_labels = [
             [(-1)**(a[n1,:]==a[n2,:]).all() for a in assignments],
             [compute_true_delta_voi(ctable, n1, n2) for ctable in ctables],
-            [compute_true_delta_rand(ctable, n1, n2) for ctable in ctables]
+            [-compute_true_delta_rand(self.volume_size*ctable, n1, n2) 
+                                                    for ctable in ctables]
         ]
         labels = [sign(mean(cont_label)) for cont_label in cont_labels]
         if any(map(isnan, labels)):
@@ -909,6 +910,13 @@ def expected_change_rand(feature_extractor, classifier, alpha=1.0, beta=1.0):
 def compute_local_rand_change(s1, s2, n):
     """Compute change in rand if we merge disjoint sizes s1,s2 in volume n."""
     return float(s1*s2)/nchoosek(n,2)
+
+def compute_true_delta_rand(ctable, n1, n2):
+    n = ctable.sum()
+    localct = ctable[(n1,n2),]
+    delta_sxy = 1.0/2*((localct.sum(axis=0)**2).sum()-(localct**2).sum())
+    delta_sx = 1.0/2*(localct.sum()**2 - (localct.sum(axis=1)**2).sum())
+    return (2*delta_sxy - delta_sx) / nchoosek(n,2)
 
 def boundary_mean_ladder(g, n1, n2, threshold, strictness=1):
     f = make_ladder(boundary_mean, threshold, strictness)
