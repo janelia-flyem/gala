@@ -378,10 +378,9 @@ class Rag(Graph):
     def learn_agglomerate(self, gts, feature_map, min_num_samples=1,
                                                             *args, **kwargs):
         """Agglomerate while comparing to ground truth & classifying merges."""
-        mode = kwargs.get('mode', 'forbidden')
-        if not 'forbidden' in mode and not 'voi-sign' in mode:
-            if type(mode) == list: mode.append('forbidden')
-            else: mode = [mode, 'forbidden']
+        learning_mode = kwargs.get('learning_mode', 'strict')
+        labeling_mode = kwargs.get('labeling_mode', 'assignment')
+        priority_mode = kwargs.get('priority_mode', 'random')
         max_numepochs = kwargs.get('max_numepochs', 10)
         if type(gts) != list:
             gts = [gts] # allow using single ground truth as input
@@ -457,7 +456,8 @@ class Rag(Graph):
         return [map(get_uniques, [f, l, w, h])]
 
 
-    def _learn_agglomerate(self, ctables, feature_map, mode='forbidden'):
+    def _learn_agglomerate(self, ctables, feature_map, 
+                        learning_mode='forbidden', labeling_mode='assignment'):
         """Learn the agglomeration process using various strategies.
 
         Arguments:
@@ -473,50 +473,33 @@ class Rag(Graph):
             change, the approximate magnitude of the Rand index change, and
             the two nodes that were sampled.
 
-        Possible modes:
-            - forbidden: assign automatic regions to gold standard segments.
-            Any region pairs assigned to different gs segments are used as
-            training examples but never merged.
+        Learning modes:
+            - forbidden: use positive-boundary examples to learn but never
+            merge
+            - laissez-faire: merge regardless of label
+        Labeling modes:
+            - assignment: assign each node to a gold standard node and 
             - voi-sign: compute the voi change resulting from merging candidate
-            regions. Use the sign of the change as the training label. Merge
-            regardless of label.
+            regions. Use the sign of the change as the training label.
+            - rand-sign: compute the rand change resulting from merging the
+            candidate regions. Use the sign of the change as the training
+            label.
         """
-        if 'forbidden' in mode:
-            assignments = []
-            for ctable in ctables:
-                assignments.append(ctable == ctable.max(axis=1)[:,newaxis])
+        assignments = [(ct == ct.max(axis=1)[:,newaxis]) for ct in ctables]
         g = self
-        features, labels, weights, history = [], [], [], []
+        data = []
         while len(g.merge_queue) > 0:
             merge_priority, valid, n1, n2 = g.merge_queue.pop()
             if valid:
-                features.append(feature_map(g, n1, n2).ravel())
-                # Calculate weights for weighting data points
-                history.append([n1, n2])
-                s1, s2 = [len(g.node[n]['extent']) for n in [n1, n2]]
-                weights.append(
-                    (compute_local_voi_change(s1, s2, g.volume_size),
-                    compute_local_rand_change(s1, s2, g.volume_size))
-                )
-                # Get the fraction of times that n1 and n2 assigned to 
-                # same segment in the ground truths
-                if 'forbidden' in mode:
-                    together = \
-                        [(-1)**(a[n1,:]==a[n2,:]).all() for a in assignments]
-                elif 'voi-sign' in mode:
-                    together = [compute_true_delta_voi(ctable, n1, n2) for 
-                                                            ctable in ctables]
-                label = sign(mean(together))
-                labels.append(label)
-                if label != label:
-                    raise RuntimeError('NaN label found.')
+                dat = g.learn_edge((n1,n2), ctables, assignments, feature_map)
+                data.append(dat)
+                label = dat[1]
                 if 'forbidden' not in mode or label < 0:
                     for ctable in ctables:
                         ctable[n1] += ctable[n2]
                         ctable[n2] = 0
                     g.merge_nodes(n1, n2)
-        return (array(features).astype(double), array(labels),
-            array(weights), array(history))
+        return map(array, zip(*data))
 
     def replay_merge_history(self, merge_seq, labels=None, num_errors=1):
         """Agglomerate according to a merge sequence, optionally labeled.
