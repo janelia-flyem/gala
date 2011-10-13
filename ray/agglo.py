@@ -133,6 +133,20 @@ class Rag(Graph):
     def copy(self):
         return self.__copy__()
 
+    def all_edges(self, *args, **kwargs):
+        return super(Rag, self).edges(*args, **kwargs)
+
+    def edges(self, *args, **kwargs):
+        return [e for e in super(Rag, self).edges(*args, **kwargs) if
+                                            self.boundary_body not in e[:2]]
+
+    def all_edges_iter(self, *args, **kwargs):
+        return super(Rag, self).edges_iter(*args, **kwargs)
+
+    def edges_iter(self, *args, **kwargs):
+        return (e for e in super(Rag, self).edges_iter(*args, **kwargs) if
+                                            self.boundary_body not in e[:2])
+
     def build_graph_from_watershed(self, 
                                     allow_shared_boundaries=True, idxs=None):
         if self.watershed.size == 0: return # stop processing for empty graphs
@@ -545,7 +559,7 @@ class Rag(Graph):
         for px in boundary[check]:
             for lb in unique(
                         self.segmentation_r[self.neighbor_idxs(px)]):
-                if lb != n1 and lb != 0:
+                if lb not in [0, n1, self.boundary_body]:
                     try:
                         boundaries_to_edit[(n1,lb)].append(px)
                     except KeyError:
