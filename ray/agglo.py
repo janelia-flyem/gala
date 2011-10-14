@@ -495,9 +495,11 @@ class Rag(Graph):
                 data.append(dat)
                 label = dat[1]
                 if 'forbidden' not in mode or label < 0:
-                    for ctable in ctables:
+                    for ctable, assignment in zip(ctables, assignments):
                         ctable[n1] += ctable[n2]
                         ctable[n2] = 0
+                        assignment[n1] = ctable[n1] == ctable[n1].max()
+                        assignment[n2] = 0
                     g.merge_nodes(n1, n2)
         return map(array, zip(*data))
 
