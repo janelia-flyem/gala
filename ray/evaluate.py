@@ -136,14 +136,14 @@ def rand_values(cont_table):
 def rand_index(seg, gt, cont=None):
     """Return the unadjusted Rand index."""
     if cont is None:
-        cont = contingency_table(seg, gt)
+        cont = contingency_table(seg, gt, norm=False)
     a, b, c, d = rand_values(cont)
     return (a+d)/(a+b+c+d)
     
 def adj_rand_index(seg, gt, cont=None):
     """Return the adjusted Rand index."""
     if cont is None:
-        cont = contingency_table(seg, gt)
+        cont = contingency_table(seg, gt, norm=False)
     a, b, c, d = rand_values(cont)
     nk = a+b+c+d
     return (nk*(a+d) - ((a+b)*(a+c) + (c+d)*(b+d)))/(
