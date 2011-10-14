@@ -47,7 +47,7 @@ class TestMorphologicalOperations(unittest.TestCase):
 
     def test_watershed_nodams(self):
         nodam_watershed_result = numpy.array([1,1,1,4,4,4,2,2,2,3,3,3])
-        nodam_watershed = morpho.watershed(self.landscape, None, 0.0, False)
+        nodam_watershed = morpho.watershed(self.landscape, dams=False)
         self.assertTrue((nodam_watershed == nodam_watershed_result).all())
 
     def test_watershed_seeded(self):
@@ -63,7 +63,7 @@ class TestMorphologicalOperations(unittest.TestCase):
         seeds_bool = self.landscape==0
         seeded_nodam_ws_result = numpy.array([1,1,1,1,1,1,2,2,2,3,3,3])
         seeded_nodam_ws = \
-                morpho.watershed(self.landscape, seeds_bool, 0.0, False)
+                morpho.watershed(self.landscape, seeds=seeds_bool, dams=False)
         self.assertTrue((seeded_nodam_ws == seeded_nodam_ws_result).all())
         
     def test_watershed_saddle_basin(self):
