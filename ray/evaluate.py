@@ -77,6 +77,19 @@ def voi_by_threshold(ucm, gt, ignore_seg=[0], ignore_gt=[0], npoints=None):
         result[:,i] = split_voi(seg, gt, None, ignore_seg, ignore_gt)
     return ts, result
 
+def rand_by_threshold(ucm, gt, npoints=None):
+    ts = numpy.unique(ucm)[1:]
+    if npoints is None:
+        npoints = len(ts)
+    if len(ts) > 2*npoints:
+        ts = ts[numpy.arange(1, len(ts), len(ts)/npoints)]
+    result = numpy.zeros((2,len(ts)))
+    for i, t in enumerate(ts):
+        seg = label(ucm<t)[0]
+        result[0,i] = rand_index(seg, gt, None)
+        result[1,i] = adj_rand_index(seg, gt, None)
+    return ts, result
+
 def voi_tables(X, Y, cont=None, ignore_seg=[0], ignore_gt=[0]):
     """Return probability tables used for calculating voi."""
     if cont is None:
