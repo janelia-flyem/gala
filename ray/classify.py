@@ -464,44 +464,21 @@ def h5py_stack(fn):
     return a
     
 class RandomForest(object):
-    def __init__(self, ntrees=255, online=False, use_feature_importance=False):
-        self.rf = VigraRandomForest(treeCount=ntrees, 
-                                            prepare_online_learning=online)
+    def __init__(self, ntrees=255, use_feature_importance=False):
+        self.rf = VigraRandomForest(treeCount=ntrees)
         self.use_feature_importance = use_feature_importance
-        self.online = online
-        self.learned_range = 0
 
     def fit(self, features, labels, **kwargs):
         features = self.check_features_vector(features)
         labels = self.check_labels_vector(labels)
-        if self.online:
-            self.features = features.copy()
-            self.labels = labels.copy()
         if self.use_feature_importance:
             self.oob, self.feature_importance = \
                         self.rf.learnRFWithFeatureSelection(features, labels)
         else:
             self.oob = self.rf.learnRF(features, labels)
-        self.learned_range = features.shape[0]
         return self
 
-    def fit_online(self, features, labels):
-        features = self.check_features_vector(features)
-        labels = self.check_labels_vector(labels)
-        new_learned_range = self.learned_range + len(features)
-        while new_learned_range > self.features.shape[0]:
-            self.features.resize((self.features.shape[0]*2, 
-                                  self.features.shape[1]), refcheck=False)
-            self.labels.resize((self.labels.shape[0]*2, self.labels.shape[1]),
-                                                           refcheck=False)
-        self.features[self.learned_range:new_learned_range] = features
-        self.rf.onlineLearn(self.features[:new_learned_range], 
-                    self.labels[:new_learned_range], self.learned_range, False)
-        self.learned_range = new_learned_range
-
     def predict_proba(self, features):
-        if self.learned_range == 0:
-            return random.rand(len(features), 1)
         features = self.check_features_vector(features)
         return self.rf.predictProbabilities(features)
 
@@ -527,21 +504,16 @@ class RandomForest(object):
         return labels
 
     def save_to_disk(self, fn, rfgroupname='rf', overwrite=True):
-        if vigra_version < (1,8,0):
-            self.rf.writeHDF5(fn+'.rf', rfgroupname, overwrite)
-        else:
-            self.rf.writeHDF5(fn+'.vrf', rfgroupname)
-        attr_list = ['oob', 'feature_importance', 'features', 'labels', 
-                    'use_feature_importance', 'online', 'learned_range']
-        f = h5py.File(fn+'.rf')
+        self.rf.writeHDF5(fn, rfgroupname, overwrite)
+        attr_list = ['oob', 'feature_importance', 'use_feature_importance']
+        f = h5py.File(fn)
         for attr in attr_list:
             if hasattr(self, attr):
                 f[attr] = getattr(self, attr)
 
     def load_from_disk(self, fn, rfgroupname='rf'):
-        vrf_fn = fn+'.vrf' if vigra_version >= (1,8,0) else fn+'.rf'
-        self.rf = VigraRandomForest(vrf_fn, rfgroupname)
-        f = h5py.File(fn+'.rf', 'r')
+        self.rf = VigraRandomForest(fn, rfgroupname)
+        f = h5py.File(fn, 'r')
         groups = []
         f.visit(groups.append)
         attrs = [g for g in groups if g != rfgroupname]
