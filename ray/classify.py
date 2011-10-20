@@ -78,10 +78,11 @@ class NullFeatureManager(object):
     
 
 class MomentsFeatureManager(NullFeatureManager):
-    def __init__(self, nmoments=4, use_diff_features=True, *args, **kwargs):
+    def __init__(self, nmoments=4, use_diff_features=True, oriented=False, *args, **kwargs):
         super(MomentsFeatureManager, self).__init__()
         self.nmoments = nmoments
         self.use_diff_features = use_diff_features
+        self.oriented = oriented
 
     def __len__(self):
         return self.nmoments+1
@@ -92,11 +93,19 @@ class MomentsFeatureManager(NullFeatureManager):
 
     def create_node_cache(self, g, n):
         node_idxs = list(g.node[n]['extent'])
-        return self.compute_moment_sums(g.probabilities_r, node_idxs)
+        if self.oriented:
+            ar = g.max_probabilities_r
+        else:
+            ar = g.probabilities_r[:,~g.channel_is_oriented]
+        return self.compute_moment_sums(ar, node_idxs)
 
     def create_edge_cache(self, g, n1, n2):
         edge_idxs = list(g[n1][n2]['boundary'])
-        return self.compute_moment_sums(g.probabilities_r, edge_idxs)
+        if self.oriented:
+            ar = g.oriented_probabilities_r
+        else:
+            ar = g.probabilities_r[:,~g.channel_is_oriented]
+        return self.compute_moment_sums(ar, edge_idxs)
 
     def update_node_cache(self, g, n1, n2, dst, src):
         dst += src
@@ -107,14 +116,22 @@ class MomentsFeatureManager(NullFeatureManager):
     def pixelwise_update_node_cache(self, g, n, dst, idxs, remove=False):
         if len(idxs) == 0: return
         a = -1.0 if remove else 1.0
+        if self.oriented:
+            ar = g.max_probabilities_r
+        else:
+            ar = g.probabilities_r[:,~g.channel_is_oriented]
         dst += \
-                        a * self.compute_moment_sums(g.probabilities_r, idxs)
+                    a * self.compute_moment_sums(ar, idxs)
 
     def pixelwise_update_edge_cache(self, g, n1, n2, dst, idxs, remove=False):
         if len(idxs) == 0: return
         a = -1.0 if remove else 1.0
+        if self.oriented:
+            ar = g.max_probabilities_r
+        else:
+            ar = g.probabilities_r[:,~g.channel_is_oriented]
         dst += \
-                        a * self.compute_moment_sums(g.probabilities_r, idxs)
+                    a * self.compute_moment_sums(ar, idxs)
 
     def compute_node_features(self, g, n, cache=None):
         if cache is None: 
@@ -172,11 +189,12 @@ def central_moments_from_noncentral_sums(a):
 
 class HistogramFeatureManager(NullFeatureManager):
     def __init__(self, nbins=4, minval=0.0, maxval=1.0, 
-                                    compute_percentiles=[], *args, **kwargs):
+                                    compute_percentiles=[], oriented=False, *args, **kwargs):
         super(HistogramFeatureManager, self).__init__()
         self.minval = minval
         self.maxval = maxval
         self.nbins = nbins
+        self.oriented = oriented
         try:
             _ = len(compute_percentiles)
         except TypeError: # single percentile value given
@@ -228,11 +246,21 @@ class HistogramFeatureManager(NullFeatureManager):
 
     def create_node_cache(self, g, n):
         node_idxs = list(g.node[n]['extent'])
-        return self.histogram(g.probabilities_r[node_idxs])
+        if self.oriented:
+            ar = g.max_probabilities_r
+        else:
+            ar = g.probabilities_r[:,~g.channel_is_oriented]
+
+        return self.histogram(ar[node_idxs,:])
 
     def create_edge_cache(self, g, n1, n2):
         edge_idxs = list(g[n1][n2]['boundary'])
-        return self.histogram(g.probabilities_r[edge_idxs])
+        if self.oriented:
+            ar = g.oriented_probabilities_r
+        else:
+            ar = g.probabilities_r[:,~g.channel_is_oriented]
+
+        return self.histogram(ar[edge_idxs,:])
 
     def update_node_cache(self, g, n1, n2, dst, src):
         dst += src
@@ -243,12 +271,22 @@ class HistogramFeatureManager(NullFeatureManager):
     def pixelwise_update_node_cache(self, g, n, dst, idxs, remove=False):
         if len(idxs) == 0: return
         a = -1.0 if remove else 1.0
-        dst += a * self.histogram(g.probabilities_r[idxs])
+        if self.oriented:
+            ar = g.max_probabilities_r
+        else:
+            ar = g.probabilities_r[:,~g.channel_is_oriented]
+
+        dst += a * self.histogram(ar[idxs,:])
 
     def pixelwise_update_edge_cache(self, g, n1, n2, dst, idxs, remove=False):
         if len(idxs) == 0: return
         a = -1.0 if remove else 1.0
-        dst += a * self.histogram(g.probabilities_r[idxs])
+        if self.oriented:
+            ar = g.oriented_probabilities_r
+        else:
+            ar = g.probabilities_r[:,~g.channel_is_oriented]
+
+        dst += a * self.histogram(ar[idxs,:])
 
     def JS_divergence(self, p, q):
         m = (p+q)/2
