@@ -218,6 +218,7 @@ def segs_to_raveler(sps, bodies, **kwargs):
         sp_to_segment.append(unique(
             zip(it.repeat(i), sp_map[valid], segment_map[valid])))
         valid = segment_map != 0
+        logging.debug('plane %i done'%i)
         segment_to_body.append(unique(
                                 zip(segment_map[valid], body_map[valid])))
     logging.info('total superpixels before: ' + str(len(unique(sps))) +
