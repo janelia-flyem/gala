@@ -378,39 +378,45 @@ class Rag(Graph):
     def learn_agglomerate(self, gts, feature_map, min_num_samples=1,
                                                             *args, **kwargs):
         """Agglomerate while comparing to ground truth & classifying merges."""
+        learn_flat = kwargs.get('learn_flat', True)
         learning_mode = kwargs.get('learning_mode', 'strict')
         labeling_mode = kwargs.get('labeling_mode', 'assignment')
         priority_mode = kwargs.get('priority_mode', 'random')
         max_numepochs = kwargs.get('max_numepochs', 10)
+        label_type_keys = {'assignment':0, 'voi-sign':1, 'rand-sign':2}
         if type(gts) != list:
             gts = [gts] # allow using single ground truth as input
         ctables = [contingency_table(self.get_segmentation(), gt) for gt in gts]
         master_ctables = ctables
-        data = []
+        alldata = []
         for numepochs in range(max_numepochs):
-            if 'forbidden' not in mode: 
+            if learning_mode != 'strict':
                 ctables = deepcopy(master_ctables)
             if sum(map(len, [d[0] for d in data])) > min_num_samples:
                 break
+            if learn_flat and numepochs == 0:
+                alldata.append(self.learn_flat(self, gts, feature_map))
+                break
             g = self.copy()
-            if 'on-policy' in mode:
+            if priority_mode == 'mean':
                 g.merge_priority_function = boundary_mean
-            else:
-                g.merge_priority_function = random_priority
-            if numepochs > 0 and ('active' in mode or 'on-policy' in mode):
-                cl = kwargs.get('classifier', RandomForest(100))
-                cl = cl.fit(*data[0][:2])
+            elif numepochs > 0 and 'active' in priority_mode:
+                cl = kwargs.get('classifier', RandomForest())
+                cl = cl.fit(data[0][0], 
+                    data[0][1][:,label_type_keys[labeling_mode])
                 if type(cl) == RandomForest:
                     logging.info('classifier oob error: %.2f'%cl.oob)
                 g.merge_priority_function = \
                                         classifier_probability(feature_map, cl)
+            elif priority_mode == 'random':
+                g.merge_priority_function = random_priority
             g.show_progress = False # bug in MergeQueue usage causes
                                     # progressbar crash.
             g.rebuild_merge_queue()
             data.append(g._learn_agglomerate(ctables, feature_map, mode))
-            data = self._unique_learning_data_elements(data)
-            logging.debug('data size: %d'%len(data[0][0])) #DBG
-        return data[0]
+            data = self._unique_learning_data_elements(alldata)
+            logging.debug('data size: %d'%len(data[0])) #DBG
+        return data, alldata
 
     def learn_flat(self, gts, feature_map, *args, **kwargs):
         if type(gts) != list:
@@ -453,7 +459,7 @@ class Rag(Graph):
             (bcs.min(), mean(bcs), median(bcs), bcs.max())
         )
         def get_uniques(ar): return ar[uids]
-        return [map(get_uniques, [f, l, w, h])]
+        return map(get_uniques, [f, l, w, h])
 
 
     def _learn_agglomerate(self, ctables, feature_map, 
@@ -485,6 +491,7 @@ class Rag(Graph):
             candidate regions. Use the sign of the change as the training
             label.
         """
+        label_type_keys = {'assignment':0, 'voi-sign':1, 'rand-sign':2}
         assignments = [(ct == ct.max(axis=1)[:,newaxis]) for ct in ctables]
         g = self
         data = []
@@ -493,8 +500,8 @@ class Rag(Graph):
             if valid:
                 dat = g.learn_edge((n1,n2), ctables, assignments, feature_map)
                 data.append(dat)
-                label = dat[1]
-                if 'forbidden' not in mode or label < 0:
+                label = dat[1][label_type_keys[labeling_mode]]
+                if 'forbidden' == learning_mode or label < 0:
                     for ctable, assignment in zip(ctables, assignments):
                         ctable[n1] += ctable[n2]
                         ctable[n2] = 0
