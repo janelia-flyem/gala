@@ -386,24 +386,24 @@ class Rag(Graph):
         label_type_keys = {'assignment':0, 'voi-sign':1, 'rand-sign':2}
         if type(gts) != list:
             gts = [gts] # allow using single ground truth as input
-        ctables = [contingency_table(self.get_segmentation(), gt) for gt in gts]
-        master_ctables = ctables
+        master_ctables = \
+                [contingency_table(self.get_segmentation(), gt) for gt in gts]
         alldata = []
+        data = [[],[],[],[]]
         for numepochs in range(max_numepochs):
-            if learning_mode != 'strict':
-                ctables = deepcopy(master_ctables)
-            if sum(map(len, [d[0] for d in data])) > min_num_samples:
+            ctables = deepcopy(master_ctables)
+            if len(data[0]) > min_num_samples:
                 break
             if learn_flat and numepochs == 0:
-                alldata.append(self.learn_flat(self, gts, feature_map))
-                break
+                alldata.append(self.learn_flat(gts, feature_map))
+                continue
             g = self.copy()
             if priority_mode == 'mean':
                 g.merge_priority_function = boundary_mean
             elif numepochs > 0 and 'active' in priority_mode:
                 cl = kwargs.get('classifier', RandomForest())
                 cl = cl.fit(data[0][0], 
-                    data[0][1][:,label_type_keys[labeling_mode])
+                    data[0][1][:,label_type_keys[labeling_mode]])
                 if type(cl) == RandomForest:
                     logging.info('classifier oob error: %.2f'%cl.oob)
                 g.merge_priority_function = \
@@ -413,7 +413,8 @@ class Rag(Graph):
             g.show_progress = False # bug in MergeQueue usage causes
                                     # progressbar crash.
             g.rebuild_merge_queue()
-            data.append(g._learn_agglomerate(ctables, feature_map, mode))
+            alldata.append(g._learn_agglomerate(ctables, feature_map, 
+                                                learning_mode, labeling_mode))
             data = self._unique_learning_data_elements(alldata)
             logging.debug('data size: %d'%len(data[0])) #DBG
         return data, alldata
