@@ -13,11 +13,11 @@ from numpy import bool, array, double, zeros, mean, random, concatenate, where,\
     uint8, ones, float32, uint32, unique, newaxis, zeros_like, arange, floor, \
     histogram, seterr, __version__ as numpy_version, unravel_index, diff, \
     nonzero, sort, log, inf, argsort, repeat, ones_like, cov, arccos, dot, \
-    pi
+    pi, isfinite
 seterr(divide='ignore')
 from numpy.linalg import det, eig, norm
 from scipy import arange, factorial
-from scipy.spatial import Delaunay
+from scipy.ndimage import uniform_filter
 from scipy.misc import comb as nchoosek
 from scipy.stats import sem
 from scikits.learn.svm import SVC
@@ -194,6 +194,9 @@ class OrientationFeatureManager(NullFeatureManager):
     def __init__(self, *args, **kwargs):
         super(OrientationFeatureManager, self).__init__()
  
+    def __len__(self):
+        return 1
+
     def create_node_cache(self, g, n):
         # Get subscripts of extent (for some reason morpho.unravel_index was being slow)
         M = zeros_like(g.watershed); 
@@ -202,11 +205,16 @@ class OrientationFeatureManager(NullFeatureManager):
         
         # Get second moment matrix
         smm = cov(ind.T)/float(len(ind))
-        # Get eigenvectors
-        val,vec = eig(smm)
-        idx = argsort(val)[::-1]
-        val = val[idx]
-        vec = vec[idx,:]
+        try:
+            # Get eigenvectors
+            val,vec = eig(smm)
+            idx = argsort(val)[::-1]
+            val = val[idx]
+            vec = vec[idx,:]
+            return [val,vec,ind]
+        except:
+            n = g.watershed.ndim
+            return [array([0]*n), zeros((n,n)), ind]
         return [ val, vec, ind]
  
     def create_edge_cache(self, g, n1, n2):
@@ -217,13 +225,17 @@ class OrientationFeatureManager(NullFeatureManager):
         
         # Get second moment matrix
         smm = cov(ind.T)/float(len(ind))
-        # Get eigenvectors
-        val,vec = eig(smm)
-        idx = argsort(val)[::-1]
-        val = val[idx]
-        vec = vec[idx,:]
-        return [val, vec, ind]
- 
+        try:
+            # Get eigenvectors
+            val,vec = eig(smm)
+            idx = argsort(val)[::-1]
+            val = val[idx]
+            vec = vec[idx,:]
+            return [val, vec, ind]
+        except:
+            n = g.watershed.ndim
+            return [array([0]*n), zeros((n,n)), ind]
+
     def update_node_cache(self, g, n1, n2, dst, src):
         dst = self.create_node_cache(g,n1)
 
@@ -246,7 +258,10 @@ class OrientationFeatureManager(NullFeatureManager):
         features = []
         features.extend(val)
         # coherence measure
-        features.append( ((val[0]-val[1])/(val[0]+val[1]))**2)
+        if val[0]==0 and val[1]==0:
+            features.append(0)
+        else:
+            features.append( ((val[0]-val[1])/(val[0]+val[1]))**2)
         return array(features)
     
     def compute_edge_features(self, g, n1, n2, cache=None):
@@ -259,6 +274,7 @@ class OrientationFeatureManager(NullFeatureManager):
         features = []
         features.extend(val)
         features.append( ((val[0]-val[1])/(val[0]+val[1]))**2)
+        
         return array(features)
 
     def compute_difference_features(self,g, n1, n2, cache1=None, cache2=None):
@@ -282,18 +298,19 @@ class OrientationFeatureManager(NullFeatureManager):
         v3 = m1 - m2 # move to origin
 
         # Featres are angle differences
-        v1 /= norm(v1)
-        v2 /= norm(v2)
-        v3 /= norm(v3)
+        if norm(v1) != 0: v1 /= norm(v1)
+        if norm(v2) != 0: v2 /= norm(v2)
+        if norm(v3) != 0: v3 /= norm(v3)
+        
 
         features = []
-        ang1 = arccos(dot(v1,v2))
+        ang1 = arccos(min(max(dot(v1,v2),-1),1))
         if ang1>pi/2.0: ang1 = pi - ang1
         features.append(ang1)
 
-        ang2 = arccos(dot(v1,v3))
+        ang2 = arccos(min(max(dot(v1,v3),-1),1))
         if ang2>pi/2.0: ang2 = pi - ang2
-        ang3 = arccos(dot(v2,v3))
+        ang3 = arccos(min(max(dot(v2,v3),-1),1))
         if ang3>pi/2.0: ang3 = pi - ang3
         features.append(min([ang2,ang3]))
         features.append(max([ang2,ang3]))
@@ -306,43 +323,42 @@ class OrientationFeatureManager(NullFeatureManager):
 class ConvexHullFeatureManager(NullFeatureManager):
     def __init__(self, *args, **kwargs):
         super(ConvexHullFeatureManager, self).__init__()
- 
-    def convex_hull_vol(self, tri, g, ind):
-        # Get image of bounding box
-        M = ones_like(g.watershed)
-        mins = ind.min(axis=0)
-        maxes = ind.max(axis=0)
-        for i in range(g.watershed.ndim):
-            M = M.swapaxes(0,i)
-            M[:mins[i]-1,:] = 0
-            M[maxes[i]+1:,:] = 0
-            M = M.swapaxes(0,i)
 
-        return (tri.find_simplex(array(nonzero(M)).T)>-1).sum()
+    def __len__(self):
+        return 1 
 
     def create_node_cache(self, g, n):
-        # Get subscripts of extent (for some reason morpho.unravel_index was being slow)
         M = zeros_like(g.watershed); 
         M.ravel()[list(g.node[n]['extent'])] = 1 
-        ind = array(nonzero(M)).T
-        # Compute the convex hull of the region
-        tri = Delaunay(ind)
-        # Compute the volume of the hull
-        convex_vol = self.convex_hull_vol(tri,g,ind)
-        return array([convex_vol])
- 
+        ind = nonzero(M)
+        for d in range(M.ndim):
+            M = M.swapaxes(0,d)
+            M = M[min(ind[d]):max(ind[d])+1,:]
+            M = M.swapaxes(0,d)
+        numpixels = 0
+        ctr = 0
+        M = M.astype(float)
+        while M.sum() != numpixels:
+            numpixels = M.sum()
+            M[(uniform_filter(M,size=3,mode='constant')*(3**g.watershed.ndim)).round()>3] = 1
+            ctr += 1
+        return array([M.sum()])
+
     def create_edge_cache(self, g, n1, n2):
-        # Get subscripts of extent (for some reason morpho.unravel_index was being slow)
         M = zeros_like(g.watershed); 
         M.ravel()[list(g[n1][n2]['boundary'])] = 1 
-        ind = array(nonzero(M)).T
-        # Compute the convex hull of the region
-        tri = Delaunay(ind)
-        # Compute the volume of the hull
-        convex_vol = self.convex_hull_vol(tri,g,ind)
-        return array([convex_vol])
- 
-
+        ind = nonzero(M)
+        for d in range(M.ndim):
+            M = M.swapaxes(0,d)
+            M = M[min(ind[d]):max(ind[d])+1,:]
+            M = M.swapaxes(0,d)
+        numpixels = 0
+        M = M.astype(float)
+        while M.sum() != numpixels:
+            numpixels = M.sum()
+            M[(uniform_filter(M,size=3,mode='constant')*(3**g.watershed.ndim)).round()>3] = 1
+        return array([M.sum()])
+    
     def update_node_cache(self, g, n1, n2, dst, src):
         dst = self.create_node_cache(g,n1)
 
@@ -364,6 +380,7 @@ class ConvexHullFeatureManager(NullFeatureManager):
         features.append(convex_vol)
         features.append(convex_vol/float(len(g.node[n]['extent'])))
     
+
         return array(features)
     
     def compute_edge_features(self, g, n1, n2, cache=None):
@@ -373,7 +390,7 @@ class ConvexHullFeatureManager(NullFeatureManager):
 
         features = []
         features.append(convex_vol)
-        features.append(convex_vol/float(len(g.node[n]['extent'])))
+        features.append(convex_vol/float(len(g[n1][n2]['boundary'])))
 
         return array(features)
 
@@ -386,20 +403,25 @@ class ConvexHullFeatureManager(NullFeatureManager):
             cache2 = g.node[n2][self.default_cache]
         convex_vol2 = cache2[0]
         
-        # Get convex hull of combined region
-        # Get subscripts of extent (for some reason morpho.unravel_index was being slow)
         M = zeros_like(g.watershed); 
         M.ravel()[list(g.node[n1]['extent'])] = 1 
         M.ravel()[list(g.node[n2]['extent'])] = 1
-        ind = array(nonzero(M)).T
+        ind = nonzero(M)
+        for d in range(M.ndim):
+            M = M.swapaxes(0,d)
+            M = M[min(ind[d]):max(ind[d])+1,:]
+            M = M.swapaxes(0,d)
 
-        # Compute the convex hull of the region
-        tri_both = Delaunay(ind)
-        # Compute the volume of the hull
-        convex_vol_both = self.convex_hull_vol(tri_both,g,ind)
+        numpixels = 0
+        M = M.astype(float)
+        while M.sum() != numpixels:
+            numpixels = M.sum()
+            M[(uniform_filter(M,size=3,mode='constant')*(3**g.watershed.ndim)).round()>3] = 1
+        convex_vol_both = M.sum()
         
         vol1 = float(len(g.node[n1]['extent']))
         vol2 = float(len(g.node[n2]['extent']))
+        volborder = float(len(g[n1][n2]['boundary']))
         volboth = vol1+vol2
 
         features = []
@@ -408,6 +430,9 @@ class ConvexHullFeatureManager(NullFeatureManager):
         features.append(abs(convex_vol2/vol2 - convex_vol_both/volboth))
         features.append(abs(convex_vol_both/volboth))
         features.append((convex_vol1*vol2)/(convex_vol2*vol1))
+        features.append(volborder/vol1)
+        features.append(volborder/vol2)
+        features.append(volborder/volboth)
 
         return array(features)
 
