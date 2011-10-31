@@ -12,9 +12,12 @@ import h5py
 from numpy import bool, array, double, zeros, mean, random, concatenate, where,\
     uint8, ones, float32, uint32, unique, newaxis, zeros_like, arange, floor, \
     histogram, seterr, __version__ as numpy_version, unravel_index, diff, \
-    nonzero, sort, log, inf, argsort
+    nonzero, sort, log, inf, argsort, repeat, ones_like, cov, arccos, dot, \
+    pi
 seterr(divide='ignore')
-from scipy import arange
+from numpy.linalg import det, eig, norm
+from scipy import arange, factorial
+from scipy.spatial import Delaunay
 from scipy.misc import comb as nchoosek
 from scipy.stats import sem
 from scikits.learn.svm import SVC
@@ -187,6 +190,229 @@ def central_moments_from_noncentral_sums(a):
     ac[1] = mu
     return ac
 
+class OrientationFeatureManager(NullFeatureManager):
+    def __init__(self, *args, **kwargs):
+        super(OrientationFeatureManager, self).__init__()
+ 
+    def create_node_cache(self, g, n):
+        # Get subscripts of extent (for some reason morpho.unravel_index was being slow)
+        M = zeros_like(g.watershed); 
+        M.ravel()[list(g.node[n]['extent'])] = 1 
+        ind = array(nonzero(M)).T
+        
+        # Get second moment matrix
+        smm = cov(ind.T)/float(len(ind))
+        # Get eigenvectors
+        val,vec = eig(smm)
+        idx = argsort(val)[::-1]
+        val = val[idx]
+        vec = vec[idx,:]
+        return [ val, vec, ind]
+ 
+    def create_edge_cache(self, g, n1, n2):
+        # Get subscripts of extent (for some reason morpho.unravel_index was being slow)
+        M = zeros_like(g.watershed); 
+        M.ravel()[list(g[n1][n2]['boundary'])] = 1 
+        ind = array(nonzero(M)).T
+        
+        # Get second moment matrix
+        smm = cov(ind.T)/float(len(ind))
+        # Get eigenvectors
+        val,vec = eig(smm)
+        idx = argsort(val)[::-1]
+        val = val[idx]
+        vec = vec[idx,:]
+        return [val, vec, ind]
+ 
+    def update_node_cache(self, g, n1, n2, dst, src):
+        dst = self.create_node_cache(g,n1)
+
+    def update_edge_cache(self, g, e1, e2, dst, src):
+        dst  = self.create_edge_cache(g,e1[0], e1[1])
+
+    def pixelwise_update_node_cache(self, g, n, dst, idxs, remove=False):
+        pass 
+    
+    def pixelwise_update_edge_cache(self, g, n1, n2, dst, idxs, remove=False):
+        pass
+
+    def compute_node_features(self, g, n, cache=None):
+        if cache is None: 
+            cache = g.node[n][self.default_cache]
+        val = cache[0]
+        vec = cache[1]
+        ind = cache[2]
+
+        features = []
+        features.extend(val)
+        # coherence measure
+        features.append( ((val[0]-val[1])/(val[0]+val[1]))**2)
+        return array(features)
+    
+    def compute_edge_features(self, g, n1, n2, cache=None):
+        if cache is None: 
+            cache = g[n1][n2][self.default_cache]
+        val = cache[0]
+        vec = cache[1]
+        ind = cache[2]
+
+        features = []
+        features.extend(val)
+        features.append( ((val[0]-val[1])/(val[0]+val[1]))**2)
+        return array(features)
+
+    def compute_difference_features(self,g, n1, n2, cache1=None, cache2=None):
+        if cache1 is None:
+            cache1 = g.node[n1][self.default_cache]
+        val1 = cache1[0]
+        vec1 = cache1[1]
+        ind1 = cache1[2]
+
+        if cache2 is None:
+            cache2 = g.node[n2][self.default_cache]
+        val2 = cache2[0]
+        vec2 = cache2[1]
+        ind2 = cache2[2]
+
+        v1 = vec1[:,0]
+        v2 = vec2[:,0]
+        # Line connecting centroids of regions
+        m1 = ind1.mean(axis=0)
+        m2 = ind2.mean(axis=0)
+        v3 = m1 - m2 # move to origin
+
+        # Featres are angle differences
+        v1 /= norm(v1)
+        v2 /= norm(v2)
+        v3 /= norm(v3)
+
+        features = []
+        ang1 = arccos(dot(v1,v2))
+        if ang1>pi/2.0: ang1 = pi - ang1
+        features.append(ang1)
+
+        ang2 = arccos(dot(v1,v3))
+        if ang2>pi/2.0: ang2 = pi - ang2
+        ang3 = arccos(dot(v2,v3))
+        if ang3>pi/2.0: ang3 = pi - ang3
+        features.append(min([ang2,ang3]))
+        features.append(max([ang2,ang3]))
+        features.append(mean([ang2,ang3]))
+        
+        return array(features)
+
+
+
+class ConvexHullFeatureManager(NullFeatureManager):
+    def __init__(self, *args, **kwargs):
+        super(ConvexHullFeatureManager, self).__init__()
+ 
+    def convex_hull_vol(self, tri, g, ind):
+        # Get image of bounding box
+        M = ones_like(g.watershed)
+        mins = ind.min(axis=0)
+        maxes = ind.max(axis=0)
+        for i in range(g.watershed.ndim):
+            M = M.swapaxes(0,i)
+            M[:mins[i]-1,:] = 0
+            M[maxes[i]+1:,:] = 0
+            M = M.swapaxes(0,i)
+
+        return (tri.find_simplex(array(nonzero(M)).T)>-1).sum()
+
+    def create_node_cache(self, g, n):
+        # Get subscripts of extent (for some reason morpho.unravel_index was being slow)
+        M = zeros_like(g.watershed); 
+        M.ravel()[list(g.node[n]['extent'])] = 1 
+        ind = array(nonzero(M)).T
+        # Compute the convex hull of the region
+        tri = Delaunay(ind)
+        # Compute the volume of the hull
+        convex_vol = self.convex_hull_vol(tri,g,ind)
+        return array([convex_vol])
+ 
+    def create_edge_cache(self, g, n1, n2):
+        # Get subscripts of extent (for some reason morpho.unravel_index was being slow)
+        M = zeros_like(g.watershed); 
+        M.ravel()[list(g[n1][n2]['boundary'])] = 1 
+        ind = array(nonzero(M)).T
+        # Compute the convex hull of the region
+        tri = Delaunay(ind)
+        # Compute the volume of the hull
+        convex_vol = self.convex_hull_vol(tri,g,ind)
+        return array([convex_vol])
+ 
+
+    def update_node_cache(self, g, n1, n2, dst, src):
+        dst = self.create_node_cache(g,n1)
+
+    def update_edge_cache(self, g, e1, e2, dst, src):
+        dst  = self.create_edge_cache(g,e1[0], e1[1])
+
+    def pixelwise_update_node_cache(self, g, n, dst, idxs, remove=False):
+        pass
+
+    def pixelwise_update_edge_cache(self, g, n1, n2, dst, idxs, remove=False):
+        pass
+
+    def compute_node_features(self, g, n, cache=None):
+        if cache is None: 
+            cache = g.node[n][self.default_cache]
+        convex_vol = cache[0]
+
+        features = []
+        features.append(convex_vol)
+        features.append(convex_vol/float(len(g.node[n]['extent'])))
+    
+        return array(features)
+    
+    def compute_edge_features(self, g, n1, n2, cache=None):
+        if cache is None: 
+            cache = g[n1][n2][self.default_cache]
+        convex_vol = cache[0]
+
+        features = []
+        features.append(convex_vol)
+        features.append(convex_vol/float(len(g.node[n]['extent'])))
+
+        return array(features)
+
+    def compute_difference_features(self,g, n1, n2, cache1=None, cache2=None):
+        if cache1 is None:
+            cache1 = g.node[n1][self.default_cache]
+        convex_vol1 = cache1[0]
+
+        if cache2 is None:
+            cache2 = g.node[n2][self.default_cache]
+        convex_vol2 = cache2[0]
+        
+        # Get convex hull of combined region
+        # Get subscripts of extent (for some reason morpho.unravel_index was being slow)
+        M = zeros_like(g.watershed); 
+        M.ravel()[list(g.node[n1]['extent'])] = 1 
+        M.ravel()[list(g.node[n2]['extent'])] = 1
+        ind = array(nonzero(M)).T
+
+        # Compute the convex hull of the region
+        tri_both = Delaunay(ind)
+        # Compute the volume of the hull
+        convex_vol_both = self.convex_hull_vol(tri_both,g,ind)
+        
+        vol1 = float(len(g.node[n1]['extent']))
+        vol2 = float(len(g.node[n2]['extent']))
+        volboth = vol1+vol2
+
+        features = []
+        features.append(abs(convex_vol1/vol1 - convex_vol2/vol2))
+        features.append(abs(convex_vol1/vol1 - convex_vol_both/volboth))
+        features.append(abs(convex_vol2/vol2 - convex_vol_both/volboth))
+        features.append(abs(convex_vol_both/volboth))
+        features.append((convex_vol1*vol2)/(convex_vol2*vol1))
+
+        return array(features)
+
+
+ 
 class HistogramFeatureManager(NullFeatureManager):
     def __init__(self, nbins=4, minval=0.0, maxval=1.0, 
                                     compute_percentiles=[], oriented=False, *args, **kwargs):
@@ -332,7 +558,6 @@ class HistogramFeatureManager(NullFeatureManager):
         return self.JS_divergence(h1, h2)
 
           
-
 class SquigglinessFeatureManager(NullFeatureManager):
     def __init__(self, ndim=3, *args, **kwargs):
         super(SquigglinessFeatureManager, self).__init__()
