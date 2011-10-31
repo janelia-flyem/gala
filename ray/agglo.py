@@ -424,14 +424,15 @@ class Rag(Graph):
                 break
             if learn_flat and numepochs == 0:
                 alldata.append(self.learn_flat(gts, feature_map))
+                data = self._unique_learning_data_elements(alldata)
                 continue
             g = self.copy()
             if priority_mode == 'mean':
                 g.merge_priority_function = boundary_mean
             elif numepochs > 0 and 'active' in priority_mode:
                 cl = kwargs.get('classifier', RandomForest())
-                cl = cl.fit(data[0][0], 
-                    data[0][1][:,label_type_keys[labeling_mode]])
+                cl = cl.fit(data[0], 
+                    data[1][:,label_type_keys[labeling_mode]])
                 if type(cl) == RandomForest:
                     logging.info('classifier oob error: %.2f'%cl.oob)
                 g.merge_priority_function = \
@@ -509,9 +510,9 @@ class Rag(Graph):
             the two nodes that were sampled.
 
         Learning modes:
-            - forbidden: use positive-boundary examples to learn but never
+            - strict: use positive-boundary examples to learn but never
             merge
-            - laissez-faire: merge regardless of label
+            - loose: merge regardless of label
         Labeling modes:
             - assignment: assign each node to a gold standard node and 
             - voi-sign: compute the voi change resulting from merging candidate
@@ -530,7 +531,7 @@ class Rag(Graph):
                 dat = g.learn_edge((n1,n2), ctables, assignments, feature_map)
                 data.append(dat)
                 label = dat[1][label_type_keys[labeling_mode]]
-                if 'forbidden' == learning_mode or label < 0:
+                if learning_mode != 'strict' or label < 0:
                     for ctable, assignment in zip(ctables, assignments):
                         ctable[n1] += ctable[n2]
                         ctable[n2] = 0
