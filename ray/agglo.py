@@ -850,6 +850,9 @@ class Rag(Graph):
 # Merge priority functions #
 ############################
 
+def oriented_boundary_mean(g, n1, n2):
+    return mean(g.oriented_probabilites_r[list(g[n1][n2]['boundary'])])
+
 def boundary_mean(g, n1, n2):
     return mean(g.probabilities_r[list(g[n1][n2]['boundary'])])
 
