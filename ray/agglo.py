@@ -476,7 +476,9 @@ class Rag(Graph):
         ]
         labels = [sign(mean(cont_label)) for cont_label in cont_labels]
         if any(map(isnan, labels)):
-            raise RuntimeError('NaN label found.')
+            logging.warning('NaN labels found. ' + 
+                                    ' '.join(map(str, [labels, (n1, n2)])))
+            labels = [1]*len(labels)
         return features, labels, weights, (n1,n2)
 
     def _unique_learning_data_elements(self, data):
