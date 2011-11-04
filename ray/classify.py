@@ -9,6 +9,8 @@ from abc import ABCMeta, abstractmethod
 
 # libraries
 import h5py
+import time
+import itertools
 from numpy import bool, array, double, zeros, mean, random, concatenate, where,\
     uint8, ones, float32, uint32, unique, newaxis, zeros_like, arange, floor, \
     histogram, seterr, __version__ as numpy_version, unravel_index, diff, \
@@ -199,7 +201,7 @@ class OrientationFeatureManager(NullFeatureManager):
         return 1
 
     def create_node_cache(self, g, n):
-        # Get subscripts of extent (for some reason morpho.unravel_index was being slow)
+       # Get subscripts of extent (for some reason morpho.unravel_index was being slow)
         M = zeros_like(g.watershed); 
         M.ravel()[list(g.node[n]['extent'])] = 1 
         ind = array(nonzero(M)).T
@@ -337,26 +339,34 @@ class ConvexHullFeatureManager(NullFeatureManager):
         if n2 is not None:
             M.ravel()[list(g[n1][n2]['boundary'])]=1
         else:
-            M.ravel()[list(g.node[n1]['extent'])] = 1 
+            M.ravel()[list(g.node[n1]['extent'])] = 1
         M = binary_dilation(M) - M #Only need border
         ind = array(nonzero(M)).T
         return ind
 
+
     def convex_hull_vol(self, ind, g):
         # Compute the convex hull of the region
-        tri = Delaunay(ind)
-        # Get image of bounding box
-        M = ones_like(g.watershed)
-        mins = ind.min(axis=0)
-        maxes = ind.max(axis=0)
-        for i in range(g.watershed.ndim):
-            M = M.swapaxes(0,i)
-            M[:mins[i],:] = 0
-            M[maxes[i]+1:,:] = 0
-            M = M.swapaxes(0,i)
-        vol = (tri.find_simplex(array(nonzero(M)).T)>-1).sum()
-        return vol, tri
-
+        try:
+            tri = Delaunay(ind)
+        except:
+            # Just triangulate bounding box
+            mins = ind.min(axis=0)
+            maxes = ind.max(axis=0)
+            maxes[maxes==mins] += 1
+            ind = array(list(itertools.product(*tuple(array([mins,maxes]).T))))
+            print mins
+            print maxes
+            tri = Delaunay(ind)
+            print '@'
+        vol = 0
+        for simplex in tri.vertices:
+            pts = tri.points[simplex].T
+            pts = pts - repeat(pts[:,0][:,newaxis], pts.shape[1],axis=1)
+            pts = pts[:,1:]
+            vol += abs(1/float(factorial(pts.shape[0])) * det(pts))
+            return vol,tri 
+    
 
     def create_node_cache(self, g, n):
         vol, tri = self.convex_hull_vol(self.convex_hull_ind(g,n), g)
@@ -371,7 +381,7 @@ class ConvexHullFeatureManager(NullFeatureManager):
         tri2 = dst[0]
         ind1 = tri1.points[unique(tri1.convex_hull.ravel())]
         ind2 = tri2.points[unique(tri2.convex_hull.ravel())]
-        allind = numpy.concatenate((ind1,ind2))
+        allind = concatenate((ind1,ind2))
         vol, tri = self.convex_hull_vol(allind, g)
         dst = array([tri,vol])
 
@@ -380,7 +390,7 @@ class ConvexHullFeatureManager(NullFeatureManager):
         tri2 = dst[0]
         ind1 = tri1.points[unique(tri1.convex_hull.ravel())]
         ind2 = tri2.points[unique(tri2.convex_hull.ravel())]
-        allind = numpy.concatenate((ind1,ind2))
+        allind = concatenate((ind1,ind2))
         vol, tri = self.convex_hull_vol(allind, g)
         dst = array([tri,vol])
 
@@ -399,7 +409,6 @@ class ConvexHullFeatureManager(NullFeatureManager):
         features.append(convex_vol)
         features.append(convex_vol/float(len(g.node[n]['extent'])))
     
-
         return array(features)
     
     def compute_edge_features(self, g, n1, n2, cache=None):
@@ -410,7 +419,6 @@ class ConvexHullFeatureManager(NullFeatureManager):
         features = []
         features.append(convex_vol)
         features.append(convex_vol/float(len(g[n1][n2]['boundary'])))
-
         return array(features)
 
     def compute_difference_features(self,g, n1, n2, cache1=None, cache2=None):
@@ -426,9 +434,9 @@ class ConvexHullFeatureManager(NullFeatureManager):
  
         ind1 = tri1.points[unique(tri1.convex_hull.ravel())]
         ind2 = tri2.points[unique(tri2.convex_hull.ravel())]
-        allind = numpy.concatenate((ind1,ind2))
+        allind = concatenate((ind1,ind2))
         convex_vol_both, tri_both = self.convex_hull_vol(allind, g)
-        
+
         vol1 = float(len(g.node[n1]['extent']))
         vol2 = float(len(g.node[n2]['extent']))
         volborder = float(len(g[n1][n2]['boundary']))
