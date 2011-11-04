@@ -17,7 +17,8 @@ from numpy import bool, array, double, zeros, mean, random, concatenate, where,\
 seterr(divide='ignore')
 from numpy.linalg import det, eig, norm
 from scipy import arange, factorial
-from scipy.ndimage import uniform_filter
+from scipy.ndimage import binary_dilation
+from scipy.spatial import Delaunay
 from scipy.misc import comb as nchoosek
 from scipy.stats import sem
 from scikits.learn.svm import SVC
@@ -273,7 +274,11 @@ class OrientationFeatureManager(NullFeatureManager):
 
         features = []
         features.extend(val)
-        features.append( ((val[0]-val[1])/(val[0]+val[1]))**2)
+        # coherence measure
+        if val[0]==0 and val[1]==0:
+            features.append(0)
+        else:
+            features.append( ((val[0]-val[1])/(val[0]+val[1]))**2)
         
         return array(features)
 
@@ -326,44 +331,58 @@ class ConvexHullFeatureManager(NullFeatureManager):
 
     def __len__(self):
         return 1 
+    
+    def convex_hull_ind(self,g,n1,n2=None):
+        M = zeros_like(g.watershed); 
+        if n2 is not None:
+            M.ravel()[list(g[n1][n2]['boundary'])]=1
+        else:
+            M.ravel()[list(g.node[n1]['extent'])] = 1 
+        M = binary_dilation(M) - M #Only need border
+        ind = array(nonzero(M)).T
+        return ind
+
+    def convex_hull_vol(self, ind, g):
+        # Compute the convex hull of the region
+        tri = Delaunay(ind)
+        # Get image of bounding box
+        M = ones_like(g.watershed)
+        mins = ind.min(axis=0)
+        maxes = ind.max(axis=0)
+        for i in range(g.watershed.ndim):
+            M = M.swapaxes(0,i)
+            M[:mins[i],:] = 0
+            M[maxes[i]+1:,:] = 0
+            M = M.swapaxes(0,i)
+        vol = (tri.find_simplex(array(nonzero(M)).T)>-1).sum()
+        return vol, tri
+
 
     def create_node_cache(self, g, n):
-        M = zeros_like(g.watershed); 
-        M.ravel()[list(g.node[n]['extent'])] = 1 
-        ind = nonzero(M)
-        for d in range(M.ndim):
-            M = M.swapaxes(0,d)
-            M = M[min(ind[d]):max(ind[d])+1,:]
-            M = M.swapaxes(0,d)
-        numpixels = 0
-        ctr = 0
-        M = M.astype(float)
-        while M.sum() != numpixels:
-            numpixels = M.sum()
-            M[(uniform_filter(M,size=3,mode='constant')*(3**g.watershed.ndim)).round()>3] = 1
-            ctr += 1
-        return array([M.sum()])
+        vol, tri = self.convex_hull_vol(self.convex_hull_ind(g,n), g)
+        return array([tri,vol])
 
     def create_edge_cache(self, g, n1, n2):
-        M = zeros_like(g.watershed); 
-        M.ravel()[list(g[n1][n2]['boundary'])] = 1 
-        ind = nonzero(M)
-        for d in range(M.ndim):
-            M = M.swapaxes(0,d)
-            M = M[min(ind[d]):max(ind[d])+1,:]
-            M = M.swapaxes(0,d)
-        numpixels = 0
-        M = M.astype(float)
-        while M.sum() != numpixels:
-            numpixels = M.sum()
-            M[(uniform_filter(M,size=3,mode='constant')*(3**g.watershed.ndim)).round()>3] = 1
-        return array([M.sum()])
-    
+        vol, tri = self.convex_hull_vol(self.convex_hull_ind(g,n1,n2), g)
+        return array([tri,vol])
+
     def update_node_cache(self, g, n1, n2, dst, src):
-        dst = self.create_node_cache(g,n1)
+        tri1 = src[0]
+        tri2 = dst[0]
+        ind1 = tri1.points[unique(tri1.convex_hull.ravel())]
+        ind2 = tri2.points[unique(tri2.convex_hull.ravel())]
+        allind = numpy.concatenate((ind1,ind2))
+        vol, tri = self.convex_hull_vol(allind, g)
+        dst = array([tri,vol])
 
     def update_edge_cache(self, g, e1, e2, dst, src):
-        dst  = self.create_edge_cache(g,e1[0], e1[1])
+        tri1 = src[0]
+        tri2 = dst[0]
+        ind1 = tri1.points[unique(tri1.convex_hull.ravel())]
+        ind2 = tri2.points[unique(tri2.convex_hull.ravel())]
+        allind = numpy.concatenate((ind1,ind2))
+        vol, tri = self.convex_hull_vol(allind, g)
+        dst = array([tri,vol])
 
     def pixelwise_update_node_cache(self, g, n, dst, idxs, remove=False):
         pass
@@ -374,7 +393,7 @@ class ConvexHullFeatureManager(NullFeatureManager):
     def compute_node_features(self, g, n, cache=None):
         if cache is None: 
             cache = g.node[n][self.default_cache]
-        convex_vol = cache[0]
+        convex_vol = cache[1]
 
         features = []
         features.append(convex_vol)
@@ -386,7 +405,7 @@ class ConvexHullFeatureManager(NullFeatureManager):
     def compute_edge_features(self, g, n1, n2, cache=None):
         if cache is None: 
             cache = g[n1][n2][self.default_cache]
-        convex_vol = cache[0]
+        convex_vol = cache[1]
 
         features = []
         features.append(convex_vol)
@@ -397,27 +416,18 @@ class ConvexHullFeatureManager(NullFeatureManager):
     def compute_difference_features(self,g, n1, n2, cache1=None, cache2=None):
         if cache1 is None:
             cache1 = g.node[n1][self.default_cache]
-        convex_vol1 = cache1[0]
+        tri1 = cache1[0]
+        convex_vol1 = cache1[1]
 
         if cache2 is None:
             cache2 = g.node[n2][self.default_cache]
-        convex_vol2 = cache2[0]
-        
-        M = zeros_like(g.watershed); 
-        M.ravel()[list(g.node[n1]['extent'])] = 1 
-        M.ravel()[list(g.node[n2]['extent'])] = 1
-        ind = nonzero(M)
-        for d in range(M.ndim):
-            M = M.swapaxes(0,d)
-            M = M[min(ind[d]):max(ind[d])+1,:]
-            M = M.swapaxes(0,d)
-
-        numpixels = 0
-        M = M.astype(float)
-        while M.sum() != numpixels:
-            numpixels = M.sum()
-            M[(uniform_filter(M,size=3,mode='constant')*(3**g.watershed.ndim)).round()>3] = 1
-        convex_vol_both = M.sum()
+        tri2 = cache2[0]
+        convex_vol2 = cache2[1]
+ 
+        ind1 = tri1.points[unique(tri1.convex_hull.ravel())]
+        ind2 = tri2.points[unique(tri2.convex_hull.ravel())]
+        allind = numpy.concatenate((ind1,ind2))
+        convex_vol_both, tri_both = self.convex_hull_vol(allind, g)
         
         vol1 = float(len(g.node[n1]['extent']))
         vol2 = float(len(g.node[n2]['extent']))
