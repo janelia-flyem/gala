@@ -358,7 +358,6 @@ class ConvexHullFeatureManager(NullFeatureManager):
             print mins
             print maxes
             tri = Delaunay(ind)
-            print '@'
         vol = 0
         for simplex in tri.vertices:
             pts = tri.points[simplex].T
