@@ -264,7 +264,8 @@ class Rag(Graph):
         except ValueError: # empty watershed given
             self.boundary_body = -1
         self.volume_size = ws.size
-        if (ws==0).any():
+        self.has_zero_boundaries = (ws==0).any()
+        if self.has_zero_boundaries:
             self.watershed = morpho.pad(ws, [0, self.boundary_body])
         else:
             self.watershed = morpho.pad(ws, self.boundary_body)
@@ -591,7 +592,7 @@ class Rag(Graph):
         for n in new_neighbors:
             self.merge_edge_properties((n2,n), (n1,n))
         # this if statement enables merging of non-adjacent nodes
-        if self.has_edge(n1,n2):
+        if self.has_edge(n1,n2) and self.has_zero_boundaries:
             self.refine_post_merge_boundaries(n1, n2)
         self.rig[n1] += self.rig[n2]
         self.rig[n2] = 0
