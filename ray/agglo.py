@@ -206,7 +206,7 @@ class Rag(Graph):
     def get_neighbor_idxs_lean(self, idxs, connectivity=1):
         return morpho.get_neighbor_idxs(self.watershed, idxs, connectivity)
 
-    def set_probabilities(self, probs=array([]), normalize=True):
+    def set_probabilities(self, probs=array([]), normalize=False):
         if len(probs) == 0:
             self.probabilities = zeros_like(self.watershed)
             self.probabilities_r = self.probabilities.ravel()
