@@ -250,12 +250,17 @@ class Rag(Graph):
             self.channel_is_oriented = array([False]*nchannels)
             self.max_probabilities_r = zeros_like(self.probabilities_r)
             self.oriented_probabilities_r = zeros_like(self.probabilities_r)
+            self.non_oriented_probabilities_r = self.probabilities_r
         else:
             self.channel_is_oriented = channel_is_oriented
-            self.max_probabilities_r = self.probabilities_r[:,self.channel_is_oriented].max(axis=1)
-            self.oriented_probabilities_r = self.probabilities_r[:,self.channel_is_oriented]
-            self.oriented_probabilities_r = self.oriented_probabilities_r[
-                range(self.oriented_probabilities_r.shape[0]), self.orientation_map_r]
+            self.max_probabilities_r = \
+                self.probabilities_r[:, self.channel_is_oriented].max(axis=1)
+            self.oriented_probabilities_r = \
+                self.probabilities_r[:, self.channel_is_oriented]
+            self.oriented_probabilities_r = \
+                self.oriented_probabilities_r[:, self.orientation_map_r]
+            self.non_oriented_probabilities_r = \
+                self.probabilities_r[:, ~self.channel_is_oriented]
 
 
     def set_watershed(self, ws=array([]), lowmem=False, connectivity=1):
