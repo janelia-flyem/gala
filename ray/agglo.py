@@ -258,7 +258,9 @@ class Rag(Graph):
             self.oriented_probabilities_r = \
                 self.probabilities_r[:, self.channel_is_oriented]
             self.oriented_probabilities_r = \
-                self.oriented_probabilities_r[:, self.orientation_map_r]
+                self.oriented_probabilities_r[
+                    range(len(self.oriented_probabilities_r)), 
+                    self.orientation_map_r]
             self.non_oriented_probabilities_r = \
                 self.probabilities_r[:, ~self.channel_is_oriented]
 
