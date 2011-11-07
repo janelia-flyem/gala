@@ -353,8 +353,6 @@ class ConvexHullFeatureManager(NullFeatureManager):
             maxes = ind.max(axis=0)
             maxes[maxes==mins] += 1
             ind = array(list(itertools.product(*tuple(array([mins,maxes]).T))))
-            print mins
-            print maxes
             tri = Delaunay(ind)
         vol = 0
         for simplex in tri.vertices:
