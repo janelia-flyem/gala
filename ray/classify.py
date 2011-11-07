@@ -102,7 +102,7 @@ class MomentsFeatureManager(NullFeatureManager):
         if self.oriented:
             ar = g.max_probabilities_r
         else:
-            ar = g.probabilities_r[:,~g.channel_is_oriented]
+            ar = g.non_oriented_probabilities_r
         return self.compute_moment_sums(ar, node_idxs)
 
     def create_edge_cache(self, g, n1, n2):
@@ -110,7 +110,7 @@ class MomentsFeatureManager(NullFeatureManager):
         if self.oriented:
             ar = g.oriented_probabilities_r
         else:
-            ar = g.probabilities_r[:,~g.channel_is_oriented]
+            ar = g.non_oriented_probabilities_r
         return self.compute_moment_sums(ar, edge_idxs)
 
     def update_node_cache(self, g, n1, n2, dst, src):
@@ -125,9 +125,8 @@ class MomentsFeatureManager(NullFeatureManager):
         if self.oriented:
             ar = g.max_probabilities_r
         else:
-            ar = g.probabilities_r[:,~g.channel_is_oriented]
-        dst += \
-                    a * self.compute_moment_sums(ar, idxs)
+            ar = g.non_oriented_probabilities_r
+        dst += a * self.compute_moment_sums(ar, idxs)
 
     def pixelwise_update_edge_cache(self, g, n1, n2, dst, idxs, remove=False):
         if len(idxs) == 0: return
@@ -135,9 +134,8 @@ class MomentsFeatureManager(NullFeatureManager):
         if self.oriented:
             ar = g.max_probabilities_r
         else:
-            ar = g.probabilities_r[:,~g.channel_is_oriented]
-        dst += \
-                    a * self.compute_moment_sums(ar, idxs)
+            ar = g.non_oriented_probabilities_r
+        dst += a * self.compute_moment_sums(ar, idxs)
 
     def compute_node_features(self, g, n, cache=None):
         if cache is None: 
@@ -201,7 +199,7 @@ class OrientationFeatureManager(NullFeatureManager):
         return 1
 
     def create_node_cache(self, g, n):
-       # Get subscripts of extent (for some reason morpho.unravel_index was being slow)
+        # Get subscripts of extent (morpho.unravel_index was slow)
         M = zeros_like(g.watershed); 
         M.ravel()[list(g.node[n]['extent'])] = 1 
         ind = array(nonzero(M)).T
@@ -221,7 +219,7 @@ class OrientationFeatureManager(NullFeatureManager):
         return [ val, vec, ind]
  
     def create_edge_cache(self, g, n1, n2):
-        # Get subscripts of extent (for some reason morpho.unravel_index was being slow)
+        # Get subscripts of extent (morpho.unravel_index was slow)
         M = zeros_like(g.watershed); 
         M.ravel()[list(g[n1][n2]['boundary'])] = 1 
         ind = array(nonzero(M)).T
@@ -457,7 +455,7 @@ class ConvexHullFeatureManager(NullFeatureManager):
  
 class HistogramFeatureManager(NullFeatureManager):
     def __init__(self, nbins=4, minval=0.0, maxval=1.0, 
-                                    compute_percentiles=[], oriented=False, *args, **kwargs):
+                    compute_percentiles=[], oriented=False, *args, **kwargs):
         super(HistogramFeatureManager, self).__init__()
         self.minval = minval
         self.maxval = maxval
@@ -517,7 +515,7 @@ class HistogramFeatureManager(NullFeatureManager):
         if self.oriented:
             ar = g.max_probabilities_r
         else:
-            ar = g.probabilities_r[:,~g.channel_is_oriented]
+            ar = g.non_oriented_probabilities_r
 
         return self.histogram(ar[node_idxs,:])
 
@@ -526,7 +524,7 @@ class HistogramFeatureManager(NullFeatureManager):
         if self.oriented:
             ar = g.oriented_probabilities_r
         else:
-            ar = g.probabilities_r[:,~g.channel_is_oriented]
+            ar = g.non_oriented_probabilities_r
 
         return self.histogram(ar[edge_idxs,:])
 
@@ -542,7 +540,7 @@ class HistogramFeatureManager(NullFeatureManager):
         if self.oriented:
             ar = g.max_probabilities_r
         else:
-            ar = g.probabilities_r[:,~g.channel_is_oriented]
+            ar = g.non_oriented_probabilities_r
 
         dst += a * self.histogram(ar[idxs,:])
 
@@ -552,7 +550,7 @@ class HistogramFeatureManager(NullFeatureManager):
         if self.oriented:
             ar = g.oriented_probabilities_r
         else:
-            ar = g.probabilities_r[:,~g.channel_is_oriented]
+            ar = g.non_oriented_probabilities_r
 
         dst += a * self.histogram(ar[idxs,:])
 
