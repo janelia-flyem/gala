@@ -10,10 +10,12 @@ from numpy import   shape, reshape, \
                     where, unravel_index, newaxis, \
                     ceil, floor, prod, cumprod, \
                     concatenate, \
-                    ndarray, minimum, bincount
+                    ndarray, minimum, bincount, dot
 import itertools
+import re
 from collections import defaultdict, deque as queue
-from scipy.ndimage import filters, grey_dilation
+from scipy.ndimage import filters, grey_dilation, generate_binary_structure, \
+        maximum_filter, minimum_filter
 from scipy.ndimage.measurements import label
 from scipy.ndimage.morphology import binary_opening, \
     generate_binary_structure, iterate_structure
@@ -247,6 +249,13 @@ def get_neighbor_idxs(ar, idxs, connectivity=1):
             i_strides = array(list(itertools.combinations(strides,i))).T
             steps.append(prod.dot(i_strides).ravel())
     return idxs[:,newaxis] + concatenate(steps)
+
+def seg_to_bdry(seg, connectivity=1):
+    """Given a borderless segmentation, return the boundary map."""
+    strel = generate_binary_structure(seg.ndim, connectivity)
+    return maximum_filter(seg,footprint=strel) != minimum_filter(seg,footprint=strel)
+    
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
