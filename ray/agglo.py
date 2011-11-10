@@ -494,7 +494,7 @@ class Rag(Graph):
             [compute_true_delta_voi(ctable, n1, n2) for ctable in ctables],
             [-compute_true_delta_rand(self.volume_size*ctable, n1, n2) 
                                                     for ctable in ctables],
-            [float(self.compute_boundary_overlap_with_gt(n1,n2, gt_dts)>0.45)*2 - 1]
+            [(self.compute_boundary_overlap_with_gt(n1,n2, gt_dts)>0.45)*2 - 1]
         ]
         labels = [sign(mean(cont_label)) for cont_label in cont_labels]
         if any(map(isnan, labels)):
