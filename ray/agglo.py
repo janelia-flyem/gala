@@ -12,7 +12,7 @@ from math import isnan
 from numpy import array, mean, zeros, zeros_like, uint8, int8, where, unique, ones_like, \
     finfo, size, double, transpose, newaxis, uint32, nonzero, median, exp, \
     log2, float, ones, arange, inf, flatnonzero, intersect1d, dtype, squeeze, \
-    sign, concatenate, bincount, __version__ as numpyversion
+    sign, concatenate, bincount, nan, __version__ as numpyversion
 from scipy.stats import sem
 from scipy.sparse import lil_matrix
 from scipy.ndimage import distance_transform_cdt
@@ -430,18 +430,12 @@ class Rag(Graph):
         for gt in gts:
             gt_ignore = [nan,nan] if (gt==0).any() else [nan]
             gtpad = morpho.pad(gt, gt_ignore)
-            #indicies of center (we pad to remove array indexing errors)
-            centeridx = nonzero(morpho.pad(ones_like(gt),[0]).ravel())[0]
-            #get indices of neighbors
-            nbridx = morpho.get_neighbor_idxs(gtpad, centeridx)
-            #get the neighbor values
-            nbrvals = reshape(gtpad.ravel()[nbridx.ravel()], nbridx.shape)
-            #borders have multiple neighbor values
-            bdrs = nonzero(nanmax(nbrvals, axis=1) - nanmin(nbrvals,axis=1))[0]
-            #construct border matrix
-            bdrmat = zeros_like(gt)
-            bdrmat.ravel()[bdrs] = 1
-            gt_dts.append(distance_transform_cdt(1-bdrmat))
+            if any(gt.ravel()==0):
+                bdry = gt==0
+            else:
+                bdry = morpho.pad(morpho.seg_to_bdry(gt), gt_ignore)
+            bdry.astype(float)
+            gt_dts.append(distance_transform_cdt(1-bdry))
         alldata = []
         data = [[],[],[],[]]
         for numepochs in range(max_numepochs):
@@ -500,7 +494,7 @@ class Rag(Graph):
             [compute_true_delta_voi(ctable, n1, n2) for ctable in ctables],
             [-compute_true_delta_rand(self.volume_size*ctable, n1, n2) 
                                                     for ctable in ctables],
-            [float(self.compute_boundary_overlap_with_gt(n1,n2, gt_dts)>0.5)*2 - 1]
+            [float(self.compute_boundary_overlap_with_gt(n1,n2, gt_dts)>0.45)*2 - 1]
         ]
         labels = [sign(mean(cont_label)) for cont_label in cont_labels]
         if any(map(isnan, labels)):
@@ -513,7 +507,7 @@ class Rag(Graph):
         val = []
         for gt_dt in gt_dts:
             dists = gt_dt.ravel()[list(self[n1][n2]['boundary'])]
-            val.append(sum(dists<3)/float(len(dists)))
+            val.append(sum(dists<=3)/float(len(dists)))
         return mean(val) 
         
     def _unique_learning_data_elements(self, data):
