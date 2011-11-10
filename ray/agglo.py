@@ -428,11 +428,20 @@ class Rag(Graph):
         # Get distance transforms of ground truth
         gt_dts = []
         for gt in gts:
-            gtm = gt.max()+1
-            gt_ignore = [0, gtm] if (gt==0).any() else [gtm]
+            gt_ignore = [nan,nan] if (gt==0).any() else [nan]
             gtpad = morpho.pad(gt, gt_ignore)
-            a2 = Rag(watershed=gtpad, probabilities=ones_like(gtpad))
-            gt_dts.append(distance_transform_cdt(1-a2.build_boundary_map()))
+            #indicies of center (we pad to remove array indexing errors)
+            centeridx = nonzero(morpho.pad(ones_like(gt),[0]).ravel())[0]
+            #get indices of neighbors
+            nbridx = morpho.get_neighbor_idxs(gtpad, centeridx)
+            #get the neighbor values
+            nbrvals = reshape(gtpad.ravel()[nbridx.ravel()], nbridx.shape)
+            #borders have multiple neighbor values
+            bdrs = nonzero(nanmax(nbrvals, axis=1) - nanmin(nbrvals,axis=1))[0]
+            #construct border matrix
+            bdrmat = zeros_like(gt)
+            bdrmat.ravel()[bdrs] = 1
+            gt_dts.append(distance_transform_cdt(1-bdrmat))
         alldata = []
         data = [[],[],[],[]]
         for numepochs in range(max_numepochs):
