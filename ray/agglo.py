@@ -437,7 +437,7 @@ class Rag(Graph):
             g = self.copy()
             if priority_mode == 'mean':
                 g.merge_priority_function = boundary_mean
-            elif numepochs > 0 and 'active' in priority_mode:
+            elif numepochs > 0 and priority_mode == 'active':
                 cl = kwargs.get('classifier', RandomForest())
                 cl = cl.fit(data[0], 
                     data[1][:,label_type_keys[labeling_mode]])
@@ -445,7 +445,8 @@ class Rag(Graph):
                     logging.info('classifier oob error: %.2f'%cl.oob)
                 g.merge_priority_function = \
                                         classifier_probability(feature_map, cl)
-            elif priority_mode == 'random':
+            elif priority_mode == 'random' or \
+                (priority_mode == 'active' and numepochs == 0):
                 g.merge_priority_function = random_priority
             g.show_progress = False # bug in MergeQueue usage causes
                                     # progressbar crash.
