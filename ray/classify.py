@@ -19,7 +19,7 @@ from numpy import bool, array, double, zeros, mean, random, concatenate, where,\
 seterr(divide='ignore')
 from numpy.linalg import det, eig, norm
 from scipy import arange, factorial
-from scipy.ndimage import binary_dilation
+from scipy.ndimage import binary_erosion
 from scipy.spatial import Delaunay
 from scipy.misc import comb as nchoosek
 from scipy.stats import sem
@@ -338,7 +338,7 @@ class ConvexHullFeatureManager(NullFeatureManager):
             M.ravel()[list(g[n1][n2]['boundary'])]=1
         else:
             M.ravel()[list(g.node[n1]['extent'])] = 1
-        M = binary_dilation(M) - M #Only need border
+        M = M - binary_erosion(M) #Only need border
         ind = array(nonzero(M)).T
         return ind
 
