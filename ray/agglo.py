@@ -9,12 +9,13 @@ from math import isnan
 
 # libraries
 #import matplotlib.pyplot as plt
-from numpy import array, mean, zeros, zeros_like, uint8, int8, where, unique, \
+from numpy import array, mean, zeros, zeros_like, uint8, int8, where, unique, ones_like, \
     finfo, size, double, transpose, newaxis, uint32, nonzero, median, exp, \
     log2, float, ones, arange, inf, flatnonzero, intersect1d, dtype, squeeze, \
     sign, concatenate, bincount, __version__ as numpyversion
 from scipy.stats import sem
 from scipy.sparse import lil_matrix
+from scipy.ndimage import distance_transform_cdt
 from scipy.misc import comb as nchoosek
 from scipy.ndimage.measurements import center_of_mass, label
 from networkx import Graph
@@ -419,11 +420,19 @@ class Rag(Graph):
         labeling_mode = kwargs.get('labeling_mode', 'assignment')
         priority_mode = kwargs.get('priority_mode', 'random')
         max_numepochs = kwargs.get('max_numepochs', 10)
-        label_type_keys = {'assignment':0, 'voi-sign':1, 'rand-sign':2}
+        label_type_keys = {'assignment':0, 'voi-sign':1, 'rand-sign':2, 'boundary':3}
         if type(gts) != list:
             gts = [gts] # allow using single ground truth as input
         master_ctables = \
                 [contingency_table(self.get_segmentation(), gt) for gt in gts]
+        # Get distance transforms of ground truth
+        gt_dts = []
+        for gt in gts:
+            gtm = gt.max()+1
+            gt_ignore = [0, gtm] if (gt==0).any() else [gtm]
+            gtpad = morpho.pad(gt, gt_ignore)
+            a2 = Rag(watershed=gtpad, probabilities=ones_like(gtpad))
+            gt_dts.append(distance_transform_cdt(1-a2.build_boundary_map()))
         alldata = []
         data = [[],[],[],[]]
         for numepochs in range(max_numepochs):
@@ -451,7 +460,7 @@ class Rag(Graph):
             g.show_progress = False # bug in MergeQueue usage causes
                                     # progressbar crash.
             g.rebuild_merge_queue()
-            alldata.append(g._learn_agglomerate(ctables, feature_map, 
+            alldata.append(g._learn_agglomerate(ctables, feature_map, gt_dts,
                                                 learning_mode, labeling_mode))
             data = self._unique_learning_data_elements(alldata)
             logging.debug('data size: %d'%len(data[0])) #DBG
@@ -467,7 +476,7 @@ class Rag(Graph):
                                                 for e in self.edges()])
         )
 
-    def learn_edge(self, edge, ctables, assignments, feature_map):
+    def learn_edge(self, edge, ctables, assignments, feature_map, gt_dts):
         n1, n2 = edge
         features = feature_map(self, n1, n2).ravel()
         # Calculate weights for weighting data points
@@ -481,7 +490,8 @@ class Rag(Graph):
             [(-1)**(a[n1,:]==a[n2,:]).all() for a in assignments],
             [compute_true_delta_voi(ctable, n1, n2) for ctable in ctables],
             [-compute_true_delta_rand(self.volume_size*ctable, n1, n2) 
-                                                    for ctable in ctables]
+                                                    for ctable in ctables],
+            [float(self.compute_boundary_overlap_with_gt(n1,n2, gt_dts)>0.5)*2 - 1]
         ]
         labels = [sign(mean(cont_label)) for cont_label in cont_labels]
         if any(map(isnan, labels)):
@@ -490,6 +500,13 @@ class Rag(Graph):
             labels = [1]*len(labels)
         return features, labels, weights, (n1,n2)
 
+    def compute_boundary_overlap_with_gt(self, n1, n2, gt_dts):
+        val = []
+        for gt_dt in gt_dts:
+            dists = gt_dt.ravel()[list(self[n1][n2]['boundary'])]
+            val.append(sum(dists<3)/float(len(dists)))
+        return mean(val) 
+        
     def _unique_learning_data_elements(self, data):
         f, l, w, h = map(concatenate, zip(*data))
         af = f.view('|S%d'%(f.itemsize*(len(f[0]))))
@@ -503,7 +520,7 @@ class Rag(Graph):
         return map(get_uniques, [f, l, w, h])
 
 
-    def _learn_agglomerate(self, ctables, feature_map, 
+    def _learn_agglomerate(self, ctables, feature_map, gt_dts, 
                         learning_mode='forbidden', labeling_mode='assignment'):
         """Learn the agglomeration process using various strategies.
 
@@ -532,14 +549,14 @@ class Rag(Graph):
             candidate regions. Use the sign of the change as the training
             label.
         """
-        label_type_keys = {'assignment':0, 'voi-sign':1, 'rand-sign':2}
+        label_type_keys = {'assignment':0, 'voi-sign':1, 'rand-sign':2, 'boundary':3}
         assignments = [(ct == ct.max(axis=1)[:,newaxis]) for ct in ctables]
         g = self
         data = []
         while len(g.merge_queue) > 0:
             merge_priority, valid, n1, n2 = g.merge_queue.pop()
             if valid:
-                dat = g.learn_edge((n1,n2), ctables, assignments, feature_map)
+                dat = g.learn_edge((n1,n2), ctables, assignments, feature_map, gt_dts)
                 data.append(dat)
                 label = dat[1][label_type_keys[labeling_mode]]
                 if learning_mode != 'strict' or label < 0:
