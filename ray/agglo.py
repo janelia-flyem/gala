@@ -9,12 +9,14 @@ from math import isnan
 
 # libraries
 #import matplotlib.pyplot as plt
-from numpy import array, mean, zeros, zeros_like, uint8, int8, where, unique, \
-    finfo, size, double, transpose, newaxis, uint32, nonzero, median, exp, \
-    log2, float, ones, arange, inf, flatnonzero, intersect1d, dtype, squeeze, \
-    sign, concatenate, bincount, __version__ as numpyversion
+from numpy import array, mean, zeros, zeros_like, uint8, int8, where, unique, ones_like, \
+    finfo, size, double, transpose, newaxis, uint32, nonzero, median, exp, ceil, dot,\
+    log2, float, ones, arange, inf, flatnonzero, intersect1d, dtype, squeeze, sqrt,\
+    reshape, setdiff1d, argmin, sign, concatenate, bincount, nan, __version__ as numpyversion
+import numpy
 from scipy.stats import sem
 from scipy.sparse import lil_matrix
+from scipy.ndimage import generate_binary_structure, iterate_structure, distance_transform_cdt
 from scipy.misc import comb as nchoosek
 from scipy.ndimage.measurements import center_of_mass, label
 from networkx import Graph
@@ -206,7 +208,7 @@ class Rag(Graph):
     def get_neighbor_idxs_lean(self, idxs, connectivity=1):
         return morpho.get_neighbor_idxs(self.watershed, idxs, connectivity)
 
-    def set_probabilities(self, probs=array([]), normalize=True):
+    def set_probabilities(self, probs=array([]), normalize=False):
         if len(probs) == 0:
             self.probabilities = zeros_like(self.watershed)
             self.probabilities_r = self.probabilities.ravel()
@@ -258,7 +260,9 @@ class Rag(Graph):
             self.oriented_probabilities_r = \
                 self.probabilities_r[:, self.channel_is_oriented]
             self.oriented_probabilities_r = \
-                self.oriented_probabilities_r[:, self.orientation_map_r]
+                self.oriented_probabilities_r[
+                    range(len(self.oriented_probabilities_r)), 
+                    self.orientation_map_r]
             self.non_oriented_probabilities_r = \
                 self.probabilities_r[:, ~self.channel_is_oriented]
 
@@ -409,6 +413,25 @@ class Rag(Graph):
             g.merge_node_list(cc)
         return g.get_segmentation()
 
+    def assign_gt_to_ws(self, gt):
+        ws_nopad = morpho.juicy_center(self.watershed, self.pad_thickness)
+        bdrymap = morpho.pad(morpho.seg_to_bdry(ws_nopad), [0]*self.pad_thickness)
+        gt_bdrymap_nopad = morpho.seg_to_bdry(gt)
+        gt_bdrymap = morpho.pad(gt_bdrymap_nopad, [0]*self.pad_thickness) 
+        k = distance_transform_cdt(1-bdrymap, return_indices=True)
+        i,j = nonzero(gt_bdrymap)
+        i2 = k[1][0,i,j]
+        j2 = k[1][1,i,j]
+        M = zeros_like(bdrymap).astype(float)
+        M[i2,j2] = 1.0
+        bdrymap[i2,j2] = False
+        k = distance_transform_cdt(1-bdrymap, return_indices=True)
+        i,j = nonzero(gt_bdrymap)
+        i2 = k[1][0,i,j]
+        j2 = k[1][1,i,j]
+        M[i2,j2] = 1.0
+        return M 
+        
     def learn_agglomerate(self, gts, feature_map, min_num_samples=1,
                                                             *args, **kwargs):
         """Agglomerate while comparing to ground truth & classifying merges."""
@@ -417,11 +440,18 @@ class Rag(Graph):
         labeling_mode = kwargs.get('labeling_mode', 'assignment')
         priority_mode = kwargs.get('priority_mode', 'random')
         max_numepochs = kwargs.get('max_numepochs', 10)
-        label_type_keys = {'assignment':0, 'voi-sign':1, 'rand-sign':2}
+        label_type_keys = {'assignment':0, 'voi-sign':1, 'rand-sign':2, 'boundary':3}
         if type(gts) != list:
             gts = [gts] # allow using single ground truth as input
         master_ctables = \
                 [contingency_table(self.get_segmentation(), gt) for gt in gts]
+        # Match the watershed to the ground truths
+        ws_is_gt = zeros_like(self.watershed).astype(float)
+        for gt in gts:
+            ws_is_gt += self.assign_gt_to_ws(gt)
+        ws_is_gt /= float(len(gts))
+        ws_is_gt = ws_is_gt>0.5
+
         alldata = []
         data = [[],[],[],[]]
         for numepochs in range(max_numepochs):
@@ -435,7 +465,7 @@ class Rag(Graph):
             g = self.copy()
             if priority_mode == 'mean':
                 g.merge_priority_function = boundary_mean
-            elif numepochs > 0 and 'active' in priority_mode:
+            elif numepochs > 0 and priority_mode == 'active':
                 cl = kwargs.get('classifier', RandomForest())
                 cl = cl.fit(data[0], 
                     data[1][:,label_type_keys[labeling_mode]])
@@ -443,12 +473,13 @@ class Rag(Graph):
                     logging.info('classifier oob error: %.2f'%cl.oob)
                 g.merge_priority_function = \
                                         classifier_probability(feature_map, cl)
-            elif priority_mode == 'random':
+            elif priority_mode == 'random' or \
+                (priority_mode == 'active' and numepochs == 0):
                 g.merge_priority_function = random_priority
             g.show_progress = False # bug in MergeQueue usage causes
                                     # progressbar crash.
             g.rebuild_merge_queue()
-            alldata.append(g._learn_agglomerate(ctables, feature_map, 
+            alldata.append(g._learn_agglomerate(ctables, feature_map, ws_is_gt,
                                                 learning_mode, labeling_mode))
             data = self._unique_learning_data_elements(alldata)
             logging.debug('data size: %d'%len(data[0])) #DBG
@@ -464,7 +495,7 @@ class Rag(Graph):
                                                 for e in self.edges()])
         )
 
-    def learn_edge(self, edge, ctables, assignments, feature_map):
+    def learn_edge(self, edge, ctables, assignments, feature_map, ws_is_gt):
         n1, n2 = edge
         features = feature_map(self, n1, n2).ravel()
         # Calculate weights for weighting data points
@@ -478,7 +509,8 @@ class Rag(Graph):
             [(-1)**(a[n1,:]==a[n2,:]).all() for a in assignments],
             [compute_true_delta_voi(ctable, n1, n2) for ctable in ctables],
             [-compute_true_delta_rand(self.volume_size*ctable, n1, n2) 
-                                                    for ctable in ctables]
+                                                    for ctable in ctables],
+            [(self.compute_boundary_overlap_with_gt(n1,n2, ws_is_gt)>0.3)*2 - 1]
         ]
         labels = [sign(mean(cont_label)) for cont_label in cont_labels]
         if any(map(isnan, labels)):
@@ -487,6 +519,11 @@ class Rag(Graph):
             labels = [1]*len(labels)
         return features, labels, weights, (n1,n2)
 
+    def compute_boundary_overlap_with_gt(self, n1, n2, ws_is_gt):
+        val = []
+        val = ws_is_gt.ravel()[list(self[n1][n2]['boundary'])]
+        return sum(val)/float(len(val)) 
+    
     def _unique_learning_data_elements(self, data):
         f, l, w, h = map(concatenate, zip(*data))
         af = f.view('|S%d'%(f.itemsize*(len(f[0]))))
@@ -500,7 +537,7 @@ class Rag(Graph):
         return map(get_uniques, [f, l, w, h])
 
 
-    def _learn_agglomerate(self, ctables, feature_map, 
+    def _learn_agglomerate(self, ctables, feature_map, gt_dts, 
                         learning_mode='forbidden', labeling_mode='assignment'):
         """Learn the agglomeration process using various strategies.
 
@@ -529,14 +566,14 @@ class Rag(Graph):
             candidate regions. Use the sign of the change as the training
             label.
         """
-        label_type_keys = {'assignment':0, 'voi-sign':1, 'rand-sign':2}
+        label_type_keys = {'assignment':0, 'voi-sign':1, 'rand-sign':2, 'boundary':3}
         assignments = [(ct == ct.max(axis=1)[:,newaxis]) for ct in ctables]
         g = self
         data = []
         while len(g.merge_queue) > 0:
             merge_priority, valid, n1, n2 = g.merge_queue.pop()
             if valid:
-                dat = g.learn_edge((n1,n2), ctables, assignments, feature_map)
+                dat = g.learn_edge((n1,n2), ctables, assignments, feature_map, gt_dts)
                 data.append(dat)
                 label = dat[1][label_type_keys[labeling_mode]]
                 if learning_mode != 'strict' or label < 0:

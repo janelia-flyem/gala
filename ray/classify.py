@@ -19,7 +19,7 @@ from numpy import bool, array, double, zeros, mean, random, concatenate, where,\
 seterr(divide='ignore')
 from numpy.linalg import det, eig, norm
 from scipy import arange, factorial
-from scipy.ndimage import binary_dilation
+from scipy.ndimage import binary_erosion
 try:
     from scipy.spatial import Delaunay
 except ImportError:
@@ -345,7 +345,7 @@ class ConvexHullFeatureManager(NullFeatureManager):
             M.ravel()[list(g[n1][n2]['boundary'])]=1
         else:
             M.ravel()[list(g.node[n1]['extent'])] = 1
-        M = binary_dilation(M) - M #Only need border
+        M = M - binary_erosion(M) #Only need border
         ind = array(nonzero(M)).T
         return ind
 
@@ -360,8 +360,6 @@ class ConvexHullFeatureManager(NullFeatureManager):
             maxes = ind.max(axis=0)
             maxes[maxes==mins] += 1
             ind = array(list(itertools.product(*tuple(array([mins,maxes]).T))))
-            print mins
-            print maxes
             tri = Delaunay(ind)
         vol = 0
         for simplex in tri.vertices:
