@@ -10,12 +10,13 @@ from math import isnan
 # libraries
 #import matplotlib.pyplot as plt
 from numpy import array, mean, zeros, zeros_like, uint8, int8, where, unique, ones_like, \
-    finfo, size, double, transpose, newaxis, uint32, nonzero, median, exp, \
-    log2, float, ones, arange, inf, flatnonzero, intersect1d, dtype, squeeze, \
-    sign, concatenate, bincount, nan, __version__ as numpyversion
+    finfo, size, double, transpose, newaxis, uint32, nonzero, median, exp, ceil, dot,\
+    log2, float, ones, arange, inf, flatnonzero, intersect1d, dtype, squeeze, sqrt,\
+    reshape, setdiff1d, argmin, sign, concatenate, bincount, nan, __version__ as numpyversion
+import numpy
 from scipy.stats import sem
 from scipy.sparse import lil_matrix
-from scipy.ndimage import distance_transform_cdt
+from scipy.ndimage import generate_binary_structure, iterate_structure, distance_transform_cdt
 from scipy.misc import comb as nchoosek
 from scipy.ndimage.measurements import center_of_mass, label
 from networkx import Graph
@@ -412,6 +413,25 @@ class Rag(Graph):
             g.merge_node_list(cc)
         return g.get_segmentation()
 
+    def assign_gt_to_ws(self, gt):
+        ws_nopad = morpho.juicy_center(self.watershed, self.pad_thickness)
+        bdrymap = morpho.pad(morpho.seg_to_bdry(ws_nopad), [0]*self.pad_thickness)
+        gt_bdrymap_nopad = morpho.seg_to_bdry(gt)
+        gt_bdrymap = morpho.pad(gt_bdrymap_nopad, [0]*self.pad_thickness) 
+        k = distance_transform_cdt(1-bdrymap, return_indices=True)
+        i,j = nonzero(gt_bdrymap)
+        i2 = k[1][0,i,j]
+        j2 = k[1][1,i,j]
+        M = zeros_like(bdrymap).astype(float)
+        M[i2,j2] = 1.0
+        bdrymap[i2,j2] = False
+        k = distance_transform_cdt(1-bdrymap, return_indices=True)
+        i,j = nonzero(gt_bdrymap)
+        i2 = k[1][0,i,j]
+        j2 = k[1][1,i,j]
+        M[i2,j2] = 1.0
+        return M 
+        
     def learn_agglomerate(self, gts, feature_map, min_num_samples=1,
                                                             *args, **kwargs):
         """Agglomerate while comparing to ground truth & classifying merges."""
@@ -425,17 +445,13 @@ class Rag(Graph):
             gts = [gts] # allow using single ground truth as input
         master_ctables = \
                 [contingency_table(self.get_segmentation(), gt) for gt in gts]
-        # Get distance transforms of ground truth
-        gt_dts = []
+        # Match the watershed to the ground truths
+        ws_is_gt = zeros_like(self.watershed).astype(float)
         for gt in gts:
-            gt_ignore = [nan,nan] if (gt==0).any() else [nan]
-            gtpad = morpho.pad(gt, gt_ignore)
-            if any(gt.ravel()==0):
-                bdry = gt==0
-            else:
-                bdry = morpho.pad(morpho.seg_to_bdry(gt), gt_ignore)
-            bdry.astype(float)
-            gt_dts.append(distance_transform_cdt(1-bdry))
+            ws_is_gt += self.assign_gt_to_ws(gt)
+        ws_is_gt /= float(len(gts))
+        ws_is_gt = ws_is_gt>0.5
+
         alldata = []
         data = [[],[],[],[]]
         for numepochs in range(max_numepochs):
@@ -463,11 +479,11 @@ class Rag(Graph):
             g.show_progress = False # bug in MergeQueue usage causes
                                     # progressbar crash.
             g.rebuild_merge_queue()
-            alldata.append(g._learn_agglomerate(ctables, feature_map, gt_dts,
+            alldata.append(g._learn_agglomerate(ctables, feature_map, ws_is_gt,
                                                 learning_mode, labeling_mode))
             data = self._unique_learning_data_elements(alldata)
             logging.debug('data size: %d'%len(data[0])) #DBG
-        return data, alldata
+        return data, alldata, g.get_segmentation()
 
     def learn_flat(self, gts, feature_map, *args, **kwargs):
         if type(gts) != list:
@@ -479,7 +495,7 @@ class Rag(Graph):
                                                 for e in self.edges()])
         )
 
-    def learn_edge(self, edge, ctables, assignments, feature_map, gt_dts):
+    def learn_edge(self, edge, ctables, assignments, feature_map, ws_is_gt):
         n1, n2 = edge
         features = feature_map(self, n1, n2).ravel()
         # Calculate weights for weighting data points
@@ -494,7 +510,7 @@ class Rag(Graph):
             [compute_true_delta_voi(ctable, n1, n2) for ctable in ctables],
             [-compute_true_delta_rand(self.volume_size*ctable, n1, n2) 
                                                     for ctable in ctables],
-            [(self.compute_boundary_overlap_with_gt(n1,n2, gt_dts)>0.45)*2 - 1]
+            [(self.compute_boundary_overlap_with_gt(n1,n2, ws_is_gt)>0.3)*2 - 1]
         ]
         labels = [sign(mean(cont_label)) for cont_label in cont_labels]
         if any(map(isnan, labels)):
@@ -503,13 +519,11 @@ class Rag(Graph):
             labels = [1]*len(labels)
         return features, labels, weights, (n1,n2)
 
-    def compute_boundary_overlap_with_gt(self, n1, n2, gt_dts):
+    def compute_boundary_overlap_with_gt(self, n1, n2, ws_is_gt):
         val = []
-        for gt_dt in gt_dts:
-            dists = gt_dt.ravel()[list(self[n1][n2]['boundary'])]
-            val.append(sum(dists<=3)/float(len(dists)))
-        return mean(val) 
-        
+        val = ws_is_gt.ravel()[list(self[n1][n2]['boundary'])]
+        return sum(val)/float(len(val)) 
+    
     def _unique_learning_data_elements(self, data):
         f, l, w, h = map(concatenate, zip(*data))
         af = f.view('|S%d'%(f.itemsize*(len(f[0]))))
