@@ -14,10 +14,4 @@ __author__ = 'Juan Nunez-Iglesias <jni@janelia.hhmi.org>, '+\
              'Ryan Kennedy <kenry@cis.upenn.edu>'
 del sys, logging
 
-import agglo
-import morpho
-import evaluate
-import viz
-import imio
-import classify
-
+__all__ = ['agglo', 'morpho', 'evaluate', 'viz', 'imio', 'classify']
