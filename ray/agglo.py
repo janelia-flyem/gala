@@ -483,7 +483,7 @@ class Rag(Graph):
                                                 learning_mode, labeling_mode))
             data = self._unique_learning_data_elements(alldata)
             logging.debug('data size: %d'%len(data[0])) #DBG
-        return data, alldata, g.get_segmentation()
+        return data, alldata
 
     def learn_flat(self, gts, feature_map, *args, **kwargs):
         if type(gts) != list:
