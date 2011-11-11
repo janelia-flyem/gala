@@ -19,7 +19,7 @@ try:
 except ImportError:
     try:
         from matplotlib.pyplot import imread
-    except RuntimeError:
+    except:
         logging.warning('unable to load numpy.imread or matplotlib.imread')
         def imread(*args, **kwargs):
             raise RuntimeError('Function imread not imported.')

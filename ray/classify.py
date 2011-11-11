@@ -20,11 +20,18 @@ seterr(divide='ignore')
 from numpy.linalg import det, eig, norm
 from scipy import arange, factorial
 from scipy.ndimage import binary_dilation
-from scipy.spatial import Delaunay
+try:
+    from scipy.spatial import Delaunay
+except ImportError:
+    logging.warning('Unable to load scipy.spatial.Delaunay. '+
+        'Convex hull features not available.')
 from scipy.misc import comb as nchoosek
 from scipy.stats import sem
-from scikits.learn.svm import SVC
-from scikits.learn.linear_model import LogisticRegression, LinearRegression
+try:
+    from scikits.learn.svm import SVC
+    from scikits.learn.linear_model import LogisticRegression, LinearRegression
+except ImportError:
+    logging.warning('scikits.learn not found. SVC, Regression not available.')
 from evaluate import xlogx
 try:
     from vigra.learning import RandomForest as VigraRandomForest
