@@ -156,6 +156,8 @@ class Rag(Graph):
     def build_graph_from_watershed(self, 
                                     allow_shared_boundaries=True, idxs=None):
         if self.watershed.size == 0: return # stop processing for empty graphs
+        if not allow_shared_boundaries:
+            self.ignored_boundary = zeros(self.watershed.shape, bool)
         if idxs is None:
             idxs = arange(self.watershed.size)
             self.add_node(self.boundary_body, 
@@ -189,6 +191,8 @@ class Rag(Graph):
                         self[l1][l2]['boundary'].add(idx)
                     else: 
                         self.add_edge(l1, l2, boundary=set([idx]))
+            elif len(edges) > 1:
+                self.ignored_boundary.ravel()[idx] = True
 
     def set_feature_manager(self, feature_manager):
         self.feature_manager = feature_manager
@@ -780,6 +784,8 @@ class Rag(Graph):
         return morpho.juicy_center(self.segmentation, self.pad_thickness)
 
     def get_ucm(self):
+        if hasattr(self, 'ignored_boundary'):
+            self.ucm[self.ignored_boundary] = self.max_merge_score
         return morpho.juicy_center(self.ucm, self.pad_thickness)    
 
     def build_volume(self, nbunch=None):
