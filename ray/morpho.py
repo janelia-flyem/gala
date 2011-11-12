@@ -10,12 +10,13 @@ from numpy import   shape, reshape, \
                     where, unravel_index, newaxis, \
                     ceil, floor, prod, cumprod, \
                     concatenate, \
-                    ndarray, minimum, bincount, dot
+                    ndarray, minimum, bincount, dot, nonzero, concatenate
 import itertools
 import re
 from collections import defaultdict, deque as queue
 from scipy.ndimage import filters, grey_dilation, generate_binary_structure, \
         maximum_filter, minimum_filter
+from scipy.ndimage import distance_transform_cdt
 from scipy.ndimage.measurements import label
 from scipy.ndimage.morphology import binary_opening, \
     generate_binary_structure, iterate_structure
@@ -255,7 +256,16 @@ def seg_to_bdry(seg, connectivity=1):
     strel = generate_binary_structure(seg.ndim, connectivity)
     return maximum_filter(seg,footprint=strel) != minimum_filter(seg,footprint=strel)
     
-
+def undam(seg):
+    """ Assign zero-dams to nearest non-zero region. """
+    bdrymap = seg==0
+    k = distance_transform_cdt(bdrymap, return_indices=True)
+    ind = nonzero(bdrymap.ravel())[0]
+    closest_sub = concatenate([i.ravel()[:,newaxis] for i in k[1]],axis=1)
+    closest_sub = closest_sub[ind,:]
+    closest_ind = [dot(bdrymap.strides, i)/bdrymap.itemsize for i in closest_sub]
+    seg.ravel()[ind] = seg.ravel()[closest_ind]
+    return seg
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
