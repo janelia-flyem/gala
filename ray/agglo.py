@@ -520,7 +520,7 @@ class Rag(Graph):
             [-compute_true_delta_rand(ctable, n1, n2, self.volume_size) 
                                                     for ctable in ctables],
             [(self.compute_boundary_overlap_with_gt(n1,n2, ws_is_gt)>
-                                            boundary_overla_thresh)*2 - 1] 
+                                            boundary_overlap_thresh)*2 - 1] 
         ]
         labels = [sign(mean(cont_label)) for cont_label in cont_labels]
         if any(map(isnan, labels)):
