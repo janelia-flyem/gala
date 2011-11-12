@@ -527,6 +527,10 @@ class Rag(Graph):
             logging.debug('NaN labels found. ' + 
                                     ' '.join(map(str, [labels, (n1, n2)])))
             labels = [1]*len(labels)
+        # Remove possible zero labels
+        # Assign first row's 0's as 2nd row's labels, and others arbitrarily to 1
+        labels[labels[:,0]==0,0] = labels[labels[:,0]==0,1]
+        labels[labels==0] = 1
         return features, labels, weights, (n1,n2)
 
     def compute_boundary_overlap_with_gt(self, n1, n2, ws_is_gt):
