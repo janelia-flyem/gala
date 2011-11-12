@@ -87,7 +87,8 @@ class Rag(Graph):
             merge_priority_function=None, allow_shared_boundaries=True,
             gt_vol=None, feature_manager=MomentsFeatureManager(), 
             show_progress=False, lowmem=False, connectivity=1,
-            channel_is_oriented=None, orientation_map=array([])):
+            channel_is_oriented=None, orientation_map=array([]),
+            normalize_probabilities=False):
         """Create a graph from a watershed volume and image volume.
         
         The watershed is assumed to have dams of label 0 in between basins.
@@ -102,7 +103,7 @@ class Rag(Graph):
         else:
             self.merge_priority_function = merge_priority_function
         self.set_watershed(watershed, lowmem, connectivity)
-        self.set_probabilities(probabilities)
+        self.set_probabilities(probabilities, normalize_probabilities)
         self.set_orientations(orientation_map, channel_is_oriented)
         if watershed is None:
             self.ucm = None

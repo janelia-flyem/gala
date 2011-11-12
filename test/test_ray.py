@@ -121,14 +121,16 @@ class TestAgglomeration(unittest.TestCase):
 
     def test_agglomeration(self):
         i = 1
-        g = agglo.Rag(self.wss[i], self.probs[i], agglo.boundary_mean)
+        g = agglo.Rag(self.wss[i], self.probs[i], agglo.boundary_mean, 
+            normalize_probabilities=True)
         g.agglomerate(0.51)
         self.assertTrue((g.get_segmentation()==self.results[i]).all(), 
                         'Mean agglomeration failed.')
                         
     def test_ladder_agglomeration(self):
         i = 2
-        g = agglo.Rag(self.wss[i], self.probs[i], agglo.boundary_mean)
+        g = agglo.Rag(self.wss[i], self.probs[i], agglo.boundary_mean,
+            normalize_probabilities=True)
         g.agglomerate_ladder(2)
         g.agglomerate(0.5)
         self.assertTrue((g.get_segmentation()==self.results[i]).all(),
@@ -136,7 +138,8 @@ class TestAgglomeration(unittest.TestCase):
 
     def test_no_dam_agglomeration(self):
         i = 3
-        g = agglo.Rag(self.wss[i], self.probs[i], agglo.boundary_mean)
+        g = agglo.Rag(self.wss[i], self.probs[i], agglo.boundary_mean, 
+            normalize_probabilities=True)
         g.agglomerate(0.75)
         self.assertTrue((g.get_segmentation()==self.results[i]).all(),
                         'No dam agglomeration failed.')
