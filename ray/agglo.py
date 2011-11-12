@@ -423,19 +423,21 @@ class Rag(Graph):
         ws_nopad = morpho.juicy_center(self.watershed, self.pad_thickness)
         bdrymap = morpho.pad(morpho.seg_to_bdry(ws_nopad), [0]*self.pad_thickness)
         gt_bdrymap_nopad = morpho.seg_to_bdry(gt)
-        gt_bdrymap = morpho.pad(gt_bdrymap_nopad, [0]*self.pad_thickness) 
+        gt_bdrymap = morpho.pad(gt_bdrymap_nopad, [0]*self.pad_thickness)
         k = distance_transform_cdt(1-bdrymap, return_indices=True)
-        i,j = nonzero(gt_bdrymap)
-        i2 = k[1][0,i,j]
-        j2 = k[1][1,i,j]
+        ind = nonzero(gt_bdrymap.ravel())[0]
+        closest_sub = numpy.concatenate([i.ravel()[:,newaxis] for i in k[1]],axis=1)
+        closest_sub = closest_sub[ind,:]
+        closest_ind = [dot(bdrymap.strides, i)/bdrymap.itemsize for i in closest_sub]
         M = zeros_like(bdrymap).astype(float)
-        M[i2,j2] = 1.0
-        bdrymap[i2,j2] = False
+        M.ravel()[closest_ind]=1.0
+        bdrymap.ravel()[closest_ind] = False
         k = distance_transform_cdt(1-bdrymap, return_indices=True)
-        i,j = nonzero(gt_bdrymap)
-        i2 = k[1][0,i,j]
-        j2 = k[1][1,i,j]
-        M[i2,j2] = 1.0
+        ind = nonzero(gt_bdrymap.ravel())[0]
+        closest_sub = numpy.concatenate([i.ravel()[:,newaxis] for i in k[1]],axis=1)
+        closest_sub = closest_sub[ind,:]
+        closest_ind = [dot(bdrymap.strides, i)/bdrymap.itemsize for i in closest_sub]
+        M.ravel()[closest_ind]=1.0 
         return M 
         
     def learn_agglomerate(self, gts, feature_map, min_num_samples=1,
@@ -501,7 +503,8 @@ class Rag(Graph):
                                                 for e in self.edges()])
         )
 
-    def learn_edge(self, edge, ctables, assignments, feature_map, ws_is_gt):
+    def learn_edge(self, edge, ctables, assignments, feature_map, ws_is_gt,
+            boundary_overlap_thresh=0.3):
         n1, n2 = edge
         features = feature_map(self, n1, n2).ravel()
         # Calculate weights for weighting data points
@@ -516,6 +519,8 @@ class Rag(Graph):
             [compute_true_delta_voi(ctable, n1, n2) for ctable in ctables],
             [-compute_true_delta_rand(ctable, n1, n2, self.volume_size) 
                                                     for ctable in ctables],
+            [(self.compute_boundary_overlap_with_gt(n1,n2, ws_is_gt)>
+                                            boundary_overla_thresh)*2 - 1] 
         ]
         labels = [sign(mean(cont_label)) for cont_label in cont_labels]
         if any(map(isnan, labels)):
