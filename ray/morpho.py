@@ -264,7 +264,10 @@ def undam(seg):
     closest_sub = concatenate([i.ravel()[:,newaxis] for i in k[1]],axis=1)
     closest_sub = closest_sub[ind,:]
     closest_ind = [dot(bdrymap.strides, i)/bdrymap.itemsize for i in closest_sub]
-    seg.ravel()[ind] = seg.ravel()[closest_ind]
+    sp = seg.shape
+    seg = seg.ravel()
+    seg[ind] = seg[closest_ind]
+    seg = reshape(seg, sp)
     return seg
 
 if __name__ == '__main__':
