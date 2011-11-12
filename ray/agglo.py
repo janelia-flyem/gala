@@ -168,7 +168,8 @@ class Rag(Graph):
         for idx in ip.with_progress(inner_idxs, title='Graph... ', pbar=pbar):
             ns = self.neighbor_idxs(idx)
             adj_labels = self.watershed_r[ns]
-            adj_labels = unique(adj_labels[adj_labels != 0])
+            adj_labels = unique(adj_labels)
+            adj_labels = adj_labels[adj_labels.nonzero()]
             nodeid = self.watershed_r[idx]
             if nodeid != 0:
                 adj_labels = adj_labels[adj_labels != nodeid]
@@ -513,13 +514,12 @@ class Rag(Graph):
         cont_labels = [
             [(-1)**(a[n1,:]==a[n2,:]).all() for a in assignments],
             [compute_true_delta_voi(ctable, n1, n2) for ctable in ctables],
-            [-compute_true_delta_rand(self.volume_size*ctable, n1, n2) 
+            [-compute_true_delta_rand(ctable, n1, n2, self.volume_size) 
                                                     for ctable in ctables],
-            [(self.compute_boundary_overlap_with_gt(n1,n2, ws_is_gt)>0.3)*2 - 1]
         ]
         labels = [sign(mean(cont_label)) for cont_label in cont_labels]
         if any(map(isnan, labels)):
-            logging.warning('NaN labels found. ' + 
+            logging.debug('NaN labels found. ' + 
                                     ' '.join(map(str, [labels, (n1, n2)])))
             labels = [1]*len(labels)
         return features, labels, weights, (n1,n2)
@@ -988,9 +988,12 @@ def compute_local_rand_change(s1, s2, n):
     """Compute change in rand if we merge disjoint sizes s1,s2 in volume n."""
     return float(s1*s2)/nchoosek(n,2)
 
-def compute_true_delta_rand(ctable, n1, n2):
-    n = ctable.sum()
-    localct = ctable[(n1,n2),]
+def compute_true_delta_rand(ctable, n1, n2, n):
+    """Compute change in RI obtained by merging rows n1 and n2.
+
+    This function assumes ctable is normalized to sum to 1.
+    """
+    localct = n*ctable[(n1,n2),]
     delta_sxy = 1.0/2*((localct.sum(axis=0)**2).sum()-(localct**2).sum())
     delta_sx = 1.0/2*(localct.sum()**2 - (localct.sum(axis=1)**2).sum())
     return (2*delta_sxy - delta_sx) / nchoosek(n,2)
