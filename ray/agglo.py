@@ -529,6 +529,7 @@ class Rag(Graph):
             labels = [1]*len(labels)
         # Remove possible zero labels
         # Assign first row's 0's as 2nd row's labels, and others arbitrarily to 1
+        labels = array(labels)
         labels[labels[:,0]==0,0] = labels[labels[:,0]==0,1]
         labels[labels==0] = 1
         return features, labels, weights, (n1,n2)
