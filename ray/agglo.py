@@ -523,12 +523,11 @@ class Rag(Graph):
                                             boundary_overlap_thresh)*2 - 1] 
         ]
         labels = [sign(mean(cont_label)) for cont_label in cont_labels]
-        if labels[0]==0: labels[0] = labels[1]
-        labels = [1 if i==0 else i for i in labels]
-        if any(map(isnan, labels)):
-            logging.debug('NaN labels found. ' + 
+        if any(map(isnan, labels)) or any([label == 0 for l in labels]):
+            logging.debug('NaN or 0 labels found. ' + 
                                     ' '.join(map(str, [labels, (n1, n2)])))
-            labels = [1]*len(labels)
+        if labels[0]==0: labels[0] = labels[1]
+        labels = [1 if i==0 or isnan(i) else i for i in labels]
         return features, labels, weights, (n1,n2)
 
     def compute_boundary_overlap_with_gt(self, n1, n2, ws_is_gt):
