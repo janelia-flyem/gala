@@ -460,12 +460,14 @@ class ConvexHullFeatureManager(NullFeatureManager):
  
 class HistogramFeatureManager(NullFeatureManager):
     def __init__(self, nbins=4, minval=0.0, maxval=1.0, 
-                    compute_percentiles=[], oriented=False, *args, **kwargs):
+                    compute_percentiles=[], oriented=False, compute_histogram = True,
+                    *args, **kwargs):
         super(HistogramFeatureManager, self).__init__()
         self.minval = minval
         self.maxval = maxval
         self.nbins = nbins
         self.oriented = oriented
+        self.compute_histogram = compute_histogram
         try:
             _ = len(compute_percentiles)
         except TypeError: # single percentile value given
@@ -578,6 +580,8 @@ class HistogramFeatureManager(NullFeatureManager):
         return array(kl)
 
     def compute_node_features(self, g, n, cache=None):
+        if not self.compute_histogram:
+            return array([])
         if cache is None: 
             cache = g.node[n1][self.default_cache]
         h, ps = self.normalized_histogram_from_cache(cache, 
@@ -585,6 +589,8 @@ class HistogramFeatureManager(NullFeatureManager):
         return concatenate((h,ps), axis=1).ravel()
 
     def compute_edge_features(self, g, n1, n2, cache=None):
+        if not self.compute_histogram:
+            return array([])
         if cache is None: 
             cache = g[n1][n2][self.default_cache]
         h, ps = self.normalized_histogram_from_cache(cache, 
@@ -772,9 +778,12 @@ def h5py_stack(fn):
     return a
     
 class RandomForest(object):
-    def __init__(self, ntrees=255, use_feature_importance=False):
-        self.rf = VigraRandomForest(treeCount=ntrees)
+    def __init__(self, ntrees=255, use_feature_importance=False, 
+            sample_classes_individually=False):
+        self.rf = VigraRandomForest(treeCount=ntrees, 
+            sample_classes_individually=sample_classes_individually)
         self.use_feature_importance = use_feature_importance
+        self.sample_classes_individually=sample_classes_individually
 
     def fit(self, features, labels, **kwargs):
         features = self.check_features_vector(features)
