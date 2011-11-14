@@ -418,27 +418,6 @@ class Rag(Graph):
         for cc in ccs:
             g.merge_node_list(cc)
         return g.get_segmentation()
-
-    def assign_gt_to_ws(self, gt):
-        ws_nopad = morpho.juicy_center(self.watershed, self.pad_thickness)
-        bdrymap = morpho.pad(morpho.seg_to_bdry(ws_nopad), [0]*self.pad_thickness)
-        gt_bdrymap_nopad = morpho.seg_to_bdry(gt)
-        gt_bdrymap = morpho.pad(gt_bdrymap_nopad, [0]*self.pad_thickness)
-        k = distance_transform_cdt(1-bdrymap, return_indices=True)
-        ind = nonzero(gt_bdrymap.ravel())[0]
-        closest_sub = numpy.concatenate([i.ravel()[:,newaxis] for i in k[1]],axis=1)
-        closest_sub = closest_sub[ind,:]
-        closest_ind = [dot(bdrymap.strides, i)/bdrymap.itemsize for i in closest_sub]
-        M = zeros_like(bdrymap).astype(float)
-        M.ravel()[closest_ind]=1.0
-        bdrymap.ravel()[closest_ind] = False
-        k = distance_transform_cdt(1-bdrymap, return_indices=True)
-        ind = nonzero(gt_bdrymap.ravel())[0]
-        closest_sub = numpy.concatenate([i.ravel()[:,newaxis] for i in k[1]],axis=1)
-        closest_sub = closest_sub[ind,:]
-        closest_ind = [dot(bdrymap.strides, i)/bdrymap.itemsize for i in closest_sub]
-        M.ravel()[closest_ind]=1.0 
-        return M 
         
     def learn_agglomerate(self, gts, feature_map, min_num_samples=1,
                                                             *args, **kwargs):
@@ -453,18 +432,11 @@ class Rag(Graph):
             max_numepochs = 2 if learn_flat else 1
         if priority_mode == 'random' and not memory:
             max_numepochs = 1
-        label_type_keys = {'assignment':0, 'voi-sign':1, 
-                                                'rand-sign':2, 'boundary':3}
+        label_type_keys = {'assignment':0, 'voi-sign':1, 'rand-sign':2}
         if type(gts) != list:
             gts = [gts] # allow using single ground truth as input
         master_ctables = \
                 [contingency_table(self.get_segmentation(), gt) for gt in gts]
-        # Match the watershed to the ground truths
-        ws_is_gt = zeros_like(self.watershed).astype(float)
-        for gt in gts:
-            ws_is_gt += self.assign_gt_to_ws(gt)
-        ws_is_gt /= float(len(gts))
-        ws_is_gt = ws_is_gt>0.5
         alldata = []
         data = [[],[],[],[]]
         for numepochs in range(max_numepochs):
@@ -472,7 +444,7 @@ class Rag(Graph):
             if len(data[0]) > min_num_samples:
                 break
             if learn_flat and numepochs == 0:
-                alldata.append(self.learn_flat(gts, feature_map, ws_is_gt))
+                alldata.append(self.learn_flat(gts, feature_map))
                 data = self._unique_learning_data_elements(alldata) if memory \
                     else alldata[-1]
                 continue
@@ -493,24 +465,23 @@ class Rag(Graph):
             g.show_progress = False # bug in MergeQueue usage causes
                                     # progressbar crash.
             g.rebuild_merge_queue()
-            alldata.append(g._learn_agglomerate(ctables, feature_map, ws_is_gt,
+            alldata.append(g._learn_agglomerate(ctables, feature_map, 
                                                 learning_mode, labeling_mode))
             data = self._unique_learning_data_elements(alldata) if memory \
                 else alldata[-1]
             logging.debug('data size %d at epoch %d'%(len(data[0]), numepochs))
         return data, alldata
 
-    def learn_flat(self, gts, feature_map, ws_is_gt, *args, **kwargs):
+    def learn_flat(self, gts, feature_map, *args, **kwargs):
         if type(gts) != list:
             gts = [gts] # allow using single ground truth as input
         ctables = [contingency_table(self.get_segmentation(), gt) for gt in gts]
         assignments = [(ct == ct.max(axis=1)[:,newaxis]) for ct in ctables]
         return map(array, zip(*[
-                self.learn_edge(e, ctables, assignments, feature_map, ws_is_gt)
+                self.learn_edge(e, ctables, assignments, feature_map)
                 for e in self.edges()]))
 
-    def learn_edge(self, edge, ctables, assignments, feature_map, ws_is_gt,
-            boundary_overlap_thresh=0.3):
+    def learn_edge(self, edge, ctables, assignments, feature_map):
         n1, n2 = edge
         features = feature_map(self, n1, n2).ravel()
         # Calculate weights for weighting data points
@@ -524,9 +495,7 @@ class Rag(Graph):
             [(-1)**(a[n1,:]==a[n2,:]).all() for a in assignments],
             [compute_true_delta_voi(ctable, n1, n2) for ctable in ctables],
             [-compute_true_delta_rand(ctable, n1, n2, self.volume_size) 
-                                                    for ctable in ctables],
-            [(self.compute_boundary_overlap_with_gt(n1,n2, ws_is_gt)>
-                                            boundary_overlap_thresh)*2 - 1] 
+                                                    for ctable in ctables]
         ]
         labels = [sign(mean(cont_label)) for cont_label in cont_labels]
         if any(map(isnan, labels)) or any([label == 0 for l in labels]):
@@ -535,12 +504,6 @@ class Rag(Graph):
         if labels[0]==0: labels[0] = labels[1]
         labels = [1 if i==0 or isnan(i) else i for i in labels]
         return features, labels, weights, (n1,n2)
-
-    def compute_boundary_overlap_with_gt(self, n1, n2, ws_is_gt):
-        val = []
-        val = ws_is_gt.ravel()[list(self[n1][n2]['boundary'])]
-        return sum(val)/float(len(val)) 
-    
 
     def _unique_learning_data_elements(self, data):
         f, l, w, h = map(concatenate, zip(*data))
@@ -584,14 +547,14 @@ class Rag(Graph):
             candidate regions. Use the sign of the change as the training
             label.
         """
-        label_type_keys = {'assignment':0, 'voi-sign':1, 'rand-sign':2, 'boundary':3}
+        label_type_keys = {'assignment':0, 'voi-sign':1, 'rand-sign':2}
         assignments = [(ct == ct.max(axis=1)[:,newaxis]) for ct in ctables]
         g = self
         data = []
         while len(g.merge_queue) > 0:
             merge_priority, valid, n1, n2 = g.merge_queue.pop()
             if valid:
-                dat = g.learn_edge((n1,n2), ctables, assignments, feature_map, gt_dts)
+                dat = g.learn_edge((n1,n2), ctables, assignments, feature_map)
                 data.append(dat)
                 label = dat[1][label_type_keys[labeling_mode]]
                 if learning_mode != 'strict' or label < 0:
