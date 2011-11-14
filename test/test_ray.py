@@ -109,7 +109,8 @@ class TestAgglomeration(unittest.TestCase):
 
     def test_one_shot(self):
         i = 0
-        g = agglo.Rag(self.wss[i], self.probs[i], agglo.boundary_mean)
+        g = agglo.Rag(self.wss[i], self.probs[i], agglo.boundary_mean, 
+                                                normalize_probabilities=True)
         v = g.one_shot_agglomeration(0.76)
         self.assertTrue((v==self.results[i]).all(), 
                         'One shot agglomeration failed.')
