@@ -449,8 +449,10 @@ class Rag(Graph):
         priority_mode = kwargs.get('priority_mode', 'random').lower()
         memory = kwargs.get('memory', True)
         max_numepochs = kwargs.get('max_numepochs', 10)
-        if priority_mode == 'mean' or priority_mode == 'random' and not memory:
+        if priority_mode == 'mean': 
             max_numepochs = 2 if learn_flat else 1
+        if priority_mode == 'random' and not memory:
+            max_numepochs = 1
         label_type_keys = {'assignment':0, 'voi-sign':1, 
                                                 'rand-sign':2, 'boundary':3}
         if type(gts) != list:
@@ -471,7 +473,8 @@ class Rag(Graph):
                 break
             if learn_flat and numepochs == 0:
                 alldata.append(self.learn_flat(gts, feature_map, ws_is_gt))
-                data = self._unique_learning_data_elements(alldata)
+                data = self._unique_learning_data_elements(alldata) if memory \
+                    else alldata[-1]
                 continue
             g = self.copy()
             if priority_mode == 'mean':
@@ -479,8 +482,7 @@ class Rag(Graph):
             elif numepochs > 0 and priority_mode == 'active' or \
                 numepochs % 2 == 1 and priority_mode == 'mixed':
                 cl = kwargs.get('classifier', RandomForest())
-                d = data if memory else alldata[-1]
-                cl = cl.fit(d[0], d[1][:,label_type_keys[labeling_mode]])
+                cl = cl.fit(data[0], data[1][:,label_type_keys[labeling_mode]])
                 if type(cl) == RandomForest:
                     logging.info('classifier oob error: %.2f'%cl.oob)
                 g.merge_priority_function = \
@@ -495,7 +497,7 @@ class Rag(Graph):
                                                 learning_mode, labeling_mode))
             data = self._unique_learning_data_elements(alldata) if memory \
                 else alldata[-1]
-            logging.debug('data size: %d'%len(data[0])) #DBG
+            logging.debug('data size %d at epoch %d'%(len(data[0]), numepochs))
         return data, alldata
 
     def learn_flat(self, gts, feature_map, ws_is_gt, *args, **kwargs):
