@@ -444,11 +444,15 @@ class Rag(Graph):
                                                             *args, **kwargs):
         """Agglomerate while comparing to ground truth & classifying merges."""
         learn_flat = kwargs.get('learn_flat', True)
-        learning_mode = kwargs.get('learning_mode', 'strict')
-        labeling_mode = kwargs.get('labeling_mode', 'assignment')
-        priority_mode = kwargs.get('priority_mode', 'random')
+        learning_mode = kwargs.get('learning_mode', 'strict').lower()
+        labeling_mode = kwargs.get('labeling_mode', 'assignment').lower()
+        priority_mode = kwargs.get('priority_mode', 'random').lower()
+        memory = kwargs.get('memory', True)
         max_numepochs = kwargs.get('max_numepochs', 10)
-        label_type_keys = {'assignment':0, 'voi-sign':1, 'rand-sign':2, 'boundary':3}
+        if priority_mode == 'mean' or priority_mode == 'random' and not memory:
+            max_numepochs = 2 if learn_flat else 1
+        label_type_keys = {'assignment':0, 'voi-sign':1, 
+                                                'rand-sign':2, 'boundary':3}
         if type(gts) != list:
             gts = [gts] # allow using single ground truth as input
         master_ctables = \
@@ -459,7 +463,6 @@ class Rag(Graph):
             ws_is_gt += self.assign_gt_to_ws(gt)
         ws_is_gt /= float(len(gts))
         ws_is_gt = ws_is_gt>0.5
-
         alldata = []
         data = [[],[],[],[]]
         for numepochs in range(max_numepochs):
@@ -467,16 +470,17 @@ class Rag(Graph):
             if len(data[0]) > min_num_samples:
                 break
             if learn_flat and numepochs == 0:
-                alldata.append(self.learn_flat(gts, feature_map))
+                alldata.append(self.learn_flat(gts, feature_map, ws_is_gt))
                 data = self._unique_learning_data_elements(alldata)
                 continue
             g = self.copy()
             if priority_mode == 'mean':
                 g.merge_priority_function = boundary_mean
-            elif numepochs > 0 and priority_mode == 'active':
+            elif numepochs > 0 and priority_mode == 'active' or \
+                numepochs % 2 == 1 and priority_mode == 'mixed':
                 cl = kwargs.get('classifier', RandomForest())
-                cl = cl.fit(data[0], 
-                    data[1][:,label_type_keys[labeling_mode]])
+                d = data if memory else alldata[-1]
+                cl = cl.fit(d[0], d[1][:,label_type_keys[labeling_mode]])
                 if type(cl) == RandomForest:
                     logging.info('classifier oob error: %.2f'%cl.oob)
                 g.merge_priority_function = \
@@ -489,19 +493,19 @@ class Rag(Graph):
             g.rebuild_merge_queue()
             alldata.append(g._learn_agglomerate(ctables, feature_map, ws_is_gt,
                                                 learning_mode, labeling_mode))
-            data = self._unique_learning_data_elements(alldata)
+            data = self._unique_learning_data_elements(alldata) if memory \
+                else alldata[-1]
             logging.debug('data size: %d'%len(data[0])) #DBG
         return data, alldata
 
-    def learn_flat(self, gts, feature_map, *args, **kwargs):
+    def learn_flat(self, gts, feature_map, ws_is_gt, *args, **kwargs):
         if type(gts) != list:
             gts = [gts] # allow using single ground truth as input
         ctables = [contingency_table(self.get_segmentation(), gt) for gt in gts]
         assignments = [(ct == ct.max(axis=1)[:,newaxis]) for ct in ctables]
-        return map(array,
-            zip(*[self.learn_edge(e, ctables, assignments, feature_map)
-                                                for e in self.edges()])
-        )
+        return map(array, zip(*[
+                self.learn_edge(e, ctables, assignments, feature_map, ws_is_gt)
+                for e in self.edges()]))
 
     def learn_edge(self, edge, ctables, assignments, feature_map, ws_is_gt,
             boundary_overlap_thresh=0.3):
