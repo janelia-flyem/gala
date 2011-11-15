@@ -816,6 +816,12 @@ class Rag(Graph):
             mr[b] = w
         return morpho.juicy_center(m, self.pad_thickness)
 
+    def remove_obvious_inclusions(self):
+        """Merge any nodes with only one edge to their neighbors."""
+        for n in self.nodes():
+            if self.degree(n) == 1:
+                self.merge_nodes(self.neighbors(n)[0], n)
+
     def orphans(self):
         """List of all the nodes that do not touch the volume boundary."""
         return [n for n in self.nodes() if not self.at_volume_boundary(n)]
