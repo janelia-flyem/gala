@@ -18,7 +18,8 @@ from numpy import bool, array, double, zeros, mean, random, concatenate, where,\
     pi, isfinite
 seterr(divide='ignore')
 from numpy.linalg import det, eig, norm
-from scipy import arange, factorial
+from scipy import arange
+from scipy.misc import factorial
 from scipy.ndimage import binary_erosion
 try:
     from scipy.spatial import Delaunay
