@@ -139,17 +139,11 @@ class Rag(Graph):
     def copy(self):
         return self.__copy__()
 
-    def all_edges(self, *args, **kwargs):
-        return super(Rag, self).edges(*args, **kwargs)
-
-    def edges(self, *args, **kwargs):
+    def real_edges(self, *args, **kwargs):
         return [e for e in super(Rag, self).edges(*args, **kwargs) if
                                             self.boundary_body not in e[:2]]
 
-    def all_edges_iter(self, *args, **kwargs):
-        return super(Rag, self).edges_iter(*args, **kwargs)
-
-    def edges_iter(self, *args, **kwargs):
+    def real_edges_iter(self, *args, **kwargs):
         return (e for e in super(Rag, self).edges_iter(*args, **kwargs) if
                                             self.boundary_body not in e[:2])
 
@@ -204,7 +198,7 @@ class Rag(Graph):
         for n in self.nodes_iter():
             self.node[n]['feature-cache'] = \
                             self.feature_manager.create_node_cache(self, n)
-        for n1, n2 in self.edges_iter():
+        for n1, n2 in self.real_edges_iter():
             self[n1][n2]['feature-cache'] = \
                             self.feature_manager.create_edge_cache(self, n1, n2)
 
@@ -334,9 +328,7 @@ class Rag(Graph):
         affected edges can be invalidated and reinserted in the queue.
         """
         queue_items = []
-        for l1, l2 in self.edges_iter():
-            if l1 == self.boundary_body or l2 == self.boundary_body:
-                continue
+        for l1, l2 in self.real_edges_iter():
             w = self.merge_priority_function(self,l1,l2)
             qitem = [w, True, l1, l2]
             queue_items.append(qitem)
@@ -449,8 +441,10 @@ class Rag(Graph):
         priority_mode = kwargs.get('priority_mode', 'random').lower()
         memory = kwargs.get('memory', True)
         max_numepochs = kwargs.get('max_numepochs', 10)
-        if priority_mode == 'mean' or priority_mode == 'random' and not memory:
+        if priority_mode == 'mean': 
             max_numepochs = 2 if learn_flat else 1
+        if priority_mode == 'random' and not memory:
+            max_numepochs = 1
         label_type_keys = {'assignment':0, 'voi-sign':1, 
                                                 'rand-sign':2, 'boundary':3}
         if type(gts) != list:
@@ -471,7 +465,8 @@ class Rag(Graph):
                 break
             if learn_flat and numepochs == 0:
                 alldata.append(self.learn_flat(gts, feature_map, ws_is_gt))
-                data = self._unique_learning_data_elements(alldata)
+                data = self._unique_learning_data_elements(alldata) if memory \
+                    else alldata[-1]
                 continue
             g = self.copy()
             if priority_mode == 'mean':
@@ -479,8 +474,7 @@ class Rag(Graph):
             elif numepochs > 0 and priority_mode == 'active' or \
                 numepochs % 2 == 1 and priority_mode == 'mixed':
                 cl = kwargs.get('classifier', RandomForest())
-                d = data if memory else alldata[-1]
-                cl = cl.fit(d[0], d[1][:,label_type_keys[labeling_mode]])
+                cl = cl.fit(data[0], data[1][:,label_type_keys[labeling_mode]])
                 if type(cl) == RandomForest:
                     logging.info('classifier oob error: %.2f'%cl.oob)
                 g.merge_priority_function = \
@@ -495,7 +489,7 @@ class Rag(Graph):
                                                 learning_mode, labeling_mode))
             data = self._unique_learning_data_elements(alldata) if memory \
                 else alldata[-1]
-            logging.debug('data size: %d'%len(data[0])) #DBG
+            logging.debug('data size %d at epoch %d'%(len(data[0]), numepochs))
         return data, alldata
 
     def learn_flat(self, gts, feature_map, ws_is_gt, *args, **kwargs):
@@ -505,7 +499,7 @@ class Rag(Graph):
         assignments = [(ct == ct.max(axis=1)[:,newaxis]) for ct in ctables]
         return map(array, zip(*[
                 self.learn_edge(e, ctables, assignments, feature_map, ws_is_gt)
-                for e in self.edges()]))
+                for e in self.real_edges()]))
 
     def learn_edge(self, edge, ctables, assignments, feature_map, ws_is_gt,
             boundary_overlap_thresh=0.3):
@@ -815,9 +809,8 @@ class Rag(Graph):
         m = zeros(self.watershed.shape, double)
         mr = m.ravel()
         if ebunch is None:
-            ebunch = self.edges_iter()
-        ebunch = sorted([(self[u][v]['weight'], u, v) for u, v in ebunch 
-                                            if self.boundary_body not in [u,v]])
+            ebunch = self.real_edges_iter()
+        ebunch = sorted([(self[u][v]['weight'], u, v) for u, v in ebunch])
         for w, u, v in ebunch:
             b = list(self[u][v]['boundary'])
             mr[b] = w
@@ -898,7 +891,7 @@ class Rag(Graph):
         n = len(nodes)
         nodes2ind = dict(zip(nodes, range(n)))
         W = lil_matrix((n,n))
-        for u, v in self.edges(nodes):
+        for u, v in self.real_edges(nodes):
             try:
                 i, j = nodes2ind[u], nodes2ind[v]
             except KeyError:
