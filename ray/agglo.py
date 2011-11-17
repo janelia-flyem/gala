@@ -30,7 +30,8 @@ from ncut import ncutW
 from mergequeue import MergeQueue
 from evaluate import contingency_table, split_voi, xlogx
 from classify import NullFeatureManager, MomentsFeatureManager, \
-    HistogramFeatureManager, RandomForest
+    HistogramFeatureManager, RandomForest, unique_learning_data_elements, \
+    concatenate_data_elements
 
 arguments = argparse.ArgumentParser(add_help=False)
 arggroup = arguments.add_argument_group('Agglomeration options')
@@ -440,10 +441,11 @@ class Rag(Graph):
         labeling_mode = kwargs.get('labeling_mode', 'assignment').lower()
         priority_mode = kwargs.get('priority_mode', 'random').lower()
         memory = kwargs.get('memory', True)
+        unique = kwargs.get('unique', True)
         max_numepochs = kwargs.get('max_numepochs', 10)
-        if priority_mode == 'mean': 
+        if priority_mode == 'mean' and unique: 
             max_numepochs = 2 if learn_flat else 1
-        if priority_mode == 'random' and not memory:
+        if priority_mode in ['random', 'mean'] and not memory:
             max_numepochs = 1
         label_type_keys = {'assignment':0, 'voi-sign':1, 
                                                 'rand-sign':2, 'boundary':3}
@@ -465,8 +467,8 @@ class Rag(Graph):
                 break
             if learn_flat and numepochs == 0:
                 alldata.append(self.learn_flat(gts, feature_map, ws_is_gt))
-                data = self._unique_learning_data_elements(alldata) if memory \
-                    else alldata[-1]
+                data = unique_learning_data_elements(alldata) if unique else \
+                       alldata[-1]
                 continue
             g = self.copy()
             if priority_mode == 'mean':
@@ -487,8 +489,13 @@ class Rag(Graph):
             g.rebuild_merge_queue()
             alldata.append(g._learn_agglomerate(ctables, feature_map, ws_is_gt,
                                                 learning_mode, labeling_mode))
-            data = self._unique_learning_data_elements(alldata) if memory \
-                else alldata[-1]
+            if memory:
+                if unique:
+                    data = unique_learning_data_elements(alldata) 
+                else:
+                    data = concatenate_data_elements(alldata)
+            else:
+                data = alldata[-1]
             logging.debug('data size %d at epoch %d'%(len(data[0]), numepochs))
         return data, alldata
 
@@ -533,20 +540,6 @@ class Rag(Graph):
         val = ws_is_gt.ravel()[list(self[n1][n2]['boundary'])]
         return sum(val)/float(len(val)) 
     
-
-    def _unique_learning_data_elements(self, data):
-        f, l, w, h = map(concatenate, zip(*data))
-        af = f.view('|S%d'%(f.itemsize*(len(f[0]))))
-        _, uids, iids = unique(af, return_index=True, return_inverse=True)
-        bcs = bincount(iids) #DBG
-        logging.debug( #DBG
-            'repeat feature vec min %d, mean %.2f, median %.2f, max %d.' %
-            (bcs.min(), mean(bcs), median(bcs), bcs.max())
-        )
-        def get_uniques(ar): return ar[uids]
-        return map(get_uniques, [f, l, w, h])
-
-
     def _learn_agglomerate(self, ctables, feature_map, gt_dts, 
                         learning_mode='forbidden', labeling_mode='assignment'):
         """Learn the agglomeration process using various strategies.
