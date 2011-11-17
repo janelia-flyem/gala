@@ -814,6 +814,8 @@ class Rag(Graph):
         for w, u, v in ebunch:
             b = list(self[u][v]['boundary'])
             mr[b] = w
+        if hasattr(self, 'ignored_boundary'):
+            m[self.ignored_boundary] = self.max_merge_score
         return morpho.juicy_center(m, self.pad_thickness)
 
     def orphans(self):
