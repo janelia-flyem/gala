@@ -815,7 +815,7 @@ class Rag(Graph):
             b = list(self[u][v]['boundary'])
             mr[b] = w
         if hasattr(self, 'ignored_boundary'):
-            m[self.ignored_boundary] = m.max()
+            m[self.ignored_boundary] = inf
         return morpho.juicy_center(m, self.pad_thickness)
 
     def orphans(self):
