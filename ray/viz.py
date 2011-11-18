@@ -178,6 +178,6 @@ def plot_split_voi(ars, best=None, colors='k', linespecs='-',
     if best is not None:
         lines.append(plt.scatter(
             best[0], best[1], 
-            c=kwargs.get('best-color', 'm'), marker=(5,1,0), **kwargs)
+            c=kwargs.get('best-color', 'k'), marker=(5,3,0), **kwargs)
         )
     return lines
