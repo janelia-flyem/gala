@@ -345,7 +345,7 @@ class Rag(Graph):
         """Merge nodes sequentially until given edge confidence threshold."""
         if self.merge_queue.is_empty():
             self.merge_queue = self.build_merge_queue()
-        history, evaluation = [], []
+        history, scores, evaluation = [], [], []
         while len(self.merge_queue) > 0 and \
                                         self.merge_queue.peek()[0] < threshold:
             merge_priority, valid, n1, n2 = self.merge_queue.pop()
@@ -354,11 +354,12 @@ class Rag(Graph):
                 self.merge_nodes(n1,n2)
                 if save_history: 
                     history.append((n1,n2))
+                    scores.append(merge_priority)
                     evaluation.append(
                         (self.number_of_nodes()-1, self.split_voi())
                     )
         if save_history:
-            return history, evaluation
+            return history, scores, evaluation
 
     def agglomerate_count(self, stepsize=100, save_history=False):
         """Agglomerate until 'stepsize' merges have been made."""
