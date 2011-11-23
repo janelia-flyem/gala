@@ -439,15 +439,9 @@ class Rag(Graph):
             if len(data[0]) > min_num_samples:
                 break
             if learn_flat and numepochs == 0:
-<<<<<<< HEAD
                 alldata.append(self.learn_flat(gts, feature_map))
                 data = self._unique_learning_data_elements(alldata) if memory \
                     else alldata[-1]
-=======
-                alldata.append(self.learn_flat(gts, feature_map, ws_is_gt))
-                data = unique_learning_data_elements(alldata) if unique else \
-                       alldata[-1]
->>>>>>> develop
                 continue
             g = self.copy()
             if priority_mode == 'mean':
