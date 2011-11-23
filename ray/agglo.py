@@ -12,7 +12,7 @@ from math import isnan
 from numpy import array, mean, zeros, zeros_like, uint8, int8, where, unique, ones_like, \
     finfo, size, double, transpose, newaxis, uint32, nonzero, median, exp, ceil, dot,\
     log2, float, ones, arange, inf, flatnonzero, intersect1d, dtype, squeeze, sqrt,\
-    reshape, setdiff1d, argmin, sign, concatenate, bincount, nan, __version__ as numpyversion
+    reshape, setdiff1d, argmin, sign, concatenate, nan, __version__ as numpyversion
 import numpy
 from scipy.stats import sem
 from scipy.sparse import lil_matrix
@@ -485,6 +485,8 @@ class Rag(Graph):
             elif priority_mode == 'random' or \
                 (priority_mode == 'active' and numepochs == 0):
                 g.merge_priority_function = random_priority
+            elif priority_mode == 'custom':
+                g.merge_priority_function = kwargs.get('mpf', boundary_mean)
             g.show_progress = False # bug in MergeQueue usage causes
                                     # progressbar crash.
             g.rebuild_merge_queue()
@@ -532,7 +534,6 @@ class Rag(Graph):
         if any(map(isnan, labels)) or any([label == 0 for l in labels]):
             logging.debug('NaN or 0 labels found. ' + 
                                     ' '.join(map(str, [labels, (n1, n2)])))
-        if labels[0]==0: labels[0] = labels[1]
         labels = [1 if i==0 or isnan(i) else i for i in labels]
         return features, labels, weights, (n1,n2)
 
@@ -948,6 +949,17 @@ def classifier_probability(feature_extractor, classifier):
             prediction = classifier.predict(features)[0]
         return prediction
     return predict
+
+def ordered_priority(edges):
+    d = {}
+    n = len(edges)
+    for i, (n1, n2) in enumerate(edges):
+        score = float(i)/n
+        d[(n1,n2)] = score
+        d[(n2,n1)] = score
+    def ord(g, n1, n2):
+        return d.get((n1,n2), inf)
+    return ord
 
 def expected_change_voi(feature_extractor, classifier, alpha=1.0, beta=1.0):
     prob_func = classifier_probability(feature_extractor, classifier)
