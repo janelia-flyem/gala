@@ -8,15 +8,16 @@ from copy import deepcopy
 from math import isnan
 
 # libraries
-#import matplotlib.pyplot as plt
-from numpy import array, mean, zeros, zeros_like, uint8, int8, where, unique, ones_like, \
-    finfo, size, double, transpose, newaxis, uint32, nonzero, median, exp, ceil, dot,\
-    log2, float, ones, arange, inf, flatnonzero, intersect1d, dtype, squeeze, sqrt,\
-    reshape, setdiff1d, argmin, sign, concatenate, nan, __version__ as numpyversion
+from numpy import array, mean, zeros, zeros_like, uint8, int8, where, unique, \
+    ones_like, finfo, size, double, transpose, newaxis, uint32, nonzero, \
+    median, exp, ceil, dot, log2, float, ones, arange, inf, flatnonzero, \
+    intersect1d, dtype, squeeze, sqrt, reshape, setdiff1d, argmin, sign, \
+    concatenate, nan, __version__ as numpyversion
 import numpy
 from scipy.stats import sem
 from scipy.sparse import lil_matrix
-from scipy.ndimage import generate_binary_structure, iterate_structure, distance_transform_cdt
+from scipy.ndimage import generate_binary_structure, iterate_structure, \
+    distance_transform_cdt
 from scipy.misc import comb as nchoosek
 from scipy.ndimage.measurements import center_of_mass, label
 from networkx import Graph
@@ -415,22 +416,27 @@ class Rag(Graph):
 
     def assign_gt_to_ws(self, gt):
         ws_nopad = morpho.juicy_center(self.watershed, self.pad_thickness)
-        bdrymap = morpho.pad(morpho.seg_to_bdry(ws_nopad), [0]*self.pad_thickness)
+        bdrymap = morpho.pad(morpho.seg_to_bdry(ws_nopad), 
+                                                    [0]*self.pad_thickness)
         gt_bdrymap_nopad = morpho.seg_to_bdry(gt)
         gt_bdrymap = morpho.pad(gt_bdrymap_nopad, [0]*self.pad_thickness)
         k = distance_transform_cdt(1-bdrymap, return_indices=True)
         ind = nonzero(gt_bdrymap.ravel())[0]
-        closest_sub = numpy.concatenate([i.ravel()[:,newaxis] for i in k[1]],axis=1)
+        closest_sub = numpy.concatenate(
+                                [i.ravel()[:,newaxis] for i in k[1]],axis=1)
         closest_sub = closest_sub[ind,:]
-        closest_ind = [dot(bdrymap.strides, i)/bdrymap.itemsize for i in closest_sub]
+        closest_ind = [dot(bdrymap.strides, i)/bdrymap.itemsize 
+                                                        for i in closest_sub]
         M = zeros_like(bdrymap).astype(float)
         M.ravel()[closest_ind]=1.0
         bdrymap.ravel()[closest_ind] = False
         k = distance_transform_cdt(1-bdrymap, return_indices=True)
         ind = nonzero(gt_bdrymap.ravel())[0]
-        closest_sub = numpy.concatenate([i.ravel()[:,newaxis] for i in k[1]],axis=1)
+        closest_sub = numpy.concatenate(
+                                [i.ravel()[:,newaxis] for i in k[1]],axis=1)
         closest_sub = closest_sub[ind,:]
-        closest_ind = [dot(bdrymap.strides, i)/bdrymap.itemsize for i in closest_sub]
+        closest_ind = [dot(bdrymap.strides, i)/bdrymap.itemsize 
+                                                        for i in closest_sub]
         M.ravel()[closest_ind]=1.0 
         return M 
         
@@ -571,14 +577,16 @@ class Rag(Graph):
             candidate regions. Use the sign of the change as the training
             label.
         """
-        label_type_keys = {'assignment':0, 'voi-sign':1, 'rand-sign':2, 'boundary':3}
+        label_type_keys = {'assignment':0, 'voi-sign':1, 'rand-sign':2, 
+                                                                'boundary':3}
         assignments = [(ct == ct.max(axis=1)[:,newaxis]) for ct in ctables]
         g = self
         data = []
         while len(g.merge_queue) > 0:
             merge_priority, valid, n1, n2 = g.merge_queue.pop()
             if valid:
-                dat = g.learn_edge((n1,n2), ctables, assignments, feature_map, gt_dts)
+                dat = g.learn_edge(
+                            (n1,n2), ctables, assignments, feature_map, gt_dts)
                 data.append(dat)
                 label = dat[1][label_type_keys[labeling_mode]]
                 if learning_mode != 'strict' or label < 0:
@@ -734,51 +742,6 @@ class Rag(Graph):
             self[u][v]['qlink'] = new_qitem
             self[u][v]['weight'] = w
             self.merge_queue.push(new_qitem)
-
-    def show_merge_3D(self, n1, n2, **kwargs):
-        """Show the 'best' view of a putative merge between given nodes."""
-        im = self.image
-        if kwargs.has_key('image'):
-            im = kwargs['image']
-        alpha = 0.7
-        if kwargs.has_key('alpha'):
-            alpha = kwargs['alpha']
-        fignum = 1
-        if kwargs.has_key('fignum'):
-            fignum = kwargs['fignum']
-        boundary = zeros(self.segmentation.shape, uint8)
-        boundary_idxs = list(self[n1][n2]['boundary'])
-        boundary.ravel()[boundary_idxs] = 3
-        boundary.ravel()[list(self.node[n1]['extent'])] = 1
-        boundary.ravel()[list(self.node[n2]['extent'])] = 2
-        boundary = morpho.juicy_center(boundary, self.pad_thickness)
-        x, y, z = array(center_of_mass(boundary==3)).round().astype(uint32)
-        def imshow_grey(im):
-            _ = plt.imshow(im, cmap=plt.cm.gray, interpolation='nearest')
-        def imshow_jet_a(im):
-            _ = plt.imshow(im, cmap=plt.cm.jet, 
-                                        interpolation='nearest', alpha=alpha)
-        fig = plt.figure(fignum)
-        plt.subplot(221)
-        imshow_grey(im[:,:,z])
-        imshow_jet_a(boundary[:,:,z])
-        plt.subplot(222)
-        imshow_grey(im[:,y,:])
-        imshow_jet_a(boundary[:,y,:])
-        plt.subplot(223)
-        imshow_grey(im[x,:,:])
-        imshow_jet_a(boundary[x,:,:])
-        plt.subplot(224)
-        if kwargs.has_key('feature_map_function'):
-            f = kwargs['feature_map_function']
-            features = f(self, n1, n2)
-            _ = plt.scatter(arange(len(features)), features)
-        else:
-            _ = plt.hist(self.probabilities_r[boundary_idxs], bins=25)
-        plt.title('feature vector. prob = %.4f' % 
-                                self.merge_priority_function(self, n1, n2))
-        return fig
-
 
     def get_segmentation(self):
         return morpho.juicy_center(self.segmentation, self.pad_thickness)
