@@ -342,29 +342,6 @@ class Rag(Graph):
         """Build a merge queue from scratch and assign to self.merge_queue."""
         self.merge_queue = self.build_merge_queue()
 
-    def agglomerate_threshold(self, threshold):
-        """Merge nodes which have edge weights below the given threshold"""
-        if self.merge_queue.is_empty():
-            self.merge_queue = self.build_merge_queue()
-        queue = self.merge_queue.q
-        queue = [i for i in queue if i[1]]
-        queue = [i for i in queue if i[0] < threshold]
-        queue = array(queue)
-        n1 = queue[:,2]
-        n2 = queue[:,3]
-        allnodes = set(unique(numpy.concatenate((n1,n2))))
-        while len(allnodes) > 0:
-            # Choose a node
-            node1 = allnodes.pop()
-            # Find all nodes to be merged with it
-            tomerge = set(numpy.concatenate((n1[n2==node1], n2[n1==node1])))
-            for node2 in tomerge:
-                try:
-                    self.merge_nodes(node1,node2)
-                except:
-                    pass
-
-        
     def agglomerate(self, threshold=0.5, save_history=False):
         """Merge nodes sequentially until given edge confidence threshold."""
         if self.merge_queue.is_empty():
