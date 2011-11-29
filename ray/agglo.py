@@ -805,6 +805,26 @@ class Rag(Graph):
         """Return True if node n touches the volume boundary."""
         return self.has_edge(n, self.boundary_body) or n == self.boundary_body
 
+    def should_merge(self, n1, n2):
+        return self.rig[n1].argmax() == self.rig[n2].argmax()
+
+    def get_pixel_label(self, n1, n2):
+        boundary = array(list(self[n1][n2]['boundary']))
+        min_idx = boundary[self.probabilities_r[boundary,0].argmin()]
+        if self.should_merge(n1, n2):
+            return min_idx, 2
+        else:
+            return min_idx, 1
+
+    def pixel_labels_array(self, false_splits_only=False):
+        ar = zeros_like(self.watershed_r)
+        labels = [self.get_pixel_label(*e) for e in self.real_edges()]
+        if false_splits_only:
+            labels = [l for l in labels if l[1] == 2]
+        ids, ls = map(array,zip(*labels))
+        ar[ids] = ls.astype(ar.dtype)
+        return ar.reshape(self.watershed.shape)
+
     def split_voi(self, gt=None):
         if self.gt is None and gt is None:
             return array([0,0])
