@@ -15,7 +15,7 @@ from numpy import bool, array, double, zeros, mean, random, concatenate, where,\
     uint8, ones, float32, uint32, unique, newaxis, zeros_like, arange, floor, \
     histogram, seterr, __version__ as numpy_version, unravel_index, diff, \
     nonzero, sort, log, inf, argsort, repeat, ones_like, cov, arccos, dot, \
-    pi, isfinite
+    pi, bincount, isfinite, mean, median
 seterr(divide='ignore')
 from numpy.linalg import det, eig, norm
 from scipy import arange
@@ -841,6 +841,27 @@ class RandomForest(object):
 def read_rf_info(fn):
     f = h5py.File(fn)
     return map(array, [f['oob'], f['feature_importance']])
+
+def concatenate_data_elements(alldata):
+    """Return one big learning set from a list of learning sets.
+    
+    A learning set is a list/tuple of length 4 containing features, labels,
+    weights, and node merge history.
+    """
+    return map(concatenate, zip(*alldata))
+
+def unique_learning_data_elements(alldata):
+    if type(alldata[0]) not in (list, tuple): alldata = [alldata]
+    f, l, w, h = concatenate_data_elements(alldata)
+    af = f.view('|S%d'%(f.itemsize*(len(f[0]))))
+    _, uids, iids = unique(af, return_index=True, return_inverse=True)
+    bcs = bincount(iids) #DBG
+    logging.debug( #DBG
+        'repeat feature vec min %d, mean %.2f, median %.2f, max %d.' %
+        (bcs.min(), mean(bcs), median(bcs), bcs.max())
+    )
+    def get_uniques(ar): return ar[uids]
+    return map(get_uniques, [f, l, w, h])
 
 def save_training_data_to_disk(data, fn, names=None, info='N/A'):
     if names is None:

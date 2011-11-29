@@ -3,11 +3,14 @@ from math import ceil
 import numpy as np
 import scipy
 import evaluate
+import morpho
 import matplotlib
 plt = matplotlib.pyplot
+cm = plt.cm
 from itertools import cycle
 
 label=scipy.ndimage.measurements.label
+center_of_mass=scipy.ndimage.measurements.center_of_mass
 
 ###########################
 # VISUALIZATION FUNCTIONS #
@@ -181,3 +184,40 @@ def plot_split_voi(ars, best=None, colors='k', linespecs='-',
             c=kwargs.get('best-color', 'k'), marker=(5,3,0), **kwargs)
         )
     return lines
+
+def jet_transparent(im, alpha=0.5):
+    im = cm.jet(im.astype(np.double)/im.max(), alpha=alpha)
+    im[(im[...,:3]==np.array([0,0,0.5])).all(axis=-1)] = np.array([0,0,0.5,0])
+    return im
+
+def show_merge(im, bdr, z, ax=0, alpha=0.5, **kwargs):
+    plt.figure(figsize=kwargs.get('figsize', (3.25,3.25)))
+    im = im.swapaxes(0,ax)[z]
+    bdr = bdr.swapaxes(0,ax)[z]
+    bdr = jet_transparent(bdr, alpha)
+    imshow_grey(im)
+    plt.imshow(bdr)
+    plt.xticks([])
+    plt.yticks([])
+
+def show_merge_3D(g, n1, n2, **kwargs):
+    im = kwargs.get('image', None)
+    alpha = kwargs.get('alpha', 0.5)
+    fignum = kwargs.get('fignum', 10)
+    bdr = np.zeros(g.segmentation.shape, np.uint8)
+    bdri = list(g[n1][n2]['boundary'])
+    bdr.ravel()[bdri] = 3
+    bdr.ravel()[list(g.node[n1]['extent'])] = 1
+    bdr.ravel()[list(g.node[n2]['extent'])] = 2
+    bdr = morpho.juicy_center(bdr, g.pad_thickness)
+    x, y, z = np.array(center_of_mass(bdr==3)).round().astype(np.uint32)
+    fig = plt.figure(fignum)
+    bdr_cmapped = jet_transparent(bdr, alpha)
+    plt.subplot(221); imshow_grey(im[:,:,z]); \
+                     plt.imshow(bdr_cmapped[:,:,z], interpolation='nearest')
+    plt.subplot(222); imshow_grey(im[:,y,:]); \
+                     plt.imshow(bdr_cmapped[:,y,:], interpolation='nearest')
+    plt.subplot(223); imshow_grey(im[x,:,:]); \
+                     plt.imshow(bdr_cmapped[x,:,:], interpolation='nearest')
+    plt.subplot(224); _ = plt.hist(g.probabilities_r[bdri][:,0], bins=25)
+    return bdr, (x,y,z)
