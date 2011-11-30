@@ -89,7 +89,7 @@ def plot_voi(a, history, gt, fig=None):
 def plot_voi_breakdown_panel(px, h, title, xlab, ylab, hlines, **kwargs):
     x = scipy.arange(max(min(px),1e-10), max(px), (max(px)-min(px))/100.0)
     for val in hlines:
-        plt.plot(x, val/x, 'g:') 
+        plt.plot(x, val/x, c='gray', ls=':') 
     plt.scatter(px, h, label=title, **kwargs)
     af = AnnoteFinder(px, h, [str(i) for i in range(len(px))], 
         xtol=0.005, ytol=0.005, xmin=-0.05*max(px), ymin=-0.05*max(px), 
@@ -106,7 +106,7 @@ def plot_voi_breakdown(seg, gt, ignore_seg=[], ignore_gt=[],
     """Plot conditional entropy H(Y|X) vs P(X) for both seg|gt and gt|seg."""
     plt.ion()
     pxy,px,py,hxgy,hygx,lpygx,lpxgy = evaluate.voi_tables(seg,gt,
-            ignore_seg_labels=ignore_seg, ignore_gt_labels=ignore_gt)
+            ignore_seg=ignore_seg, ignore_gt=ignore_gt)
     cu = -px*lpygx
     co = -py*lpxgy
     if hlines is None:
@@ -121,16 +121,16 @@ def plot_voi_breakdown(seg, gt, ignore_seg=[], ignore_gt=[],
     if subplot: plt.subplot(1,2,1)
     plot_voi_breakdown_panel(px, -lpygx, 
         'Undersegmentation', 'p(S=seg)', 'H(G|S=seg)', 
-        hlines, c='r', **kwargs)
+        hlines, c='blue', **kwargs)
     if subplot: plt.subplot(1,2,2)
     plot_voi_breakdown_panel(py, -lpxgy, 
         'Oversegmentation', 'p(G=gt)', 'H(S|G=gt)', 
-        hlines, c='b', **kwargs)
+        hlines, c='orange', **kwargs)
     if not subplot:
         plt.title('VOI contributions by body.')
         plt.legend(loc='lower right', scatterpoints=1)
-        plt.xlabel('$p_x$')
-        plt.ylabel('H(Y|X=x)')
+        plt.xlabel('Segment size')
+        plt.ylabel('Conditional entropy (bits)')
         xmax = max(px.max(), py.max())
         plt.xlim(-0.05*xmax, 1.05*xmax)
         ymax = max(-lpygx.min(), -lpxgy.min())
