@@ -276,8 +276,8 @@ def write_png_image_stack(npy_vol, fn, **kwargs):
         imdtype = uint16 if bitdepth == 16 else uint8
         npy_vol = ((2**bitdepth-1)*npy_vol).astype(imdtype)
     if 1 < npy_vol.max() < 256:
-        mode = 'I;8'
-        mode_base = 'I'
+        mode = 'L'
+        mode_base = 'L'
         npy_vol = uint8(npy_vol)
     elif 256 <= numpy.max(npy_vol) < 2**16:
         mode = 'I;16'
@@ -288,7 +288,7 @@ def write_png_image_stack(npy_vol, fn, **kwargs):
         mode_base = 'RGBA'
         npy_vol = uint32(npy_vol)
     for z, pl in enumerate(npy_vol):
-        im = Image.new(mode_base, pl.shape)
+        im = Image.new(mode_base, pl.T.shape)
         im.fromstring(pl.tostring(), 'raw', mode)
         im.save(fn % z)
 

@@ -8,15 +8,16 @@ from copy import deepcopy
 from math import isnan
 
 # libraries
-#import matplotlib.pyplot as plt
-from numpy import array, mean, zeros, zeros_like, uint8, int8, where, unique, ones_like, \
-    finfo, size, double, transpose, newaxis, uint32, nonzero, median, exp, ceil, dot,\
-    log2, float, ones, arange, inf, flatnonzero, intersect1d, dtype, squeeze, sqrt,\
-    reshape, setdiff1d, argmin, sign, concatenate, nan, __version__ as numpyversion
+from numpy import array, mean, zeros, zeros_like, uint8, int8, where, unique, \
+    ones_like, finfo, size, double, transpose, newaxis, uint32, nonzero, \
+    median, exp, ceil, dot, log2, float, ones, arange, inf, flatnonzero, \
+    intersect1d, dtype, squeeze, sqrt, reshape, setdiff1d, argmin, sign, \
+    concatenate, nan, __version__ as numpyversion
 import numpy
 from scipy.stats import sem
 from scipy.sparse import lil_matrix
-from scipy.ndimage import generate_binary_structure, iterate_structure, distance_transform_cdt
+from scipy.ndimage import generate_binary_structure, iterate_structure, \
+    distance_transform_cdt
 from scipy.misc import comb as nchoosek
 from scipy.ndimage.measurements import center_of_mass, label
 from networkx import Graph
@@ -699,51 +700,6 @@ class Rag(Graph):
             self[u][v]['weight'] = w
             self.merge_queue.push(new_qitem)
 
-    def show_merge_3D(self, n1, n2, **kwargs):
-        """Show the 'best' view of a putative merge between given nodes."""
-        im = self.image
-        if kwargs.has_key('image'):
-            im = kwargs['image']
-        alpha = 0.7
-        if kwargs.has_key('alpha'):
-            alpha = kwargs['alpha']
-        fignum = 1
-        if kwargs.has_key('fignum'):
-            fignum = kwargs['fignum']
-        boundary = zeros(self.segmentation.shape, uint8)
-        boundary_idxs = list(self[n1][n2]['boundary'])
-        boundary.ravel()[boundary_idxs] = 3
-        boundary.ravel()[list(self.node[n1]['extent'])] = 1
-        boundary.ravel()[list(self.node[n2]['extent'])] = 2
-        boundary = morpho.juicy_center(boundary, self.pad_thickness)
-        x, y, z = array(center_of_mass(boundary==3)).round().astype(uint32)
-        def imshow_grey(im):
-            _ = plt.imshow(im, cmap=plt.cm.gray, interpolation='nearest')
-        def imshow_jet_a(im):
-            _ = plt.imshow(im, cmap=plt.cm.jet, 
-                                        interpolation='nearest', alpha=alpha)
-        fig = plt.figure(fignum)
-        plt.subplot(221)
-        imshow_grey(im[:,:,z])
-        imshow_jet_a(boundary[:,:,z])
-        plt.subplot(222)
-        imshow_grey(im[:,y,:])
-        imshow_jet_a(boundary[:,y,:])
-        plt.subplot(223)
-        imshow_grey(im[x,:,:])
-        imshow_jet_a(boundary[x,:,:])
-        plt.subplot(224)
-        if kwargs.has_key('feature_map_function'):
-            f = kwargs['feature_map_function']
-            features = f(self, n1, n2)
-            _ = plt.scatter(arange(len(features)), features)
-        else:
-            _ = plt.hist(self.probabilities_r[boundary_idxs], bins=25)
-        plt.title('feature vector. prob = %.4f' % 
-                                self.merge_priority_function(self, n1, n2))
-        return fig
-
-
     def get_segmentation(self):
         return morpho.juicy_center(self.segmentation, self.pad_thickness)
 
@@ -773,6 +729,8 @@ class Rag(Graph):
         for w, u, v in ebunch:
             b = list(self[u][v]['boundary'])
             mr[b] = w
+        if hasattr(self, 'ignored_boundary'):
+            m[self.ignored_boundary] = inf
         return morpho.juicy_center(m, self.pad_thickness)
 
     def remove_obvious_inclusions(self):
@@ -805,6 +763,26 @@ class Rag(Graph):
     def at_volume_boundary(self, n):
         """Return True if node n touches the volume boundary."""
         return self.has_edge(n, self.boundary_body) or n == self.boundary_body
+
+    def should_merge(self, n1, n2):
+        return self.rig[n1].argmax() == self.rig[n2].argmax()
+
+    def get_pixel_label(self, n1, n2):
+        boundary = array(list(self[n1][n2]['boundary']))
+        min_idx = boundary[self.probabilities_r[boundary,0].argmin()]
+        if self.should_merge(n1, n2):
+            return min_idx, 2
+        else:
+            return min_idx, 1
+
+    def pixel_labels_array(self, false_splits_only=False):
+        ar = zeros_like(self.watershed_r)
+        labels = [self.get_pixel_label(*e) for e in self.real_edges()]
+        if false_splits_only:
+            labels = [l for l in labels if l[1] == 2]
+        ids, ls = map(array,zip(*labels))
+        ar[ids] = ls.astype(ar.dtype)
+        return ar.reshape(self.watershed.shape)
 
     def split_voi(self, gt=None):
         if self.gt is None and gt is None:
