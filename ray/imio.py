@@ -2,6 +2,7 @@
 import os
 import argparse
 import re
+import json
 from os.path import split as split_path, join as join_path
 from fnmatch import filter as fnfilter
 import logging
@@ -11,8 +12,9 @@ import h5py, Image, numpy
 
 from scipy.ndimage.measurements import label
 
-from numpy import array, asarray, uint8, uint16, uint32, zeros, squeeze, \
-    fromstring, ndim, concatenate, newaxis, swapaxes, savetxt, unique, double
+from numpy import array, asarray, uint8, uint16, uint32, uint64, zeros, \
+    zeros_like, squeeze, fromstring, ndim, concatenate, newaxis, swapaxes, \
+    savetxt, unique, double
 import numpy as np
 try:
     from numpy import imread
@@ -82,17 +84,13 @@ def read_image_stack(fn, *args, **kwargs):
         else:
             fns.sort(key=alphanumeric_key) # sort filenames numerically
             fns = fns[zmin:zmax]
-            try:
-                im0 = imread(join_path(d,fns[0]))
-                ars = (imread(join_path(d,fn)) for fn in fns)
-            except RuntimeError: # 'Unknown image mode' error for certain .tifs
-                im0 = pil_to_numpy(Image.open(join_path(d,fns[0])))
-                ars = (pil_to_numpy(Image.open(join_path(d,fn))) for fn in fns)
+            im0 = pil_to_numpy(Image.open(join_path(d,fns[0])))
+            ars = (pil_to_numpy(Image.open(join_path(d,fn))) for fn in fns)
             w, h = im0[xmin:xmax,ymin:ymax].shape[:2]
             dtype = im0.dtype
-            stack = zeros(im0.shape+(len(fns),), dtype)
+            stack = zeros((len(fns),)+im0.shape, dtype)
             for i, im in enumerate(ars):
-                stack[...,i] = im[xmin:xmax,ymin:ymax]
+                stack[i] = im[xmin:xmax,ymin:ymax]
     if fn.endswith('.h5'):
         stack = read_h5_stack(join_path(d,fn), *args, **kwargs)
     return squeeze(stack)
@@ -111,7 +109,7 @@ def single_arg_read_image_stack(fn):
         raise
 
 def pil_to_numpy(img):
-    return array(img.getdata()).reshape((img.size[1], img.size[0], -1))
+    return array(img.getdata()).reshape((img.size[1], img.size[0]))
 
 def read_multi_page_tif(fn, crop=[None]*6):
     """Read a multi-page tif file and return a numpy array."""
@@ -248,9 +246,43 @@ def write_to_raveler(sps, sp_to_segment, segment_to_body, modified, directory,
                 join_path(directory,'grayscale_maps/img.%05d.png'), axis=0)
     write_h5_stack(modified, join_path(directory, 'modified.h5'))
 
+def raveler_to_labeled_volume(rav_export_dir, get_glia=False):
+    """Import a raveler export stack into a labeled segmented volume."""
+    import morpho
+    spmap = read_image_stack(
+        os.path.join(rav_export_dir, 'superpixel_maps', '*.png'))
+    sp2seg_list = numpy.loadtxt(
+        os.path.join(rav_export_dir, 'superpixel_to_segment_map.txt'), uint32)
+    seg2bod_list = numpy.loadtxt(
+        os.path.join(rav_export_dir, 'segment_to_body_map.txt'), uint32)
+    modified = read_image_stack(
+        os.path.join(rav_export_dir, 'modified.h5'))
+    sp2seg = {}
+    max_sp = sp2seg_list[:,1].max()
+    for z, sp, seg in sp2seg_list:
+        if not sp2seg.has_key(z):
+            sp2seg[z] = zeros(max_sp+1, uint32)
+        sp2seg[z][sp] = seg
+    max_seg = seg2bod_list[:,0].max()
+    seg2bod = zeros(max_seg+1, uint32)
+    seg2bod[seg2bod_list[:,0]] = seg2bod_list[:,1]
+    initial_output_volume = zeros_like(spmap)
+    for i, m in enumerate(spmap):
+        initial_output_volume[i] = seg2bod[sp2seg[i][m]]
+    initial_output_volume = remove_merged_boundaries(initial_output_volume)
+    output_volume = morpho.watershed(1-modified.astype(uint8), 
+                                                seeds=initial_output_volume)
+    if get_glia:
+        annots = json.load(
+            open(os.path.join(rav_export_dir, 'annotations-body.json'), 'r'))
+        glia = [a['body ID'] for a in annots['data'] 
+                                        if a.get('comment', None) == 'glia']
+        return output_volume, glia
+    else:
+        return output_volume
+
 def write_image_stack(npy_vol, fn, **kwargs):
-    """Write a numpy.ndarray 3D volume to a stack of images or an HDF5 file.
-    """
+    """Write a numpy.ndarray 3D volume to a stack of images or an HDF5 file."""
     fn = os.path.expanduser(fn)
     if fn.endswith('.png'):
         write_png_image_stack(npy_vol, fn, **kwargs)
