@@ -224,7 +224,7 @@ def juicy_center(ar, skinsize=1):
         ar = ar.swapaxes(0,i)
         ar = ar[skinsize:-skinsize]
         ar = ar.swapaxes(0,i)
-    return ar
+    return ar.copy()
 
 def build_levels_dict(a):
     d = defaultdict(list)
