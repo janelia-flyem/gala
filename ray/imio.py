@@ -248,17 +248,15 @@ def write_to_raveler(sps, sp_to_segment, segment_to_body, modified, directory,
                 join_path(directory,'grayscale_maps/img.%05d.png'), axis=0)
     write_h5_stack(modified, join_path(directory, 'modified.h5'))
 
-def raveler_to_labeled_volume(rav_export_dir, get_glia=False):
+def raveler_to_labeled_volume(rav_export_dir, get_glia=False, **kwargs):
     """Import a raveler export stack into a labeled segmented volume."""
     import morpho
     spmap = read_image_stack(
-        os.path.join(rav_export_dir, 'superpixel_maps', '*.png'))
+        os.path.join(rav_export_dir, 'superpixel_maps', '*.png'), **kwargs)
     sp2seg_list = numpy.loadtxt(
         os.path.join(rav_export_dir, 'superpixel_to_segment_map.txt'), uint32)
     seg2bod_list = numpy.loadtxt(
         os.path.join(rav_export_dir, 'segment_to_body_map.txt'), uint32)
-    modified = read_image_stack(
-        os.path.join(rav_export_dir, 'modified.h5'))
     sp2seg = {}
     max_sp = sp2seg_list[:,1].max()
     for z, sp, seg in sp2seg_list:
@@ -271,9 +269,8 @@ def raveler_to_labeled_volume(rav_export_dir, get_glia=False):
     initial_output_volume = zeros_like(spmap)
     for i, m in enumerate(spmap):
         initial_output_volume[i] = seg2bod[sp2seg[i][m]]
-    initial_output_volume = remove_merged_boundaries(initial_output_volume)
-    output_volume = morpho.watershed(1-modified.astype(uint8), 
-                                                seeds=initial_output_volume)
+    probs = kwargs.get('probability_map', ones_like(spmap))
+    output_volume = morpho.watershed(probs, seeds=initial_output_volume)
     if get_glia:
         annots = json.load(
             open(os.path.join(rav_export_dir, 'annotations-body.json'), 'r'))
