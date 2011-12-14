@@ -14,7 +14,7 @@ from scipy.ndimage.measurements import label
 
 from numpy import array, asarray, uint8, uint16, uint32, uint64, zeros, \
     zeros_like, squeeze, fromstring, ndim, concatenate, newaxis, swapaxes, \
-    savetxt, unique, double
+    savetxt, unique, double, ones, ones_like
 import numpy as np
 try:
     from numpy import imread
@@ -71,6 +71,8 @@ def read_image_stack(fn, *args, **kwargs):
     if len(d) == 0: d = '.'
     crop = kwargs.get('crop', [None]*6)
     if len(crop) == 4: crop.extend([None]*2)
+    elif len(crop) == 2: crop = [None]*4 + crop
+    kwargs['crop'] = crop
     if any([fn.endswith(ext) for ext in supported_image_extensions]):
         xmin, xmax, ymin, ymax, zmin, zmax = crop
         if len(args) > 0 and type(args[0]) == str and args[0].endswith(fn[-3:]):
@@ -86,7 +88,7 @@ def read_image_stack(fn, *args, **kwargs):
             fns = fns[zmin:zmax]
             im0 = pil_to_numpy(Image.open(join_path(d,fns[0])))
             ars = (pil_to_numpy(Image.open(join_path(d,fn))) for fn in fns)
-            w, h = im0[xmin:xmax,ymin:ymax].shape[:2]
+            im0 = im0[xmin:xmax,ymin:ymax]
             dtype = im0.dtype
             stack = zeros((len(fns),)+im0.shape, dtype)
             for i, im in enumerate(ars):
