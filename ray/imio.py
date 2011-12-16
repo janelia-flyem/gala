@@ -130,7 +130,7 @@ def read_multi_page_tif(fn, crop=[None]*6):
     return concatenate(pages, axis=-1)
         
 
-shiv_type_elem_dict = {
+shiv_typecode_to_numpy_type = {
     0:np.int8, 1:np.uint8, 2:np.int16, 3:np.uint16,
     4:np.int32, 5:np.uint32, 6:np.int64, 7:np.uint64,
     8:np.float32, 9:np.float64
@@ -157,11 +157,11 @@ def remove_merged_boundaries(ar):
 
 def read_shiv_raw_array(fn):
     fin = open(fn, 'rb')
-    type_elem_code = fromstring(fin.read(4), uint8)[1]
-    ar_dtype = shiv_type_elem_dict[type_elem_code]
+    typecode = fromstring(fin.read(4), uint8)[1]
+    ar_type = shiv_typecode_to_numpy_type[typecode]
     ar_ndim = fromstring(fin.read(4), uint8)[0]
     ar_shape = fromstring(fin.read(ar_ndim*4), uint32)
-    ar = fromstring(fin.read(), ar_dtype).reshape(ar_shape, order='F')
+    ar = fromstring(fin.read(), ar_type).reshape(ar_shape, order='F')
     return ar
 
 def read_h5_stack(fn, *args, **kwargs):
