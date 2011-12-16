@@ -164,6 +164,42 @@ def read_shiv_raw_array(fn):
     ar = fromstring(fin.read(), ar_type).reshape(ar_shape, order='F')
     return ar
 
+numpy_type_to_vtk_string = {
+    np.uint8:'unsigned_char', np.int8:'char', np.uint16:'unsigned_short',
+    np.int16:'short', np.uint32:'unsigned_int', np.int32:'int',
+    np.uint64:'unsigned_long', np.int64:'long', np.float32:'float',
+    np.float64:'double'
+}
+
+vtk_string_to_numpy_type = \
+    dict([(v,k) for k, v in numpy_dtype_to_vtk_string.items()])
+
+def write_vtk(ar, fn, **kwargs):
+    """Write volume to VTK structured points format file.
+
+    Code adapted from Erik Vidholm's writeVTK.m Matlab implementation.
+    """
+    # write header
+    f = open(fn, 'w')
+    f.write('# vtk DataFile Version 3.0\n')
+    f.write('created by write_vtk (Python implementation by JNI)\n')
+    f.write('BINARY\n')
+    f.write('DATASET STRUCTURED_POINTS\n')
+    f.write(' '.join(['DIMENSIONS'] + map(str, ar.shape)) + '\n')
+    f.write(' '.join(['ORIGIN'] + map(str, zeros(3))) + '\n')
+    f.write(' '.join(['SPACING'] +
+                            map(str, kwargs.get('spacing', ones(3)))) + '\n')
+    f.write('POINT_DATA ' + str(ar.size) + '\n')
+    f.write('SCALARS image_data ' +
+                            numpy_type_to_vtk_string[ar.dtype.type] + '\n')
+    f.write('LOOKUP_TABLE default\n');
+    f.close()
+
+    # write data as binary
+    f = open(fn, 'ab')
+    f.write(ar.data)
+    f.close()
+
 def read_h5_stack(fn, *args, **kwargs):
     """Read a volume in HDF5 format into numpy.ndarray.
 
