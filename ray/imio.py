@@ -14,7 +14,7 @@ from scipy.ndimage.measurements import label
 
 from numpy import array, asarray, uint8, uint16, uint32, uint64, zeros, \
     zeros_like, squeeze, fromstring, ndim, concatenate, newaxis, swapaxes, \
-    savetxt, unique, double
+    savetxt, unique, double, ones, ones_like
 import numpy as np
 try:
     from numpy import imread
@@ -71,6 +71,8 @@ def read_image_stack(fn, *args, **kwargs):
     if len(d) == 0: d = '.'
     crop = kwargs.get('crop', [None]*6)
     if len(crop) == 4: crop.extend([None]*2)
+    elif len(crop) == 2: crop = [None]*4 + crop
+    kwargs['crop'] = crop
     if any([fn.endswith(ext) for ext in supported_image_extensions]):
         xmin, xmax, ymin, ymax, zmin, zmax = crop
         if len(args) > 0 and type(args[0]) == str and args[0].endswith(fn[-3:]):
@@ -86,7 +88,7 @@ def read_image_stack(fn, *args, **kwargs):
             fns = fns[zmin:zmax]
             im0 = pil_to_numpy(Image.open(join_path(d,fns[0])))
             ars = (pil_to_numpy(Image.open(join_path(d,fn))) for fn in fns)
-            w, h = im0[xmin:xmax,ymin:ymax].shape[:2]
+            im0 = im0[xmin:xmax,ymin:ymax]
             dtype = im0.dtype
             stack = zeros((len(fns),)+im0.shape, dtype)
             for i, im in enumerate(ars):
@@ -128,7 +130,7 @@ def read_multi_page_tif(fn, crop=[None]*6):
     return concatenate(pages, axis=-1)
         
 
-shiv_type_elem_dict = {
+shiv_typecode_to_numpy_type = {
     0:np.int8, 1:np.uint8, 2:np.int16, 3:np.uint16,
     4:np.int32, 5:np.uint32, 6:np.int64, 7:np.uint64,
     8:np.float32, 9:np.float64
@@ -155,12 +157,48 @@ def remove_merged_boundaries(ar):
 
 def read_shiv_raw_array(fn):
     fin = open(fn, 'rb')
-    type_elem_code = fromstring(fin.read(4), uint8)[1]
-    ar_dtype = shiv_type_elem_dict[type_elem_code]
+    typecode = fromstring(fin.read(4), uint8)[1]
+    ar_type = shiv_typecode_to_numpy_type[typecode]
     ar_ndim = fromstring(fin.read(4), uint8)[0]
     ar_shape = fromstring(fin.read(ar_ndim*4), uint32)
-    ar = fromstring(fin.read(), ar_dtype).reshape(ar_shape, order='F')
+    ar = fromstring(fin.read(), ar_type).reshape(ar_shape, order='F')
     return ar
+
+numpy_type_to_vtk_string = {
+    np.uint8:'unsigned_char', np.int8:'char', np.uint16:'unsigned_short',
+    np.int16:'short', np.uint32:'unsigned_int', np.int32:'int',
+    np.uint64:'unsigned_long', np.int64:'long', np.float32:'float',
+    np.float64:'double'
+}
+
+vtk_string_to_numpy_type = \
+    dict([(v,k) for k, v in numpy_dtype_to_vtk_string.items()])
+
+def write_vtk(ar, fn, **kwargs):
+    """Write volume to VTK structured points format file.
+
+    Code adapted from Erik Vidholm's writeVTK.m Matlab implementation.
+    """
+    # write header
+    f = open(fn, 'w')
+    f.write('# vtk DataFile Version 3.0\n')
+    f.write('created by write_vtk (Python implementation by JNI)\n')
+    f.write('BINARY\n')
+    f.write('DATASET STRUCTURED_POINTS\n')
+    f.write(' '.join(['DIMENSIONS'] + map(str, ar.shape)) + '\n')
+    f.write(' '.join(['ORIGIN'] + map(str, zeros(3))) + '\n')
+    f.write(' '.join(['SPACING'] +
+                            map(str, kwargs.get('spacing', ones(3)))) + '\n')
+    f.write('POINT_DATA ' + str(ar.size) + '\n')
+    f.write('SCALARS image_data ' +
+                            numpy_type_to_vtk_string[ar.dtype.type] + '\n')
+    f.write('LOOKUP_TABLE default\n');
+    f.close()
+
+    # write data as binary
+    f = open(fn, 'ab')
+    f.write(ar.data)
+    f.close()
 
 def read_h5_stack(fn, *args, **kwargs):
     """Read a volume in HDF5 format into numpy.ndarray.
@@ -246,17 +284,15 @@ def write_to_raveler(sps, sp_to_segment, segment_to_body, modified, directory,
                 join_path(directory,'grayscale_maps/img.%05d.png'), axis=0)
     write_h5_stack(modified, join_path(directory, 'modified.h5'))
 
-def raveler_to_labeled_volume(rav_export_dir, get_glia=False):
+def raveler_to_labeled_volume(rav_export_dir, get_glia=False, **kwargs):
     """Import a raveler export stack into a labeled segmented volume."""
     import morpho
     spmap = read_image_stack(
-        os.path.join(rav_export_dir, 'superpixel_maps', '*.png'))
+        os.path.join(rav_export_dir, 'superpixel_maps', '*.png'), **kwargs)
     sp2seg_list = numpy.loadtxt(
         os.path.join(rav_export_dir, 'superpixel_to_segment_map.txt'), uint32)
     seg2bod_list = numpy.loadtxt(
         os.path.join(rav_export_dir, 'segment_to_body_map.txt'), uint32)
-    modified = read_image_stack(
-        os.path.join(rav_export_dir, 'modified.h5'))
     sp2seg = {}
     max_sp = sp2seg_list[:,1].max()
     for z, sp, seg in sp2seg_list:
@@ -269,9 +305,8 @@ def raveler_to_labeled_volume(rav_export_dir, get_glia=False):
     initial_output_volume = zeros_like(spmap)
     for i, m in enumerate(spmap):
         initial_output_volume[i] = seg2bod[sp2seg[i][m]]
-    initial_output_volume = remove_merged_boundaries(initial_output_volume)
-    output_volume = morpho.watershed(1-modified.astype(uint8), 
-                                                seeds=initial_output_volume)
+    probs = kwargs.get('probability_map', ones_like(spmap))
+    output_volume = morpho.watershed(probs, seeds=initial_output_volume)
     if get_glia:
         annots = json.load(
             open(os.path.join(rav_export_dir, 'annotations-body.json'), 'r'))
