@@ -172,7 +172,7 @@ numpy_type_to_vtk_string = {
 }
 
 vtk_string_to_numpy_type = \
-    dict([(v,k) for k, v in numpy_dtype_to_vtk_string.items()])
+    dict([(v,k) for k, v in numpy_type_to_vtk_string.items()])
 
 def write_vtk(ar, fn, **kwargs):
     """Write volume to VTK structured points format file.
