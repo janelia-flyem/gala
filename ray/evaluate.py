@@ -134,6 +134,26 @@ def split_voi(X,Y,cont=None, ignore_seg_labels=[], ignore_gt_labels=[]):
     # false merges, false splits
     return numpy.array([hygx.sum(), hxgy.sum()])
 
+def split_components(idx, contingency, num_elems=4, axis=0):
+    """Return the indices of the bodies most overlapping with body idx.
+
+    Arguments:
+        - idx: the body id being examined.
+        - contingency: the normalized contingency table.
+        - num_elems: the number of overlapping bodies desired.
+        - axis: the axis along which to perform the calculations.
+    Value:
+        A list of tuples of (body_idx, overlap_int, overlap_ext).
+    """
+    if axis == 1:
+        contingency = contingency.T
+    cc = contingency / contingency.sum(axis=1)[:,numpy.newaxis]
+    cct = contingency / contingency.sum(axis=0)[numpy.newaxis,:]
+    idxs = (-cc[idx]).argsort()[:num_elems]
+    probs = cc[idx][idxs]
+    probst = cct[idx][idxs]
+    return zip(idxs, probs, probst)
+
 def rand_values(cont_table):
     """Calculate values for rand indices."""
     n = cont_table.sum()

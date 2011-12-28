@@ -14,7 +14,7 @@ from scipy.ndimage.measurements import label
 
 from numpy import array, asarray, uint8, uint16, uint32, uint64, zeros, \
     zeros_like, squeeze, fromstring, ndim, concatenate, newaxis, swapaxes, \
-    savetxt, unique, double, ones, ones_like
+    savetxt, unique, double, ones, ones_like, prod
 import numpy as np
 try:
     from numpy import imread
@@ -172,7 +172,7 @@ numpy_type_to_vtk_string = {
 }
 
 vtk_string_to_numpy_type = \
-    dict([(v,k) for k, v in numpy_dtype_to_vtk_string.items()])
+    dict([(v,k) for k, v in numpy_type_to_vtk_string.items()])
 
 def write_vtk(ar, fn, **kwargs):
     """Write volume to VTK structured points format file.
@@ -199,6 +199,23 @@ def write_vtk(ar, fn, **kwargs):
     f = open(fn, 'ab')
     f.write(ar.data)
     f.close()
+
+def read_vtk(fin, **kwargs):
+    """Read a numpy volume from a VTK structured points file.
+
+    Code adapted from Erik Vidholm's readVTK.m Matlab implementation.
+    """
+    f = open(fin, 'r')
+    num_lines_in_header = 10
+    lines = [f.readline() for i in range(num_lines_in_header)]
+    shape_line = [line for line in lines if line.startswith('DIMENSIONS')][0]
+    type_line = [line for line in lines 
+        if line.startswith('SCALARS') or line.startswith('VECTORS')][0]
+    ar_shape = map(int, shape_line.rstrip('\n').split(' ')[1:])
+    ar_type = vtk_string_to_numpy_type[type_line.rstrip('\n').split(' ')[-1]]
+    itemsize = np.dtype(ar_type).itemsize
+    ar = squeeze(fromstring(f.read(), ar_type).reshape(ar_shape+[-1]))
+    return ar
 
 def read_h5_stack(fn, *args, **kwargs):
     """Read a volume in HDF5 format into numpy.ndarray.
