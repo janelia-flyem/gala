@@ -803,6 +803,23 @@ class Rag(Graph):
         """List all bodies that traverse the volume."""
         return [n for n in self.nodes() if self.is_traversed_by_node(n)]
 
+    def non_traversing_bodies(self):
+        """List bodies that are not orphans and do not traverse the volume."""
+        return [n for n in self.nodes() if self.at_volume_boundary(n) and
+            not self.is_traversed_by_node(n)]
+
+    def raveler_body_annotations(self):
+        """Return JSON-compatible dict formatted for Raveler annotations."""
+        orphans = self.orphans()
+        non_traversing_bodies = self.non_traversing_bodies()
+        data = \
+            [{'status':'ask', 'comment':'orphan', 'body ID':o}
+                for o in orphans] +\
+            [{'status':'ask', 'comment':'does not traverse', 'body ID':n}
+                for n in non_traversing_bodies]
+        metadata = {'description':'body annotations', 'file version':2}
+        return {'data':data, 'metadata':metadata}
+
     def at_volume_boundary(self, n):
         """Return True if node n touches the volume boundary."""
         return self.has_edge(n, self.boundary_body) or n == self.boundary_body

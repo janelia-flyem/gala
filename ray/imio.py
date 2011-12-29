@@ -303,6 +303,18 @@ def write_to_raveler(sps, sp_to_segment, segment_to_body, modified, directory,
                 join_path(directory,'grayscale_maps/img.%05d.png'), axis=0)
     write_h5_stack(modified, join_path(directory, 'modified.h5'))
 
+def write_json_body_annotations(annot, 
+                                    directory='.', fn='annotations-body.json'):
+    """Write an annotation dictionary in Raveler format to a JSON file.
+    
+    The annotation file format is described in:
+    https://wiki.janelia.org/wiki/display/flyem/body+annotation+file+format
+    and:
+    https://wiki.janelia.org/wiki/display/flyem/generic+file+format
+    """
+    with open(join_path(directory, fn), 'w') as f:
+        json.dump(annot, f, indent=2)
+
 def raveler_to_labeled_volume(rav_export_dir, get_glia=False, **kwargs):
     """Import a raveler export stack into a labeled segmented volume."""
     import morpho
