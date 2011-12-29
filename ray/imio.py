@@ -1,4 +1,4 @@
-
+# built-ins
 import os
 import argparse
 import re
@@ -6,8 +6,10 @@ import json
 from os.path import split as split_path, join as join_path
 from fnmatch import filter as fnfilter
 import logging
+import json
 import itertools as it
 
+# libraries
 import h5py, Image, numpy
 
 from scipy.ndimage.measurements import label
@@ -212,7 +214,7 @@ def read_vtk(fin, **kwargs):
     type_line = [line for line in lines 
         if line.startswith('SCALARS') or line.startswith('VECTORS')][0]
     ar_shape = map(int, shape_line.rstrip('\n').split(' ')[1:])
-    ar_type = vtk_string_to_numpy_type[type_line.rstrip('\n').split(' ')[-1]]
+    ar_type = vtk_string_to_numpy_type[type_line.rstrip('\n').split(' ')[2]]
     itemsize = np.dtype(ar_type).itemsize
     ar = squeeze(fromstring(f.read(), ar_type).reshape(ar_shape+[-1]))
     return ar
