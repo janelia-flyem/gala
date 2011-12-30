@@ -161,26 +161,26 @@ def manual_split(probs, seg, body, seeds, connectivity=1, boundary_seeds=None):
     Value:
         - the segmentation with the selected body split.
     """
-    probs = probs.copy()
     struct = generate_binary_structure(seg.ndim, connectivity)
     body_pixels = seg == body
-    body_location = find_objects(body_pixels)[0]
+    bbox = find_objects(body_pixels)[0]
+    body_pixels = body_pixels[bbox]
     body_boundary = binary_dilation(body_pixels, struct) - body_pixels
     non_body_pixels = True - body_pixels - body_boundary
+    probs = probs.copy()[bbox]
     probs[non_body_pixels] = probs.min()-1
     if boundary_seeds is not None:
-        probs[boundary_seeds] = probs.max()+1
+        probs[boundary_seeds[bbox]] = probs.max()+1
     probs[body_boundary] = probs.max()+1
-    if seeds.dtype == bool:
-        seeds = label(seeds, struct)[0]
-    outer_seed = seeds.max()+1
+    seeds = label(seeds.astype(bool)[bbox], struct)[0]
+    outer_seed = seeds.max()+1 # should be 3
     seeds[non_body_pixels] = outer_seed
-    seg_new = watershed(probs[body_location], seeds[body_location], 
+    seg_new = watershed(probs, seeds, 
         dams=(seg==0).any(), connectivity=connectivity, show_progress=True)
     seg = seg.copy()
-    new_seeds = setdiff1d(unique(seeds), [outer_seed])
+    new_seeds = unique(seeds)[:-1]
     for new_seed, new_label in zip(new_seeds, [0, body, seg.max()+1]):
-        seg[body_location][seg_new == new_seed] = new_label
+        seg[bbox][seg_new == new_seed] = new_label
     return seg
 
 
