@@ -10,15 +10,16 @@ from numpy import   shape, reshape, \
                     where, unravel_index, newaxis, \
                     ceil, floor, prod, cumprod, \
                     concatenate, \
-                    ndarray, minimum, bincount, dot, nonzero, concatenate
+                    ndarray, minimum, bincount, dot, nonzero, concatenate, \
+                    setdiff1d, inf
 import itertools
 import re
 from collections import defaultdict, deque as queue
 from scipy.ndimage import filters, grey_dilation, generate_binary_structure, \
         maximum_filter, minimum_filter
 from scipy.ndimage import distance_transform_cdt
-from scipy.ndimage.measurements import label
-from scipy.ndimage.morphology import binary_opening, \
+from scipy.ndimage.measurements import label, find_objects
+from scipy.ndimage.morphology import binary_opening, binary_dilation, \
     generate_binary_structure, iterate_structure
 #from scipy.spatial.distance import cityblock as manhattan_distance
 import iterprogress as ip
@@ -146,6 +147,42 @@ def watershed(a, seeds=None, smooth_thresh=0.0, smooth_seeds=False,
     if dams:
         ws[ws==maxlabel] = 0
     return juicy_center(ws)
+
+def manual_split(probs, seg, body, seeds, connectivity=1, boundary_seeds=None):
+    """Manually split a body from a segmentation using seeded watershed.
+
+    Input:
+        - probs: the probability of boundary in the volume given.
+        - seg: the current segmentation.
+        - body: the label to be split.
+        - seeds: the seeds for the splitting (should be just two labels).
+        [-connectivity: the connectivity to use for watershed.]
+        [-boundary_seeds: if not None, these locations become inf in probs.]
+    Value:
+        - the segmentation with the selected body split.
+    """
+    probs = probs.copy()
+    struct = generate_binary_structure(seg.ndim, connectivity)
+    body_pixels = seg == body
+    body_location = find_objects(body_pixels)[0]
+    body_boundary = binary_dilation(body_pixels, struct) - body_pixels
+    non_body_pixels = True - body_pixels - body_boundary
+    probs[non_body_pixels] = probs.min()-1
+    if boundary_seeds is not None:
+        probs[boundary_seeds] = probs.max()+1
+    probs[body_boundary] = probs.max()+1
+    if seeds.dtype == bool:
+        seeds = label(seeds, struct)[0]
+    outer_seed = seeds.max()+1
+    seeds[non_body_pixels] = outer_seed
+    seg_new = watershed(probs[body_location], seeds[body_location], 
+        dams=(seg==0).any(), connectivity=connectivity, show_progress=True)
+    seg = seg.copy()
+    new_seeds = setdiff1d(unique(seeds), [outer_seed])
+    for new_seed, new_label in zip(new_seeds, [0, body, seg.max()+1]):
+        seg[body_location][seg_new == new_seed] = new_label
+    return seg
+
 
 def smallest_int_dtype(number, signed=False, mindtype=None):
     if number < 0: signed = True
