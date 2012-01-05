@@ -1,4 +1,4 @@
-
+# built-ins
 import os
 import argparse
 import re
@@ -6,8 +6,10 @@ import json
 from os.path import split as split_path, join as join_path
 from fnmatch import filter as fnfilter
 import logging
+import json
 import itertools as it
 
+# libraries
 import h5py, Image, numpy
 
 from scipy.ndimage.measurements import label
@@ -212,7 +214,7 @@ def read_vtk(fin, **kwargs):
     type_line = [line for line in lines 
         if line.startswith('SCALARS') or line.startswith('VECTORS')][0]
     ar_shape = map(int, shape_line.rstrip('\n').split(' ')[1:])
-    ar_type = vtk_string_to_numpy_type[type_line.rstrip('\n').split(' ')[-1]]
+    ar_type = vtk_string_to_numpy_type[type_line.rstrip('\n').split(' ')[2]]
     itemsize = np.dtype(ar_type).itemsize
     ar = squeeze(fromstring(f.read(), ar_type).reshape(ar_shape+[-1]))
     return ar
@@ -301,6 +303,18 @@ def write_to_raveler(sps, sp_to_segment, segment_to_body, modified, directory,
                 join_path(directory,'grayscale_maps/img.%05d.png'), axis=0)
     write_h5_stack(modified, join_path(directory, 'modified.h5'))
 
+def write_json_body_annotations(annot, 
+                                    directory='.', fn='annotations-body.json'):
+    """Write an annotation dictionary in Raveler format to a JSON file.
+    
+    The annotation file format is described in:
+    https://wiki.janelia.org/wiki/display/flyem/body+annotation+file+format
+    and:
+    https://wiki.janelia.org/wiki/display/flyem/generic+file+format
+    """
+    with open(join_path(directory, fn), 'w') as f:
+        json.dump(annot, f, indent=2)
+
 def raveler_to_labeled_volume(rav_export_dir, get_glia=False, **kwargs):
     """Import a raveler export stack into a labeled segmented volume."""
     import morpho
@@ -344,7 +358,6 @@ def write_image_stack(npy_vol, fn, **kwargs):
         write_npy_image_stack(npy_vol, fn, **kwargs)
     else:
         raise ValueError('Image format not supported: ' + fn + '\n')
-
 
 def write_png_image_stack(npy_vol, fn, **kwargs):
     """Write a numpy.ndarray 3D volume to a stack of .png images.
@@ -400,17 +413,59 @@ def write_h5_stack(npy_vol, fn, **kwargs):
     fout.create_dataset(group, data=npy_vol, **kwargs)
     fout.close()
 
+# obtained from Ilastik 0.5.4
+ilastik_label_colors = \
+    [0xffff0000, 0xff00ff00, 0xffffff00, 0xff0000ff, 
+    0xffff00ff, 0xff808000, 0xffc0c0c0, 0xfff2022d] 
 
-#######################
-# Image visualization #
-#######################
+def write_ilastik_project(images, labels, fn, label_names=None):
+    """Write one or more image volumes and corresponding labels to Ilastik.
+    
+    Limitations:
+    - Assumes the same labels are used for all images.
+    - Supports only grayscale images and volumes, and a maximum of 8 labels.
+    - Requires at least one unlabeled voxel in the label field.
+    """
+    f = h5py.File(fn, 'w')
+    if type(images) != list:
+        images = [images]
+        labels = [labels]
+    ulbs = unique(concatenate(map(unique, labels)))[1:]
+    colors = array(ilastik_label_colors[:len(ulbs)])
+    names = ['Label %i'%i for i in ulbs]
+    names = array(names, '|S%i'%max(map(len, names)))
+    label_attributes = {'color':colors, 'name':names, 'number':ulbs}
+    for i, (im, lb) in enumerate(zip(images, labels)):
+        if im.ndim == 2:
+            new_shape = (1,1)+im.shape+(1,)
+        elif im.ndim == 3:
+            new_shape = (1,)+im.shape+(1,)
+        else:
+            raise ValueError('Unsupported number of dimensions in image.')
+        im = im.reshape(new_shape)
+        lb = lb.reshape(new_shape)
+        root = 'DataSets/dataItem%02i/'%i
+        f[root+'data'] = im
+        f[root+'labels'] = lb
+        for k, v in label_attributes.items():
+            f[root+'labels'].attrs[k] = v
+        f[root].attrs['Name'] = ''
+        f[root].attrs['fileName'] = ''
+    for subgroup in ['Description', 'Labeler', 'Name']:
+        f['Project/%s'%subgroup] = array('', dtype='|S1')
+    f['ilastikVersion'] = array(0.5)
+    f.close()
 
-def show_boundary(seg):
-    """Show the boundary (0-label) in a 2D segmentation (labeling)."""
-    seg = seg.squeeze()
-    boundary = 255*(1-seg.astype(bool)).astype(uint8)
-    Image.fromarray(boundary).show()
+def write_ilastik_batch_volume(im, fn):
+    """Write a volume to an HDF5 file for Ilastik batch processing."""
+    if im.ndim == 2:
+        im = im.reshape((1,1)+im.shape+(1,))
+    elif im.ndim == 3:
+        im = im.reshape((1,)+im.shape+(1,))
+    else:
+        raise ValueError('Unsupported number of dimensions in image.')
+    imio.write_h5_stack(im, fn, group='/volume/data')
 
-def show_image(ar):
-    """Display an image from an array."""
-    Image.fromarray(ar.squeeze()).show()
+def read_prediction_from_ilastik_batch(fn):
+    """Read the prediction produced by Ilastik from batch processing."""
+    return squeeze(read_h5_stack(fn, group='/volume/prediction'))

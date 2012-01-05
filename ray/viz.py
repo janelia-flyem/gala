@@ -71,22 +71,22 @@ def inspect_segs_3D(*args, **kwargs):
         imshow_rand(args[i].swapaxes(0,axis)[z])
     return fig
 
-def plot_voi(a, history, gt, fig=None):
-    """Plot the voi from segmentations based on Rag and sequence of merges."""
+def plot_vi(a, history, gt, fig=None):
+    """Plot the VI from segmentations based on Rag and sequence of merges."""
     v = []
     n = []
     seg = a.get_segmentation()
     for i in history:
         seg[seg==i[1]] = i[0]
-        v.append(evaluate.voi(seg, gt))
+        v.append(evaluate.vi(seg, gt))
         n.append(len(np.unique(seg)-1))
     if fig is None:
         fig = plt.figure()
     plt.plot(n, v, figure = fig)
     plt.xlabel('Number of segments', figure = fig)
-    plt.ylabel('VOI', figure = fig)
+    plt.ylabel('vi', figure = fig)
 
-def plot_voi_breakdown_panel(px, h, title, xlab, ylab, hlines, **kwargs):
+def plot_vi_breakdown_panel(px, h, title, xlab, ylab, hlines, **kwargs):
     x = scipy.arange(max(min(px),1e-10), max(px), (max(px)-min(px))/100.0)
     for val in hlines:
         plt.plot(x, val/x, c='gray', ls=':') 
@@ -101,11 +101,11 @@ def plot_voi_breakdown_panel(px, h, title, xlab, ylab, hlines, **kwargs):
     plt.ylabel(ylab)
     plt.title(title)
 
-def plot_voi_breakdown(seg, gt, ignore_seg=[], ignore_gt=[], 
+def plot_vi_breakdown(seg, gt, ignore_seg=[], ignore_gt=[], 
                                         hlines=None, subplot=False, **kwargs):
     """Plot conditional entropy H(Y|X) vs P(X) for both seg|gt and gt|seg."""
     plt.ion()
-    pxy,px,py,hxgy,hygx,lpygx,lpxgy = evaluate.voi_tables(seg,gt,
+    pxy,px,py,hxgy,hygx,lpygx,lpxgy = evaluate.vi_tables(seg,gt,
             ignore_seg=ignore_seg, ignore_gt=ignore_gt)
     cu = -px*lpygx
     co = -py*lpxgy
@@ -119,15 +119,15 @@ def plot_voi_breakdown(seg, gt, ignore_seg=[], ignore_gt=[],
         hlines = np.arange(maxc/hlines, maxc, maxc/hlines)
     plt.figure()
     if subplot: plt.subplot(1,2,1)
-    plot_voi_breakdown_panel(px, -lpygx, 
+    plot_vi_breakdown_panel(px, -lpygx, 
         'Undersegmentation', 'p(S=seg)', 'H(G|S=seg)', 
         hlines, c='blue', **kwargs)
     if subplot: plt.subplot(1,2,2)
-    plot_voi_breakdown_panel(py, -lpxgy, 
+    plot_vi_breakdown_panel(py, -lpxgy, 
         'Oversegmentation', 'p(G=gt)', 'H(S|G=gt)', 
         hlines, c='orange', **kwargs)
     if not subplot:
-        plt.title('VOI contributions by body.')
+        plt.title('vi contributions by body.')
         plt.legend(loc='lower right', scatterpoints=1)
         plt.xlabel('Segment size')
         plt.ylabel('Conditional entropy (bits)')
@@ -136,9 +136,9 @@ def plot_voi_breakdown(seg, gt, ignore_seg=[], ignore_gt=[],
         ymax = max(-lpygx.min(), -lpxgy.min())
         plt.ylim(-0.05*ymax, 1.05*ymax)
 
-def plot_voi_parts(*args, **kwargs):
+def plot_vi_parts(*args, **kwargs):
     kwargs['subplot'] = True
-    plot_voi_breakdown(*args, **kwargs)
+    plot_vi_breakdown(*args, **kwargs)
 
 def add_opts_to_plot(ars, colors='k', markers='^', **kwargs):
     if type(colors) not in [list, tuple]:
@@ -168,7 +168,7 @@ def add_nats_to_plot(ars, tss, stops=0.5, colors='k', markers='o', **kwargs):
         points.append(plt.scatter(nat[0], nat[1], c=c, marker=m, **kwargs))
     return points
 
-def plot_split_voi(ars, best=None, colors='k', linespecs='-', 
+def plot_split_vi(ars, best=None, colors='k', linespecs='-', 
                                         addopt=None, addnat=None, **kwargs):
     if type(ars) not in [list, tuple]: ars = [ars]
     if type(colors) not in [list, tuple]: colors = [colors]

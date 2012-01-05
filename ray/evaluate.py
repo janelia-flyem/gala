@@ -61,11 +61,11 @@ def xlogx(x, out=None):
     y[nz] *= numpy.log2(y[nz])
     return y
 
-def voi(X, Y, cont=None, weights=numpy.ones(2), ignore_seg=[], ignore_gt=[]):
+def vi(X, Y, cont=None, weights=numpy.ones(2), ignore_seg=[], ignore_gt=[]):
     """Return the variation of information metric."""
-    return numpy.dot(weights, split_voi(X,Y,cont, ignore_seg, ignore_gt))
+    return numpy.dot(weights, split_vi(X,Y,cont, ignore_seg, ignore_gt))
 
-def voi_by_threshold(ucm, gt, ignore_seg=[0], ignore_gt=[0], npoints=None):
+def vi_by_threshold(ucm, gt, ignore_seg=[], ignore_gt=[], npoints=None):
     ts = numpy.unique(ucm)[1:]
     if npoints is None:
         npoints = len(ts)
@@ -74,7 +74,7 @@ def voi_by_threshold(ucm, gt, ignore_seg=[0], ignore_gt=[0], npoints=None):
     result = numpy.zeros((2,len(ts)))
     for i, t in enumerate(ts):
         seg = label(ucm<t)[0]
-        result[:,i] = split_voi(seg, gt, None, ignore_seg, ignore_gt)
+        result[:,i] = split_vi(seg, gt, None, ignore_seg, ignore_gt)
     return ts, result
 
 def rand_by_threshold(ucm, gt, npoints=None):
@@ -90,8 +90,8 @@ def rand_by_threshold(ucm, gt, npoints=None):
         result[1,i] = adj_rand_index(seg, gt, None)
     return ts, result
 
-def voi_tables(X, Y, cont=None, ignore_seg=[0], ignore_gt=[0]):
-    """Return probability tables used for calculating voi."""
+def vi_tables(X, Y, cont=None, ignore_seg=[], ignore_gt=[]):
+    """Return probability tables used for calculating VI."""
     if cont is None:
         pxy = contingency_table(X, Y, ignore_seg, ignore_gt)
     else:
@@ -112,17 +112,18 @@ def voi_tables(X, Y, cont=None, ignore_seg=[0], ignore_gt=[0]):
     # Calculate log conditional probabilities and entropies
     ax = numpy.newaxis
     lpygx = numpy.zeros(numpy.shape(px))
-    lpygx[nzx] = xlogx(nzpxy / nzpx[:,ax]).sum(axis=1) # \sum_x{p_{y|x} \log{p_{y|x}}}
+    lpygx[nzx] = xlogx(nzpxy / nzpx[:,ax]).sum(axis=1) 
+                        # \sum_x{p_{y|x} \log{p_{y|x}}}
     hygx = -(px*lpygx) # \sum_x{p_x H(Y|X=x)} = H(Y|X)
     
     lpxgy = numpy.zeros(numpy.shape(py))
     lpxgy[nzy] = xlogx(nzpxy / nzpy[ax,:]).sum(axis=0)
     hxgy = -(py*lpxgy)
 
-    return pxy,px,py,hxgy,hygx, lpygx, lpxgy
+    return pxy, px, py, hxgy, hygx, lpygx, lpxgy
 
-def split_voi(X,Y,cont=None, ignore_seg_labels=[], ignore_gt_labels=[]):
-    """Return the symmetric conditional entropies associated with the VOI.
+def split_vi(X,Y,cont=None, ignore_seg_labels=[], ignore_gt_labels=[]):
+    """Return the symmetric conditional entropies associated with the VI.
     
     The variation of information is defined as VI(X,Y) = H(X|Y) + H(Y|X).
     If Y is the ground-truth segmentation, then H(Y|X) can be interpreted
@@ -130,7 +131,8 @@ def split_voi(X,Y,cont=None, ignore_seg_labels=[], ignore_gt_labels=[]):
     of over-segmentation.  In other words, a perfect over-segmentation
     will have H(Y|X)=0 and a perfect under-segmentation will have H(X|Y)=0.
     """
-    pxy,px,py,hxgy,hygx,lpygx,lpxgy = voi_tables(X,Y,cont,ignore_seg_labels, ignore_gt_labels)
+    pxy,px,py,hxgy,hygx,lpygx,lpxgy = vi_tables(X,Y,cont,ignore_seg_labels,
+                                                         ignore_gt_labels)
     # false merges, false splits
     return numpy.array([hygx.sum(), hxgy.sum()])
 

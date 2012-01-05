@@ -29,7 +29,7 @@ import morpho
 import iterprogress as ip
 from ncut import ncutW
 from mergequeue import MergeQueue
-from evaluate import contingency_table, split_voi, xlogx
+from evaluate import contingency_table, split_vi, xlogx
 from classify import NullFeatureManager, MomentsFeatureManager, \
     HistogramFeatureManager, RandomForest, unique_learning_data_elements, \
     concatenate_data_elements
@@ -357,7 +357,7 @@ class Rag(Graph):
                     history.append((n1,n2))
                     scores.append(merge_priority)
                     evaluation.append(
-                        (self.number_of_nodes()-1, self.split_voi())
+                        (self.number_of_nodes()-1, self.split_vi())
                     )
         if save_history:
             return history, scores, evaluation
@@ -377,7 +377,7 @@ class Rag(Graph):
                 if save_history: 
                     history.append((n1,n2))
                     evaluation.append(
-                        (self.number_of_nodes()-1, self.split_voi())
+                        (self.number_of_nodes()-1, self.split_vi())
                     )
         if save_history:
             return history, evaluation
@@ -490,13 +490,13 @@ class Rag(Graph):
         # Calculate weights for weighting data points
         s1, s2 = [len(self.node[n]['extent']) for n in [n1, n2]]
         weights = \
-            compute_local_voi_change(s1, s2, self.volume_size), \
+            compute_local_vi_change(s1, s2, self.volume_size), \
             compute_local_rand_change(s1, s2, self.volume_size)
         # Get the fraction of times that n1 and n2 assigned to
         # same segment in the ground truths
         cont_labels = [
             [(-1)**(a[n1,:]==a[n2,:]).all() for a in assignments],
-            [compute_true_delta_voi(ctable, n1, n2) for ctable in ctables],
+            [compute_true_delta_vi(ctable, n1, n2) for ctable in ctables],
             [-compute_true_delta_rand(ctable, n1, n2, self.volume_size) 
                                                     for ctable in ctables]
         ]
@@ -520,9 +520,9 @@ class Rag(Graph):
         Value:
             A learning data matrix of shape 
             [n_training_examples x (n_features + 5)]. The elements after the
-            features are the label, the approximate magnitude of the VOI 
-            change, the approximate magnitude of the Rand index change, and
-            the two nodes that were sampled.
+            features are the label, the approximate magnitude of the variation
+            of information (VI) change, the approximate magnitude of the Rand
+            index (RI) change, and the two nodes that were sampled.
 
         Learning modes:
             - strict: use positive-boundary examples to learn but never
@@ -530,7 +530,7 @@ class Rag(Graph):
             - loose: merge regardless of label
         Labeling modes:
             - assignment: assign each node to a gold standard node and 
-            - voi-sign: compute the voi change resulting from merging candidate
+            - vi-sign: compute the vi change resulting from merging candidate
             regions. Use the sign of the change as the training label.
             - rand-sign: compute the rand change resulting from merging the
             candidate regions. Use the sign of the change as the training
@@ -760,6 +760,23 @@ class Rag(Graph):
         """List all bodies that traverse the volume."""
         return [n for n in self.nodes() if self.is_traversed_by_node(n)]
 
+    def non_traversing_bodies(self):
+        """List bodies that are not orphans and do not traverse the volume."""
+        return [n for n in self.nodes() if self.at_volume_boundary(n) and
+            not self.is_traversed_by_node(n)]
+
+    def raveler_body_annotations(self):
+        """Return JSON-compatible dict formatted for Raveler annotations."""
+        orphans = self.orphans()
+        non_traversing_bodies = self.non_traversing_bodies()
+        data = \
+            [{'status':'ask', 'comment':'orphan', 'body ID':o}
+                for o in orphans] +\
+            [{'status':'ask', 'comment':'does not traverse', 'body ID':n}
+                for n in non_traversing_bodies]
+        metadata = {'description':'body annotations', 'file version':2}
+        return {'data':data, 'metadata':metadata}
+
     def at_volume_boundary(self, n):
         """Return True if node n touches the volume boundary."""
         return self.has_edge(n, self.boundary_body) or n == self.boundary_body
@@ -784,13 +801,13 @@ class Rag(Graph):
         ar[ids] = ls.astype(ar.dtype)
         return ar.reshape(self.watershed.shape)
 
-    def split_voi(self, gt=None):
+    def split_vi(self, gt=None):
         if self.gt is None and gt is None:
             return array([0,0])
         elif self.gt is not None:
-            return split_voi(None, None, self.rig)
+            return split_vi(None, None, self.rig)
         else:
-            return split_voi(self.get_segmentation(), gt, None, [0], [0])
+            return split_vi(self.get_segmentation(), gt, None, [0], [0])
 
     def write(self, fout, format='GraphML'):
         pass
@@ -903,26 +920,26 @@ def ordered_priority(edges):
         return d.get((n1,n2), inf)
     return ord
 
-def expected_change_voi(feature_extractor, classifier, alpha=1.0, beta=1.0):
+def expected_change_vi(feature_extractor, classifier, alpha=1.0, beta=1.0):
     prob_func = classifier_probability(feature_extractor, classifier)
     def predict(g, n1, n2):
         p = prob_func(g, n1, n2) # Prediction from the classifier
-        # Calculate change in VOI if n1 and n2 should not be merged
-        v = compute_local_voi_change(
+        # Calculate change in VI if n1 and n2 should not be merged
+        v = compute_local_vi_change(
             len(g.node[n1]['extent']), len(g.node[n2]['extent']), g.volume_size
         )
         # Return expected change
         return  (p*alpha*v + (1.0-p)*(-beta*v))
     return predict
 
-def compute_local_voi_change(s1, s2, n):
-    """Compute change in VOI if we merge disjoint sizes s1,s2 in a volume n."""
+def compute_local_vi_change(s1, s2, n):
+    """Compute change in VI if we merge disjoint sizes s1,s2 in a volume n."""
     py1 = float(s1)/n
     py2 = float(s2)/n
     py = py1+py2
     return -(py1*log2(py1) + py2*log2(py2) - py*log2(py))
     
-def compute_true_delta_voi(ctable, n1, n2):
+def compute_true_delta_vi(ctable, n1, n2):
     p1 = ctable[n1].sum()
     p2 = ctable[n2].sum()
     p3 = p1+p2
