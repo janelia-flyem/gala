@@ -359,7 +359,6 @@ def write_image_stack(npy_vol, fn, **kwargs):
     else:
         raise ValueError('Image format not supported: ' + fn + '\n')
 
-
 def write_png_image_stack(npy_vol, fn, **kwargs):
     """Write a numpy.ndarray 3D volume to a stack of .png images.
 
@@ -414,17 +413,45 @@ def write_h5_stack(npy_vol, fn, **kwargs):
     fout.create_dataset(group, data=npy_vol, **kwargs)
     fout.close()
 
+# obtained from Ilastik 0.5.4
+ilastik_label_colors = \
+    [0xffff0000, 0xff00ff00, 0xffffff00, 0xff0000ff, 
+    0xffff00ff, 0xff808000, 0xffc0c0c0, 0xfff2022d] 
 
-#######################
-# Image visualization #
-#######################
-
-def show_boundary(seg):
-    """Show the boundary (0-label) in a 2D segmentation (labeling)."""
-    seg = seg.squeeze()
-    boundary = 255*(1-seg.astype(bool)).astype(uint8)
-    Image.fromarray(boundary).show()
-
-def show_image(ar):
-    """Display an image from an array."""
-    Image.fromarray(ar.squeeze()).show()
+def write_ilastik_project(images, labels, fn, label_names=None):
+    """Write one or more image volumes and corresponding labels to Ilastik.
+    
+    Limitations:
+    - Assumes the same labels are used for all images.
+    - Supports only grayscale images and volumes, and a maximum of 8 labels.
+    - Requires at least one unlabeled voxel in the label field.
+    """
+    f = h5py.File(fn, 'w')
+    if type(images) != list:
+        images = [images]
+        labels = [labels]
+    ulbs = unique(concatenate(map(unique, labels)))[1:]
+    colors = array(ilastik_label_colors[:len(ulbs)])
+    names = ['Label %i'%i for i in ulbs]
+    names = array(names, '|S%i'%max(map(len, names)))
+    label_attributes = {'color':colors, 'name':names, 'number':ulbs}
+    for i, (im, lb) in enumerate(zip(images, labels)):
+        if im.ndim == 2:
+            new_shape = (1,1)+im.shape+(1,)
+        elif im.ndim == 3:
+            new_shape = (1,)+im.shape+(1,)
+        else:
+            raise ValueError('Unsupported number of dimensions in image.')
+        im = im.reshape(new_shape)
+        lb = lb.reshape(new_shape)
+        root = 'DataSets/dataItem%02i/'%i
+        f[root+'data'] = im
+        f[root+'labels'] = lb
+        for k, v in label_attributes.items():
+            f[root+'labels'].attrs[k] = v
+        f[root].attrs['Name'] = ''
+        f[root].attrs['fileName'] = ''
+    for subgroup in ['Description', 'Labeler', 'Name']:
+        f['Project/%s'%subgroup] = array('', dtype='|S1')
+    f['ilastikVersion'] = array(0.5)
+    f.close()
