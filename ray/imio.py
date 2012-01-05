@@ -455,3 +455,17 @@ def write_ilastik_project(images, labels, fn, label_names=None):
         f['Project/%s'%subgroup] = array('', dtype='|S1')
     f['ilastikVersion'] = array(0.5)
     f.close()
+
+def write_ilastik_batch_volume(im, fn):
+    """Write a volume to an HDF5 file for Ilastik batch processing."""
+    if im.ndim == 2:
+        im = im.reshape((1,1)+im.shape+(1,))
+    elif im.ndim == 3:
+        im = im.reshape((1,)+im.shape+(1,))
+    else:
+        raise ValueError('Unsupported number of dimensions in image.')
+    imio.write_h5_stack(im, fn, group='/volume/data')
+
+def read_prediction_from_ilastik_batch(fn):
+    """Read the prediction produced by Ilastik from batch processing."""
+    return squeeze(read_h5_stack(fn, group='/volume/prediction'))
