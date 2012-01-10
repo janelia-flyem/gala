@@ -468,7 +468,7 @@ def write_ilastik_batch_volume(im, fn):
         im = im.reshape((1,)+im.shape+(1,))
     else:
         raise ValueError('Unsupported number of dimensions in image.')
-    imio.write_h5_stack(im, fn, group='/volume/data')
+    write_h5_stack(im, fn, group='/volume/data')
 
 def read_prediction_from_ilastik_batch(fn):
     """Read the prediction produced by Ilastik from batch processing."""
