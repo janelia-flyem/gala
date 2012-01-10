@@ -315,7 +315,8 @@ def write_json_body_annotations(annot,
     with open(join_path(directory, fn), 'w') as f:
         json.dump(annot, f, indent=2)
 
-def raveler_to_labeled_volume(rav_export_dir, get_glia=False, **kwargs):
+def raveler_to_labeled_volume(rav_export_dir, get_glia=False, 
+                                            use_watershed=True, **kwargs):
     """Import a raveler export stack into a labeled segmented volume."""
     import morpho
     spmap = read_image_stack(
@@ -326,6 +327,7 @@ def raveler_to_labeled_volume(rav_export_dir, get_glia=False, **kwargs):
         os.path.join(rav_export_dir, 'segment_to_body_map.txt'), uint32)
     sp2seg = {}
     max_sp = sp2seg_list[:,1].max()
+    start_plane = sp2seg_list[:,0].min()
     for z, sp, seg in sp2seg_list:
         if not sp2seg.has_key(z):
             sp2seg[z] = zeros(max_sp+1, uint32)
@@ -335,9 +337,11 @@ def raveler_to_labeled_volume(rav_export_dir, get_glia=False, **kwargs):
     seg2bod[seg2bod_list[:,0]] = seg2bod_list[:,1]
     initial_output_volume = zeros_like(spmap)
     for i, m in enumerate(spmap):
-        initial_output_volume[i] = seg2bod[sp2seg[i][m]]
+        j = start_plane + i
+        initial_output_volume[i] = seg2bod[sp2seg[j][m]]
     probs = kwargs.get('probability_map', ones_like(spmap))
-    output_volume = morpho.watershed(probs, seeds=initial_output_volume)
+    output_volume = morpho.watershed(probs, seeds=initial_output_volume) \
+        if use_watershed else initial_output_volume
     if get_glia:
         annots = json.load(
             open(os.path.join(rav_export_dir, 'annotations-body.json'), 'r'))
