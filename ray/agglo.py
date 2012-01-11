@@ -4,6 +4,7 @@ import argparse
 import random
 import sys
 import logging
+import json
 from copy import deepcopy
 from math import isnan
 
@@ -852,9 +853,42 @@ class Rag(Graph):
         else:
             return split_vi(self.get_segmentation(), gt, None, [0], [0])
 
-    def write(self, fout, format='GraphML'):
-        pass
+    def boundary_indices(self, n1, n2):
+        return list(self[n1][n2]['boundary'])
+
+    def get_edge_coordinates_3D(self, n1, n2):
+        """Find where in the segmentation the edge (n1, n2) is most visible.
         
+        This function assumes a 3D volume: it is not nD compatible.
+        """
+        evol = zeros(self.segmentation.shape, uint8)
+        evol.ravel()[self.boundary_indices(n1, n2)] = 1
+        evol = morpho.juicy_center(evol, self.pad_thickness)
+        z = array([a.sum() for a in evol]).argmax()
+        x, y = evol[z].nonzero()
+        n = len(x)
+        return array([z, x[n/2], y[n/2]])
+
+    def write(self, fout, output_format='GraphML'):
+        if output_format == 'Plaza JSON':
+            self.write_plaza_json(fout)
+        else:
+            raise ValueError('Unsupported output format for agglo.Rag: %s'
+                % output_format)
+        
+    def write_plaza_json(self, fout):
+        """Write graph to Steve Plaza's JSON spec."""
+        edge_list = [
+            {'location': list(self.get_edge_coordinates_3D(i, j)[-1::-1]),
+            'node1': i, 'node2': j,
+            'size1': len(self.node[i]['extent']), 
+            'size2': len(self.node[j]['extent']),
+            'weight': self[i][j]['weight']}
+            for i, j in self.real_edges()
+        ]
+        with open(fout, 'w') as f:
+            json.dump({'edge_list': edge_list}, f, indent=4)
+
     def ncut(self, num_clusters=10, kmeans_iters=5, sigma=255.0*20, nodes=None,
             **kwargs):
         """Run normalized cuts on the current set of superpixels.
