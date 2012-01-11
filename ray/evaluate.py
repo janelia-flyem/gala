@@ -99,9 +99,13 @@ def vi_by_threshold(ucm, gt, ignore_seg=[], ignore_gt=[], npoints=None,
         npoints = len(ts)
     if len(ts) > 2*npoints:
         ts = ts[numpy.arange(1, len(ts), len(ts)/npoints)]
-    p = multiprocessing.Pool(nprocessors)
-    result = p.map(split_vi_threshold, 
-        [(ucm, gt, ignore_seg, ignore_gt, t) for t in ts])
+    if nprocessors == 1: # this should avoid pickling overhead
+        result = [split_vi_threshold((ucm, gt, ignore_seg, ignore_gt, t))
+                for t in ts]
+    else:
+        p = multiprocessing.Pool(nprocessors)
+        result = p.map(split_vi_threshold, 
+            ((ucm, gt, ignore_seg, ignore_gt, t) for t in ts))
     return numpy.concatenate(
                             (ts[numpy.newaxis, :], numpy.array(result).T), 
                             axis=0)
