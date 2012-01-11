@@ -47,10 +47,12 @@ and was the initial design spec for Ray. Now:
 
 ```
 from ray import imio, agglo, morpho
-prob = imio.read_image_stack('probabilities-*.png') # prob is a numpy ndarray
-# can be one file for 2D segmentation, or many files for 3D.
-label_field = morpho.watershed(prob) # warning: slow
-g = agglo.Rag(label_field, prob) # the region adjacency graph
+prob = imio.read_image_stack('probabilities-*.png') 
+# prob is a numpy ndarray
+# probabilities-* can be one file for 2D segmentation, or many files for 3D.
+label_field = morpho.watershed(prob)
+# Make the region adjacency graph (RAG)
+g = agglo.Rag(label_field, prob)
 threshold = 0.5
 g.agglomerate(threshold) # agglomerate until the boundary mean is 0.5
 seg = g.get_segmentation() # the label field resulting from the agglomeration
