@@ -92,13 +92,14 @@ def split_vi_threshold(tup):
     ucm, gt, ignore_seg, ignore_gt, t = tup
     return split_vi(label(ucm<t)[0], gt, None, ignore_seg, ignore_gt)
 
-def vi_by_threshold(ucm, gt, ignore_seg=[], ignore_gt=[], npoints=None):
+def vi_by_threshold(ucm, gt, ignore_seg=[], ignore_gt=[], npoints=None,
+                                                            nprocessors=None):
     ts = numpy.unique(ucm)[1:]
     if npoints is None:
         npoints = len(ts)
     if len(ts) > 2*npoints:
         ts = ts[numpy.arange(1, len(ts), len(ts)/npoints)]
-    p = multiprocessing.Pool()
+    p = multiprocessing.Pool(nprocessors)
     result = p.map(split_vi_threshold, 
         [(ucm, gt, ignore_seg, ignore_gt, t) for t in ts])
     return numpy.concatenate(
