@@ -1,6 +1,8 @@
 import numpy
+import multiprocessing
 from scipy.sparse import coo_matrix
 from scipy.ndimage.measurements import label
+from scipy.spatial.distance import pdist, cdist, squareform
 from scipy.misc import comb as nchoosek
 
 def pixel_wise_boundary_precision_recall(aseg, gt):
@@ -65,17 +67,43 @@ def vi(X, Y, cont=None, weights=numpy.ones(2), ignore_seg=[], ignore_gt=[]):
     """Return the variation of information metric."""
     return numpy.dot(weights, split_vi(X,Y,cont, ignore_seg, ignore_gt))
 
+def simple_vi_0(X, Y):
+    return vi(X, Y, None, numpy.ones(2), [0], [0])
+
+def vi_pairwise_matrix(segs):
+    """Compute the pairwise VI distances within a set of segmentations.
+    
+    0-labeled pixels are ignored.
+    """
+    return squareform(pdist(array([s.ravel() for s in segs]), simple_vi_0))
+
+def split_vi_threshold(tup):
+    """Compute VI with tuple input (to support multiprocessing).
+    Tuple elements:
+        - the UCM for the candidate segmentation,
+        - the gold standard,
+        - list of ignored labels in the segmentation,
+        - list of ignored labels in the gold standard,
+        - threshold to use for the UCM.
+    Value:
+        - array of length 2 containing the undersegmentation and 
+        oversegmentation parts of the VI.
+    """
+    ucm, gt, ignore_seg, ignore_gt, t = tup
+    return split_vi(label(ucm<t)[0], gt, None, ignore_seg, ignore_gt)
+
 def vi_by_threshold(ucm, gt, ignore_seg=[], ignore_gt=[], npoints=None):
     ts = numpy.unique(ucm)[1:]
     if npoints is None:
         npoints = len(ts)
     if len(ts) > 2*npoints:
         ts = ts[numpy.arange(1, len(ts), len(ts)/npoints)]
-    result = numpy.zeros((2,len(ts)))
-    for i, t in enumerate(ts):
-        seg = label(ucm<t)[0]
-        result[:,i] = split_vi(seg, gt, None, ignore_seg, ignore_gt)
-    return ts, result
+    p = multiprocessing.Pool()
+    result = p.map(split_vi_threshold, 
+        [(ucm, gt, ignore_seg, ignore_gt, t) for t in ts])
+    return numpy.concatenate(
+                            (ts[numpy.newaxis, :], numpy.array(result).T), 
+                            axis=0)
 
 def rand_by_threshold(ucm, gt, npoints=None):
     ts = numpy.unique(ucm)[1:]

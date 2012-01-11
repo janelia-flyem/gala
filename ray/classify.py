@@ -834,7 +834,7 @@ class RandomForest(object):
         f = h5py.File(fn, 'r')
         groups = []
         f.visit(groups.append)
-        attrs = [g for g in groups if g != rfgroupname]
+        attrs = [g for g in groups if not g.startswith(rfgroupname)]
         for attr in attrs:
             setattr(self, attr, array(f[attr]))
 
