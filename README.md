@@ -105,6 +105,7 @@ fc = classify.CompositeFeatureManager(children=[fm, fh])
 A _feature manager_ is a callable object that computes feature vectors from
 graph edges. The object has the following responsibilities, which it can inherit
 from `classify.NullFeatureManager`:
+
 * create a (possibly empty) _feature cache_ on each edge and node, precomputing
   some of the calculations needed for feature computation;
 * maintain the feature cache throughout node merges during agglomeration;
@@ -131,6 +132,7 @@ training_data, all_training_data = g.learn_agglomerate(gs, fc)
 ```
 
 The training data is a tuple with four elements:
+
 * an nsamples x nfeatures numpy array with the feature vectors for each
   learned edge.
 * an nsamples x 4 numpy array with the associated lables for each edge: -1 for
