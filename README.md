@@ -105,10 +105,10 @@ fc = classify.CompositeFeatureManager(children=[fm, fh])
 A _feature manager_ is a callable object that computes feature vectors from
 graph edges. The object has the following responsibilities, which it can inherit
 from `classify.NullFeatureManager`:
-- create a (possibly empty) _feature cache_ on each edge and node, precomputing
+* create a (possibly empty) _feature cache_ on each edge and node, precomputing
   some of the calculations needed for feature computation;
-- maintain the feature cache throughout node merges during agglomeration;
-- compute the feature vector from the feature caches when called with the
+* maintain the feature cache throughout node merges during agglomeration;
+* compute the feature vector from the feature caches when called with the
   inputs of a graph and two nodes.
 
 Feature managers can be chained through the `classify.CompositeFeatureManager`
@@ -131,15 +131,15 @@ training_data, all_training_data = g.learn_agglomerate(gs, fc)
 ```
 
 The training data is a tuple with four elements:
-+ an nsamples x nfeatures numpy array with the feature vectors for each
+* an nsamples x nfeatures numpy array with the feature vectors for each
   learned edge.
-+ an nsamples x 4 numpy array with the associated lables for each edge: -1 for
+* an nsamples x 4 numpy array with the associated lables for each edge: -1 for
   "correct merge", and +1 for "incorrect merge". The four columns are four
   different labeling systems. They mostly agree (and certainly do in the case
   of a perfect oversegmentation); using column 0 is fine for most purposes.
-+ an nsamples x 2 numpy array of weights (VI and RI) associated with each 
+* an nsamples x 2 numpy array of weights (VI and RI) associated with each 
   learned edge, for weighted learning.
-+ an nsamples x 2 numpy array of edge ids, the sample history during learning.
+* an nsamples x 2 numpy array of edge ids, the sample history during learning.
 
 `all_training_data` is a list of such tuples, one for each training epoch.
 This will be ignored for this tutorial. Briefly, learning takes place by
