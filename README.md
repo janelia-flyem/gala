@@ -37,29 +37,56 @@ Well, there's nothing to install per se (distutils support coming at some point
 in the far future). Download the source and add whatever path you downloaded it
 to to your Python path.
 
+### Testing
+
+The test coverage is rather tiny, but it is still a nice way to check you
+haven't completely screwed up your installation. From the Ray root directory,
+run `python test/test_ray.py` to run some regression tests.
+
 ## Usage
 
-### Mean agglomeration
+### Agglomeration
 
 Suppose you have already trained a pixel level boundary detector, and want to
 perform mean agglomeration on it. This is the simplest form of agglomeration
 and was the initial design spec for Ray. Now:
 
-```
+```python
 from ray import imio, agglo, morpho
-prob = imio.read_image_stack('probabilities-*.png') 
 # prob is a numpy ndarray
 # probabilities-* can be one file for 2D segmentation, or many files for 3D.
+prob = imio.read_image_stack('probabilities-*.png') 
 label_field = morpho.watershed(prob)
 # Make the region adjacency graph (RAG)
 g = agglo.Rag(label_field, prob)
 threshold = 0.5
-g.agglomerate(threshold) # agglomerate until the boundary mean is 0.5
-seg = g.get_segmentation() # the label field resulting from the agglomeration
-g.agglomerate(inf) # agglomerate to completion
-ucm = g.get_ucm() # get the ultrametric contour map (UCM) for the segmentation
+# agglomerate until the given threshold
+g.agglomerate(threshold)
+# get the label field resulting from the agglomeration
+seg = g.get_segmentation() 
+# now agglomerate to completion and get the UCM
+g.agglomerate(inf)
+ucm = g.get_ucm()
 ```
 
-A UCM can be thresholded to provide the segmentation at any threshold of 
-agglomeration. It may, however, result in a split when a segment becomes
-thinner than one pixel.
+An ultrametric contour map (UCM) can be thresholded to provide the segmentation
+at any threshold of agglomeration. (It may, however, result in a split when a
+segment becomes thinner than one pixel.)
+
+The mean agglomeration may be too simple. What if we want to use the median?
+We can specify this with the `merge_priority_function` argument to the RAG
+constructor:
+
+```python
+# merge by boundary median instead of mean
+g = agglo.Rag(label_field, prob, merge_priority_function=agglo.boundary_median)
+```
+
+A user can specify their own merge priority function. A valid merge priority
+function is a callable Python object that takes a graph and two nodes from that
+graph as input, and returns a real number. (Technically, any object that
+satisfies the basic comparison operations, such as `__lt__`, will work.)
+
+### Learning agglomeration
+
+A whole new set of tools is needed to apply machine learning to agglomeration.
