@@ -9,9 +9,9 @@ volumes...) and multiple channels per image.
 * Python 2.x (2.6, 2.7)
 * numpy (1.5.1, 1.6.0)
 * Image (a.k.a. Python Imaging Library or PIL) (1.3.1)
-* networkx (1.4, 1.5)
+* networkx (1.4, 1.5, 1.6)
 * h5py (1.5.0)
-* scipy (0.7.0, 0.9.0)
+* scipy (0.7.0, 0.9.0, 0.10.0)
 
 All of the above are included in the Enthought Python Distribution, so I would
 recommend you just install that if you can.
@@ -65,6 +65,7 @@ g.agglomerate(threshold)
 # get the label field resulting from the agglomeration
 seg = g.get_segmentation() 
 # now agglomerate to completion and get the UCM
+from numpy import inf
 g.agglomerate(inf)
 ucm = g.get_ucm()
 ```
@@ -130,15 +131,15 @@ training_data, all_training_data = g.learn_agglomerate(gs, fc)
 ```
 
 The training data is a tuple with four elements:
-- an nsamples x nfeatures numpy array with the feature vectors for each
++ an nsamples x nfeatures numpy array with the feature vectors for each
   learned edge.
-- an nsamples x 4 numpy array with the associated lables for each edge: -1 for
++ an nsamples x 4 numpy array with the associated lables for each edge: -1 for
   "correct merge", and +1 for "incorrect merge". The four columns are four
   different labeling systems. They mostly agree (and certainly do in the case
   of a perfect oversegmentation); using column 0 is fine for most purposes.
-- an nsamples x 2 numpy array of weights (VI and RI) associated with each 
++ an nsamples x 2 numpy array of weights (VI and RI) associated with each 
   learned edge, for weighted learning.
-- an nsamples x 2 numpy array of edge ids, the sample history during learning.
++ an nsamples x 2 numpy array of edge ids, the sample history during learning.
 
 `all_training_data` is a list of such tuples, one for each training epoch.
 This will be ignored for this tutorial. Briefly, learning takes place by
@@ -148,4 +149,80 @@ result in repeated elements. `training_data` is the set of unique learning
 samples encountered over all epochs, while `all_training_data` is a list of
 the samples encountered in each epoch (including repeats).
 
+Now that we have a training sample, we can train a classifier, such as
+`classify.RandomForest`, which is a wrapper of `vigra.learning.RandomForest`
+to match the classifier interface in `scikits.learn`:
 
+```python
+features, labels, weights, history = training_data
+rf = classify.RandomForest()
+rf = rf.fit(features, labels[:,0])
+rf.save_to_disk('my-random-forest.rf.h5')
+```
+
+As seen above, the RF can be saved in HDF5 format for future use. It's easy to
+reload later:
+
+```python
+rf = classify.RandomForest()
+rf.load_from_disk('my-random-forest.rf.h5')
+```
+
+Let's use it right now though:
+
+```python
+# use agglo.classifier_priority to create a closure over the feature map and
+# classifier that satisfies the definition of a merge priority function.
+learned_priority_function = agglo.classifier_priority(fc, rf)
+test_prob = imio.read_image_stack('test-probabilities-*.png')
+test_label_field = morpho.watershed(test_prob)
+gtest = agglo.Rag(test_label_field, test_prob, learned_priority_function)
+gtest.agglomerate(inf)
+test_ucm = gtest.get_ucm()
+```
+
+It's probably a good idea to save the UCM for later:
+
+```python
+imio.write_h5_stack(test_ucm, 'test-ucm.h5')
+```
+
+By default, `imio` puts datasets in the `'stack'` group in the HDF5 file, but
+you can specify your own.
+
+```python
+imio.write_h5_stack(test_ucm, 'test-ucm.h5', group='volume')
+```
+
+We have now done our first learned agglomeration. But how do we know how well
+we have done?
+
+### Evaluation
+
+We can use the `evaluate` submodule to check our performance.
+
+```python
+from ray import evaluate
+from scipy.ndimage.measurements import label
+t = imio.read_h5_stack('test-gold-standard.h5')
+s = label(ucm_test < 0.5)[0]
+# variation of information, including decomposition, and multiple thresholds
+vi = evaluate.vi(s, t)
+svi = evaluate.split_vi(s, t)
+vit = evaluate.vi_by_threshold(test_ucm, t)
+# draw the split-vi plot
+from matplotlib import pyplot as plt
+plt.plot(vit[1], vit[2])
+plt.show()
+# rand index and adjusted rand index
+ri = evaluate.rand_index(s, t)
+ari = evaluate.adj_rand_index(s, t)
+# Fowlkes-Mallows index
+fm = evaluate.fm_index(s, t)
+# pixel-wise precision-recall
+pr = evaluate.pixel_wise_precision_recall(s, t)
+```
+
+That's a quick summary of the capabilities of Ray. There are of course many
+options under the hood, many of which are undocumented... Feel free to push me
+to update the documentation of your favorite function!
