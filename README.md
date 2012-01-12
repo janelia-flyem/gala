@@ -90,3 +90,62 @@ satisfies the basic comparison operations, such as `__lt__`, will work.)
 ### Learning agglomeration
 
 A whole new set of tools is needed to apply machine learning to agglomeration.
+These are provided by the `classify` module, and built into the `agglo.Rag`
+class.
+
+```python
+from ray import classify
+gs = imio.read_h5_stack('gold-standard-segmentation.h5')
+fm = classify.MomentsFeatureManager()
+fh = classify.HistogramFeatureManager()
+fc = classify.CompositeFeatureManager(children=[fm, fh])
+```
+
+A _feature manager_ is a callable object that computes feature vectors from
+graph edges. The object has the following responsibilities, which it can inherit
+from `classify.NullFeatureManager`:
+- create a (possibly empty) _feature cache_ on each edge and node, precomputing
+  some of the calculations needed for feature computation;
+- maintain the feature cache throughout node merges during agglomeration;
+- compute the feature vector from the feature caches when called with the
+  inputs of a graph and two nodes.
+
+Feature managers can be chained through the `classify.CompositeFeatureManager`
+class.
+
+We can then extract feature vectors from the graph as follows:
+
+```python
+g = agglo.Rag(label_field, prob, feature_manager=fc)
+n1, n2 = 1, 2
+feature_vector = fc(g, n1, n2)
+```
+
+This gives us the rudimentary tools to do some machine learning, when combined
+with a labeling system. Given a gold standard segmentation (`gs`, above)
+assumed to be a correct segmentation of the image, do:
+
+```python
+training_data, all_training_data = g.learn_agglomerate(gs, fc)
+```
+
+The training data is a tuple with four elements:
+- an nsamples x nfeatures numpy array with the feature vectors for each
+  learned edge.
+- an nsamples x 4 numpy array with the associated lables for each edge: -1 for
+  "correct merge", and +1 for "incorrect merge". The four columns are four
+  different labeling systems. They mostly agree (and certainly do in the case
+  of a perfect oversegmentation); using column 0 is fine for most purposes.
+- an nsamples x 2 numpy array of weights (VI and RI) associated with each 
+  learned edge, for weighted learning.
+- an nsamples x 2 numpy array of edge ids, the sample history during learning.
+
+`all_training_data` is a list of such tuples, one for each training epoch.
+This will be ignored for this tutorial. Briefly, learning takes place by
+agglomerating while comparing the present segmentation to the gold standard.
+Once the volume has been fully agglomerated, learning starts over, which can
+result in repeated elements. `training_data` is the set of unique learning
+samples encountered over all epochs, while `all_training_data` is a list of
+the samples encountered in each epoch (including repeats).
+
+
