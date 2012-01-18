@@ -67,7 +67,7 @@ def vi(X, Y, cont=None, weights=numpy.ones(2), ignore_seg=[], ignore_gt=[]):
     """Return the variation of information metric."""
     return numpy.dot(weights, split_vi(X,Y,cont, ignore_seg, ignore_gt))
 
-def simple_vi_0(X, Y):
+def simple_vi(X, Y):
     return vi(X, Y, None, numpy.ones(2), [0], [0])
 
 def vi_pairwise_matrix(segs):
@@ -75,7 +75,7 @@ def vi_pairwise_matrix(segs):
     
     0-labeled pixels are ignored.
     """
-    return squareform(pdist(array([s.ravel() for s in segs]), simple_vi_0))
+    return squareform(pdist(numpy.array([s.ravel() for s in segs]), simple_vi))
 
 def split_vi_threshold(tup):
     """Compute VI with tuple input (to support multiprocessing).
