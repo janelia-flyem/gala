@@ -120,17 +120,17 @@ def plot_vi_breakdown(seg, gt, ignore_seg=[], ignore_gt=[],
     plt.figure()
     if subplot: plt.subplot(1,2,1)
     plot_vi_breakdown_panel(px, -lpygx, 
-        'Undersegmentation', 'p(S=seg)', 'H(G|S=seg)', 
+        'False merges', 'p(S=seg)', 'H(G|S=seg)', 
         hlines, c='blue', **kwargs)
     if subplot: plt.subplot(1,2,2)
     plot_vi_breakdown_panel(py, -lpxgy, 
-        'Oversegmentation', 'p(G=gt)', 'H(S|G=gt)', 
+        'False splits', 'p(G=gt)', 'H(S|G=gt)', 
         hlines, c='orange', **kwargs)
     if not subplot:
         plt.title('vi contributions by body.')
-        plt.legend(loc='lower right', scatterpoints=1)
-        plt.xlabel('Segment size')
-        plt.ylabel('Conditional entropy (bits)')
+        plt.legend(loc='upper right', scatterpoints=1)
+        plt.xlabel('Segment size (fraction of volume)', fontsize='large')
+        plt.ylabel('Conditional entropy (bits)', fontsize='large')
         xmax = max(px.max(), py.max())
         plt.xlim(-0.05*xmax, 1.05*xmax)
         ymax = max(-lpygx.min(), -lpxgy.min())
