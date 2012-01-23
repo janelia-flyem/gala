@@ -814,9 +814,9 @@ class Rag(Graph):
         orphans = self.orphans()
         non_traversing_bodies = self.non_traversing_bodies()
         data = \
-            [{'status':'ask', 'comment':'orphan', 'body ID':o}
+            [{'status':'not sure', 'comment':'orphan', 'body ID':o}
                 for o in orphans] +\
-            [{'status':'ask', 'comment':'does not traverse', 'body ID':n}
+            [{'status':'not sure', 'comment':'does not traverse', 'body ID':n}
                 for n in non_traversing_bodies]
         metadata = {'description':'body annotations', 'file version':2}
         return {'data':data, 'metadata':metadata}
