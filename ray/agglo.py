@@ -13,7 +13,7 @@ from numpy import array, mean, zeros, zeros_like, uint8, int8, where, unique, \
     ones_like, finfo, size, double, transpose, newaxis, uint32, nonzero, \
     median, exp, ceil, dot, log2, float, ones, arange, inf, flatnonzero, \
     intersect1d, dtype, squeeze, sqrt, reshape, setdiff1d, argmin, sign, \
-    concatenate, nan, __version__ as numpyversion
+    concatenate, nan, __version__ as numpyversion, unravel_index, bincount
 import numpy
 from scipy.stats import sem
 from scipy.sparse import lil_matrix
@@ -856,18 +856,9 @@ class Rag(Graph):
     def boundary_indices(self, n1, n2):
         return list(self[n1][n2]['boundary'])
 
-    def get_edge_coordinates_3D(self, n1, n2):
-        """Find where in the segmentation the edge (n1, n2) is most visible.
-        
-        This function assumes a 3D volume: it is not nD compatible.
-        """
-        evol = zeros(self.segmentation.shape, uint8)
-        evol.ravel()[self.boundary_indices(n1, n2)] = 1
-        evol = morpho.juicy_center(evol, self.pad_thickness)
-        z = array([a.sum() for a in evol]).argmax()
-        x, y = evol[z].nonzero()
-        n = len(x)
-        return array([z, x[n/2], y[n/2]])
+    def get_edge_coordinates(self, n1, n2, arbitrary=False):
+        """Find where in the segmentation the edge (n1, n2) is most visible."""
+        return get_edge_coordinates(self, n1, n2, arbitrary)
 
     def write(self, fout, output_format='GraphML'):
         if output_format == 'Plaza JSON':
@@ -879,11 +870,12 @@ class Rag(Graph):
     def write_plaza_json(self, fout):
         """Write graph to Steve Plaza's JSON spec."""
         edge_list = [
-            {'location': list(self.get_edge_coordinates_3D(i, j)[-1::-1]),
-            'node1': i, 'node2': j,
+            {'location': map(int, self.get_edge_coordinates(i, j)[-1::-1]),
+            'node1': int(i), 'node2': int(j),
+            'edge_size': len(self[i][j]['boundary']),
             'size1': len(self.node[i]['extent']), 
             'size2': len(self.node[j]['extent']),
-            'weight': self[i][j]['weight']}
+            'weight': float(self[i][j]['weight'])}
             for i, j in self.real_edges()
         ]
         with open(fout, 'w') as f:
@@ -936,8 +928,18 @@ class Rag(Graph):
             w = merge_priority_function(self,u,v)
             W[i,j] = W[j,i] = exp(-w**2/sigma)
         return W
-              
-                    
+
+def get_edge_coordinates(g, n1, n2, arbitrary=False):
+    """Find where in the segmentation the edge (n1, n2) is most visible."""
+    boundary = g[n1][n2]['boundary']
+    if arbitrary:
+        # quickly get an arbirtrary point on the boundary
+        idx = boundary.pop(); boundary.add(idx)
+        coords = unravel_index(idx, g.watershed.shape)
+    else:
+        boundary_idxs = unravel_index(list(boundary), g.watershed.shape)
+        coords = [bincount(dimcoords).argmax() for dimcoords in boundary_idxs]
+    return array(coords) - g.pad_thickness
 
 ############################
 # Merge priority functions #
