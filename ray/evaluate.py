@@ -20,8 +20,8 @@ def edit_distance(aseg, gt, ws=None):
     return edit_distance_to_bps(aseg, agglo.best_possible_segmentation(ws, gt))
 
 def edit_distance_to_bps(aseg, bps):
-    aseg = relabel_from_one(aseg)
-    bps = relabel_from_one(bps)
+    aseg = relabel_from_one(aseg)[0]
+    bps = relabel_from_one(bps)[0]
     r = contingency_table(aseg, bps).astype(numpy.bool)
     if (bps==0).any(): r[:,0] = 0
     if (aseg==0).any(): r[0,:] = 0
@@ -31,13 +31,14 @@ def edit_distance_to_bps(aseg, bps):
 
 def relabel_from_one(a):
     labels = numpy.unique(a)
-    labels = labels[labels!=0]
-    if labels.max() == len(labels):
+    labels0 = labels[labels!=0]
+    m = labels.max()
+    if m == len(labels0):
         return a
-    b = a.copy()
-    for i, label in enumerate(labels):
-        b[a==label] = i+1
-    return b
+    forward_map = numpy.zeros(m+1, int)
+    forward_map[labels0] = numpy.arange(1, len(labels0)+1)
+    inverse_map = labels
+    return forward_map[a], forward_map, inverse_map
 
 def contingency_table(seg, gt, ignore_seg=[0], ignore_gt=[0], norm=True):
     """Return the contingency table for all regions in matched segmentations."""
