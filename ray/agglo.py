@@ -21,7 +21,7 @@ from scipy.ndimage import generate_binary_structure, iterate_structure, \
     distance_transform_cdt
 from scipy.misc import comb as nchoosek
 from scipy.ndimage.measurements import center_of_mass, label
-from networkx import Graph, biconnected_component_subgraphs
+from networkx import Graph
 from networkx.algorithms.traversal.depth_first_search import dfs_preorder_nodes
 from networkx.algorithms.components.connected import connected_components
 
@@ -412,7 +412,7 @@ class Rag(Graph):
                 g.remove_edge(u, v)
         ccs = connected_components(g)
         for cc in ccs:
-            g.merge_subgraph(cc)
+            g.merge_node_list(cc)
         return g.get_segmentation()
 
     def assign_gt_to_ws(self, gt):
@@ -693,11 +693,10 @@ class Rag(Graph):
             if not boundaries_to_edit.has_key((n1,n)) and n != n1:
                 self.update_merge_queue(n1, n)
 
-    def merge_subgraph(self, subgraph=None):
-        if type(subgraph) not in [Rag, Graph]: # input is node list
-            subgraph = self.subgraph(subgraph)
-        if len(subgraph) > 0:
-            node_dfs = list(dfs_preorder_nodes(subgraph)) 
+    def merge_node_list(self, nodes=None):
+        sp_subgraph = self.subgraph(nodes)
+        if len(sp_subgraph) > 0:
+            node_dfs = list(dfs_preorder_nodes(sp_subgraph)) 
             # dfs_preorder_nodes returns iter, convert to list
             source_node, other_nodes = node_dfs[0], node_dfs[1:]
             for current_node in other_nodes:
@@ -784,15 +783,6 @@ class Rag(Graph):
             if self.degree(n) == 1:
                 self.merge_nodes(self.neighbors(n)[0], n)
 
-    def remove_inclusions(self):
-        """Merge any segments fully contained within other segments."""
-        bcc = list(biconnected_component_subgraphs(self))
-        container = [i for i, g in enumerate(bcc) 
-                if g.has_node(self.boundary_body)][0]
-        del bcc[container] # remove the main graph
-        for cc in bcc:
-            self.merge_subgraph(cc)
-
     def orphans(self):
         """List of all the nodes that do not touch the volume boundary."""
         return [n for n in self.nodes() if not self.at_volume_boundary(n)]
@@ -819,15 +809,15 @@ class Rag(Graph):
         return [n for n in self.nodes() if self.at_volume_boundary(n) and
             not self.is_traversed_by_node(n)]
 
-    def raveler_body_annotations(self):
+    def raveler_body_annotations(self, traverse=False):
         """Return JSON-compatible dict formatted for Raveler annotations."""
         orphans = self.orphans()
-        non_traversing_bodies = self.non_traversing_bodies()
+        non_traversing_bodies = self.non_traversing_bodies() if traverse else []
         data = \
-            [{'status':'not sure', 'comment':'orphan', 'body ID':o}
+            [{'status':'not sure', 'comment':'orphan', 'body ID':int(o)}
                 for o in orphans] +\
-            [{'status':'not sure', 'comment':'does not traverse', 'body ID':n}
-                for n in non_traversing_bodies]
+            [{'status':'not sure', 'comment':'does not traverse', 
+                'body ID':int(n)} for n in non_traversing_bodies]
         metadata = {'description':'body annotations', 'file version':2}
         return {'data':data, 'metadata':metadata}
 
@@ -1084,5 +1074,5 @@ def best_possible_segmentation(ws, gt):
     assignment[hard_assignment,:] = 0
     ws = Rag(ws)
     for gt_node in range(1,cnt.shape[1]):
-        ws.merge_subgraph(where(assignment[:,gt_node])[0])
+        ws.merge_node_list(where(assignment[:,gt_node])[0])
     return ws.get_segmentation()
