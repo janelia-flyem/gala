@@ -55,17 +55,16 @@ def diamondse(radius, dimension):
     se = generate_binary_structure(dimension, 1)
     return iterate_structure(se, radius)
     
-def morphological_reconstruction(marker, mask):
+def morphological_reconstruction(marker, mask, connectivity=1):
     """Perform morphological reconstruction of the marker into the mask.
     
     See the Matlab image processing toolbox documentation for details:
     http://www.mathworks.com/help/toolbox/images/f18-16264.html
-
-    This implementation uses a full connectivity element.
     """
+    sel = generate_binary_structure(marker.ndim, connectivity)
     diff = True
     while diff:
-        markernew = grey_dilation(marker, [3]*marker.ndim)
+        markernew = grey_dilation(marker, footprint=sel)
         markernew = minimum(markernew, mask)
         diff = (markernew-marker).max() > 0
         marker = markernew
@@ -89,6 +88,24 @@ def remove_small_connected_components(a, min_size=64, in_place=False):
     too_small_locations = too_small[a]
     a[too_small_locations] = 0
     return a
+
+def impose_minima(a, minima, connectivity=1):
+    """Transform 'a' so that its only regional minima are those in 'minima'.
+    
+    Parameters:
+        'a': an ndarray
+        'minima': a boolean array of same shape as 'a'
+        'connectivity': the connectivity of the structuring element used in
+        morphological reconstruction.
+    Value:
+        an ndarray of same shape as a with unmarked local minima paved over.
+    """
+    m = a.max()
+    mask = m - a
+    marker = zeros_like(mask)
+    minima = minima.astype(bool)
+    marker[minima] = mask[minima]
+    return m - morphological_reconstruction(marker, mask, connectivity)
 
 def watershed(a, seeds=None, smooth_thresh=0.0, smooth_seeds=False, 
         minimum_seed_size=0, dams=True, show_progress=False, connectivity=1):
