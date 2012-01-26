@@ -792,7 +792,7 @@ class Rag(Graph):
         bcc = map(list, bcc)
         for cc in bcc:
             cc.sort(key=lambda x: len(self.node[x]['extent']), reverse=True)
-        bcc.sort(key=lambda x: len(self.node[x[0]]['extent']), reverse=True)
+        bcc.sort(key=lambda x: len(self.node[x[0]]['extent']))
         for cc in bcc:
             self.merge_subgraph(cc)
 
