@@ -55,6 +55,9 @@ def diamondse(radius, dimension):
     se = generate_binary_structure(dimension, 1)
     return iterate_structure(se, radius)
     
+def complement(a):
+    return a.max()-a
+
 def morphological_reconstruction(marker, mask, connectivity=1):
     """Perform morphological reconstruction of the marker into the mask.
     
@@ -89,6 +92,14 @@ def remove_small_connected_components(a, min_size=64, in_place=False):
     a[too_small_locations] = 0
     return a
 
+def regional_minima(a, connectivity=1):
+    """Find the regional minima in an ndarray."""
+    values = unique(a)
+    delta = (values - minimum_filter(values, footprint=ones(3)))[1:].min()
+    marker = complement(a)
+    mask = marker+delta
+    return marker == morphological_reconstruction(marker, mask, connectivity)
+
 def impose_minima(a, minima, connectivity=1):
     """Transform 'a' so that its only regional minima are those in 'minima'.
     
@@ -109,19 +120,19 @@ def impose_minima(a, minima, connectivity=1):
 
 def watershed(a, seeds=None, smooth_thresh=0.0, smooth_seeds=False, 
         minimum_seed_size=0, dams=True, show_progress=False, connectivity=1):
-    b = a
     seeded = seeds is not None
     sel = generate_binary_structure(a.ndim, connectivity)
+    if smooth_thresh > 0.0:
+        b = hminima(a, smooth_thresh)
     if seeded:
         seeds = seeds.astype(bool)
         if smooth_seeds:
             seeds = binary_opening(seeds, sel)
-        a = impose_minima(a, seeds, connectivity)
-        ws = label(seeds, sel)[0]
+        b = impose_minima(a, seeds, connectivity)
     else:
-        ws = zeros(shape(a), uint32)
-    if smooth_thresh > 0.0:
-        a = hminima(a, smooth_thresh)
+        seeds = regional_minima(a, connectivity)
+        b = a
+    ws = label(seeds, sel)[0]
     levels = unique(a)
     a = pad(a, a.max()+1)
     b = pad(b, b.max()+1)
@@ -150,13 +161,9 @@ def watershed(a, seeds=None, smooth_thresh=0.0, smooth_seeds=False,
             if len(adj_labels) > 1 and dams: # build a dam
                 wsr[idx] = maxlabel 
             elif len(adj_labels) >= 1: # assign a label
-                wsr[idx] = wsr[lnidxs][br[lnidxs].argmin()]
+                wsr[idx] = wsr[lnidxs][ar[lnidxs].argmin()]
                 idxs_adjacent_to_labels.extend(nidxs[((wsr[nidxs] == 0) * 
-                                    (ar[nidxs] == level)).astype(bool) ])
-        new_labels, num_new = label((ws == 0) * (a == level), sel)
-        new_labels = (current_label + new_labels) * (new_labels != 0)
-        current_label += num_new
-        ws += new_labels
+                                    (br[nidxs] == level)).astype(bool) ])
     if dams:
         ws[ws==maxlabel] = 0
     return juicy_center(ws)
