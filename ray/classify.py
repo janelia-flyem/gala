@@ -29,8 +29,8 @@ except ImportError:
 from scipy.misc import comb as nchoosek
 from scipy.stats import sem
 try:
-    from scikits.learn.svm import SVC
-    from scikits.learn.linear_model import LogisticRegression, LinearRegression
+    from sklearn.svm import SVC
+    from sklearn.linear_model import LogisticRegression, LinearRegression
 except ImportError:
     logging.warning('scikits.learn not found. SVC, Regression not available.')
 from evaluate import xlogx
