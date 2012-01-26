@@ -109,22 +109,24 @@ def impose_minima(a, minima, connectivity=1):
 
 def watershed(a, seeds=None, smooth_thresh=0.0, smooth_seeds=False, 
         minimum_seed_size=0, dams=True, show_progress=False, connectivity=1):
+    b = a
     seeded = seeds is not None
     sel = generate_binary_structure(a.ndim, connectivity)
     if seeded:
-        if seeds.dtype == bool:
-            seeds = label(seeds, sel)[0]
-        ws = seeds
+        seeds = seeds.astype(bool)
         if smooth_seeds:
-            seeds = label(binary_opening(seeds, sel), sel)[0]
+            seeds = binary_opening(seeds, sel)
+        a = impose_minima(a, seeds, connectivity)
+        ws = label(seeds, sel)[0]
     else:
         ws = zeros(shape(a), uint32)
     if smooth_thresh > 0.0:
         a = hminima(a, smooth_thresh)
     levels = unique(a)
     a = pad(a, a.max()+1)
+    b = pad(b, b.max()+1)
     ar = a.ravel()
-    arc = ar.copy() if seeded else ar
+    br = b.ravel()
     ws = pad(ws, 0)
     wsr = ws.ravel()
     maxlabel = iinfo(ws.dtype).max
@@ -148,19 +150,13 @@ def watershed(a, seeds=None, smooth_thresh=0.0, smooth_seeds=False,
             if len(adj_labels) > 1 and dams: # build a dam
                 wsr[idx] = maxlabel 
             elif len(adj_labels) >= 1: # assign a label
-                wsr[idx] = wsr[lnidxs][arc[lnidxs].argmin()]
+                wsr[idx] = wsr[lnidxs][br[lnidxs].argmin()]
                 idxs_adjacent_to_labels.extend(nidxs[((wsr[nidxs] == 0) * 
                                     (ar[nidxs] == level)).astype(bool) ])
-        if seeded:
-            if i+1 < len(levels):
-                not_adj = where((wsr == 0) * (ar == level))[0]
-                level_pixels[levels[i+1]].extend(not_adj)
-                ar[not_adj] = levels[i+1]
-        else:
-            new_labels, num_new = label((ws == 0) * (a == level), sel)
-            new_labels = (current_label + new_labels) * (new_labels != 0)
-            current_label += num_new
-            ws += new_labels
+        new_labels, num_new = label((ws == 0) * (a == level), sel)
+        new_labels = (current_label + new_labels) * (new_labels != 0)
+        current_label += num_new
+        ws += new_labels
     if dams:
         ws[ws==maxlabel] = 0
     return juicy_center(ws)
