@@ -21,7 +21,7 @@ from scipy.ndimage import generate_binary_structure, iterate_structure, \
     distance_transform_cdt
 from scipy.misc import comb as nchoosek
 from scipy.ndimage.measurements import center_of_mass, label
-from networkx import Graph, biconnected_component_subgraphs
+from networkx import Graph, biconnected_components
 from networkx.algorithms.traversal.depth_first_search import dfs_preorder_nodes
 from networkx.algorithms.components.connected import connected_components
 
@@ -786,10 +786,13 @@ class Rag(Graph):
 
     def remove_inclusions(self):
         """Merge any segments fully contained within other segments."""
-        bcc = list(biconnected_component_subgraphs(self))
-        container = [i for i, g in enumerate(bcc) 
-                if g.has_node(self.boundary_body)][0]
+        bcc = list(biconnected_components(self))
+        container = [i for i, s in enumerate(bcc) if self.boundary_body in s][0]
         del bcc[container] # remove the main graph
+        bcc = map(list, bcc)
+        for cc in bcc:
+            cc.sort(key=lambda x: len(self.node[x]['extent']), reverse=True)
+        bcc.sort(key=lambda x: len(self.node[x[0]]['extent']), reverse=True)
         for cc in bcc:
             self.merge_subgraph(cc)
 
