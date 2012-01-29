@@ -113,7 +113,7 @@ def single_arg_read_image_stack(fn):
         raise
 
 def pil_to_numpy(img):
-    return array(img.getdata()).reshape((img.size[1], img.size[0]))
+    return squeeze(array(img.getdata()).reshape((img.size[1], img.size[0], -1)))
 
 def read_multi_page_tif(fn, crop=[None]*6):
     """Read a multi-page tif file and return a numpy array."""
