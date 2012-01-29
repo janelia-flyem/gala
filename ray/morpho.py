@@ -125,14 +125,16 @@ def watershed(a, seeds=None, smooth_thresh=0.0, smooth_seeds=False,
     if smooth_thresh > 0.0:
         b = hminima(a, smooth_thresh)
     if seeded:
-        seeds = seeds.astype(bool)
         if smooth_seeds:
             seeds = binary_opening(seeds, sel)
-        b = impose_minima(a, seeds, connectivity)
+        b = impose_minima(a, seeds.astype(bool), connectivity)
     else:
         seeds = regional_minima(a, connectivity)
         b = a
-    ws = label(seeds, sel)[0]
+    if seeds.dtype == bool:
+        ws = label(seeds, sel)[0]
+    else:
+        ws = seeds
     levels = unique(a)
     a = pad(a, a.max()+1)
     b = pad(b, b.max()+1)
