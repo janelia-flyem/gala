@@ -170,6 +170,13 @@ def split_vi(X,Y,cont=None, ignore_seg_labels=[], ignore_gt_labels=[]):
     # false merges, false splits
     return numpy.array([hygx.sum(), hxgy.sum()])
 
+def sorted_vi_components(s1, s2, ignore1=[0], ignore2=[0]):
+    """Return lists of the most entropic segments in s1|s2 and s2|s1."""
+    _, _, _, h1g2, h2g1, _, _ = vi_tables(s1, s2, None, ignore1, ignore2)
+    i1 = (-h2g1).argsort()
+    i2 = (-h1g2).argsort()
+    return i1, h2g1[i1], i2, h1g2[i2]
+
 def split_components(idx, contingency, num_elems=4, axis=0):
     """Return the indices of the bodies most overlapping with body idx.
 
