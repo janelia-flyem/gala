@@ -124,13 +124,17 @@ def rand_by_threshold(ucm, gt, npoints=None):
         result[1,i] = adj_rand_index(seg, gt, None)
     return ts, result
 
-def vi_tables(X, Y, cont=None, ignore_seg=[], ignore_gt=[]):
-    """Return probability tables used for calculating VI."""
-    if cont is None:
-        pxy = contingency_table(X, Y, ignore_seg, ignore_gt)
+def vi_tables(x, y=None, ignore_x=[0], ignore_y=[0]):
+    """Return probability tables used for calculating VI.
+    
+    If y is None, x is assumed to be a contingency table.
+    """
+    if y is not None:
+        pxy = contingency_table(x, y, ignore_x, ignore_y)
     else:
-        cont[:, ignore_gt] = 0
-        cont[ignore_seg,:] = 0
+        cont = x
+        cont[:, ignore_y] = 0
+        cont[ignore_x, :] = 0
         pxy = cont/float(cont.sum())
 
     # Calculate probabilities
@@ -156,7 +160,7 @@ def vi_tables(X, Y, cont=None, ignore_seg=[], ignore_gt=[]):
 
     return pxy, px, py, hxgy, hygx, lpygx, lpxgy
 
-def split_vi(X,Y,cont=None, ignore_seg_labels=[], ignore_gt_labels=[]):
+def split_vi(x, y=None, ignore_x=[0], ignore_y=[0]):
     """Return the symmetric conditional entropies associated with the VI.
     
     The variation of information is defined as VI(X,Y) = H(X|Y) + H(Y|X).
@@ -164,18 +168,32 @@ def split_vi(X,Y,cont=None, ignore_seg_labels=[], ignore_gt_labels=[]):
     as the amount of under-segmentation of Y and H(X|Y) is then the amount
     of over-segmentation.  In other words, a perfect over-segmentation
     will have H(Y|X)=0 and a perfect under-segmentation will have H(X|Y)=0.
+
+    If y is None, x is assumed to be a contingency table.
     """
-    pxy,px,py,hxgy,hygx,lpygx,lpxgy = vi_tables(X,Y,cont,ignore_seg_labels,
-                                                         ignore_gt_labels)
+    _, _, _ , hxgy, hygx, _, _ = vi_tables(x, y, ignore_x, ignore_y)
     # false merges, false splits
     return numpy.array([hygx.sum(), hxgy.sum()])
 
-def sorted_vi_components(s1, s2, ignore1=[0], ignore2=[0]):
-    """Return lists of the most entropic segments in s1|s2 and s2|s1."""
-    _, _, _, h1g2, h2g1, _, _ = vi_tables(s1, s2, None, ignore1, ignore2)
+def sorted_vi_components(s1, s2, ignore1=[0], ignore2=[0], compress=True):
+    """Return lists of the most entropic segments in s1|s2 and s2|s1.
+    
+    The 'compress' flag performs a remapping of the labels before doing the
+    VI computation, resulting in massive memory savings when many labels are
+    not used in the volume. (For example, if you have just two labels, 1 and
+    1,000,000, 'compress=False' will give a VI contingency table having
+    1,000,000 entries to a side, whereas 'compress=True' will have just size
+    2.)
+    """
+    if compress:
+        s1, forw1, back1 = relabel_from_one(s1)
+        s2, forw2, back2 = relabel_from_one(s2)
+    _, _, _, h1g2, h2g1, _, _ = vi_tables(s1, s2, ignore1, ignore2)
     i1 = (-h2g1).argsort()
     i2 = (-h1g2).argsort()
-    return i1, h2g1[i1], i2, h1g2[i2]
+    ii1 = back1[i1] if compress else i1
+    ii2 = back2[i2] if compress else i2
+    return ii1, h2g1[i1], ii2, h1g2[i2]
 
 def split_components(idx, contingency, num_elems=4, axis=0):
     """Return the indices of the bodies most overlapping with body idx.
