@@ -8,6 +8,7 @@ from fnmatch import filter as fnfilter
 import logging
 import json
 import itertools as it
+import subprocess
 
 # libraries
 import h5py, Image, numpy
@@ -253,7 +254,7 @@ def ucm_to_raveler(ucm, body_threshold=0.5, sp_threshold=0, **kwargs):
 
 def segs_to_raveler(sps, bodies, **kwargs):
     import morpho
-    min_sp_size = kwargs.get('min_sp_size', 64)
+    min_sp_size = kwargs.get('min_sp_size', 16)
     sps_out = []
     sps_per_plane = []
     sp_to_segment = []
@@ -281,11 +282,9 @@ def segs_to_raveler(sps, bodies, **kwargs):
     sps_out = concatenate(sps_out, axis=0)
     sp_to_segment = concatenate(sp_to_segment, axis=0)
     segment_to_body = concatenate(segment_to_body, axis=0)
-    modified = ((sps_out == 0)*(sps != 0)).astype(bool)
-    return sps_out, sp_to_segment, segment_to_body, modified
+    return sps_out, sp_to_segment, segment_to_body
 
-def write_to_raveler(sps, sp_to_segment, segment_to_body, modified, directory,
-                                                                    gray=None):
+def write_to_raveler(sps, sp_to_segment, segment_to_body, directory, gray=None):
     if not os.path.exists(directory):
         os.makedirs(directory)
     if not os.path.exists(directory+'/superpixel_maps'):
@@ -301,7 +300,7 @@ def write_to_raveler(sps, sp_to_segment, segment_to_body, modified, directory,
             os.mkdir(directory+'/grayscale_maps')
         write_png_image_stack(gray, 
                 join_path(directory,'grayscale_maps/img.%05d.png'), axis=0)
-    write_h5_stack(modified, join_path(directory, 'modified.h5'))
+    subprocess.call('chmod -R go=u ' + directory)
 
 def write_json_body_annotations(annot, 
                                     directory='.', fn='annotations-body.json'):
