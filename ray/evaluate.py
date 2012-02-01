@@ -64,19 +64,16 @@ def xlogx(x, out=None):
     y[nz] *= numpy.log2(y[nz])
     return y
 
-def vi(X, Y, cont=None, weights=numpy.ones(2), ignore_seg=[], ignore_gt=[]):
+def vi(x, y=None, weights=numpy.ones(2), ignore_x=[0], ignore_y=[0]):
     """Return the variation of information metric."""
-    return numpy.dot(weights, split_vi(X,Y,cont, ignore_seg, ignore_gt))
-
-def simple_vi(X, Y):
-    return vi(X, Y, None, numpy.ones(2), [0], [0])
+    return numpy.dot(weights, split_vi(x, y, ignore_x, ignore_y))
 
 def vi_pairwise_matrix(segs):
     """Compute the pairwise VI distances within a set of segmentations.
     
     0-labeled pixels are ignored.
     """
-    return squareform(pdist(numpy.array([s.ravel() for s in segs]), simple_vi))
+    return squareform(pdist(numpy.array([s.ravel() for s in segs]), vi))
 
 def split_vi_threshold(tup):
     """Compute VI with tuple input (to support multiprocessing).
@@ -91,7 +88,7 @@ def split_vi_threshold(tup):
         oversegmentation parts of the VI.
     """
     ucm, gt, ignore_seg, ignore_gt, t = tup
-    return split_vi(label(ucm<t)[0], gt, None, ignore_seg, ignore_gt)
+    return split_vi(label(ucm<t)[0], gt, ignore_seg, ignore_gt)
 
 def vi_by_threshold(ucm, gt, ignore_seg=[], ignore_gt=[], npoints=None,
                                                             nprocessors=None):
@@ -120,9 +117,9 @@ def rand_by_threshold(ucm, gt, npoints=None):
     result = numpy.zeros((2,len(ts)))
     for i, t in enumerate(ts):
         seg = label(ucm<t)[0]
-        result[0,i] = rand_index(seg, gt, None)
-        result[1,i] = adj_rand_index(seg, gt, None)
-    return ts, result
+        result[0,i] = rand_index(seg, gt)
+        result[1,i] = adj_rand_index(seg, gt)
+    return numpy.concatenate((ts[numpy.newaxis, :], result), axis=0)
 
 def vi_tables(x, y=None, ignore_x=[0], ignore_y=[0]):
     """Return probability tables used for calculating VI.
@@ -227,26 +224,23 @@ def rand_values(cont_table):
     d = (sum1 + n**2 - sum2 - sum3)/2
     return a, b, c, d
 
-def rand_index(seg, gt, cont=None):
+def rand_index(x, y=None):
     """Return the unadjusted Rand index."""
-    if cont is None:
-        cont = contingency_table(seg, gt, norm=False)
+    cont = x if y is None else contingency_table(x, y, norm=False)
     a, b, c, d = rand_values(cont)
     return (a+d)/(a+b+c+d)
     
-def adj_rand_index(seg, gt, cont=None):
+def adj_rand_index(x, y=None):
     """Return the adjusted Rand index."""
-    if cont is None:
-        cont = contingency_table(seg, gt, norm=False)
+    cont = x if y is None else contingency_table(x, y, norm=False)
     a, b, c, d = rand_values(cont)
     nk = a+b+c+d
     return (nk*(a+d) - ((a+b)*(a+c) + (c+d)*(b+d)))/(
         nk**2 - ((a+b)*(a+c) + (c+d)*(b+d)))
 
-def fm_index(seg, gt, cont=None):
+def fm_index(x, y=None):
     """ Return the Fowlkes-Mallows index. """
-    if cont is None:
-        cont = contingency_table(seg, gt)
+    cont = x if y is None else contingency_table(x, y, norm=False)
     a, b, c, d = rand_values(cont)
     return a/(numpy.sqrt((a+b)*(a+c)))
 
