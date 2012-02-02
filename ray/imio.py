@@ -284,22 +284,67 @@ def segs_to_raveler(sps, bodies, **kwargs):
     segment_to_body = concatenate(segment_to_body, axis=0)
     return sps_out, sp_to_segment, segment_to_body
 
-def write_to_raveler(sps, sp_to_segment, segment_to_body, directory, gray=None):
+def write_to_raveler(sps, sp_to_segment, segment_to_body, directory, gray=None,
+                    raveler_dir='/usr/local/raveler-hdf', nproc_countours=16):
+    """Output a segmentation to Raveler format. 
+
+    Arguments:
+        - sps: the superpixel map (nplanes * nx * ny numpy ndarray).
+          Superpixels can only occur on one plane.
+        - sp_to_segment: superpixel-to-segment map as a 3 column list of
+          (plane number, superpixel id, segment id). Segments must be unique to
+          a plane.
+        - segment_to_body: the segment to body map. (nsegments * 2 numpy array)
+        - directory: the directory in which to write the stack. This directory
+          and all necessary subdirectories will be created.
+        - [gray]: The grayscale images corresponding to the superpixel maps
+          (nplanes * nx * ny numpy ndarray).
+        - [raveler dir]: where Raveler is installed.
+        - [nproc_contours]: how many processors to use when generating the 
+          Raveler contours.
+    Value:
+        None.
+
+    Raveler is the EM segmentation proofreading tool developed in-house at
+    Janelia for the FlyEM project.
+    """
+    sp_path = os.path.join(directory, 'superpixel_maps')
+    im_path = os.path.join(directory, 'grayscale_maps')
+    # write conventional Raveler stack
     if not os.path.exists(directory):
         os.makedirs(directory)
-    if not os.path.exists(directory+'/superpixel_maps'):
-        os.mkdir(directory+'/superpixel_maps')
-    write_png_image_stack(sps, 
-        join_path(directory,'superpixel_maps/sp_map.%05i.png'), axis=0)
-    savetxt(join_path(directory, 'superpixel_to_segment_map.txt'),
+    if not os.path.exists(sp_path): os.mkdir(sp_path)
+    write_png_image_stack(sps, os.path.join(sp_path, 'sp_map.%05i.png'), axis=0)
+    savetxt(os.path.join(directory, 'superpixel_to_segment_map.txt'),
                                                         sp_to_segment, '%i') 
-    savetxt(join_path(directory, 'segment_to_body_map.txt'), segment_to_body,
-                                                                        '%i')
+    savetxt(os.path.join(directory, 'segment_to_body_map.txt'), 
+                                                        segment_to_body, '%i')
     if gray is not None:
-        if not os.path.exists(directory+'/grayscale_maps'):
-            os.mkdir(directory+'/grayscale_maps')
-        write_png_image_stack(gray, 
-                join_path(directory,'grayscale_maps/img.%05d.png'), axis=0)
+        if not os.path.exists(im_path): os.mkdir(im_path)
+        write_png_image_stack(gray, os.path.join(im_path, 'img.%05d.png'),
+                                                                         axis=0)
+    # make tiles, bounding boxes, and contours, and compile HDF5 stack info.
+    try: 
+        subprocess.call(
+            ' '.join(
+                ['python' + os.path.join(raveler_dir, 'util/createtiles.py'), 
+                directory, '1024', '0'])
+        )
+        subprocess.call(
+            ' '.join([os.path.join(raveler_dir, 'bin/bounds'), directory]))
+        subprocess.call(
+            ' '.join([os.path.join(raveler_dir, 'bin/compilestack'),
+            directory])
+        )
+        subprocess.call(
+            ' '.join([os.path.join(raveler_dir, 'util/run-countours-std.py'), 
+            '-n %i'%nproc_contours, directory])
+        )
+    except:
+        logging.warning('Error during Raveler export post-processing step. ' +
+            'Possible causes are that you do not have Raveler installed or ' +
+            'you did not specify the correct installation path.')
+    # make permissions friendly for proofreaders.
     subprocess.call('chmod -R go=u ' + directory)
 
 def write_json_body_annotations(annot, 
