@@ -693,11 +693,11 @@ class Rag(Graph):
             if not boundaries_to_edit.has_key((n1,n)) and n != n1:
                 self.update_merge_queue(n1, n)
 
-    def merge_subgraph(self, subgraph=None):
+    def merge_subgraph(self, subgraph=None, source=None):
         if type(subgraph) not in [Rag, Graph]: # input is node list
             subgraph = self.subgraph(subgraph)
         if len(subgraph) > 0:
-            node_dfs = list(dfs_preorder_nodes(subgraph)) 
+            node_dfs = list(dfs_preorder_nodes(subgraph, source)) 
             # dfs_preorder_nodes returns iter, convert to list
             source_node, other_nodes = node_dfs[0], node_dfs[1:]
             for current_node in other_nodes:
@@ -794,7 +794,7 @@ class Rag(Graph):
             cc.sort(key=lambda x: len(self.node[x]['extent']), reverse=True)
         bcc.sort(key=lambda x: len(self.node[x[0]]['extent']))
         for cc in bcc:
-            self.merge_subgraph(cc)
+            self.merge_subgraph(cc, cc[0])
 
     def orphans(self):
         """List of all the nodes that do not touch the volume boundary."""
