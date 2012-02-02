@@ -188,7 +188,7 @@ def write_vtk(ar, fn, **kwargs):
     f.write('created by write_vtk (Python implementation by JNI)\n')
     f.write('BINARY\n')
     f.write('DATASET STRUCTURED_POINTS\n')
-    f.write(' '.join(['DIMENSIONS'] + map(str, ar.shape)) + '\n')
+    f.write(' '.join(['DIMENSIONS'] + map(str, ar.shape[-1::-1])) + '\n')
     f.write(' '.join(['ORIGIN'] + map(str, zeros(3))) + '\n')
     f.write(' '.join(['SPACING'] +
                             map(str, kwargs.get('spacing', ones(3)))) + '\n')
@@ -214,7 +214,7 @@ def read_vtk(fin, **kwargs):
     shape_line = [line for line in lines if line.startswith('DIMENSIONS')][0]
     type_line = [line for line in lines 
         if line.startswith('SCALARS') or line.startswith('VECTORS')][0]
-    ar_shape = map(int, shape_line.rstrip('\n').split(' ')[1:])
+    ar_shape = map(int, shape_line.rstrip('\n').split(' ')[1:])[-1::-1]
     ar_type = vtk_string_to_numpy_type[type_line.rstrip('\n').split(' ')[2]]
     itemsize = np.dtype(ar_type).itemsize
     ar = squeeze(fromstring(f.read(), ar_type).reshape(ar_shape+[-1]))
