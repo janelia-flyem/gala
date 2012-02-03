@@ -13,7 +13,7 @@ from numpy import array, mean, zeros, zeros_like, uint8, int8, where, unique, \
     ones_like, finfo, size, double, transpose, newaxis, uint32, nonzero, \
     median, exp, ceil, dot, log2, float, ones, arange, inf, flatnonzero, \
     intersect1d, dtype, squeeze, sqrt, reshape, setdiff1d, argmin, sign, \
-    concatenate, nan, __version__ as numpyversion
+    concatenate, nan, __version__ as numpyversion, unravel_index, bincount
 import numpy
 from scipy.stats import sem
 from scipy.sparse import lil_matrix
@@ -21,7 +21,7 @@ from scipy.ndimage import generate_binary_structure, iterate_structure, \
     distance_transform_cdt
 from scipy.misc import comb as nchoosek
 from scipy.ndimage.measurements import center_of_mass, label
-from networkx import Graph
+from networkx import Graph, biconnected_components
 from networkx.algorithms.traversal.depth_first_search import dfs_preorder_nodes
 from networkx.algorithms.components.connected import connected_components
 
@@ -412,7 +412,7 @@ class Rag(Graph):
                 g.remove_edge(u, v)
         ccs = connected_components(g)
         for cc in ccs:
-            g.merge_node_list(cc)
+            g.merge_subgraph(cc)
         return g.get_segmentation()
         
     def learn_agglomerate(self, gts, feature_map, min_num_samples=1,
@@ -650,10 +650,11 @@ class Rag(Graph):
             if not boundaries_to_edit.has_key((n1,n)) and n != n1:
                 self.update_merge_queue(n1, n)
 
-    def merge_node_list(self, nodes=None):
-        sp_subgraph = self.subgraph(nodes)
-        if len(sp_subgraph) > 0:
-            node_dfs = list(dfs_preorder_nodes(sp_subgraph)) 
+    def merge_subgraph(self, subgraph=None, source=None):
+        if type(subgraph) not in [Rag, Graph]: # input is node list
+            subgraph = self.subgraph(subgraph)
+        if len(subgraph) > 0:
+            node_dfs = list(dfs_preorder_nodes(subgraph, source)) 
             # dfs_preorder_nodes returns iter, convert to list
             source_node, other_nodes = node_dfs[0], node_dfs[1:]
             for current_node in other_nodes:
@@ -740,6 +741,18 @@ class Rag(Graph):
             if self.degree(n) == 1:
                 self.merge_nodes(self.neighbors(n)[0], n)
 
+    def remove_inclusions(self):
+        """Merge any segments fully contained within other segments."""
+        bcc = list(biconnected_components(self))
+        container = [i for i, s in enumerate(bcc) if self.boundary_body in s][0]
+        del bcc[container] # remove the main graph
+        bcc = map(list, bcc)
+        for cc in bcc:
+            cc.sort(key=lambda x: len(self.node[x]['extent']), reverse=True)
+        bcc.sort(key=lambda x: len(self.node[x[0]]['extent']))
+        for cc in bcc:
+            self.merge_subgraph(cc, cc[0])
+
     def orphans(self):
         """List of all the nodes that do not touch the volume boundary."""
         return [n for n in self.nodes() if not self.at_volume_boundary(n)]
@@ -766,15 +779,15 @@ class Rag(Graph):
         return [n for n in self.nodes() if self.at_volume_boundary(n) and
             not self.is_traversed_by_node(n)]
 
-    def raveler_body_annotations(self):
+    def raveler_body_annotations(self, traverse=False):
         """Return JSON-compatible dict formatted for Raveler annotations."""
         orphans = self.orphans()
-        non_traversing_bodies = self.non_traversing_bodies()
+        non_traversing_bodies = self.non_traversing_bodies() if traverse else []
         data = \
-            [{'status':'ask', 'comment':'orphan', 'body ID':o}
+            [{'status':'not sure', 'comment':'orphan', 'body ID':int(o)}
                 for o in orphans] +\
-            [{'status':'ask', 'comment':'does not traverse', 'body ID':n}
-                for n in non_traversing_bodies]
+            [{'status':'not sure', 'comment':'does not traverse', 
+                'body ID':int(n)} for n in non_traversing_bodies]
         metadata = {'description':'body annotations', 'file version':2}
         return {'data':data, 'metadata':metadata}
 
@@ -813,18 +826,9 @@ class Rag(Graph):
     def boundary_indices(self, n1, n2):
         return list(self[n1][n2]['boundary'])
 
-    def get_edge_coordinates_3D(self, n1, n2):
-        """Find where in the segmentation the edge (n1, n2) is most visible.
-        
-        This function assumes a 3D volume: it is not nD compatible.
-        """
-        evol = zeros(self.segmentation.shape, uint8)
-        evol.ravel()[self.boundary_indices(n1, n2)] = 1
-        evol = morpho.juicy_center(evol, self.pad_thickness)
-        z = array([a.sum() for a in evol]).argmax()
-        x, y = evol[z].nonzero()
-        n = len(x)
-        return array([z, x[n/2], y[n/2]])
+    def get_edge_coordinates(self, n1, n2, arbitrary=False):
+        """Find where in the segmentation the edge (n1, n2) is most visible."""
+        return get_edge_coordinates(self, n1, n2, arbitrary)
 
     def write(self, fout, output_format='GraphML'):
         if output_format == 'Plaza JSON':
@@ -836,11 +840,12 @@ class Rag(Graph):
     def write_plaza_json(self, fout):
         """Write graph to Steve Plaza's JSON spec."""
         edge_list = [
-            {'location': list(self.get_edge_coordinates_3D(i, j)[-1::-1]),
-            'node1': i, 'node2': j,
+            {'location': map(int, self.get_edge_coordinates(i, j)[-1::-1]),
+            'node1': int(i), 'node2': int(j),
+            'edge_size': len(self[i][j]['boundary']),
             'size1': len(self.node[i]['extent']), 
             'size2': len(self.node[j]['extent']),
-            'weight': self[i][j]['weight']}
+            'weight': float(self[i][j]['weight'])}
             for i, j in self.real_edges()
         ]
         with open(fout, 'w') as f:
@@ -893,8 +898,18 @@ class Rag(Graph):
             w = merge_priority_function(self,u,v)
             W[i,j] = W[j,i] = exp(-w**2/sigma)
         return W
-              
-                    
+
+def get_edge_coordinates(g, n1, n2, arbitrary=False):
+    """Find where in the segmentation the edge (n1, n2) is most visible."""
+    boundary = g[n1][n2]['boundary']
+    if arbitrary:
+        # quickly get an arbirtrary point on the boundary
+        idx = boundary.pop(); boundary.add(idx)
+        coords = unravel_index(idx, g.watershed.shape)
+    else:
+        boundary_idxs = unravel_index(list(boundary), g.watershed.shape)
+        coords = [bincount(dimcoords).argmax() for dimcoords in boundary_idxs]
+    return array(coords) - g.pad_thickness
 
 ############################
 # Merge priority functions #
@@ -1029,5 +1044,5 @@ def best_possible_segmentation(ws, gt):
     assignment[hard_assignment,:] = 0
     ws = Rag(ws)
     for gt_node in range(1,cnt.shape[1]):
-        ws.merge_node_list(where(assignment[:,gt_node])[0])
+        ws.merge_subgraph(where(assignment[:,gt_node])[0])
     return ws.get_segmentation()

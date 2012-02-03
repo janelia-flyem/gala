@@ -20,8 +20,8 @@ def edit_distance(aseg, gt, ws=None):
     return edit_distance_to_bps(aseg, agglo.best_possible_segmentation(ws, gt))
 
 def edit_distance_to_bps(aseg, bps):
-    aseg = relabel_from_one(aseg)
-    bps = relabel_from_one(bps)
+    aseg = relabel_from_one(aseg)[0]
+    bps = relabel_from_one(bps)[0]
     r = contingency_table(aseg, bps).astype(numpy.bool)
     if (bps==0).any(): r[:,0] = 0
     if (aseg==0).any(): r[0,:] = 0
@@ -31,13 +31,14 @@ def edit_distance_to_bps(aseg, bps):
 
 def relabel_from_one(a):
     labels = numpy.unique(a)
-    labels = labels[labels!=0]
-    if labels.max() == len(labels):
+    labels0 = labels[labels!=0]
+    m = labels.max()
+    if m == len(labels0):
         return a
-    b = a.copy()
-    for i, label in enumerate(labels):
-        b[a==label] = i+1
-    return b
+    forward_map = numpy.zeros(m+1, int)
+    forward_map[labels0] = numpy.arange(1, len(labels0)+1)
+    inverse_map = labels
+    return forward_map[a], forward_map, inverse_map
 
 def contingency_table(seg, gt, ignore_seg=[0], ignore_gt=[0], norm=True):
     """Return the contingency table for all regions in matched segmentations."""
@@ -63,19 +64,16 @@ def xlogx(x, out=None):
     y[nz] *= numpy.log2(y[nz])
     return y
 
-def vi(X, Y, cont=None, weights=numpy.ones(2), ignore_seg=[], ignore_gt=[]):
+def vi(x, y=None, weights=numpy.ones(2), ignore_x=[0], ignore_y=[0]):
     """Return the variation of information metric."""
-    return numpy.dot(weights, split_vi(X,Y,cont, ignore_seg, ignore_gt))
-
-def simple_vi_0(X, Y):
-    return vi(X, Y, None, numpy.ones(2), [0], [0])
+    return numpy.dot(weights, split_vi(x, y, ignore_x, ignore_y))
 
 def vi_pairwise_matrix(segs):
     """Compute the pairwise VI distances within a set of segmentations.
     
     0-labeled pixels are ignored.
     """
-    return squareform(pdist(array([s.ravel() for s in segs]), simple_vi_0))
+    return squareform(pdist(numpy.array([s.ravel() for s in segs]), vi))
 
 def split_vi_threshold(tup):
     """Compute VI with tuple input (to support multiprocessing).
@@ -90,17 +88,22 @@ def split_vi_threshold(tup):
         oversegmentation parts of the VI.
     """
     ucm, gt, ignore_seg, ignore_gt, t = tup
-    return split_vi(label(ucm<t)[0], gt, None, ignore_seg, ignore_gt)
+    return split_vi(label(ucm<t)[0], gt, ignore_seg, ignore_gt)
 
-def vi_by_threshold(ucm, gt, ignore_seg=[], ignore_gt=[], npoints=None):
+def vi_by_threshold(ucm, gt, ignore_seg=[], ignore_gt=[], npoints=None,
+                                                            nprocessors=None):
     ts = numpy.unique(ucm)[1:]
     if npoints is None:
         npoints = len(ts)
     if len(ts) > 2*npoints:
         ts = ts[numpy.arange(1, len(ts), len(ts)/npoints)]
-    p = multiprocessing.Pool()
-    result = p.map(split_vi_threshold, 
-        [(ucm, gt, ignore_seg, ignore_gt, t) for t in ts])
+    if nprocessors == 1: # this should avoid pickling overhead
+        result = [split_vi_threshold((ucm, gt, ignore_seg, ignore_gt, t))
+                for t in ts]
+    else:
+        p = multiprocessing.Pool(nprocessors)
+        result = p.map(split_vi_threshold, 
+            ((ucm, gt, ignore_seg, ignore_gt, t) for t in ts))
     return numpy.concatenate(
                             (ts[numpy.newaxis, :], numpy.array(result).T), 
                             axis=0)
@@ -114,17 +117,21 @@ def rand_by_threshold(ucm, gt, npoints=None):
     result = numpy.zeros((2,len(ts)))
     for i, t in enumerate(ts):
         seg = label(ucm<t)[0]
-        result[0,i] = rand_index(seg, gt, None)
-        result[1,i] = adj_rand_index(seg, gt, None)
-    return ts, result
+        result[0,i] = rand_index(seg, gt)
+        result[1,i] = adj_rand_index(seg, gt)
+    return numpy.concatenate((ts[numpy.newaxis, :], result), axis=0)
 
-def vi_tables(X, Y, cont=None, ignore_seg=[], ignore_gt=[]):
-    """Return probability tables used for calculating VI."""
-    if cont is None:
-        pxy = contingency_table(X, Y, ignore_seg, ignore_gt)
+def vi_tables(x, y=None, ignore_x=[0], ignore_y=[0]):
+    """Return probability tables used for calculating VI.
+    
+    If y is None, x is assumed to be a contingency table.
+    """
+    if y is not None:
+        pxy = contingency_table(x, y, ignore_x, ignore_y)
     else:
-        cont[:, ignore_gt] = 0
-        cont[ignore_seg,:] = 0
+        cont = x
+        cont[:, ignore_y] = 0
+        cont[ignore_x, :] = 0
         pxy = cont/float(cont.sum())
 
     # Calculate probabilities
@@ -150,7 +157,7 @@ def vi_tables(X, Y, cont=None, ignore_seg=[], ignore_gt=[]):
 
     return pxy, px, py, hxgy, hygx, lpygx, lpxgy
 
-def split_vi(X,Y,cont=None, ignore_seg_labels=[], ignore_gt_labels=[]):
+def split_vi(x, y=None, ignore_x=[0], ignore_y=[0]):
     """Return the symmetric conditional entropies associated with the VI.
     
     The variation of information is defined as VI(X,Y) = H(X|Y) + H(Y|X).
@@ -158,11 +165,32 @@ def split_vi(X,Y,cont=None, ignore_seg_labels=[], ignore_gt_labels=[]):
     as the amount of under-segmentation of Y and H(X|Y) is then the amount
     of over-segmentation.  In other words, a perfect over-segmentation
     will have H(Y|X)=0 and a perfect under-segmentation will have H(X|Y)=0.
+
+    If y is None, x is assumed to be a contingency table.
     """
-    pxy,px,py,hxgy,hygx,lpygx,lpxgy = vi_tables(X,Y,cont,ignore_seg_labels,
-                                                         ignore_gt_labels)
+    _, _, _ , hxgy, hygx, _, _ = vi_tables(x, y, ignore_x, ignore_y)
     # false merges, false splits
     return numpy.array([hygx.sum(), hxgy.sum()])
+
+def sorted_vi_components(s1, s2, ignore1=[0], ignore2=[0], compress=True):
+    """Return lists of the most entropic segments in s1|s2 and s2|s1.
+    
+    The 'compress' flag performs a remapping of the labels before doing the
+    VI computation, resulting in massive memory savings when many labels are
+    not used in the volume. (For example, if you have just two labels, 1 and
+    1,000,000, 'compress=False' will give a VI contingency table having
+    1,000,000 entries to a side, whereas 'compress=True' will have just size
+    2.)
+    """
+    if compress:
+        s1, forw1, back1 = relabel_from_one(s1)
+        s2, forw2, back2 = relabel_from_one(s2)
+    _, _, _, h1g2, h2g1, _, _ = vi_tables(s1, s2, ignore1, ignore2)
+    i1 = (-h2g1).argsort()
+    i2 = (-h1g2).argsort()
+    ii1 = back1[i1] if compress else i1
+    ii2 = back2[i2] if compress else i2
+    return ii1, h2g1[i1], ii2, h1g2[i2]
 
 def split_components(idx, contingency, num_elems=4, axis=0):
     """Return the indices of the bodies most overlapping with body idx.
@@ -196,26 +224,23 @@ def rand_values(cont_table):
     d = (sum1 + n**2 - sum2 - sum3)/2
     return a, b, c, d
 
-def rand_index(seg, gt, cont=None):
+def rand_index(x, y=None):
     """Return the unadjusted Rand index."""
-    if cont is None:
-        cont = contingency_table(seg, gt, norm=False)
+    cont = x if y is None else contingency_table(x, y, norm=False)
     a, b, c, d = rand_values(cont)
     return (a+d)/(a+b+c+d)
     
-def adj_rand_index(seg, gt, cont=None):
+def adj_rand_index(x, y=None):
     """Return the adjusted Rand index."""
-    if cont is None:
-        cont = contingency_table(seg, gt, norm=False)
+    cont = x if y is None else contingency_table(x, y, norm=False)
     a, b, c, d = rand_values(cont)
     nk = a+b+c+d
     return (nk*(a+d) - ((a+b)*(a+c) + (c+d)*(b+d)))/(
         nk**2 - ((a+b)*(a+c) + (c+d)*(b+d)))
 
-def fm_index(seg, gt, cont=None):
+def fm_index(x, y=None):
     """ Return the Fowlkes-Mallows index. """
-    if cont is None:
-        cont = contingency_table(seg, gt)
+    cont = x if y is None else contingency_table(x, y, norm=False)
     a, b, c, d = rand_values(cont)
     return a/(numpy.sqrt((a+b)*(a+c)))
 

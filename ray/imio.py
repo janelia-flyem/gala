@@ -8,6 +8,7 @@ from fnmatch import filter as fnfilter
 import logging
 import json
 import itertools as it
+import subprocess
 
 # libraries
 import h5py, Image, numpy
@@ -113,7 +114,7 @@ def single_arg_read_image_stack(fn):
         raise
 
 def pil_to_numpy(img):
-    return array(img.getdata()).reshape((img.size[1], img.size[0]))
+    return squeeze(array(img.getdata()).reshape((img.size[1], img.size[0], -1)))
 
 def read_multi_page_tif(fn, crop=[None]*6):
     """Read a multi-page tif file and return a numpy array."""
@@ -187,7 +188,7 @@ def write_vtk(ar, fn, **kwargs):
     f.write('created by write_vtk (Python implementation by JNI)\n')
     f.write('BINARY\n')
     f.write('DATASET STRUCTURED_POINTS\n')
-    f.write(' '.join(['DIMENSIONS'] + map(str, ar.shape)) + '\n')
+    f.write(' '.join(['DIMENSIONS'] + map(str, ar.shape[-1::-1])) + '\n')
     f.write(' '.join(['ORIGIN'] + map(str, zeros(3))) + '\n')
     f.write(' '.join(['SPACING'] +
                             map(str, kwargs.get('spacing', ones(3)))) + '\n')
@@ -213,7 +214,7 @@ def read_vtk(fin, **kwargs):
     shape_line = [line for line in lines if line.startswith('DIMENSIONS')][0]
     type_line = [line for line in lines 
         if line.startswith('SCALARS') or line.startswith('VECTORS')][0]
-    ar_shape = map(int, shape_line.rstrip('\n').split(' ')[1:])
+    ar_shape = map(int, shape_line.rstrip('\n').split(' ')[1:])[-1::-1]
     ar_type = vtk_string_to_numpy_type[type_line.rstrip('\n').split(' ')[2]]
     itemsize = np.dtype(ar_type).itemsize
     ar = squeeze(fromstring(f.read(), ar_type).reshape(ar_shape+[-1]))
@@ -253,7 +254,7 @@ def ucm_to_raveler(ucm, body_threshold=0.5, sp_threshold=0, **kwargs):
 
 def segs_to_raveler(sps, bodies, **kwargs):
     import morpho
-    min_sp_size = kwargs.get('min_sp_size', 64)
+    min_sp_size = kwargs.get('min_sp_size', 16)
     sps_out = []
     sps_per_plane = []
     sp_to_segment = []
@@ -281,27 +282,63 @@ def segs_to_raveler(sps, bodies, **kwargs):
     sps_out = concatenate(sps_out, axis=0)
     sp_to_segment = concatenate(sp_to_segment, axis=0)
     segment_to_body = concatenate(segment_to_body, axis=0)
-    modified = ((sps_out == 0)*(sps != 0)).astype(bool)
-    return sps_out, sp_to_segment, segment_to_body, modified
+    return sps_out, sp_to_segment, segment_to_body
 
-def write_to_raveler(sps, sp_to_segment, segment_to_body, modified, directory,
-                                                                    gray=None):
+def write_to_raveler(sps, sp_to_segment, segment_to_body, directory, gray=None,
+                    raveler_dir='/usr/local/raveler-hdf', nproc_countours=16):
+    """Output a segmentation to Raveler format. 
+
+    Arguments:
+        - sps: the superpixel map (nplanes * nx * ny numpy ndarray).
+          Superpixels can only occur on one plane.
+        - sp_to_segment: superpixel-to-segment map as a 3 column list of
+          (plane number, superpixel id, segment id). Segments must be unique to
+          a plane.
+        - segment_to_body: the segment to body map. (nsegments * 2 numpy array)
+        - directory: the directory in which to write the stack. This directory
+          and all necessary subdirectories will be created.
+        - [gray]: The grayscale images corresponding to the superpixel maps
+          (nplanes * nx * ny numpy ndarray).
+        - [raveler dir]: where Raveler is installed.
+        - [nproc_contours]: how many processors to use when generating the 
+          Raveler contours.
+    Value:
+        None.
+
+    Raveler is the EM segmentation proofreading tool developed in-house at
+    Janelia for the FlyEM project.
+    """
+    sp_path = os.path.join(directory, 'superpixel_maps')
+    im_path = os.path.join(directory, 'grayscale_maps')
+    # write conventional Raveler stack
     if not os.path.exists(directory):
         os.makedirs(directory)
-    if not os.path.exists(directory+'/superpixel_maps'):
-        os.mkdir(directory+'/superpixel_maps')
-    write_png_image_stack(sps, 
-        join_path(directory,'superpixel_maps/sp_map.%05i.png'), axis=0)
-    savetxt(join_path(directory, 'superpixel_to_segment_map.txt'),
+    if not os.path.exists(sp_path): os.mkdir(sp_path)
+    write_png_image_stack(sps, os.path.join(sp_path, 'sp_map.%05i.png'), axis=0)
+    savetxt(os.path.join(directory, 'superpixel_to_segment_map.txt'),
                                                         sp_to_segment, '%i') 
-    savetxt(join_path(directory, 'segment_to_body_map.txt'), segment_to_body,
-                                                                        '%i')
+    savetxt(os.path.join(directory, 'segment_to_body_map.txt'), 
+                                                        segment_to_body, '%i')
     if gray is not None:
-        if not os.path.exists(directory+'/grayscale_maps'):
-            os.mkdir(directory+'/grayscale_maps')
-        write_png_image_stack(gray, 
-                join_path(directory,'grayscale_maps/img.%05d.png'), axis=0)
-    write_h5_stack(modified, join_path(directory, 'modified.h5'))
+        if not os.path.exists(im_path): os.mkdir(im_path)
+        write_png_image_stack(gray, os.path.join(im_path, 'img.%05d.png'),
+                                                                         axis=0)
+    # make tiles, bounding boxes, and contours, and compile HDF5 stack info.
+    try: 
+        subprocess.call(['python', 
+            os.path.join(raveler_dir, 'util/createtiles.py'), 
+            directory, '1024', '0'])
+        subprocess.call([os.path.join(raveler_dir, 'bin/bounds'), directory])
+        subprocess.call([os.path.join(raveler_dir, 'bin/compilestack'), directory])
+        subprocess.call(['python', 
+            os.path.join(raveler_dir, 'util/run-countours-std.py'), 
+            '-n', '%i'%nproc_contours, directory])
+    except:
+        logging.warning('Error during Raveler export post-processing step. ' +
+            'Possible causes are that you do not have Raveler installed or ' +
+            'you did not specify the correct installation path.')
+    # make permissions friendly for proofreaders.
+    subprocess.call(['chmod', '-R', 'go=u', directory])
 
 def write_json_body_annotations(annot, 
                                     directory='.', fn='annotations-body.json'):

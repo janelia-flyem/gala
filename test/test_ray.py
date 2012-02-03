@@ -41,12 +41,12 @@ class TestMorphologicalOperations(unittest.TestCase):
                                     'Watershed test number %i failed.'%(i+1))
 
     def test_watershed(self):
-        regular_watershed_result = numpy.array([1,1,1,0,4,0,2,2,2,0,3,3])
+        regular_watershed_result = numpy.array([1,1,1,0,2,0,3,3,3,0,4,4])
         regular_watershed = morpho.watershed(self.landscape)
         self.assertTrue((regular_watershed == regular_watershed_result).all())
 
     def test_watershed_nodams(self):
-        nodam_watershed_result = numpy.array([1,1,1,4,4,4,2,2,2,3,3,3])
+        nodam_watershed_result = numpy.array([1,1,1,2,2,2,3,3,3,4,4,4])
         nodam_watershed = morpho.watershed(self.landscape, dams=False)
         self.assertTrue((nodam_watershed == nodam_watershed_result).all())
 
@@ -68,7 +68,7 @@ class TestMorphologicalOperations(unittest.TestCase):
         
     def test_watershed_saddle_basin(self):
         saddle_landscape = numpy.array([[0,0,3],[2,1,2],[0,0,3]])
-        saddle_result = numpy.array([[1,1,0],[0,0,3],[2,2,0]])
+        saddle_result = numpy.array([[1,1,1],[0,0,0],[2,2,2]])
         saddle_ws = morpho.watershed(saddle_landscape)
         self.assertTrue((saddle_ws==saddle_result).all())
 
