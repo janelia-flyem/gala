@@ -33,8 +33,8 @@ def relabel_from_one(a):
     labels = numpy.unique(a)
     labels0 = labels[labels!=0]
     m = labels.max()
-    if m == len(labels0):
-        return a
+    if m == len(labels0): # nothing to do, already 1...n labels
+        return a, labels, labels
     forward_map = numpy.zeros(m+1, int)
     forward_map[labels0] = numpy.arange(1, len(labels0)+1)
     inverse_map = labels
