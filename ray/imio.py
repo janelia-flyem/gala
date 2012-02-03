@@ -325,27 +325,20 @@ def write_to_raveler(sps, sp_to_segment, segment_to_body, directory, gray=None,
                                                                          axis=0)
     # make tiles, bounding boxes, and contours, and compile HDF5 stack info.
     try: 
-        subprocess.call(
-            ' '.join(
-                ['python' + os.path.join(raveler_dir, 'util/createtiles.py'), 
-                directory, '1024', '0'])
-        )
-        subprocess.call(
-            ' '.join([os.path.join(raveler_dir, 'bin/bounds'), directory]))
-        subprocess.call(
-            ' '.join([os.path.join(raveler_dir, 'bin/compilestack'),
-            directory])
-        )
-        subprocess.call(
-            ' '.join([os.path.join(raveler_dir, 'util/run-countours-std.py'), 
-            '-n %i'%nproc_contours, directory])
-        )
+        subprocess.call(['python', 
+            os.path.join(raveler_dir, 'util/createtiles.py'), 
+            directory, '1024', '0'])
+        subprocess.call([os.path.join(raveler_dir, 'bin/bounds'), directory])
+        subprocess.call([os.path.join(raveler_dir, 'bin/compilestack'), directory])
+        subprocess.call(['python', 
+            os.path.join(raveler_dir, 'util/run-countours-std.py'), 
+            '-n', '%i'%nproc_contours, directory])
     except:
         logging.warning('Error during Raveler export post-processing step. ' +
             'Possible causes are that you do not have Raveler installed or ' +
             'you did not specify the correct installation path.')
     # make permissions friendly for proofreaders.
-    subprocess.call('chmod -R go=u ' + directory)
+    subprocess.call(['chmod', '-R', 'go=u', directory])
 
 def write_json_body_annotations(annot, 
                                     directory='.', fn='annotations-body.json'):
