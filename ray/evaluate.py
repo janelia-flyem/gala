@@ -95,8 +95,13 @@ def vi_pairwise_matrix(segs, split=False):
     if split:
         def dmerge(x, y): return split_vi(x, y)[0]
         def dsplit(x, y): return split_vi(x, y)[1]
-        return [squareform(pdist(d, df)) for df in [dmerge, dsplit]]
-    return squareform(pdist(d, vi))
+        merges, splits = [squareform(pdist(d, df)) for df in [dmerge, dsplit]]
+        out = merges
+        tri = numpy.tril(numpy.ones(splits.shape), -1).astype(bool)
+        out[tri] = splits[tri]
+    else:
+        out = squareform(pdist(d, vi))
+    return out
 
 def split_vi_threshold(tup):
     """Compute VI with tuple input (to support multiprocessing).
