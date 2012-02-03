@@ -68,12 +68,35 @@ def vi(x, y=None, weights=numpy.ones(2), ignore_x=[0], ignore_y=[0]):
     """Return the variation of information metric."""
     return numpy.dot(weights, split_vi(x, y, ignore_x, ignore_y))
 
-def vi_pairwise_matrix(segs):
+def split_vi(x, y=None, ignore_x=[0], ignore_y=[0]):
+    """Return the symmetric conditional entropies associated with the VI.
+    
+    The variation of information is defined as VI(X,Y) = H(X|Y) + H(Y|X).
+    If Y is the ground-truth segmentation, then H(Y|X) can be interpreted
+    as the amount of under-segmentation of Y and H(X|Y) is then the amount
+    of over-segmentation.  In other words, a perfect over-segmentation
+    will have H(Y|X)=0 and a perfect under-segmentation will have H(X|Y)=0.
+
+    If y is None, x is assumed to be a contingency table.
+    """
+    _, _, _ , hxgy, hygx, _, _ = vi_tables(x, y, ignore_x, ignore_y)
+    # false merges, false splits
+    return numpy.array([hygx.sum(), hxgy.sum()])
+
+def vi_pairwise_matrix(segs, split=False):
     """Compute the pairwise VI distances within a set of segmentations.
     
+    If 'split' is set to True, two matrices are returned, one for each direction of
+    the conditional entropy.
+
     0-labeled pixels are ignored.
     """
-    return squareform(pdist(numpy.array([s.ravel() for s in segs]), vi))
+    d = numpy.array([s.ravel() for s in segs])
+    if split:
+        def dmerge(x, y): return split_vi(x, y)[0]
+        def dsplit(x, y): return split_vi(x, y)[1]
+        return [squareform(pdist(d, df)) for df in [dmerge, dsplit]]
+    return squareform(pdist(d, vi))
 
 def split_vi_threshold(tup):
     """Compute VI with tuple input (to support multiprocessing).
@@ -156,21 +179,6 @@ def vi_tables(x, y=None, ignore_x=[0], ignore_y=[0]):
     hxgy = -(py*lpxgy)
 
     return pxy, px, py, hxgy, hygx, lpygx, lpxgy
-
-def split_vi(x, y=None, ignore_x=[0], ignore_y=[0]):
-    """Return the symmetric conditional entropies associated with the VI.
-    
-    The variation of information is defined as VI(X,Y) = H(X|Y) + H(Y|X).
-    If Y is the ground-truth segmentation, then H(Y|X) can be interpreted
-    as the amount of under-segmentation of Y and H(X|Y) is then the amount
-    of over-segmentation.  In other words, a perfect over-segmentation
-    will have H(Y|X)=0 and a perfect under-segmentation will have H(X|Y)=0.
-
-    If y is None, x is assumed to be a contingency table.
-    """
-    _, _, _ , hxgy, hygx, _, _ = vi_tables(x, y, ignore_x, ignore_y)
-    # false merges, false splits
-    return numpy.array([hygx.sum(), hxgy.sum()])
 
 def sorted_vi_components(s1, s2, ignore1=[0], ignore2=[0], compress=True):
     """Return lists of the most entropic segments in s1|s2 and s2|s1.
