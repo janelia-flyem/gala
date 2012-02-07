@@ -201,7 +201,7 @@ class Rag(Graph):
         for n in self.nodes_iter():
             self.node[n]['feature-cache'] = \
                             self.feature_manager.create_node_cache(self, n)
-        for n1, n2 in self.real_edges_iter():
+        for n1, n2 in self.edges_iter():
             self[n1][n2]['feature-cache'] = \
                             self.feature_manager.create_edge_cache(self, n1, n2)
 
