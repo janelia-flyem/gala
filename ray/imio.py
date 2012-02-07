@@ -314,7 +314,8 @@ def write_to_raveler(sps, sp_to_segment, segment_to_body, directory, gray=None,
     if not os.path.exists(directory):
         os.makedirs(directory)
     if not os.path.exists(sp_path): os.mkdir(sp_path)
-    write_png_image_stack(sps, os.path.join(sp_path, 'sp_map.%05i.png'), axis=0)
+    write_png_image_stack(sps, os.path.join(sp_path, 'sp_map.%05i.png'), 
+                                                        bitdepth=16, axis=0)
     savetxt(os.path.join(directory, 'superpixel_to_segment_map.txt'),
                                                         sp_to_segment, '%i') 
     savetxt(os.path.join(directory, 'segment_to_body_map.txt'), 
@@ -329,7 +330,8 @@ def write_to_raveler(sps, sp_to_segment, segment_to_body, directory, gray=None,
             os.path.join(raveler_dir, 'util/createtiles.py'), 
             directory, '1024', '0'])
         subprocess.call([os.path.join(raveler_dir, 'bin/bounds'), directory])
-        subprocess.call([os.path.join(raveler_dir, 'bin/compilestack'), directory])
+        subprocess.call([os.path.join(raveler_dir, 'bin/compilestack'),
+                                                                    directory])
         subprocess.call(['python', 
             os.path.join(raveler_dir, 'util/run-countours-std.py'), 
             '-n', '%i'%nproc_contours, directory])
@@ -407,17 +409,19 @@ def write_png_image_stack(npy_vol, fn, **kwargs):
     """
     import morpho
     axis = kwargs.get('axis', -1)
-    bitdepth = kwargs.get('bitdepth', 16)
+    bitdepth = kwargs.get('bitdepth', None)
     npy_vol = swapaxes(npy_vol, 0, axis)
     fn = os.path.expanduser(fn)
     if 0 <= npy_vol.max() <= 1 and npy_vol.dtype == double:
+        bitdepth = 16 if None else bitdepth
         imdtype = uint16 if bitdepth == 16 else uint8
         npy_vol = ((2**bitdepth-1)*npy_vol).astype(imdtype)
-    if 1 < npy_vol.max() < 256:
+    if 1 < npy_vol.max() < 256 and bitdepth == None or bitdepth == 8:
         mode = 'L'
         mode_base = 'L'
         npy_vol = uint8(npy_vol)
-    elif 256 <= numpy.max(npy_vol) < 2**16:
+    elif 256 <= numpy.max(npy_vol) < 2**16 and bitdepth == None or \
+                                                bitdepth == 16:
         mode = 'I;16'
         mode_base = 'I'
         npy_vol = uint16(npy_vol)
