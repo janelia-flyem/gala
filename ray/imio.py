@@ -334,7 +334,7 @@ def write_to_raveler(sps, sp_to_segment, segment_to_body, directory, gray=None,
                                                                     directory])
         subprocess.call(['python', 
             os.path.join(raveler_dir, 'util/run-countours-std.py'), 
-            '-n', '%i'%nproc_contours, directory])
+            directory, '-n', '%i'%nproc_contours])
     except:
         logging.warning('Error during Raveler export post-processing step. ' +
             'Possible causes are that you do not have Raveler installed or ' +
