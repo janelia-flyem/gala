@@ -1,6 +1,8 @@
 # ray: segmentation of nD images
 
-Ray is a python library for performance and evaluation of image segmentation.  
+Ray is a python library for performance and evaluation of image segmentation,
+distributed under the open-source 
+[MIT license](http://www.opensource.org/licenses/mit-license.php).
 It supports n-dimensional images (images, volumes, videos, videos of 
 volumes...) and multiple channels per image.
 
