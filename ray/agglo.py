@@ -423,8 +423,7 @@ class Rag(Graph):
         gt_bdrymap = morpho.pad(gt_bdrymap_nopad, [0]*self.pad_thickness)
         k = distance_transform_cdt(1-bdrymap, return_indices=True)
         ind = nonzero(gt_bdrymap.ravel())[0]
-        closest_sub = numpy.concatenate(
-                                [i.ravel()[:,newaxis] for i in k[1]],axis=1)
+        closest_sub = concatenate([i.ravel()[:, newaxis] for i in k[1]], axis=1)
         closest_sub = closest_sub[ind,:]
         closest_ind = [dot(bdrymap.strides, i)/bdrymap.itemsize 
                                                         for i in closest_sub]
@@ -433,8 +432,7 @@ class Rag(Graph):
         bdrymap.ravel()[closest_ind] = False
         k = distance_transform_cdt(1-bdrymap, return_indices=True)
         ind = nonzero(gt_bdrymap.ravel())[0]
-        closest_sub = numpy.concatenate(
-                                [i.ravel()[:,newaxis] for i in k[1]],axis=1)
+        closest_sub = concatenate([i.ravel()[:, newaxis] for i in k[1]], axis=1)
         closest_sub = closest_sub[ind,:]
         closest_ind = [dot(bdrymap.strides, i)/bdrymap.itemsize 
                                                         for i in closest_sub]
