@@ -285,7 +285,7 @@ def segs_to_raveler(sps, bodies, **kwargs):
     return sps_out, sp_to_segment, segment_to_body
 
 def write_to_raveler(sps, sp_to_segment, segment_to_body, directory, gray=None,
-                    raveler_dir='/usr/local/raveler-hdf', nproc_countours=16):
+                    raveler_dir='/usr/local/raveler-hdf', nproc_contours=16):
     """Output a segmentation to Raveler format. 
 
     Arguments:
