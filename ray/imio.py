@@ -9,6 +9,7 @@ import logging
 import json
 import itertools as it
 import subprocess
+import tempfile as tmp
 
 # libraries
 import h5py, Image, numpy
@@ -285,7 +286,7 @@ def segs_to_raveler(sps, bodies, **kwargs):
     return sps_out, sp_to_segment, segment_to_body
 
 def write_to_raveler(sps, sp_to_segment, segment_to_body, directory, gray=None,
-                    raveler_dir='/usr/local/raveler-hdf', nproc_countours=16):
+                    raveler_dir='/usr/local/raveler-hdf', nproc_contours=16):
     """Output a segmentation to Raveler format. 
 
     Arguments:
@@ -325,20 +326,22 @@ def write_to_raveler(sps, sp_to_segment, segment_to_body, directory, gray=None,
         write_png_image_stack(gray, os.path.join(im_path, 'img.%05d.png'),
                                                                          axis=0)
     # make tiles, bounding boxes, and contours, and compile HDF5 stack info.
-    try: 
-        subprocess.call(['python', 
-            os.path.join(raveler_dir, 'util/createtiles.py'), 
-            directory, '1024', '0'])
-        subprocess.call([os.path.join(raveler_dir, 'bin/bounds'), directory])
-        subprocess.call([os.path.join(raveler_dir, 'bin/compilestack'),
-                                                                    directory])
-        subprocess.call(['python', 
-            os.path.join(raveler_dir, 'util/run-countours-std.py'), 
-            directory, '-n', '%i'%nproc_contours])
-    except:
-        logging.warning('Error during Raveler export post-processing step. ' +
-            'Possible causes are that you do not have Raveler installed or ' +
-            'you did not specify the correct installation path.')
+    with tmp.TemporaryFile() as tmp_stdout:
+        try: 
+            def call(arglist):
+                return subprocess.call(arglist, stdout=tmp_stdout)
+            call(['python', os.path.join(raveler_dir, 'util/createtiles.py'), 
+                directory, '1024', '0'])
+            call([os.path.join(raveler_dir, 'bin/bounds'), directory])
+            call([os.path.join(raveler_dir, 'bin/compilestack'), directory])
+            call(['python', os.path.join(raveler_dir, 'util/run-contours-std.py'), 
+                directory, '-n', '%i'%nproc_contours])
+        except:
+            logging.warning('Error during Raveler export post-processing step. ' +
+                'Possible causes are that you do not have Raveler installed or ' +
+                'you did not specify the correct installation path.')
+            with sys.exc_info() as ex:
+                logging.warning('Exception info:\n' + '\n'.join(map(str, ex)))
     # make permissions friendly for proofreaders.
     subprocess.call(['chmod', '-R', 'go=u', directory])
 

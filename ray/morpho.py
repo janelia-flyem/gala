@@ -285,6 +285,25 @@ def juicy_center(ar, skinsize=1):
         ar = ar.swapaxes(0,i)
     return ar.copy()
 
+def surfaces(ar, skinsize=1):
+    s = []
+    for i in xrange(ar.ndim):
+        ar = ar.swapaxes(0, i)
+        s.append(ar[0:skinsize].copy())
+        s.append(ar[-skinsize:].copy())
+        ar = ar.swapaxes(0, i)
+    return s
+
+def hollowed(ar, skinsize=1):
+    """Return a copy of ar with the center zeroed out.
+
+    'skinsize' determines how thick of a crust to leave untouched.
+    """
+    slices = (slice(skinsize, -skinsize),)*ar.ndim
+    ar_out = ar.copy()
+    ar_out[slices] = 0
+    return ar_out
+
 def build_levels_dict(a):
     d = defaultdict(list)
     for loc,val in enumerate(a.ravel()):
