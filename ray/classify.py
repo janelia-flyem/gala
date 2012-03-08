@@ -713,7 +713,7 @@ class CompositeFeatureManager(NullFeatureManager):
     
     def compute_difference_features(self, g, n1, n2, cache1=None, cache2=None):
         if cache1 is None: cache1 = g.node[n1][self.default_cache]
-        if cache2 is None: cahce2 = g.node[n2][self.default_cache]
+        if cache2 is None: cache2 = g.node[n2][self.default_cache]
         features = []
         for i, child in enumerate(self.children):
             features.append(
