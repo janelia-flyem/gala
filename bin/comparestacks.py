@@ -1,0 +1,94 @@
+from numpy import *
+from ray import *
+import getopt
+import errno
+import os
+import sys
+import json
+import argparse
+
+
+larva_gt='/groups/flyem/proj/data/larva_fib_groundtruth_round2.h5'
+medulla_gt='/groups/flyem/proj/data/larva_fib_groundtruth_round2.h5'
+
+class Error(Exception):
+    """Base-class for exceptions in this module."""
+
+class UsageError(Error):
+    def __init__(self, msg):
+        self.msg = msg
+
+def main(argv):
+    parser = argparse.ArgumentParser(description='Perform VI accuracy comparison between two stacks')
+    parser.add_argument('--stack1', type=str, help='Stack compared against base stack (stack path or h5)', dest='stack1', required=True)
+    parser.add_argument('--stackbase', type=str, help='Base stack (stack path or h5)', dest='stackbase', required=True)
+    
+    parser.add_argument('--relabel1', action='store_true', default=False, help='Relabel ids in stack 1 to prevent memory issues', dest='relabel1')
+    parser.add_argument('--relabelbase', action='store_true', default=False, help='Relabel ids in stack base to prevent memory issues', dest='relabelbase')
+    parser.add_argument('--filtersize', type=int, default=800, help='Size below which comparisons are not made', dest='filtersize')
+    parser.add_argument('--VIthres', type=float, default=0.02, help='VI difference below which is unimportant', dest='VIthres')
+    parser.add_argument('--stack1_outjson', type=str, default='stack1_merged.json', help='output json file name for stack 1 (outputs over-merged bodies in stack 1)', dest='stack1_outjson')
+    parser.add_argument('--stackbase_outjson', type=str, default='stackbase_merged.json', help='output json file name for stack base (outputs over-merged bodies in stack base)', dest='stackbase_outjson')
+
+    args = parser.parse_args()
+
+    stack1=args.stack1
+    stack1_int = None
+    if stack1.endswith('.h5'):
+        stack1_int = imio.read_image_stack(stack1)
+    else: 
+        stack1_int = imio.raveler_to_labeled_volume(stack1, glia=False, use_watershed=False)
+    stack1_int = morpho.remove_small_connected_components(stack1_int, min_size=args.filtersize, in_place=True)
+    
+    if args.relabel1:
+        stack1_int, dummy1, dummy2 = evaluate.relabel_from_one(stack1_int)
+    print "Imported first stack"
+
+
+    stackbase=args.stackbase
+    stackbase_int = None
+    if stackbase.endswith('.h5'):
+        stackbase_int = imio.read_image_stack(stackbase)
+    else:
+        stackbase_int = imio.raveler_to_labeled_volume(stackbase, glia=False, use_watershed=False)
+    stackbase_int = morpho.remove_small_connected_components(stackbase_int, min_size=args.filtersize, in_place=True)
+    if args.relabelbase:
+        stackbase_int, dummy1, dummy2 = evaluate.relabel_from_one(stackbase_int)
+    print "Imported base stack"
+    
+    merge, split = evaluate.split_vi(stack1_int, stackbase_int)
+    print "MergeSplit: " + str((merge, split))
+
+    stack1_bodies, stack1_vis, gt_bodies, gt_vis = evaluate.sorted_vi_components(stack1_int, stackbase_int)
+
+    data=[]
+    database=[]
+
+    stack1_fp = open(args.stack1_outjson, "w")
+    stackbase_fp = open(args.stackbase_outjson, "w")
+
+    i=0
+    accum = 0
+    for bodyid in stack1_bodies:
+        accum += stack1_vis[i]
+        i += 1
+        if accum > (merge - args.VIthres):
+            break        
+        data.append({'status' : 'not sure', 'body ID' : int(bodyid)})    
+
+    i=0
+    accum = 0
+    for bodyid in gt_bodies:
+        accum += gt_vis[i]
+        i += 1
+        if accum > (split - args.VIthres):
+            break        
+        database.append({'status' : 'not sure', 'body ID' : int(bodyid)})
+
+    json_out_data = {'data' : data}
+    json_out_data2 = {'data' : database}
+
+    stack1_fp.write(json.dumps(json_out_data, sort_keys=False, indent=2)) 
+    stackbase_fp.write(json.dumps(json_out_data2, sort_keys=False, indent=2)) 
+
+sys.exit(main(sys.argv))
