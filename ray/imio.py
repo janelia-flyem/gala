@@ -30,6 +30,9 @@ except ImportError:
         def imread(*args, **kwargs):
             raise RuntimeError('Function imread not imported.')
 
+# local files
+import evaluate
+
 arguments = argparse.ArgumentParser(add_help=False)
 arggroup = arguments.add_argument_group('Image IO options')
 arggroup.add_argument('-I', '--invert-image', action='store_true',
@@ -254,19 +257,24 @@ def ucm_to_raveler(ucm, sp_threshold=0, body_threshold=0.1, **kwargs):
     bodies = label(ucm<=body_threshold)[0]
     return segs_to_raveler(sps, bodies, **kwargs)
 
-def segs_to_raveler(sps, bodies, **kwargs):
+def segs_to_raveler(sps, bodies, min_sp_size=0, do_conn_comp=False):
     import morpho
-    min_sp_size = kwargs.get('min_sp_size', 16)
     sps_out = []
     sps_per_plane = []
     sp_to_segment = []
     segment_to_body = [array([[0,0]])]
     total_nsegs = 0
+    if do_conn_comp:
+        label_function = label
+    else:
+        def label_function(a):
+            relabeled, fmap, imap = evaluate.relabel_from_one(a)
+            return relabeled, len(imap)
     for i, (sp_map, body_map) in enumerate(zip(sps, bodies)):
-        sp_map, nsps = label(
+        sp_map, nsps = label_function(
             morpho.remove_small_connected_components(sp_map, min_sp_size, True)
         )
-        segment_map, nsegs = label(body_map)
+        segment_map, nsegs = label_function(body_map)
         segment_map += total_nsegs
         segment_map *= sp_map.astype(bool)
         total_nsegs += nsegs
