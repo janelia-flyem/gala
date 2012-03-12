@@ -248,7 +248,8 @@ def read_h5_stack(fn, *args, **kwargs):
         a = a[xmin:xmax,ymin:ymax,zmin:zmax]
     return array(a)
 
-def ucm_to_raveler(ucm, body_threshold=0.5, sp_threshold=0, **kwargs):
+def ucm_to_raveler(ucm, sp_threshold=0, body_threshold=0.1, **kwargs):
+    """Return Raveler map from a UCM."""
     sps = label(ucm<sp_threshold)[0]
     bodies = label(ucm<=body_threshold)[0]
     return segs_to_raveler(sps, bodies, **kwargs)
