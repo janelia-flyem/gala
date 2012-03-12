@@ -135,7 +135,7 @@ def watershed(a, seeds=None, smooth_thresh=0.0, smooth_seeds=False,
         ws = label(seeds, sel)[0]
     else:
         ws = seeds
-    levels = unique(a)
+    levels = unique(b)
     a = pad(a, a.max()+1)
     b = pad(b, b.max()+1)
     ar = a.ravel()
@@ -145,7 +145,7 @@ def watershed(a, seeds=None, smooth_thresh=0.0, smooth_seeds=False,
     maxlabel = iinfo(ws.dtype).max
     current_label = 0
     neighbors = build_neighbors_array(a, connectivity)
-    level_pixels = build_levels_dict(a)
+    level_pixels = build_levels_dict(b)
     if show_progress: wspbar = ip.StandardProgressBar('Watershed...')
     else: wspbar = ip.NoProgressBar()
     for i, level in ip.with_progress(enumerate(levels), 
@@ -162,7 +162,7 @@ def watershed(a, seeds=None, smooth_thresh=0.0, smooth_seeds=False,
             adj_labels = unique(wsr[lnidxs])
             if len(adj_labels) > 1 and dams: # build a dam
                 wsr[idx] = maxlabel 
-            elif len(adj_labels) >= 1: # assign a label
+            else: # assign a label
                 wsr[idx] = wsr[lnidxs][ar[lnidxs].argmin()]
                 idxs_adjacent_to_labels.extend(nidxs[((wsr[nidxs] == 0) * 
                                     (br[nidxs] == level)).astype(bool) ])
