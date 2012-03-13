@@ -1,0 +1,88 @@
+#!/usr/bin/env python
+
+from ray import *
+import sys
+import os
+from skimage import morphology as skmorph
+from scipy.ndimage import label
+import argparse
+import json
+
+format_help = """\
+            Initial configuration json file needed.  For example:
+            {
+                "generate_boundary_prediction" : true,
+                "generate_raveler_instance" : true,
+                "fast_watershed_only" : true,
+                "segmentation_thresholds" : [ 0, 0.1, 0.2, 0.3, 0.4, 0.5 ],
+                "output_dir" : "./",
+                "ilpfile" : "<ilastik ilp>",
+                "stack_path" : "<file_path/*.png>",
+                "stack_name" : "<some identifier>",
+                "version" : "1",
+                "features" : {
+                    "Color" : ["small", "medium"],
+                    "Texture" : ["large", "gigahuge"],
+                    "Orientation" : ["gigahuge"],
+                    "Edge": ["small"]
+                }
+            }"""
+
+feature_hash = {}
+feature_hash["tiny"] = 0.1
+feature_hash["small"] = 0.3
+feature_hash["medium"] = 0.7
+feature_hash["large"] = 1.0
+feature_hash["huge"] = 3.0
+feature_hash["megahuge"] = 5.0
+feature_hash["gigahuge"] = 10.0
+
+def main(argv):
+    parser = argparse.ArgumentParser(description="Segmentation pipeline (currently featuring boundary prediction and median agglomeration")
+    parser.add_argument('--initfile', type=str, help=format_help, dest='initfile', required=True)
+    args = parser.parse_args()
+
+    json_file = open(args.initfile)
+    json_val = json.load(json_file)
+    json_file.close()
+
+    image_stack = imio.read_image_stack(json_val["stack_path"])
+    stackname = json_val["output_dir"] + "/" + json_val["stack_name"]
+    stackname = stackname + "-v" + json_val["version"]
+    if json_val["generate_boundary_prediction"]:
+        imio.write_ilastik_batch_volume(image_stack, str(stackname + ".h5"))
+        #write temp.json
+        json_val_out = {}
+        json_val_out["output_dir"] = json_val["output_dir"]
+        json_val_out["session"] = json_val["ilpfile"]
+        json_val_out["images"] = []
+        image_array = json_val_out["images"]
+        image_array.append( { "name" : str(stackname + ".h5") } )
+        json_val_out["features"] = []
+
+        features = json_val["features"]
+        for feat in iter(features):
+            for featsize in features[feat]:
+                json_val_out["features"].append([feat, feature_hash[featsize] ])
+        json_file_out = open("temp.json", "w")
+        json_file_out.write(json.dumps(json_val_out, indent=4))
+        json_file_out.close()
+
+        os.system('ilastik_batch --config_file=temp.json')
+        os.system('rm temp.json')
+
+
+    if json_val["generate_raveler_instance"]:
+        prediction = imio.read_image_stack(str(stackname + ".h5_processed.h5"), group='/volume/prediction')
+        prediction0 = prediction[...,0]
+        seeds = label(prediction0==0)[0] # or whatever seed method you're trying
+        print "Start Watershed"
+        w = skmorph.watershed(prediction0, seeds)
+        print "Finished Watershed"
+        rav = imio.segs_to_raveler(w, w, 0, do_conn_comp=False)
+        outdir = str(json_val["output_dir"] + "/raveler-export/" + json_val["stack_name"] + "-v" + json_val["version"] + "/")
+        print "Writing to Raveler"
+        imio.write_to_raveler(*rav, directory=outdir, gray=image_stack)
+
+
+sys.exit(main(sys.argv))
