@@ -258,6 +258,9 @@ def ucm_to_raveler(ucm, sp_threshold=0, body_threshold=0.1, **kwargs):
     return segs_to_raveler(sps, bodies, **kwargs)
 
 def segs_to_raveler(sps, bodies, min_sp_size=0, do_conn_comp=False):
+    if not (sps==0).any() and not (bodies==0).any():
+        sps[:,0,0] = 0
+        bodies[:,0,0] = 0
     import morpho
     sps_out = []
     sps_per_plane = []
