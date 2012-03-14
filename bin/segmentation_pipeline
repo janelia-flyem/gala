@@ -7,14 +7,18 @@ from skimage import morphology as skmorph
 from scipy.ndimage import label
 import argparse
 import json
+import h5py
+import numpy
 
 format_help = """\
             Initial configuration json file needed.  For example:
             {
                 "generate_boundary_prediction" : true,
                 "generate_raveler_instance" : true,
-                "fast_watershed_only" : true,
-                "segmentation_thresholds" : [ 0, 0.1, 0.2, 0.3, 0.4, 0.5 ],
+                "perform_median_segmentation" : false,
+                "perform_inclusion_removal" : false,
+                "use_ilp_prediction" : false,
+                "segmentation_thresholds" : [ 0, 0.1 ],
                 "output_dir" : "./",
                 "ilpfile" : "<ilastik ilp>",
                 "stack_path" : "<file_path/*.png>",
@@ -47,9 +51,10 @@ def main(argv):
     json_file.close()
 
     image_stack = imio.read_image_stack(json_val["stack_path"])
+
     stackname = json_val["output_dir"] + "/" + json_val["stack_name"]
     stackname = stackname + "-v" + json_val["version"]
-    if json_val["generate_boundary_prediction"]:
+    if json_val["generate_boundary_prediction"] and not json_val["use_ilp_prediction"]:
         imio.write_ilastik_batch_volume(image_stack, str(stackname + ".h5"))
         #write temp.json
         json_val_out = {}
@@ -69,20 +74,55 @@ def main(argv):
         json_file_out.close()
 
         os.system('ilastik_batch --config_file=temp.json')
-        os.system('rm temp.json')
-
+        os.system('rm -f temp.json')
+    elif json_val["use_ilp_prediction"]:
+        os.system("rm -f " + str(stackname + ".h5_processed.h5"))
+        imio.write_ilastik_batch_volume(image_stack, str(stackname + ".h5_processed.h5"))
+        image_stack = image_stack.transpose((0, 2, 1))
+        f1 = h5py.File(str(stackname + ".h5_processed.h5"), 'a')
+        f2 = h5py.File(json_val["ilpfile"], 'r')
+        f1.copy(f2['/DataSets/dataItem00/prediction'], 'volume/prediction')
+        f1.close()
+        f2.close()
 
     if json_val["generate_raveler_instance"]:
         prediction = imio.read_image_stack(str(stackname + ".h5_processed.h5"), group='/volume/prediction')
         prediction0 = prediction[...,0]
+
+        if json_val["use_ilp_prediction"]:
+            prediction0 = prediction0.transpose((2, 1, 0))
         seeds = label(prediction0==0)[0] # or whatever seed method you're trying
-        print "Start Watershed"
+        print "Starting watershed"
         w = skmorph.watershed(prediction0, seeds)
-        print "Finished Watershed"
-        rav = imio.segs_to_raveler(w, w, 0, do_conn_comp=False)
-        outdir = str(json_val["output_dir"] + "/raveler-export/" + json_val["stack_name"] + "-v" + json_val["version"] + "/")
-        print "Writing to Raveler"
-        imio.write_to_raveler(*rav, directory=outdir, gray=image_stack)
+        seg = w
+        print "Finished watershed"
+
+        rag = None
+
+        if json_val["perform_inclusion_removal"]:
+            rag = agglo.Rag(w, prediction0, merge_priority_function=agglo.boundary_median, show_progress=True)
+            print "Starting inclusion removal"
+            rag.remove_inclusions()
+            print "Finished inclusion removal"
+            seg = rag.get_segmentation()
+
+        if json_val["perform_median_segmentation"]:
+            if rag is None:
+                rag = agglo.Rag(w, prediction0, merge_priority_function=agglo.boundary_median, show_progress=True)
+            rag.agglomerate(numpy.inf)
+            rag_ucm = rag.get_ucm()
+            imio.write_image_stack(rag_ucm, str(stackname + '.ucm.lzf.h5'), compression='lzf')
+            segthres = json_val["segmentation_thresholds"]
+            for val in segthres:
+                rav = imio.ucm_to_raveler(rag_ucm, val, val, min_sp_size=0)
+                outdir = str(json_val["output_dir"] + "/raveler-export/" + json_val["stack_name"] + "-v" + json_val["version"] + "-median-" + str(val) + "/")
+                print "Writing " , outdir
+                imio.write_to_raveler(*rav, directory=outdir, gray=image_stack)
+        else:
+            rav = imio.segs_to_raveler(w, seg, 0, do_conn_comp=False)
+            outdir = str(json_val["output_dir"] + "/raveler-export/" + json_val["stack_name"] + "-v" + json_val["version"] + "/")
+            print "Writing " , outdir
+            imio.write_to_raveler(*rav, directory=outdir, gray=image_stack)
 
 
 sys.exit(main(sys.argv))
