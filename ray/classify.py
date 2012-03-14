@@ -28,11 +28,21 @@ except ImportError:
         'Convex hull features not available.')
 from scipy.misc import comb as nchoosek
 from scipy.stats import sem
-try:
-    from sklearn.svm import SVC
-    from sklearn.linear_model import LogisticRegression, LinearRegression
-except ImportError:
+
+for sklearn_name in ['sklearn', 'scikits.learn']:
+    try:
+        sklearn = __import__(sklearn_name, globals(), locals())
+        sklearn = sys.modules[sklearn_name]
+        break
+    except ImportError:
+        sklearn = None
+if sklearn is not None:
+    SVC = sklearn.svm.SVC
+    LogisticRegression = sklearn.linear_model.LogisticRegression
+    LinearRegression = sklearn.linear_model.LinearRegression
+else:
     logging.warning('scikits.learn not found. SVC, Regression not available.')
+
 from evaluate import xlogx
 try:
     from vigra.learning import RandomForest as VigraRandomForest
