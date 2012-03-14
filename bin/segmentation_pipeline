@@ -55,6 +55,7 @@ def main(argv):
     stackname = json_val["output_dir"] + "/" + json_val["stack_name"]
     stackname = stackname + "-v" + json_val["version"]
     if json_val["generate_boundary_prediction"] and not json_val["use_ilp_prediction"]:
+        os.system(str("rm -f " + stackname + ".h5"))
         imio.write_ilastik_batch_volume(image_stack, str(stackname + ".h5"))
         #write temp.json
         json_val_out = {}
@@ -69,12 +70,13 @@ def main(argv):
         for feat in iter(features):
             for featsize in features[feat]:
                 json_val_out["features"].append([feat, feature_hash[featsize] ])
-        json_file_out = open("temp.json", "w")
+        json_file_out = open(str(stackname + ".json"), "w")
         json_file_out.write(json.dumps(json_val_out, indent=4))
         json_file_out.close()
 
-        os.system('ilastik_batch --config_file=temp.json')
-        os.system('rm -f temp.json')
+        ilastik_command = str("ilastik_batch --config_file=" + stackname + ".json")
+        os.system(ilastik_command)
+        os.system(str("rm -f " + stackname + ".h5"))
     elif json_val["use_ilp_prediction"]:
         os.system("rm -f " + str(stackname + ".h5_processed.h5"))
         imio.write_ilastik_batch_volume(image_stack, str(stackname + ".h5_processed.h5"))
@@ -111,17 +113,21 @@ def main(argv):
                 rag = agglo.Rag(w, prediction0, merge_priority_function=agglo.boundary_median, show_progress=True)
             rag.agglomerate(numpy.inf)
             rag_ucm = rag.get_ucm()
+            os.system(str("rm -f " + stackname + '.ucm.lzf.h5'))
             imio.write_image_stack(rag_ucm, str(stackname + '.ucm.lzf.h5'), compression='lzf')
             segthres = json_val["segmentation_thresholds"]
             for val in segthres:
+                print "Converting ucm to raveler for threshold " , str(val)
                 rav = imio.ucm_to_raveler(rag_ucm, val, val, min_sp_size=0)
                 outdir = str(json_val["output_dir"] + "/raveler-export/" + json_val["stack_name"] + "-v" + json_val["version"] + "-median-" + str(val) + "/")
                 print "Writing " , outdir
+                os.system(str("rm -rf " + outdir))
                 imio.write_to_raveler(*rav, directory=outdir, gray=image_stack)
         else:
             rav = imio.segs_to_raveler(w, seg, 0, do_conn_comp=False)
             outdir = str(json_val["output_dir"] + "/raveler-export/" + json_val["stack_name"] + "-v" + json_val["version"] + "/")
             print "Writing " , outdir
+            os.system(str("rm -rf " + outdir))
             imio.write_to_raveler(*rav, directory=outdir, gray=image_stack)
 
 
