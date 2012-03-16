@@ -9,126 +9,383 @@ import argparse
 import json
 import h5py
 import numpy
+import logging
+import textwrap
 
 format_help = """\
-            Initial configuration json file needed.  For example:
-            {
-                "generate_boundary_prediction" : true,
-                "generate_raveler_instance" : true,
-                "perform_median_segmentation" : false,
-                "perform_inclusion_removal" : false,
-                "use_ilp_prediction" : false,
-                "segmentation_thresholds" : [ 0, 0.1 ],
-                "output_dir" : "./",
-                "ilpfile" : "<ilastik ilp>",
-                "stack_path" : "<file_path/*.png>",
-                "stack_name" : "<some identifier>",
-                "version" : "1",
-                "features" : {
-                    "Color" : ["small", "medium"],
-                    "Texture" : ["large", "gigahuge"],
-                    "Orientation" : ["gigahuge"],
-                    "Edge": ["small"]
-                }
-            }"""
+Description of input JSON:
+{
+    #location of original grayscale
+    "stack_path" : "<file_path/*.png>",
 
-feature_hash = {}
-feature_hash["tiny"] = 0.1
-feature_hash["small"] = 0.3
-feature_hash["medium"] = 0.7
-feature_hash["large"] = 1.0
-feature_hash["huge"] = 3.0
-feature_hash["megahuge"] = 5.0
-feature_hash["gigahuge"] = 10.0
+    #reuse prediction ilastik ilp for fast turnaround
+    "ilastik_training_volume" : false,
+
+    #perform ilastik prediction
+    "flow_generate_boundary_prediction" : false,
+
+    #generate a watershed
+    "flow_generate_watershed" : false,
+
+    #median agglomeration
+    "flow_perform_median_agglomeration" : false,
+
+    #inclusion removal before agglomeration
+    "flow_perform_inclusion_removal" : false,
+
+    #inclusion removal after each agglomeration step
+    "flow_perform_agglomeration_inclusion_removal" : false,
+
+    #the thresholds where output is produced
+    #there must be at least 0 there for some output
+    "agglomeration_output_thresholds" : [ 0, 0.1 ],
+
+    #ilp file produced by ilastik needed for boundary prediction
+    "ilpfile" : "<ilastik ilp>",
+
+    #ilastik features
+    "features" : {
+        "Color" : ["small", "medium"],
+        "Texture" : ["large", "gigahuge"],
+        "Orientation" : ["gigahuge"],
+        "Edge": ["small"]
+    },
+
+    #manipulation of boundary map
+    "boundary_manipulation_recipe" : [
+        { "operation" : <type>, "params" : <params> },
+        { "operation" : <type>, "params" : <params> },
+        { "operation" : <type>, "params" : <params> }
+    ],
+
+    #only seeded watershed currently
+    "seeded_watershed" : true,
+
+    #threshold for picking seeds
+    "watershed seed threshold" : 0,
+
+    #manipulation of watershed seeds
+    "seed_manipulation_recipe" : [
+        { "operation" : <type>, "params" : <params> },
+        { "operation" : <type>, "params" : <params> },
+        { "operation" : <type>, "params" : <params> }
+    ]
+}"""
+
+FeatureHash = None
+MasterLogger = None
+
+# need to add custom functions
+SeedActionFunction = None
+BoundaryActionFunction = None
+
+def init_features():
+    global FeatureHash
+    FeatureHash = {}
+    FeatureHash["tiny"] = 0.1
+    FeatureHash["small"] = 0.3
+    FeatureHash["medium"] = 0.7
+    FeatureHash["large"] = 1.0
+    FeatureHash["huge"] = 3.0
+    FeatureHash["megahuge"] = 5.0
+    FeatureHash["gigahuge"] = 10.0
+
+def init_actions():
+    global SeedActionFunction
+    global BoundaryActionFunction
+    SeedActionFunction = {}
+    BoundaryActionFunction = {}
+
+class PipelineOptions:
+    def __init__(self, initfile):
+        json_file = open(initfile)
+        self.json_val = json.load(json_file)
+        json_file.close()
+        json_save = json.dumps(self.json_val, indent=4)
+        MasterLogger.debug(json_save)
+
+        # load options
+        self.stack_path = self.set_option("stack_path", required=True)
+        self.ilastik_training_volume = self.set_option("ilastik_training_volume", False)
+        self.flow_generate_boundary_prediction = self.set_option("flow_generate_boundary_prediction", False)
+        self.flow_generate_watershed = self.set_option("flow_generate_watershed", False)
+        self.flow_perform_median_agglomeration = self.set_option("flow_perform_median_agglomeration", False)
+        self.flow_perform_inclusion_removal = self.set_option("flow_perform_inclusion_removal", False)
+        self.flow_perform_agglomeration_inclusion_removal = self.set_option("flow_perform_agglomeration_inclusion_removal",
+            default=False, warning = self.flow_perform_median_agglomeration)
+        self.agglomeration_output_thresholds = self.set_option("agglomeration_output_thresholds", default = [])
+        self.ilpfile = self.set_option("ilpfile", warning = False,
+            required = self.flow_generate_boundary_prediction or self.ilastik_training_volume)
+        self.features = self.set_option("features", warning = False,
+            required = self.flow_generate_boundary_prediction)
+        self.boundary_manipulation_recipe = self.set_option("boundary_manipulation_recipe", default = [],
+            warning = self.flow_generate_watershed)
+
+        self.seeded_watershed = self.set_option("seeded_watershed", default=True,
+            warning = self.flow_generate_watershed)
+        self.watershed_seed_threshold = self.set_option("watershed_seed_threshold", default=0,
+            warning = (self.flow_generate_watershed and self.seeded_watershed))
+        self.seed_manipulation_recipe = self.set_option("seed_manipulation_recipe", default = [],
+            warning = (self.flow_generate_watershed and self.seeded_watershed))
+
+
+    def set_option(self, json_name, default=None, warning=True, required=False):
+        temp_option = self.json_val[json_name]
+        if temp_option is None:
+            if required:
+                raise Exception(json_name + " needs to be specified")
+            elif warning:
+                MasterLogger.warning(json_name + " was not specified")
+            temp_option = default
+            MasterLogger.debug("JSON option set: " + json_name + " to default " + str(default))
+        else:
+            MasterLogger.debug("JSON option set: " + json_name)
+        return temp_option
+
+
+def set_logger(debug, log_filename, aux_filename = None):
+    global MasterLogger
+    MasterLogger = logging.getLogger('pipeline')
+
+
+
+    MasterLogger.propagate = False
+    MasterLogger.setLevel(logging.DEBUG)
+
+    console = logging.StreamHandler(sys.stdout)
+    if debug:
+        console.setLevel(logging.DEBUG)
+    else:
+        console.setLevel(logging.INFO)
+
+    formatter = logging.Formatter('%(levelname)-8s %(message)s')
+    console.setFormatter(formatter)
+    MasterLogger.addHandler(console)
+
+    prim = logging.FileHandler(log_filename, 'a')
+    prim.setLevel(logging.DEBUG)
+    prim.setFormatter(logging.Formatter(fmt='%(asctime)s %(levelname)-8s %(message)s', datefmt='%m-%d-%y %H:%M'))
+    MasterLogger.addHandler(prim)
+
+    if aux_filename is not None:
+        aux = logging.FileHandler(aux_filename, 'w')
+        aux.setLevel(logging.DEBUG)
+        aux.setFormatter(logging.Formatter(fmt='%(asctime)s %(levelname)-8s %(message)s', datefmt='%m-%d-%y %H:%M'))
+        MasterLogger.addHandler(aux)
+
+def flow_generate_boundary_prediction(options, image_stack, experimentprefix, output_dir):
+    MasterLogger.info("Boundary Prediction Flow")
+    os.system(str("rm -f " + experimentprefix + ".h5"))
+    imio.write_ilastik_batch_volume(image_stack, str(experimentprefix + ".h5"))
+
+    #create temporary json for ilastik batch
+    json_val_out = {}
+    json_val_out["output_dir"] = output_dir
+    json_val_out["session"] = options.ilpfile
+    json_val_out["images"] = []
+    image_array = json_val_out["images"]
+    image_array.append( { "name" : str(experimentprefix + ".h5") } )
+    json_val_out["features"] = []
+
+    #load features
+    features = options.features
+    for feat in iter(features):
+        for featsize in features[feat]:
+            json_val_out["features"].append([feat, FeatureHash[featsize] ])
+    json_file_out = open(str(experimentprefix + ".json"), "w")
+    json_out = json.dumps(json_val_out, indent=4)
+    MasterLogger.debug("ilastik batch json file: " + json_out)
+    json_file_out.write(json_out)
+    json_file_out.close()
+
+    #run ilastik
+    MasterLogger.info("Running Ilastik batch")
+    ilastik_command = str("ilastik_batch --config_file=" + experimentprefix + ".json")
+    os.system(ilastik_command)
+
+    #deleting ilastik
+    os.system(str("rm -f " + experimentprefix + ".h5"))
+
+
+def flow_generate_watershed(options, image_stack, experimentprefix, output_dir):
+    MasterLogger.info("Watershed Flow")
+    training_file = experimentprefix + ".h5_processed.h5"
+    if not os.path.isfile(training_file):
+        raise Exception("Training file not found: " + training_file)
+
+    prediction = imio.read_image_stack(training_file, group='/volume/prediction')
+
+    MasterLogger.info("Manipulating prediction")
+    prediction0 = prediction[...,0]
+    if options.ilastik_training_volume:
+        prediction0 = prediction0.transpose((2, 1, 0))
+    for action in options.boundary_manipulation_recipe:
+        if action["operation"] not in SeedActionFunction:
+            MasterLogger.warning("boundary action: " + action["operation"] + " was not found.  Skipping ...")
+            continue
+        MasterLogger.debug("performing boundary action: " + action["operation"] + " with parameters: " + action["params"])
+        BoundaryActionFunction[(action["operation"])](seeds, action["params"])
+
+    MasterLogger.info("Manipulating seeds")
+    # ?? is threshold a int or float
+    MasterLogger.debug("watershed seed threshold: " + str(options.watershed_seed_threshold))
+    seeds = label(prediction0<=options.watershed_seed_threshold)[0]
+
+    for action in options.seed_manipulation_recipe:
+        if action["operation"] not in SeedActionFunction:
+            MasterLogger.warning("seed action: " + action["operation"] + " was not found.  Skipping ...")
+            continue
+        MasterLogger.debug("performing seed action: " + action["operation"] + " with parameters: " + action["params"])
+        SeedActionFunction[(action["operation"])](seeds, action["params"])
+
+
+    MasterLogger.info("Starting watershed")
+    watershed = skmorph.watershed(prediction0, seeds)
+    MasterLogger.info("Finished watershed")
+    return watershed, prediction0
+
+def flow_perform_inclusion_removal(rag, watershed, prediction):
+    if watershed is None:
+        raise Exception("Watershed needed for inclusion removal")
+
+    if rag is None:
+        MasterLogger.info("Building RAG")
+        rag = agglo.Rag(watershed, prediction, merge_priority_function=agglo.boundary_median,
+            show_progress=True)
+        MasterLogger.info("Finished building RAG")
+    # ?? how to save rag
+    MasterLogger.info("Starting inclusion removal")
+    rag.remove_inclusions()
+    MasterLogger.info("Finished inclusion removal")
+
+    return rag
+
+
+def flow_perform_median_agglomeration(options, rag, watershed, prediction, image_stack, experiment_name, output_dir, provenance_filename):
+    if watershed is None:
+        raise Exception("Watershed needed for median agglomeration")
+
+    if rag is None:
+        MasterLogger.info("Building RAG")
+        rag = agglo.Rag(watershed, prediction, merge_priority_function=agglo.boundary_median,
+            show_progress=True)
+        MasterLogger.info("Finished building RAG")
+    # ?? how to save rag
+    sorted_output_thresholds = sorted(options.agglomeration_output_thresholds)
+    for threshold in sorted_output_thresholds:
+        MasterLogger.info("Starting agglomeration to threshold " + str(threshold))
+        rag.agglomerate(threshold)
+        MasterLogger.info("Finished agglomeration to threshold " + str(threshold))
+        removed_inclusions = False
+        if options.flow_perform_agglomeration_inclusion_removal and (threshold > 0 or not options.flow_perform_inclusion_removal):
+            removed_inclusions = True
+            MasterLogger.info("Starting agglomeration inclusion removal at threshold " + str(threshold))
+            rag.remove_inclusions()
+            MasterLogger.info("Finished agglomeration inclusion removal at threshold " + str(threshold))
+
+        output_raveler(rag, watershed, image_stack, experiment_name, output_dir, provenance_filename, threshold)
+
+        if removed_inclusions:
+            rag.rebuild_merge_queue()
+
+    return rag
+
+def output_raveler(rag, watershed, image_stack, experiment_name, output_dir, provenance_filename, threshold):
+    outdir = output_dir + "/raveler-export/" + experiment_name + "-median-" + str(threshold) + "/"
+    MasterLogger.info("Exporting segmentation to Raveler " + outdir)
+    provenance_raveler_file = outdir + "segmentation_pipeline.log"
+
+    seg = None
+
+    if watershed is None:
+        raise Exception("No watershed created")
+
+    if rag is None:
+        seg = watershed
+    else:
+        seg = rag.get_segmentation()
+
+    rav = imio.segs_to_raveler(watershed, seg, 0, do_conn_comp=False)
+    os.system(str("rm -rf " + outdir))
+    imio.write_to_raveler(*rav, directory=outdir, gray=image_stack)
+    os.system("cp " + provenance_filename + " " + provenance_raveler_file)
+
+
 
 def main(argv):
-    parser = argparse.ArgumentParser(description="Segmentation pipeline (currently featuring boundary prediction and median agglomeration")
-    parser.add_argument('--initfile', type=str, help=format_help, dest='initfile', required=True)
+    parser = argparse.ArgumentParser(description="Segmentation pipeline (featuring boundary prediction, median agglomeration, and inclusion removal)", formatter_class=argparse.RawDescriptionHelpFormatter, epilog=format_help)
+    parser.add_argument('--initfile', type=str, help="Initial configuration json file needed",
+        dest='initfile', required=True)
+    parser.add_argument('--experiment_name', type=str, help="Name of the experiment -- will be used as the base name for all outputs", dest='experiment_name', required=True)
+    parser.add_argument('--output_dir', type=str, help="Directory for all output", default='./', dest='output_dir')
+    parser.add_argument('--debug', action="store_true", help="Show debug output", dest="debug", default=False)
     args = parser.parse_args()
 
-    json_file = open(args.initfile)
-    json_val = json.load(json_file)
-    json_file.close()
+    experiment_name = args.experiment_name
+    output_dir = args.output_dir
+    experimentprefix = output_dir + "/" + experiment_name
 
-    image_stack = imio.read_image_stack(json_val["stack_path"])
+    provenance_filename = False
 
-    stackname = json_val["output_dir"] + "/" + json_val["stack_name"]
-    stackname = stackname + "-v" + json_val["version"]
-    if json_val["generate_boundary_prediction"] and not json_val["use_ilp_prediction"]:
-        os.system(str("rm -f " + stackname + ".h5"))
-        imio.write_ilastik_batch_volume(image_stack, str(stackname + ".h5"))
-        #write temp.json
-        json_val_out = {}
-        json_val_out["output_dir"] = json_val["output_dir"]
-        json_val_out["session"] = json_val["ilpfile"]
-        json_val_out["images"] = []
-        image_array = json_val_out["images"]
-        image_array.append( { "name" : str(stackname + ".h5") } )
-        json_val_out["features"] = []
+    try:
+        # set logger to console and set log file logcation
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir)
+        log_filename = experimentprefix + ".log"
+        provenance_filename = output_dir + "/" + experiment_name + ".provenance.log"
+        set_logger(args.debug, log_filename, aux_filename = provenance_filename)
+        MasterLogger.info("Experimental path and name: " + experimentprefix)
 
-        features = json_val["features"]
-        for feat in iter(features):
-            for featsize in features[feat]:
-                json_val_out["features"].append([feat, feature_hash[featsize] ])
-        json_file_out = open(str(stackname + ".json"), "w")
-        json_file_out.write(json.dumps(json_val_out, indent=4))
-        json_file_out.close()
+        # parse json and set global options
+        options = PipelineOptions(args.initfile)
 
-        ilastik_command = str("ilastik_batch --config_file=" + stackname + ".json")
-        os.system(ilastik_command)
-        os.system(str("rm -f " + stackname + ".h5"))
-    elif json_val["use_ilp_prediction"]:
-        os.system("rm -f " + str(stackname + ".h5_processed.h5"))
-        imio.write_ilastik_batch_volume(image_stack, str(stackname + ".h5_processed.h5"))
-        image_stack = image_stack.transpose((0, 2, 1))
-        f1 = h5py.File(str(stackname + ".h5_processed.h5"), 'a')
-        f2 = h5py.File(json_val["ilpfile"], 'r')
-        f1.copy(f2['/DataSets/dataItem00/prediction'], 'volume/prediction')
-        f1.close()
-        f2.close()
+        init_features()
+        # !! add relevant actions for seed and boundary manipulation
+        init_actions()
 
-    if json_val["generate_raveler_instance"]:
-        prediction = imio.read_image_stack(str(stackname + ".h5_processed.h5"), group='/volume/prediction')
-        prediction0 = prediction[...,0]
+        image_stack = imio.read_image_stack(options.stack_path)
 
-        if json_val["use_ilp_prediction"]:
-            prediction0 = prediction0.transpose((2, 1, 0))
-        seeds = label(prediction0==0)[0] # or whatever seed method you're trying
-        print "Starting watershed"
-        w = skmorph.watershed(prediction0, seeds)
-        seg = w
-        print "Finished watershed"
+        if options.flow_generate_boundary_prediction and not options.ilastik_training_volume:
+            flow_generate_boundary_prediction(options, image_stack, experimentprefix, output_dir)
+        elif options.ilastik_training_volume:
+            MasterLogger.info("Loading saved ilastik volume")
+            os.system("rm -f " + str(experimentprefix + ".h5_processed.h5"))
+            imio.write_ilastik_batch_volume(image_stack, str(experimentprefix + ".h5_processed.h5"))
+            image_stack = image_stack.transpose((0, 2, 1))
+            f1 = h5py.File(str(experimentprefix + ".h5_processed.h5"), 'a')
+            f2 = h5py.File(options.ilpfile, 'r')
+            f1.copy(f2['/DataSets/dataItem00/prediction'], 'volume/prediction')
+            f1.close()
+            f2.close()
 
+        watershed = None
+        prediction = None
         rag = None
 
-        if json_val["perform_inclusion_removal"]:
-            rag = agglo.Rag(w, prediction0, merge_priority_function=agglo.boundary_median, show_progress=True)
-            print "Starting inclusion removal"
-            rag.remove_inclusions()
-            print "Finished inclusion removal"
-            seg = rag.get_segmentation()
+        if options.flow_generate_watershed:
+            watershed, prediction = flow_generate_watershed(options, image_stack, experimentprefix, output_dir)
 
-        if json_val["perform_median_segmentation"]:
-            if rag is None:
-                rag = agglo.Rag(w, prediction0, merge_priority_function=agglo.boundary_median, show_progress=True)
-            rag.agglomerate(numpy.inf)
-            rag_ucm = rag.get_ucm()
-            os.system(str("rm -f " + stackname + '.ucm.lzf.h5'))
-            imio.write_image_stack(rag_ucm, str(stackname + '.ucm.lzf.h5'), compression='lzf')
-            segthres = json_val["segmentation_thresholds"]
-            for val in segthres:
-                print "Converting ucm to raveler for threshold " , str(val)
-                rav = imio.ucm_to_raveler(rag_ucm, val, val, min_sp_size=0)
-                outdir = str(json_val["output_dir"] + "/raveler-export/" + json_val["stack_name"] + "-v" + json_val["version"] + "-median-" + str(val) + "/")
-                print "Writing " , outdir
-                os.system(str("rm -rf " + outdir))
-                imio.write_to_raveler(*rav, directory=outdir, gray=image_stack)
+        if options.flow_perform_inclusion_removal:
+            # ?? how to save previous watershed to avoid recomputation
+            rag = flow_perform_inclusion_removal(rag, watershed, prediction)
+
+        if options.flow_perform_median_agglomeration:
+            rag = flow_perform_median_agglomeration(options, rag, watershed, prediction, image_stack,
+                experiment_name, output_dir, provenance_filename)
+
         else:
-            rav = imio.segs_to_raveler(w, seg, 0, do_conn_comp=False)
-            outdir = str(json_val["output_dir"] + "/raveler-export/" + json_val["stack_name"] + "-v" + json_val["version"] + "/")
-            print "Writing " , outdir
-            os.system(str("rm -rf " + outdir))
-            imio.write_to_raveler(*rav, directory=outdir, gray=image_stack)
+            if 0 in options.agglomeration_output_thresholds:
+                output_raveler(rag, watershed, image_stack, experiment_name, output_dir, provenance_filename, 0)
 
+        os.system(str("rm -f " + provenance_filename))
+
+    except Exception, e:
+        if MasterLogger is not None:
+            MasterLogger.exception(e)
+        os.system(str("rm -f " + provenance_filename))
+    except KeyboardInterrupt, err:
+        if MasterLogger is not None:
+            MasterLogger.exception(err)
+        os.system(str("rm -f " + provenance_filename))
 
 sys.exit(main(sys.argv))
