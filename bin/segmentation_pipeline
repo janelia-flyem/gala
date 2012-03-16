@@ -221,9 +221,9 @@ def flow_generate_watershed(options, image_stack, experimentprefix, output_dir):
         prediction0 = prediction0.transpose((2, 1, 0))
     for action in options.boundary_manipulation_recipe:
         if action["operation"] not in SeedActionFunction:
-            MasterLogger.warning("boundary action: " + action["operation"] + " was not found.  Skipping ...")
+            MasterLogger.warning("boundary action " + action["operation"] + " was not found.  Skipping ...")
             continue
-        MasterLogger.debug("performing boundary action: " + action["operation"] + " with parameters: " + action["params"])
+        MasterLogger.debug("performing boundary action " + action["operation"] + " with parameters: " + action["params"])
         BoundaryActionFunction[(action["operation"])](seeds, action["params"])
 
     MasterLogger.info("Manipulating seeds")
@@ -233,9 +233,9 @@ def flow_generate_watershed(options, image_stack, experimentprefix, output_dir):
 
     for action in options.seed_manipulation_recipe:
         if action["operation"] not in SeedActionFunction:
-            MasterLogger.warning("seed action: " + action["operation"] + " was not found.  Skipping ...")
+            MasterLogger.warning("seed action " + action["operation"] + " was not found.  Skipping ...")
             continue
-        MasterLogger.debug("performing seed action: " + action["operation"] + " with parameters: " + action["params"])
+        MasterLogger.debug("performing seed action " + action["operation"] + " with parameters: " + action["params"])
         SeedActionFunction[(action["operation"])](seeds, action["params"])
 
 
