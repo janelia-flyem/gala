@@ -142,7 +142,6 @@ def watershed(a, seeds=None, smooth_thresh=0.0, smooth_seeds=False,
     br = b.ravel()
     ws = pad(ws, 0)
     wsr = ws.ravel()
-    maxlabel = iinfo(ws.dtype).max
     current_label = 0
     neighbors = build_neighbors_array(a, connectivity)
     level_pixels = build_levels_dict(b)
@@ -154,20 +153,15 @@ def watershed(a, seeds=None, smooth_thresh=0.0, smooth_seeds=False,
                                             any(wsr[neighbors[idx]])])
         while len(idxs_adjacent_to_labels) > 0:
             idx = idxs_adjacent_to_labels.popleft()
-            if wsr[idx]> 0: continue # in case we already processed it
+            if wsr[idx] > 0: continue # in case we already processed it
             nidxs = neighbors[idx] # neighbors
-            lnidxs = nidxs[
-                ((wsr[nidxs] != 0) * (wsr[nidxs] != maxlabel)).astype(bool)
-            ] # labeled neighbors
+            lnidxs = nidxs[(wsr[nidxs] != 0).astype(bool)] # labeled neighbors
             adj_labels = unique(wsr[lnidxs])
-            if len(adj_labels) > 1 and dams: # build a dam
-                wsr[idx] = maxlabel 
-            else: # assign a label
+            if len(adj_labels) == 1 or len(adj_labels) > 1 and not dams: 
+                # assign a label
                 wsr[idx] = wsr[lnidxs][ar[lnidxs].argmin()]
                 idxs_adjacent_to_labels.extend(nidxs[((wsr[nidxs] == 0) * 
                                     (br[nidxs] == level)).astype(bool) ])
-    if dams:
-        ws[ws==maxlabel] = 0
     return juicy_center(ws)
 
 def manual_split(probs, seg, body, seeds, connectivity=1, boundary_seeds=None):
