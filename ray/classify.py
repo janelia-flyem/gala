@@ -29,18 +29,10 @@ except ImportError:
 from scipy.misc import comb as nchoosek
 from scipy.stats import sem
 
-for sklearn_name in ['sklearn', 'scikits.learn']:
-    try:
-        sklearn = __import__(sklearn_name, globals(), locals())
-        sklearn = sys.modules[sklearn_name]
-        break
-    except ImportError:
-        sklearn = None
-if sklearn is not None:
-    SVC = sklearn.svm.SVC
-    LogisticRegression = sklearn.linear_model.LogisticRegression
-    LinearRegression = sklearn.linear_model.LinearRegression
-else:
+try:
+    from sklearn.svm import SVC
+    from sklearn.linear_model import LogisticRegression, LinearRegression
+except ImportError:
     logging.warning('scikits.learn not found. SVC, Regression not available.')
 
 from evaluate import xlogx
@@ -62,8 +54,6 @@ from adaboost import AdaBoost
 class NullFeatureManager(object):
     def __init__(self, *args, **kwargs):
         self.default_cache = 'feature-cache'
-    def __len__(self, *args, **kwargs):
-        return 0
     def __call__(self, g, n1, n2=None):
         return self.compute_features(g, n1, n2)
 
@@ -107,9 +97,6 @@ class MomentsFeatureManager(NullFeatureManager):
         self.nmoments = nmoments
         self.use_diff_features = use_diff_features
         self.oriented = oriented
-
-    def __len__(self):
-        return self.nmoments+1
 
     def compute_moment_sums(self, ar, idxs):
         values = ar[idxs][...,newaxis]
@@ -213,9 +200,6 @@ class OrientationFeatureManager(NullFeatureManager):
     def __init__(self, *args, **kwargs):
         super(OrientationFeatureManager, self).__init__()
  
-    def __len__(self):
-        return 1
-
     def create_node_cache(self, g, n):
         # Get subscripts of extent (morpho.unravel_index was slow)
         M = zeros_like(g.watershed); 
@@ -347,9 +331,6 @@ class ConvexHullFeatureManager(NullFeatureManager):
     def __init__(self, *args, **kwargs):
         super(ConvexHullFeatureManager, self).__init__()
 
-    def __len__(self):
-        return 1 
-    
     def convex_hull_ind(self,g,n1,n2=None):
         M = zeros_like(g.watershed); 
         if n2 is not None:
@@ -484,9 +465,6 @@ class HistogramFeatureManager(NullFeatureManager):
         except TypeError: # single percentile value given
             compute_percentiles = [compute_percentiles]
         self.compute_percentiles = compute_percentiles
-
-    def __len__(self):
-        return self.nbins
 
     def histogram(self, vals):
         if vals.ndim == 1:
@@ -629,9 +607,6 @@ class SquigglinessFeatureManager(NullFeatureManager):
             self.compute_bounding_box = self.compute_bounding_box_old
             # uses older, slower version of numpy.unravel_index
 
-    def __len__(self):
-        return 1
-
     def compute_bounding_box(self, indices, shape):
         d = self.ndim
         unraveled_indices = concatenate(
@@ -681,9 +656,6 @@ class CompositeFeatureManager(NullFeatureManager):
     def __init__(self, children=[], *args, **kwargs):
         super(CompositeFeatureManager, self).__init__()
         self.children = children
-    
-    def __len__(self, *args, **kwargs):
-        return sum([len(child) for child in self.children])
     
     def create_node_cache(self, *args, **kwargs):
         return [c.create_node_cache(*args, **kwargs) for c in self.children]

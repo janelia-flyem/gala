@@ -88,7 +88,7 @@ class Rag(Graph):
 
     def __init__(self, watershed=array([]), probabilities=array([]), 
             merge_priority_function=None, allow_shared_boundaries=True,
-            gt_vol=None, feature_manager=MomentsFeatureManager(), 
+            gt_vol=None, feature_manager=NullFeatureManager(), 
             show_progress=False, lowmem=False, connectivity=1,
             channel_is_oriented=None, orientation_map=array([]),
             normalize_probabilities=False):
@@ -101,6 +101,8 @@ class Rag(Graph):
         """
         super(Rag, self).__init__(weighted=False)
         self.show_progress = show_progress
+        self.pbar = ip.StandardProgressBar() if self.show_progress \
+               else ip.NoProgressBar()
         if merge_priority_function is None:
             self.merge_priority_function = boundary_mean
         else:
@@ -160,9 +162,7 @@ class Rag(Graph):
             self.add_node(self.boundary_body, 
                     extent=set(flatnonzero(self.watershed==self.boundary_body)))
         inner_idxs = idxs[self.watershed_r[idxs] != self.boundary_body]
-        pbar = ip.StandardProgressBar() if self.show_progress \
-                                        else ip.NoProgressBar()
-        for idx in ip.with_progress(inner_idxs, title='Graph... ', pbar=pbar):
+        for idx in ip.with_progress(inner_idxs, title='Graph ', pbar=self.pbar):
             ns = self.neighbor_idxs(idx)
             adj_labels = self.watershed_r[ns]
             adj_labels = unique(adj_labels)
@@ -194,14 +194,15 @@ class Rag(Graph):
 
     def set_feature_manager(self, feature_manager):
         self.feature_manager = feature_manager
-        if len(self.feature_manager) > 0:
-            self.compute_feature_caches()
+        self.compute_feature_caches()
 
     def compute_feature_caches(self):
-        for n in self.nodes_iter():
+        for n in ip.with_progress(
+                    self.nodes(), title='Node caches ', pbar=self.pbar):
             self.node[n]['feature-cache'] = \
                             self.feature_manager.create_node_cache(self, n)
-        for n1, n2 in self.edges_iter():
+        for n1, n2 in ip.with_progress(
+                    self.edges(), title='Edge caches ', pbar=self.pbar):
             self[n1][n2]['feature-cache'] = \
                             self.feature_manager.create_edge_cache(self, n1, n2)
 
