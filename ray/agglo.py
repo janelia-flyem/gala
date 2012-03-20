@@ -425,6 +425,7 @@ class Rag(Graph):
         priority_mode = kwargs.get('priority_mode', 'random').lower()
         memory = kwargs.get('memory', True)
         unique = kwargs.get('unique', True)
+        active_function = kwargs.get('active_function', classifier_probability)
         max_numepochs = kwargs.get('max_numepochs', 10)
         if priority_mode == 'mean' and unique: 
             max_numepochs = 2 if learn_flat else 1
@@ -455,8 +456,7 @@ class Rag(Graph):
                 cl = cl.fit(data[0], data[1][:,label_type_keys[labeling_mode]])
                 if type(cl) == RandomForest:
                     logging.info('classifier oob error: %.2f'%cl.oob)
-                g.merge_priority_function = \
-                                        classifier_probability(feature_map, cl)
+                g.merge_priority_function = active_function(feature_map, cl)
             elif priority_mode == 'random' or \
                 (priority_mode == 'active' and numepochs == 0):
                 g.merge_priority_function = random_priority
