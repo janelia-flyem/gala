@@ -59,6 +59,15 @@ if __name__ == '__main__':
             ')',
         help='Specify the feature manager you would like to use.'
     )
+    parser.add_argument('-E', '--training-data-extension', default='.trdat.h5',
+        help='The filename extension for the training data.'
+    )
+    parser.add_argument('-F', '--classifier-extension', default='.rf.h5',
+        help='The filename extension for the saved classifier.'
+    )
+    parser.add_argument('-P', '--show-progress', action='store_true', 
+        default=False, help='Show a progress bar.'
+    )
     parser.add_argument('-v', '--verbose', action='store_true', default=False,
         help='Print runtime information about execution.'
     )
@@ -67,71 +76,21 @@ if __name__ == '__main__':
     p, gs = map(imio.read_image_stack, args.fin)
     ws = skmorph.watershed(p, label(p==0)[0])
     fm = eval(args.feature_manager, {}, {'classify': classify})
-    g = agglo.Rag(ws, p, feature_manager=fm, learning_mode=args.learning_mode,
-    if args.load_classifier is not None:
-        mpf = classifier_probability(eval(args.feature_map_function), 
-                                                        args.load_classifier)
-    else:
-        mpf = eval(args.objective_function)
-
-    g = Rag(args.watershed, probs, show_progress=args.show_progress, 
-        merge_priority_function=mpf, 
-        allow_shared_boundaries=args.allow_shared_boundaries,
-        lowmem=args.low_memory)
-
-    vfn.write('RAG computed. Number of nodes: %i, Number of edges: %i\n'%
-        (g.number_of_nodes(), g.number_of_edges())
-    )
-
-    if args.ladder is not None:
-        if args.pre_ladder:
-            vfn.write('Computing ladder agglomeration...\n')
-            args.post_ladder = False
-            g.agglomerate_ladder(args.ladder, args.strict_ladder)
-            g.rebuild_merge_queue()
-            vfn.write('Ladder done. new graph statistics: n: %i, m: %i\n'%
-                (g.number_of_nodes(), g.number_of_edges())
-            )
-        else:
-            args.post_ladder = True
-    for t in args.thresholds:
-        g.agglomerate(t)
-        if args.ladder is not None and args.post_ladder:
-            if len(args.thresholds) > 1:
-                g2 = g.copy()
-            else:
-                g2 = g
-            g2.agglomerate_ladder(args.ladder, args.strict_ladder)
-        else:
-            g2 = g
-        try:
-            write_h5_stack(g2.get_segmentation(), args.fout % t)
-        except TypeError:
-            write_h5_stack(g2.get_segmentation(), args.fout)
-            if len(args.thresholds) > 1:
-                sys.stdout.write(
-                    '\nWarning: single output file but multiple thresholds '+
-                    'provided. What should I do? (q: quit, first threshold '+
-                    'written to file; t: give specific threshold, written '+
-                    'to file; f: new filename, provide new filename for '+
-                    'output.\n'
-                )
-                response = sys.stdin.readline()[0]
-                if response == 'q':
-                    break
-                elif response == 't':
-                    sys.stdout.write('which threshold?\n')
-                    t = double(sys.stdin.readline()[:-1])
-                    g.agglomerate(t)
-                    if args.ladder is not None and args.post_ladder:
-                        g.agglomerate_ladder(args.ladder, args.strict_ladder)
-                    os.remove(args.fout)
-                    write_h5_stack(g.get_segmentation(), args.fout)
-                elif response == 'f':
-                    args.fout = sys.stdin.readline()[:-1]
-                    continue
-                else:
-                    sys.stdout.write('Unknown response: quitting.\n')
-                    break
-    g.merge_queue.finish()
-
+    g = agglo.Rag(ws, p, feature_manager=fm, show_progress=args.show_progress)
+    g.remove_inclusions()
+    d, ad = g.learn_agglomerate(gs, fm, args.num_examples, 
+        learn_flat=args.learn_flat, learning_mode=args.learning_mode,
+        labeling_mode=args.labeling_mode, priority_mode=args.priority_mode,
+        memory=args.memory, unique=args.unique, min_num_epochs=args.num_epochs)
+    current_directory = os.path.realpath('.')
+    os.chdir(os.path.dirname(classify.__file__))
+    git_commit = sp.check_output(['git', 'log', '-n', '1']).split('\n')[0]\
+                 .split()[1]
+    git_status = 'commit' if \
+        sp.check_output(['git', 'status']).split('\n').count() == 0 else \
+        'uncommitted changes from'
+    os.chdir(current_directory)
+    info_string = '\n'.join(args.fin + [args.feature_manager, 
+                                    ' '.join([git_status, git_commit])])
+    classify.save_training_data_to_disk(d, 
+        args.fout + args.training_data_extension, info=info_string)
