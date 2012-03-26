@@ -92,7 +92,8 @@ class NullFeatureManager(object):
     
 
 class MomentsFeatureManager(NullFeatureManager):
-    def __init__(self, nmoments=4, use_diff_features=True, oriented=False, *args, **kwargs):
+    def __init__(self, nmoments=4, use_diff_features=True, oriented=False, 
+            *args, **kwargs):
         super(MomentsFeatureManager, self).__init__()
         self.nmoments = nmoments
         self.use_diff_features = use_diff_features
@@ -452,8 +453,8 @@ class ConvexHullFeatureManager(NullFeatureManager):
  
 class HistogramFeatureManager(NullFeatureManager):
     def __init__(self, nbins=4, minval=0.0, maxval=1.0, 
-                    compute_percentiles=[], oriented=False, compute_histogram = True,
-                    *args, **kwargs):
+            compute_percentiles=[], oriented=False, 
+            compute_histogram=True, *args, **kwargs):
         super(HistogramFeatureManager, self).__init__()
         self.minval = minval
         self.maxval = maxval
