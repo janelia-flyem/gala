@@ -26,10 +26,10 @@ if __name__ == '__main__':
         default=False, 
         help='Remove inclusions before training and before output.'
     )
-    parser.add_argument('-l', '--learning-mode', default='strict',
+    parser.add_argument('-L', '--learning-mode', default='strict',
         help='Set the learning mode (strict or loose).'
     )
-    parser.add_argument('--labeling-mode', default='assignment',
+    parser.add_argument('-l', '--labeling-mode', default='assignment',
         help='Set the labeling mode (assignment, voi-sign, or rand-sign).'
     )
     parser.add_argument('-p', '--priority-mode', default='active',
@@ -62,7 +62,7 @@ if __name__ == '__main__':
     parser.add_argument('-E', '--training-data-extension', default='.trdat.h5',
         help='The filename extension for the training data.'
     )
-    parser.add_argument('-F', '--classifier-extension', default='.rf.h5',
+    parser.add_argument('-c', '--classifier-extension', default='.rf.h5',
         help='The filename extension for the saved classifier.'
     )
     parser.add_argument('-P', '--show-progress', action='store_true', 
