@@ -78,7 +78,7 @@ if __name__ == '__main__':
     fm = eval(args.feature_manager, {}, {'classify': classify})
     g = agglo.Rag(ws, p, feature_manager=fm, show_progress=args.show_progress)
     g.remove_inclusions()
-    d, ad = g.learn_agglomerate(gs, fm, args.num_examples, 
+    d, epochs = g.learn_agglomerate(gs, fm, args.num_examples, 
         learn_flat=args.learn_flat, learning_mode=args.learning_mode,
         labeling_mode=args.labeling_mode, priority_mode=args.priority_mode,
         memory=args.memory, unique=args.unique, min_num_epochs=args.num_epochs)
@@ -94,3 +94,8 @@ if __name__ == '__main__':
     info_string = '\n'.join(args.fin + [args.feature_manager, git_stamp])
     classify.save_training_data_to_disk(d, 
         args.fout + args.training_data_extension, info=info_string)
+    for i, epoch in enumerate(epochs):
+        classify.save_training_data_to_disk(epoch, 
+            args.fout + args.training_data_extension + str(i), info=info_string)
+    rf = classify.RandomForest().fit(d[0], d[1][:,0])
+    rf.save_to_disk(args.fout + args.classifier_extension)
