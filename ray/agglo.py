@@ -426,11 +426,12 @@ class Rag(Graph):
         memory = kwargs.get('memory', True)
         unique = kwargs.get('unique', True)
         active_function = kwargs.get('active_function', classifier_probability)
-        max_numepochs = kwargs.get('max_numepochs', 10)
+        max_num_epochs = kwargs.get('max_num_epochs', 10)
+        min_num_epochs = kwargs.get('min_num_epochs', 1)
         if priority_mode == 'mean' and unique: 
-            max_numepochs = 2 if learn_flat else 1
+            max_num_epochs = 2 if learn_flat else 1
         if priority_mode in ['random', 'mean'] and not memory:
-            max_numepochs = 1
+            max_num_epochs = 1
         label_type_keys = {'assignment':0, 'voi-sign':1, 'rand-sign':2}
         if type(gts) != list:
             gts = [gts] # allow using single ground truth as input
@@ -438,11 +439,11 @@ class Rag(Graph):
                 [contingency_table(self.get_segmentation(), gt) for gt in gts]
         alldata = []
         data = [[],[],[],[]]
-        for numepochs in range(max_numepochs):
+        for num_epochs in range(max_num_epochs):
             ctables = deepcopy(master_ctables)
-            if len(data[0]) > min_num_samples:
+            if len(data[0]) > min_num_samples and num_epochs >= min_num_epochs:
                 break
-            if learn_flat and numepochs == 0:
+            if learn_flat and num_epochs == 0:
                 alldata.append(self.learn_flat(gts, feature_map))
                 data = self._unique_learning_data_elements(alldata) if memory \
                     else alldata[-1]
@@ -450,15 +451,15 @@ class Rag(Graph):
             g = self.copy()
             if priority_mode == 'mean':
                 g.merge_priority_function = boundary_mean
-            elif numepochs > 0 and priority_mode == 'active' or \
-                numepochs % 2 == 1 and priority_mode == 'mixed':
+            elif num_epochs > 0 and priority_mode == 'active' or \
+                num_epochs % 2 == 1 and priority_mode == 'mixed':
                 cl = kwargs.get('classifier', RandomForest())
                 cl = cl.fit(data[0], data[1][:,label_type_keys[labeling_mode]])
                 if type(cl) == RandomForest:
                     logging.info('classifier oob error: %.2f'%cl.oob)
                 g.merge_priority_function = active_function(feature_map, cl)
             elif priority_mode == 'random' or \
-                (priority_mode == 'active' and numepochs == 0):
+                (priority_mode == 'active' and num_epochs == 0):
                 g.merge_priority_function = random_priority
             elif priority_mode == 'custom':
                 g.merge_priority_function = kwargs.get('mpf', boundary_mean)
@@ -474,7 +475,7 @@ class Rag(Graph):
                     data = concatenate_data_elements(alldata)
             else:
                 data = alldata[-1]
-            logging.debug('data size %d at epoch %d'%(len(data[0]), numepochs))
+            logging.debug('data size %d at epoch %d'%(len(data[0]), num_epochs))
         return data, alldata
 
     def learn_flat(self, gts, feature_map, *args, **kwargs):
