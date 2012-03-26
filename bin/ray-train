@@ -1,0 +1,137 @@
+#!/usr/bin/env python
+
+# Python standard library
+import sys, os, argparse, cPickle
+
+# external libraries
+from numpy import unique
+from skimage import morphology as skmorph
+from scipy.ndimage import label
+
+# local modules
+from ray import imio, agglo, morpho, classify
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(
+        description='Train a classifier for agglomerative segmentation.'
+    )
+    parser.add_argument('fin', nargs=2,
+        help='The boundary probability map and gold standard segmentation ' +\
+        'files, in HDF5 format (group "stack" is assumed).'
+    )
+    parser.add_argument('fout', 
+        help='The output filename for the training examples and classifier.'
+    )
+    parser.add_argument('-I', '--remove-inclusions', action='store_true',
+        default=False, 
+        help='Remove inclusions before training and before output.'
+    )
+    parser.add_argument('-l', '--learning-mode', default='strict',
+        help='Set the learning mode (strict or loose).'
+    )
+    parser.add_argument('--labeling-mode', default='assignment',
+        help='Set the labeling mode (assignment, voi-sign, or rand-sign).'
+    )
+    parser.add_argument('-p', '--priority-mode', default='active',
+        metavar='STRING',
+        help='Set the priority mode during learning (default: %(default)s).'
+    )
+    parser.add_argument('-m', '--memory', default=True,
+        help='Remember all training epochs.'
+    )
+    parser.add_argument('-u', '--unique', default=True,
+        help='Do not use repeated examples.'
+    )
+    parser.add_argument('-f', '--learn-flat', action='store_true', default=True,
+        help='Learn from the flat region adjacency graph to begin.'
+    )
+    parser.add_argument('-e', '--num-epochs', type=int, metavar='UINT',
+        default=5, help='Set the number of epochs of training to run ' +\
+        '(default: %(default)s).'
+    )
+    parser.add_argument('-n', '--num-examples', type=int, metavar='UINT',
+        default=1, help='Set the minimum number of training examples.'
+    )
+    parser.add_argument('-F', '--feature-manager',
+        default='classify.CompositeFeatureManager(children=' +\
+            '[classify.MomentsFeatureManager(), ' +\
+            'classify.HistogramFeatureManager(25, 0, 1, [0.1, 0.5, 0.9])]' +\
+            ')',
+        help='Specify the feature manager you would like to use.'
+    )
+    parser.add_argument('-v', '--verbose', action='store_true', default=False,
+        help='Print runtime information about execution.'
+    )
+    args = parser.parse_args()
+
+    p, gs = map(imio.read_image_stack, args.fin)
+    ws = skmorph.watershed(p, label(p==0)[0])
+    fm = eval(args.feature_manager, {}, {'classify': classify})
+    g = agglo.Rag(ws, p, feature_manager=fm, learning_mode=args.learning_mode,
+    if args.load_classifier is not None:
+        mpf = classifier_probability(eval(args.feature_map_function), 
+                                                        args.load_classifier)
+    else:
+        mpf = eval(args.objective_function)
+
+    g = Rag(args.watershed, probs, show_progress=args.show_progress, 
+        merge_priority_function=mpf, 
+        allow_shared_boundaries=args.allow_shared_boundaries,
+        lowmem=args.low_memory)
+
+    vfn.write('RAG computed. Number of nodes: %i, Number of edges: %i\n'%
+        (g.number_of_nodes(), g.number_of_edges())
+    )
+
+    if args.ladder is not None:
+        if args.pre_ladder:
+            vfn.write('Computing ladder agglomeration...\n')
+            args.post_ladder = False
+            g.agglomerate_ladder(args.ladder, args.strict_ladder)
+            g.rebuild_merge_queue()
+            vfn.write('Ladder done. new graph statistics: n: %i, m: %i\n'%
+                (g.number_of_nodes(), g.number_of_edges())
+            )
+        else:
+            args.post_ladder = True
+    for t in args.thresholds:
+        g.agglomerate(t)
+        if args.ladder is not None and args.post_ladder:
+            if len(args.thresholds) > 1:
+                g2 = g.copy()
+            else:
+                g2 = g
+            g2.agglomerate_ladder(args.ladder, args.strict_ladder)
+        else:
+            g2 = g
+        try:
+            write_h5_stack(g2.get_segmentation(), args.fout % t)
+        except TypeError:
+            write_h5_stack(g2.get_segmentation(), args.fout)
+            if len(args.thresholds) > 1:
+                sys.stdout.write(
+                    '\nWarning: single output file but multiple thresholds '+
+                    'provided. What should I do? (q: quit, first threshold '+
+                    'written to file; t: give specific threshold, written '+
+                    'to file; f: new filename, provide new filename for '+
+                    'output.\n'
+                )
+                response = sys.stdin.readline()[0]
+                if response == 'q':
+                    break
+                elif response == 't':
+                    sys.stdout.write('which threshold?\n')
+                    t = double(sys.stdin.readline()[:-1])
+                    g.agglomerate(t)
+                    if args.ladder is not None and args.post_ladder:
+                        g.agglomerate_ladder(args.ladder, args.strict_ladder)
+                    os.remove(args.fout)
+                    write_h5_stack(g.get_segmentation(), args.fout)
+                elif response == 'f':
+                    args.fout = sys.stdin.readline()[:-1]
+                    continue
+                else:
+                    sys.stdout.write('Unknown response: quitting.\n')
+                    break
+    g.merge_queue.finish()
+
