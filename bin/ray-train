@@ -86,11 +86,11 @@ if __name__ == '__main__':
     os.chdir(os.path.dirname(classify.__file__))
     git_commit = sp.check_output(['git', 'log', '-n', '1']).split('\n')[0]\
                  .split()[1]
-    git_status = 'commit' if \
-        sp.check_output(['git', 'status']).split('\n').count() == 0 else \
-        'uncommitted changes from'
+    git_stamp = 'commit ' + git_commit if \
+        sp.check_output(['git', 'status']).split('\n').count(
+        'nothing to commit (working directory clean)') == 1 else \
+        'uncommitted changes from ' + git_commit
     os.chdir(current_directory)
-    info_string = '\n'.join(args.fin + [args.feature_manager, 
-                                    ' '.join([git_status, git_commit])])
+    info_string = '\n'.join(args.fin + [args.feature_manager, git_stamp])
     classify.save_training_data_to_disk(d, 
         args.fout + args.training_data_extension, info=info_string)
