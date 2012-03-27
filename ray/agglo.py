@@ -445,7 +445,7 @@ class Rag(Graph):
                 break
             if learn_flat and num_epochs == 0:
                 alldata.append(self.learn_flat(gts, feature_map))
-                data = self._unique_learning_data_elements(alldata) if memory \
+                data = unique_learning_data_elements(alldata) if memory \
                     else alldata[-1]
                 continue
             g = self.copy()
