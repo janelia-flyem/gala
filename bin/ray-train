@@ -2,6 +2,7 @@
 
 # Python standard library
 import sys, os, argparse, cPickle
+import subprocess as sp
 
 # external libraries
 from numpy import unique
