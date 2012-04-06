@@ -175,12 +175,13 @@ rf.load_from_disk('my-random-forest.rf.h5')
 Let's use it right now though:
 
 ```python
-# use agglo.classifier_priority to create a closure over the feature map and
+# use agglo.classifier_probability to create a closure over the feature map and
 # classifier that satisfies the definition of a merge priority function.
-learned_priority_function = agglo.classifier_priority(fc, rf)
+learned_priority_function = agglo.classifier_probability(fc, rf)
 test_prob = imio.read_image_stack('test-probabilities-*.png')
 test_label_field = morpho.watershed(test_prob)
-gtest = agglo.Rag(test_label_field, test_prob, learned_priority_function)
+gtest = agglo.Rag(test_label_field, test_prob, learned_priority_function,
+    feature_manager=fc)
 gtest.agglomerate(inf)
 test_ucm = gtest.get_ucm()
 ```
