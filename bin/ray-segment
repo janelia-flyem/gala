@@ -15,11 +15,11 @@ from ray import imio, agglo, morpho, classify
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
         description='Train a classifier for agglomerative segmentation.')
-    parser.add_argument('fin', nargs=1,
+    parser.add_argument('fin',
         help='The boundary probability map to be segmented, in HDF5 format ' +\
         '(group "stack" is assumed).')
     parser.add_argument('fout', 
-        help='The output filename for the segmentations (use %f-format).')
+        help='The output filename for the segmentations (use %%f-format).')
     parser.add_argument('-I', '--remove-inclusions', action='store_true',
         default=False, 
         help='Remove inclusions before segmenting and before output.')
@@ -33,7 +33,7 @@ if __name__ == '__main__':
     parser.add_argument('-k', '--classifier', metavar='CL_FILE',
         help='Use the agglomeration classifier from file CL_FILE.')
     parser.add_argument('-T', '--training-data', metavar='TR_FILE',
-        type=classify.lead_training_data_from_disk,
+        type=classify.load_training_data_from_disk,
         help='Use the agglomeration training data in TR_FILE.')
     parser.add_argument('-V', '--expected-vi', default=False,
         help='Use expected change in VI as agglomeration function.')
@@ -56,7 +56,7 @@ if __name__ == '__main__':
     else:
         ws = skmorph.watershed(p, label(p==0)[0])
     fm = eval(args.feature_manager, {}, {'classify': classify})
-    if args.training data is not None or args.classifier is not None:
+    if args.training_data is not None or args.classifier is not None:
         if args.classifier is not None:
             cl = classify.RandomForest()
             cl.load_from_disk(args.classifier)
