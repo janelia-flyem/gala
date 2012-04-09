@@ -1,0 +1,85 @@
+#!/usr/bin/env python
+
+# Python standard library
+import sys, os, argparse, cPickle
+import subprocess as sp
+
+# external libraries
+from numpy import unique
+from skimage import morphology as skmorph
+from scipy.ndimage import label
+
+# local modules
+from ray import imio, agglo, morpho, classify
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(
+        description='Train a classifier for agglomerative segmentation.')
+    parser.add_argument('fin', nargs=1,
+        help='The boundary probability map to be segmented, in HDF5 format ' +\
+        '(group "stack" is assumed).')
+    parser.add_argument('fout', 
+        help='The output filename for the segmentations (use %f-format).')
+    parser.add_argument('-I', '--remove-inclusions', action='store_true',
+        default=False, 
+        help='Remove inclusions before segmenting and before output.')
+    parser.add_argument('-F', '--feature-manager', metavar='EVAL_STR',
+        default='classify.CompositeFeatureManager(children=' +\
+            '[classify.MomentsFeatureManager(), ' +\
+            'classify.HistogramFeatureManager(25, 0, 1, [0.1, 0.5, 0.9])]' +\
+            ')',
+        help='Specify the feature manager you would like to use. ' +\
+        '(This HAS to match the one used during training!)')
+    parser.add_argument('-k', '--classifier', metavar='CL_FILE',
+        help='Use the agglomeration classifier from file CL_FILE.')
+    parser.add_argument('-T', '--training-data', metavar='TR_FILE',
+        type=classify.lead_training_data_from_disk,
+        help='Use the agglomeration training data in TR_FILE.')
+    parser.add_argument('-V', '--expected-vi', default=False,
+        help='Use expected change in VI as agglomeration function.')
+    parser.add_argument('-f', '--priority-function', metavar='EVAL_STR',
+        default='agglo.boundary_median',
+        help='Use specified priority function (when not using a classifier).')
+    parser.add_argument('-t', '--thresholds', nargs='+', default=[],
+        help='Output segmentations for the specified thresholds.')
+    parser.add_argument('-w', '--watershed', nargs='+', metavar='FILE',
+        help='Load the watershed or other oversegmentation from FILE.')
+    parser.add_argument('-P', '--show-progress', action='store_true', 
+        default=False, help='Show a progress bar.')
+    parser.add_argument('-v', '--verbose', action='store_true', default=False,
+        help='Print runtime information about execution.')
+    args = parser.parse_args()
+
+    p = imio.read_image_stack(args.fin)
+    if args.watershed is not None:
+        ws = imio.read_image_stack(args.watershed)
+    else:
+        ws = skmorph.watershed(p, label(p==0)[0])
+    fm = eval(args.feature_manager, {}, {'classify': classify})
+    if args.training data is not None or args.classifier is not None:
+        if args.classifier is not None:
+            cl = classify.RandomForest()
+            cl.load_from_disk(args.classifier)
+        else:
+            cl = classify.RandomForest().fit(args.training_data[0], 
+                                             args.training_data[1][:,0])
+        if args.expected_vi:
+            mpf = agglo.expected_change_vi(fm, cl)
+        else:
+            mpf = agglo.classifier_probability(fm, cl)
+    else:
+        mpf = eval(args.priority_function, {}, {'agglo': agglo})
+
+    g = agglo.Rag(ws, p, mpf, feature_manager=fm, 
+                  show_progress=args.show_progress)
+    if args.remove_inclusions:
+        g.remove_inclusions()
+    for t in args.thresholds:
+        g.agglomerate(t)
+        g.remove_inclusions()
+        s = g.get_segmentation()
+        imio.write_image_stack(s, (args.fout+'.lzf.h5')%t, compression='lzf')
+        g.rebuild_merge_queue()
+    g.agglomerate(inf)
+    u = g.get_ucm()
+    imio.write_image_stack(u, (args.fout+'.ucm.lzf.h5')%inf, compression='lzf')
