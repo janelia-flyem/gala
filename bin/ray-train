@@ -14,64 +14,47 @@ from ray import imio, agglo, morpho, classify
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
-        description='Train a classifier for agglomerative segmentation.'
-    )
+        description='Train a classifier for agglomerative segmentation.')
     parser.add_argument('fin', nargs=2,
         help='The boundary probability map and gold standard segmentation ' +\
-        'files, in HDF5 format (group "stack" is assumed).'
-    )
+        'files, in HDF5 format (group "stack" is assumed).')
     parser.add_argument('fout', 
-        help='The output filename for the training examples and classifier.'
-    )
+        help='The output filename for the training examples and classifier.')
     parser.add_argument('-I', '--remove-inclusions', action='store_true',
         default=False, 
-        help='Remove inclusions before training and before output.'
-    )
+        help='Remove inclusions before training and before output.')
     parser.add_argument('-L', '--learning-mode', default='strict',
-        help='Set the learning mode (strict or loose).'
-    )
+        help='Set the learning mode (strict or loose).')
     parser.add_argument('-l', '--labeling-mode', default='assignment',
-        help='Set the labeling mode (assignment, voi-sign, or rand-sign).'
-    )
+        help='Set the labeling mode (assignment, voi-sign, or rand-sign).')
     parser.add_argument('-p', '--priority-mode', default='active',
         metavar='STRING',
-        help='Set the priority mode during learning (default: %(default)s).'
-    )
+        help='Set the priority mode during learning (default: %(default)s).')
     parser.add_argument('-m', '--memory', default=True,
-        help='Remember all training epochs.'
-    )
+        help='Remember all training epochs.')
     parser.add_argument('-u', '--unique', default=True,
-        help='Do not use repeated examples.'
-    )
+        help='Do not use repeated examples.')
     parser.add_argument('-f', '--learn-flat', action='store_true', default=True,
-        help='Learn from the flat region adjacency graph to begin.'
-    )
+        help='Learn from the flat region adjacency graph to begin.')
     parser.add_argument('-e', '--num-epochs', type=int, metavar='UINT',
         default=5, help='Set the number of epochs of training to run ' +\
-        '(default: %(default)s).'
-    )
+        '(default: %(default)s).')
     parser.add_argument('-n', '--num-examples', type=int, metavar='UINT',
-        default=1, help='Set the minimum number of training examples.'
-    )
+        default=1, help='Set the minimum number of training examples.')
     parser.add_argument('-F', '--feature-manager',
         default='classify.CompositeFeatureManager(children=' +\
             '[classify.MomentsFeatureManager(), ' +\
             'classify.HistogramFeatureManager(25, 0, 1, [0.1, 0.5, 0.9])]' +\
             ')',
-        help='Specify the feature manager you would like to use.'
-    )
+        help='Specify the feature manager you would like to use.')
     parser.add_argument('-E', '--training-data-extension', default='.trdat.h5',
-        help='The filename extension for the training data.'
-    )
+        help='The filename extension for the training data.')
     parser.add_argument('-c', '--classifier-extension', default='.rf.h5',
-        help='The filename extension for the saved classifier.'
-    )
+        help='The filename extension for the saved classifier.')
     parser.add_argument('-P', '--show-progress', action='store_true', 
-        default=False, help='Show a progress bar.'
-    )
+        default=False, help='Show a progress bar.')
     parser.add_argument('-v', '--verbose', action='store_true', default=False,
-        help='Print runtime information about execution.'
-    )
+        help='Print runtime information about execution.')
     args = parser.parse_args()
 
     p, gs = map(imio.read_image_stack, args.fin)
@@ -97,6 +80,7 @@ if __name__ == '__main__':
         args.fout + args.training_data_extension, info=info_string)
     for i, epoch in enumerate(epochs):
         classify.save_training_data_to_disk(epoch, 
-            args.fout + args.training_data_extension + str(i), info=info_string)
+            args.fout + args.training_data_extension + '.' + str(i),
+            info=info_string)
     rf = classify.RandomForest().fit(d[0], d[1][:,0])
     rf.save_to_disk(args.fout + args.classifier_extension)
