@@ -5,7 +5,7 @@ import sys, os, argparse, cPickle
 import subprocess as sp
 
 # external libraries
-from numpy import unique
+from numpy import unique, inf
 from skimage import morphology as skmorph
 from scipy.ndimage import label
 
@@ -75,7 +75,7 @@ if __name__ == '__main__':
                   show_progress=args.show_progress)
     if args.remove_inclusions:
         g.remove_inclusions()
-    for t in args.thresholds:
+    for t in map(float, args.thresholds):
         g.agglomerate(t)
         g.remove_inclusions()
         s = g.get_segmentation()
