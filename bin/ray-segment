@@ -35,14 +35,15 @@ if __name__ == '__main__':
     parser.add_argument('-T', '--training-data', metavar='TR_FILE',
         type=classify.load_training_data_from_disk,
         help='Use the agglomeration training data in TR_FILE.')
-    parser.add_argument('-V', '--expected-vi', default=False,
+    parser.add_argument('-V', '--expected-vi', action='store_true', 
+        default=False,
         help='Use expected change in VI as agglomeration function.')
     parser.add_argument('-f', '--priority-function', metavar='EVAL_STR',
         default='agglo.boundary_median',
         help='Use specified priority function (when not using a classifier).')
     parser.add_argument('-t', '--thresholds', nargs='+', default=[],
         help='Output segmentations for the specified thresholds.')
-    parser.add_argument('-w', '--watershed', nargs='+', metavar='FILE',
+    parser.add_argument('-w', '--watershed', metavar='FILE',
         help='Load the watershed or other oversegmentation from FILE.')
     parser.add_argument('-P', '--show-progress', action='store_true', 
         default=False, help='Show a progress bar.')
