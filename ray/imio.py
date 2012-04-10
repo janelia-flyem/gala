@@ -81,6 +81,7 @@ def read_image_stack(fn, *args, **kwargs):
     elif len(crop) == 2: crop = [None]*4 + crop
     kwargs['crop'] = crop
     if any([fn.endswith(ext) for ext in supported_image_extensions]):
+        # image types, such as a set of pngs or a multi-page tiff
         xmin, xmax, ymin, ymax, zmin, zmax = crop
         if len(args) > 0 and type(args[0]) == str and args[0].endswith(fn[-3:]):
             # input is a list of filenames
@@ -100,8 +101,16 @@ def read_image_stack(fn, *args, **kwargs):
             stack = zeros((len(fns),)+im0.shape, dtype)
             for i, im in enumerate(ars):
                 stack[i] = im[xmin:xmax,ymin:ymax]
-    if fn.endswith('.h5'):
+    elif fn.endswith('_processed.h5'):
+        # Ilastik batch prediction output file
+        stack = read_prediction_from_ilastik_batch(fn, **kwargs)
+    elif fn.endswith('.h5'):
+        # other HDF5 file
         stack = read_h5_stack(join_path(d,fn), *args, **kwargs)
+    elif os.path.isdir(fn) and \
+        os.path.isfile(os.path.join(fn, 'superpixel_to_segment_map.txt')):
+        # Raveler export
+        stack = raveler_to_labeled_volume(fn, *args, **kwargs)
     return squeeze(stack)
 
 def single_arg_read_image_stack(fn):
@@ -257,7 +266,8 @@ def ucm_to_raveler(ucm, sp_threshold=0, body_threshold=0.1, **kwargs):
     bodies = label(ucm<=body_threshold)[0]
     return segs_to_raveler(sps, bodies, **kwargs)
 
-def segs_to_raveler(sps, bodies, min_sp_size=0, do_conn_comp=False):
+def segs_to_raveler(sps, bodies, min_sp_size=0, do_conn_comp=False,
+                                                            prior_sp_map=None):
     if not (sps==0).any() and not (bodies==0).any():
         sps[:,0,0] = 0
         bodies[:,0,0] = 0
@@ -346,12 +356,14 @@ def write_to_raveler(sps, sp_to_segment, segment_to_body, directory, gray=None,
                 directory, '1024', '0'])
             call([os.path.join(raveler_dir, 'bin/bounds'), directory])
             call([os.path.join(raveler_dir, 'bin/compilestack'), directory])
-            call(['python', os.path.join(raveler_dir, 'util/run-contours-std.py'), 
+            call(['python', 
+                os.path.join(raveler_dir, 'util/run-contours-std.py'),
                 directory, '-n', '%i'%nproc_contours])
         except:
-            logging.warning('Error during Raveler export post-processing step. ' +
-                'Possible causes are that you do not have Raveler installed or ' +
-                'you did not specify the correct installation path.')
+            logging.warning(
+                'Error during Raveler export post-processing step. ' +
+                'Possible causes are that you do not have Raveler installed ' +
+                'or you did not specify the correct installation path.')
             with sys.exc_info() as ex:
                 logging.warning('Exception info:\n' + '\n'.join(map(str, ex)))
     # make permissions friendly for proofreaders.
@@ -370,7 +382,7 @@ def write_json_body_annotations(annot,
         json.dump(annot, f, indent=2)
 
 def raveler_to_labeled_volume(rav_export_dir, get_glia=False, 
-                                            use_watershed=True, **kwargs):
+                                            use_watershed=False, **kwargs):
     """Import a raveler export stack into a labeled segmented volume."""
     import morpho
     spmap = read_image_stack(
@@ -526,6 +538,8 @@ def write_ilastik_batch_volume(im, fn):
         raise ValueError('Unsupported number of dimensions in image.')
     write_h5_stack(im, fn, group='/volume/data')
 
-def read_prediction_from_ilastik_batch(fn):
+def read_prediction_from_ilastik_batch(fn, **kwargs):
     """Read the prediction produced by Ilastik from batch processing."""
-    return squeeze(read_h5_stack(fn, group='/volume/prediction'))
+    if not kwargs.has_key('group'):
+        kwargs['group'] = '/volume/prediction'
+    return squeeze(read_h5_stack(fn, **kwargs))
