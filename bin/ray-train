@@ -10,7 +10,7 @@ from skimage import morphology as skmorph
 from scipy.ndimage import label
 
 # local modules
-from ray import imio, agglo, morpho, classify
+from ray import imio, agglo, morpho, classify, evaluate
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
@@ -62,6 +62,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     p, gs = map(imio.read_image_stack, args.fin)
+    gs = evaluate.relabel_from_one(gs)[0]
     ws = skmorph.watershed(p, label(p==0)[0])
     fm = eval(args.feature_manager, {}, {'classify': classify})
     g = agglo.Rag(ws, p, feature_manager=fm, show_progress=args.show_progress)
