@@ -17,9 +17,13 @@ if __name__ == '__main__':
         description='Train a classifier for agglomerative segmentation.')
     parser.add_argument('fin', nargs=2,
         help='The boundary probability map and gold standard segmentation ' +\
-        'files, in HDF5 format (group "stack" is assumed).')
+        'files. Supported formats are png/tiff/jpeg stacks, .h5 files ' +\
+        'group "stack" is assumed), _processed.h5 Ilastik batch prediction '+\
+        'files (group "/volume/prediction" is assumed), and Raveler export '+\
+        'directories.')
     parser.add_argument('fout', 
-        help='The output filename for the training examples and classifier.')
+        help='The output filename for the training examples and classifier. '+\
+        'Output format is a set of .h5 files.')
     parser.add_argument('-I', '--remove-inclusions', action='store_true',
         default=False, 
         help='Remove inclusions before training and before output.')
