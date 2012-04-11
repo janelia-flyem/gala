@@ -23,30 +23,8 @@ from scipy.ndimage.morphology import binary_opening, binary_dilation, \
     generate_binary_structure, iterate_structure
 #from scipy.spatial.distance import cityblock as manhattan_distance
 import iterprogress as ip
-import imio
 
 zero3d = array([0,0,0])
-
-arguments = argparse.ArgumentParser(add_help=False)
-arggroup = arguments.add_argument_group('Morphological operations options')
-arggroup.add_argument('-S', '--save-watershed', metavar='FILE',
-    help='Write the watershed result to FILE (overwrites).'
-)
-arggroup.add_argument('-w', '--watershed', metavar='WS_FN',
-    type=imio.single_arg_read_image_stack,
-    help='Use a precomputed watershed volume from file.'
-)
-arggroup.add_argument('--seed', metavar='FN', 
-    type=imio.single_arg_read_image_stack,
-    help='''use the volume in FN to seed the watershed. By default, connected
-        components of 0-valued pixels will be used as the seeds.'''
-)
-arggroup.add_argument('--build-dams', default=True, action='store_true',
-    help='''Build dams when two or more basins collide. (default)'''
-)
-arggroup.add_argument('--no-dams', action='store_false', dest='build_dams',
-    help='''Don't build dams in the watershed. Every pixel has a label.'''
-)
 
 def manhattan_distance(a, b):
     return sum(abs(a-b))
@@ -343,39 +321,4 @@ def undam(seg):
     return seg
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(
-        parents=[arguments],
-        description='Watershed transform an image volume.'
-    )
-    parser.add_argument('fin', nargs='+',
-        help='input image (png or h5 volume)'
-    )
-    parser.add_argument('fout', help='output filename (.h5)')
-    parser.add_argument('-I', '--invert-image', action='store_true',
-        help='invert the image before applying watershed'
-    )
-    parser.add_argument('-m', '--median-filter', action='store_true',
-        help='Apply a median filter before watershed.'
-    )
-    parser.add_argument('-g', '--gaussian-filter', type=float, metavar='SIGMA',
-        help='Apply a gaussian filter before watershed.'
-    )
-    parser.add_argument('-P', '--show-progress', action='store_true',
-        help='Show a progress bar for the watershed transform.'
-    )
-    args = parser.parse_args()
-
-    v = imio.read_image_stack(*args.fin)
-    if args.invert_image:
-        v = v.max() - v
-    if args.median_filter:
-        v = filters.median_filter(v, 3)
-    if args.gaussian_filter is not None:
-        v = filters.gaussian_filter(v, args.gaussian_filter)
-    if args.seed is not None:
-        args.seed, _ = label(args.seed == 0, diamondse(3, args.seed.ndim))
-    ws = watershed(v, seeds=args.seed, dams=args.build_dams,
-                                            show_progress=args.show_progress)
-    if os.access(args.fout, os.F_OK):
-        os.remove(args.fout)
-    imio.write_h5_stack(ws, args.fout)
+    pass
