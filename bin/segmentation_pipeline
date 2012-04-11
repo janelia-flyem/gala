@@ -82,11 +82,11 @@ BoundaryActionFunction = None
 def init_features():
     global FeatureHash
     FeatureHash = {}
-    FeatureHash["tiny"] = 0.1
-    FeatureHash["small"] = 0.3
-    FeatureHash["medium"] = 0.7
-    FeatureHash["large"] = 1.0
-    FeatureHash["huge"] = 3.0
+    FeatureHash["tiny"] = 0.3
+    FeatureHash["small"] = 0.7
+    FeatureHash["medium"] = 1.0
+    FeatureHash["large"] = 1.6
+    FeatureHash["huge"] = 3.5
     FeatureHash["megahuge"] = 5.0
     FeatureHash["gigahuge"] = 10.0
 
@@ -254,9 +254,9 @@ def flow_perform_inclusion_removal(rag, watershed, prediction):
             show_progress=True)
         MasterLogger.info("Finished building RAG")
     # ?? how to save rag
-    MasterLogger.info("Starting inclusion removal")
+    MasterLogger.info("Starting inclusion removal with " + str(rag.number_of_nodes()) + " nodes")
     rag.remove_inclusions()
-    MasterLogger.info("Finished inclusion removal")
+    MasterLogger.info("Finished inclusion removal with " + str(rag.number_of_nodes()) + " nodes")
 
     return rag
 
@@ -273,15 +273,15 @@ def flow_perform_median_agglomeration(options, rag, watershed, prediction, image
     # ?? how to save rag
     sorted_output_thresholds = sorted(options.agglomeration_output_thresholds)
     for threshold in sorted_output_thresholds:
-        MasterLogger.info("Starting agglomeration to threshold " + str(threshold))
+        MasterLogger.info("Starting agglomeration to threshold " + str(threshold) + " with " + str(rag.number_of_nodes()) + " nodes")
         rag.agglomerate(threshold)
-        MasterLogger.info("Finished agglomeration to threshold " + str(threshold))
+        MasterLogger.info("Finished agglomeration to threshold " + str(threshold) + " with " + str(rag.number_of_nodes()) + " nodes")
         removed_inclusions = False
         if options.flow_perform_agglomeration_inclusion_removal and (threshold > 0 or not options.flow_perform_inclusion_removal):
             removed_inclusions = True
-            MasterLogger.info("Starting agglomeration inclusion removal at threshold " + str(threshold))
+            MasterLogger.info("Starting agglomeration inclusion removal at threshold " + str(threshold) + " with " + str(rag.number_of_nodes()) + " nodes")
             rag.remove_inclusions()
-            MasterLogger.info("Finished agglomeration inclusion removal at threshold " + str(threshold))
+            MasterLogger.info("Finished agglomeration inclusion removal at threshold " + str(threshold) + " with " + str(rag.number_of_nodes()) + " nodes")
 
         output_raveler(rag, watershed, image_stack, experiment_name, output_dir, provenance_filename, threshold)
 
