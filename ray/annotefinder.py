@@ -1,6 +1,10 @@
 import math
 
-import pylab
+try:
+    import pylab
+except ImportError:
+    ""
+
 import matplotlib
 
 
