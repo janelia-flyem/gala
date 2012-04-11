@@ -64,6 +64,8 @@ def remove_small_connected_components(a, min_size=64, in_place=False):
         a = label(a)[0]
     elif not in_place:
         a = a.copy()
+    if min_size == 0: # shortcut for efficiency
+        return a
     component_sizes = bincount(a.ravel())
     too_small = component_sizes < min_size
     too_small_locations = too_small[a]
