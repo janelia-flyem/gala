@@ -91,7 +91,7 @@ class Rag(Graph):
             gt_vol=None, feature_manager=NullFeatureManager(), 
             show_progress=False, lowmem=False, connectivity=1,
             channel_is_oriented=None, orientation_map=array([]),
-            normalize_probabilities=False):
+            normalize_probabilities=False, nozeros=False):
         """Create a graph from a watershed volume and image volume.
         
         The watershed is assumed to have dams of label 0 in between basins.
@@ -101,6 +101,7 @@ class Rag(Graph):
         """
         super(Rag, self).__init__(weighted=False)
         self.show_progress = show_progress
+        self.nozeros = nozeros
         self.pbar = ip.StandardProgressBar() if self.show_progress \
                else ip.NoProgressBar()
         if merge_priority_function is None:
@@ -117,7 +118,7 @@ class Rag(Graph):
             self.ucm[self.ucm==0] = -inf
             self.ucm_r = self.ucm.ravel()
         self.max_merge_score = -inf
-        self.build_graph_from_watershed(allow_shared_boundaries)
+        self.build_graph_from_watershed(allow_shared_boundaries, nozerosfast=self.nozeros)
         self.set_feature_manager(feature_manager)
         self.set_ground_truth(gt_vol)
         self.merge_queue = MergeQueue()
@@ -152,8 +153,46 @@ class Rag(Graph):
         return (e for e in super(Rag, self).edges_iter(*args, **kwargs) if
                                             self.boundary_body not in e[:2])
 
-    def build_graph_from_watershed(self, 
-                                    allow_shared_boundaries=True, idxs=None):
+
+    def build_graph_from_watershed_nozerosfast(self, idxs):
+        """ Always allow shared boundaries in this code
+        """
+        if self.watershed.size == 0: return # stop processing for empty graphs
+        if idxs is None:
+            idxs = arange(self.watershed.size)
+            self.add_node(self.boundary_body, 
+                    extent=set(flatnonzero(self.watershed==self.boundary_body)))
+        inner_idxs = idxs[self.watershed_r[idxs] != self.boundary_body]
+        for idx in inner_idxs:
+            ns = self.neighbor_idxs(idx)
+            adj_labels = self.watershed_r[ns]
+            nodeid = self.watershed_r[idx]
+            adj_labels = adj_labels[adj_labels != nodeid]
+            edges = None
+            if adj_labels.size > 0:
+                adj_labels = unique(adj_labels)
+                edges = zip(repeat(nodeid), adj_labels)
+            if not self.has_node(nodeid):
+                self.add_node(nodeid, extent=set())
+            try:
+                self.node[nodeid]['extent'].add(idx)
+            except KeyError:
+                self.node[nodeid]['extent'] = set([idx])
+           
+            if edges is not None: 
+                for l1,l2 in edges:
+                    if self.has_edge(l1, l2): 
+                        self[l1][l2]['boundary'].add(idx)
+                    else: 
+                        self.add_edge(l1, l2, boundary=set([idx]))
+
+
+    def build_graph_from_watershed(self, allow_shared_boundaries=True,
+                                idxs=None, nozerosfast=False):
+        if nozerosfast:
+            return self.build_graph_from_watershed_nozerosfast(idxs)
+
+
         if self.watershed.size == 0: return # stop processing for empty graphs
         if not allow_shared_boundaries:
             self.ignored_boundary = zeros(self.watershed.shape, bool)
