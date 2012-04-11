@@ -190,7 +190,7 @@ class Rag(Graph):
     def build_graph_from_watershed(self, allow_shared_boundaries=True,
                                 idxs=None, nozerosfast=False):
         if nozerosfast:
-            return build_graph_from_watershed_nozerosfast(idxs)
+            return self.build_graph_from_watershed_nozerosfast(idxs)
 
 
         if self.watershed.size == 0: return # stop processing for empty graphs
