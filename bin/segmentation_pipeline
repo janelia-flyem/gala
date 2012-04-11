@@ -251,7 +251,7 @@ def flow_perform_inclusion_removal(rag, watershed, prediction):
     if rag is None:
         MasterLogger.info("Building RAG")
         rag = agglo.Rag(watershed, prediction, merge_priority_function=agglo.boundary_median,
-            show_progress=True)
+            show_progress=True, nozeros=True)
         MasterLogger.info("Finished building RAG")
     # ?? how to save rag
     MasterLogger.info("Starting inclusion removal with " + str(rag.number_of_nodes()) + " nodes")
@@ -268,7 +268,7 @@ def flow_perform_median_agglomeration(options, rag, watershed, prediction, image
     if rag is None:
         MasterLogger.info("Building RAG")
         rag = agglo.Rag(watershed, prediction, merge_priority_function=agglo.boundary_median,
-            show_progress=True)
+            show_progress=True, nozeros=True)
         MasterLogger.info("Finished building RAG")
     # ?? how to save rag
     sorted_output_thresholds = sorted(options.agglomeration_output_thresholds)
