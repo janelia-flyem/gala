@@ -32,6 +32,7 @@ except ImportError:
 
 # local files
 import evaluate
+import morpho
 
 arguments = argparse.ArgumentParser(add_help=False)
 arggroup = arguments.add_argument_group('Image IO options')
@@ -266,30 +267,15 @@ def ucm_to_raveler(ucm, sp_threshold=0, body_threshold=0.1, **kwargs):
     bodies = label(ucm<=body_threshold)[0]
     return segs_to_raveler(sps, bodies, **kwargs)
 
-def segs_to_raveler(sps, bodies, min_sp_size=0, do_conn_comp=False,
-                                                            prior_sp_map=None):
-    if not (sps==0).any() and not (bodies==0).any():
-        sps[:,0,0] = 0
-        bodies[:,0,0] = 0
-    import morpho
-    sps_out = []
-    sps_per_plane = []
-    sp_to_segment = []
-    segment_to_body = [array([[0,0]])]
-    total_nsegs = 0
-    if do_conn_comp:
-        label_function = label
-    else:
-        def label_function(a):
-            relabeled, fmap, imap = evaluate.relabel_from_one(a)
-            return relabeled, len(imap)
-    for i, (sp_map, body_map) in enumerate(zip(sps, bodies)):
-        sp_map, nsps = label_function(
-            morpho.remove_small_connected_components(sp_map, min_sp_size, True)
-        )
-        segment_map, nsegs = label_function(body_map)
-        segment_map += total_nsegs
-        segment_map *= sp_map.astype(bool)
+def segs_to_raveler(sps, bodies, min_size=0, do_conn_comp=False, sps_out=None):
+    if sps_out is None:
+        sps_out = raveler_serial_section_map(sps, min_size, do_conn_comp)
+    segment_map = raveler_serial_section_map(bodies, min_size, do_conn_comp)
+    segment_to_body = unique(zip(segment_map, bodies))
+    segment_to_body = segment_to_body[segment_to_body[:,0] != 0]
+    segment_to_body = concatenate((array([[0,0]]), segment_to_body), axis=0)
+    for i, (sp_map_i, segment_map_i) in enumerate(zip(sps_out, segment_map)):
+        segment_map_i *= sp_map_i.astype(bool)
         total_nsegs += nsegs
         sps_out.append(sp_map[newaxis,...])
         sps_per_plane.append(nsps)
@@ -301,11 +287,33 @@ def segs_to_raveler(sps, bodies, min_sp_size=0, do_conn_comp=False,
         segment_to_body.append(unique(
                                 zip(segment_map[valid], body_map[valid])))
     logging.info('total superpixels before: ' + str(len(unique(sps))) +
-                    'total superpixels after: ' + str(sum(sps_per_plane)))
+                ' total superpixels after: ' + str(len(unique(sps_out))))
     sps_out = concatenate(sps_out, axis=0)
     sp_to_segment = concatenate(sp_to_segment, axis=0)
     segment_to_body = concatenate(segment_to_body, axis=0)
     return sps_out, sp_to_segment, segment_to_body
+
+def raveler_serial_section_map(nd_map, min_size=0, do_conn_comp=False):
+    if not (nd_map == 0).any():
+        nd_map = nd_map.copy()
+        nd_map[:,0,0] = 0
+    return serial_section_map(nd_map, min_size, do_conn_comp)
+
+def serial_section_map(nd_map, min_size=0, do_conn_comp=False):
+    if do_conn_comp:
+        label_fct = label
+    else:
+        def label_fct(a):
+            relabeled, fmap, imap = evaluate.relabel_from_one(a)
+            return relabeled, len(imap)
+    def remove_small(a):
+        return morpho.remove_small_connected_components(a, min_size, True)
+    mplanes = map(remove_small, nd_map)
+    relabeled_planes, nids_per_plane = zip(*map(label_fct, mplanes))
+    start_ids = [0] + cumsum(nids_per_plane)[:-1]
+    relabeled_planes = [relabeled_plane + start_id 
+        for relabeled_plane, start_id in zip(relabeled_planes, start_ids)]
+    return concatenate(relabeled_planes, axis=0)
 
 def write_to_raveler(sps, sp_to_segment, segment_to_body, directory, gray=None,
                     raveler_dir='/usr/local/raveler-hdf', nproc_contours=16):
