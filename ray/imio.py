@@ -274,21 +274,19 @@ def segs_to_raveler(sps, bodies, min_size=0, do_conn_comp=False, sps_out=None):
     segment_to_body = unique(zip(segment_map, bodies))
     segment_to_body = segment_to_body[segment_to_body[:,0] != 0]
     segment_to_body = concatenate((array([[0,0]]), segment_to_body), axis=0)
-    for i, (sp_map_i, segment_map_i) in enumerate(zip(sps_out, segment_map)):
+    sp_to_segment, segment_to_body = [], []
+    for i, (sp_map_i, segment_map_i, body_map_i) in \
+                            enumerate(zip(sps_out, segment_map, bodies)):
         segment_map_i *= sp_map_i.astype(bool)
-        total_nsegs += nsegs
-        sps_out.append(sp_map[newaxis,...])
-        sps_per_plane.append(nsps)
-        valid = (sp_map != 0) + (segment_map == 0)
-        sp_to_segment.append(unique(
-            zip(it.repeat(i), sp_map[valid], segment_map[valid])))
+        valid = (sp_map_i != 0) + (segment_map_i == 0)
+        sp_to_segment.append(
+            unique(zip(it.repeat(i), sp_map_i[valid], segment_map_i[valid])))
         valid = segment_map != 0
         logging.debug('plane %i done'%i)
-        segment_to_body.append(unique(
-                                zip(segment_map[valid], body_map[valid])))
+        segment_to_body.append(
+                        unique(zip(segment_map_i[valid], body_map_i[valid])))
     logging.info('total superpixels before: ' + str(len(unique(sps))) +
                 ' total superpixels after: ' + str(len(unique(sps_out))))
-    sps_out = concatenate(sps_out, axis=0)
     sp_to_segment = concatenate(sp_to_segment, axis=0)
     segment_to_body = concatenate(segment_to_body, axis=0)
     return sps_out, sp_to_segment, segment_to_body
