@@ -18,7 +18,7 @@ from scipy.ndimage.measurements import label
 
 from numpy import array, asarray, uint8, uint16, uint32, uint64, zeros, \
     zeros_like, squeeze, fromstring, ndim, concatenate, newaxis, swapaxes, \
-    savetxt, unique, double, ones, ones_like, prod
+    savetxt, unique, double, ones, ones_like, prod, cumsum
 import numpy as np
 try:
     from numpy import imread
@@ -271,10 +271,10 @@ def segs_to_raveler(sps, bodies, min_size=0, do_conn_comp=False, sps_out=None):
     if sps_out is None:
         sps_out = raveler_serial_section_map(sps, min_size, do_conn_comp)
     segment_map = raveler_serial_section_map(bodies, min_size, do_conn_comp)
-    segment_to_body = unique(zip(segment_map, bodies))
+    segment_to_body = unique(zip(segment_map.ravel(), bodies.ravel()))
     segment_to_body = segment_to_body[segment_to_body[:,0] != 0]
     segment_to_body = concatenate((array([[0,0]]), segment_to_body), axis=0)
-    sp_to_segment, segment_to_body = [], []
+    sp_to_segment = []
     for i, (sp_map_i, segment_map_i, body_map_i) in \
                             enumerate(zip(sps_out, segment_map, bodies)):
         segment_map_i *= sp_map_i.astype(bool)
@@ -283,8 +283,6 @@ def segs_to_raveler(sps, bodies, min_size=0, do_conn_comp=False, sps_out=None):
             unique(zip(it.repeat(i), sp_map_i[valid], segment_map_i[valid])))
         valid = segment_map != 0
         logging.debug('plane %i done'%i)
-        segment_to_body.append(
-                        unique(zip(segment_map_i[valid], body_map_i[valid])))
     logging.info('total superpixels before: ' + str(len(unique(sps))) +
                 ' total superpixels after: ' + str(len(unique(sps_out))))
     sp_to_segment = concatenate(sp_to_segment, axis=0)
@@ -292,10 +290,10 @@ def segs_to_raveler(sps, bodies, min_size=0, do_conn_comp=False, sps_out=None):
     return sps_out, sp_to_segment, segment_to_body
 
 def raveler_serial_section_map(nd_map, min_size=0, do_conn_comp=False):
+    nd_map = serial_section_map(nd_map, min_size, do_conn_comp)
     if not (nd_map == 0).any():
-        nd_map = nd_map.copy()
         nd_map[:,0,0] = 0
-    return serial_section_map(nd_map, min_size, do_conn_comp)
+    return nd_map
 
 def serial_section_map(nd_map, min_size=0, do_conn_comp=False):
     if do_conn_comp:
@@ -305,11 +303,11 @@ def serial_section_map(nd_map, min_size=0, do_conn_comp=False):
             relabeled, fmap, imap = evaluate.relabel_from_one(a)
             return relabeled, len(imap)
     def remove_small(a):
-        return morpho.remove_small_connected_components(a, min_size, True)
+        return morpho.remove_small_connected_components(a, min_size, False)
     mplanes = map(remove_small, nd_map)
     relabeled_planes, nids_per_plane = zip(*map(label_fct, mplanes))
-    start_ids = [0] + cumsum(nids_per_plane)[:-1]
-    relabeled_planes = [relabeled_plane + start_id 
+    start_ids = concatenate((array([0], int), cumsum(nids_per_plane)[:-1]))
+    relabeled_planes = [(relabeled_plane + start_id)[newaxis, ...]
         for relabeled_plane, start_id in zip(relabeled_planes, start_ids)]
     return concatenate(relabeled_planes, axis=0)
 
