@@ -59,13 +59,16 @@ if __name__ == '__main__':
         default=False, help='Show a progress bar.')
     parser.add_argument('-v', '--verbose', action='store_true', default=False,
         help='Print runtime information about execution.')
+    parser.add_argument('-Z', '--nozeros', action='store_false', 
+        default=True, help='Disable nozeros mode.')
     args = parser.parse_args()
 
     p, gs = map(imio.read_image_stack, args.fin)
     gs = evaluate.relabel_from_one(gs)[0]
     ws = skmorph.watershed(p, label(p==0)[0])
     fm = eval(args.feature_manager, {}, {'classify': classify})
-    g = agglo.Rag(ws, p, feature_manager=fm, show_progress=args.show_progress)
+    g = agglo.Rag(ws, p, feature_manager=fm, show_progress=args.show_progress,
+            nozeros=args.nozeros)
     g.remove_inclusions()
     d, epochs = g.learn_agglomerate(gs, fm, args.num_examples, 
         learn_flat=args.learn_flat, learning_mode=args.learning_mode,

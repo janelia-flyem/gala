@@ -47,6 +47,8 @@ if __name__ == '__main__':
         help='Load the watershed or other oversegmentation from FILE.')
     parser.add_argument('-P', '--show-progress', action='store_true', 
         default=False, help='Show a progress bar.')
+    parser.add_argument('-Z', '--nozeros', action='store_false', 
+        default=True, help='Disable nozeros mode.')
     parser.add_argument('-v', '--verbose', action='store_true', default=False,
         help='Print runtime information about execution.')
     args = parser.parse_args()
@@ -72,7 +74,7 @@ if __name__ == '__main__':
         mpf = eval(args.priority_function, {}, {'agglo': agglo})
 
     g = agglo.Rag(ws, p, mpf, feature_manager=fm, 
-                  show_progress=args.show_progress)
+                  show_progress=args.show_progress, nozeros=args.nozeros)
     if args.remove_inclusions:
         g.remove_inclusions()
     for t in map(float, args.thresholds):
