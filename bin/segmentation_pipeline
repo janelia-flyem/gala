@@ -281,6 +281,7 @@ def flow_perform_median_agglomeration(options, rag, watershed, prediction, image
         MasterLogger.info("Finished building RAG")
     # ?? how to save rag
     sorted_output_thresholds = sorted(options.agglomeration_output_thresholds)
+    sps_out = None
     for threshold in sorted_output_thresholds:
         MasterLogger.info("Starting agglomeration to threshold " + str(threshold) + " with " + str(rag.number_of_nodes()) + " nodes")
         rag.agglomerate(threshold)
@@ -292,14 +293,16 @@ def flow_perform_median_agglomeration(options, rag, watershed, prediction, image
             rag.remove_inclusions()
             MasterLogger.info("Finished agglomeration inclusion removal at threshold " + str(threshold) + " with " + str(rag.number_of_nodes()) + " nodes")
 
-        output_raveler(rag, watershed, image_stack, experiment_name, output_dir, provenance_filename, threshold)
+        sps_out = output_raveler(rag, watershed, image_stack, experiment_name,
+                    output_dir, provenance_filename, threshold, sps_out)
 
         if removed_inclusions:
             rag.rebuild_merge_queue()
 
     return rag
 
-def output_raveler(rag, watershed, image_stack, experiment_name, output_dir, provenance_filename, threshold):
+def output_raveler(rag, watershed, image_stack, experiment_name, output_dir, 
+        provenance_filename, threshold, sps_out = None):
     outdir = output_dir + "/raveler-export/" + experiment_name + "-median-" + str(threshold) + "/"
     MasterLogger.info("Exporting segmentation to Raveler " + outdir)
     provenance_raveler_file = outdir + "segmentation_pipeline.log"
@@ -314,11 +317,12 @@ def output_raveler(rag, watershed, image_stack, experiment_name, output_dir, pro
     else:
         seg = rag.get_segmentation()
 
-    rav = imio.segs_to_raveler(watershed, seg, 0, do_conn_comp=False)
+    rav = imio.segs_to_raveler(watershed, seg, 0, do_conn_comp=False, sps_out=sps_out)
+    sps_out, dummy1, dummy2 = rav
     os.system(str("rm -rf " + outdir))
     imio.write_to_raveler(*rav, directory=outdir, gray=image_stack)
     os.system("cp " + provenance_filename + " " + provenance_raveler_file)
-
+    return sps_out
 
 
 def main(argv):
