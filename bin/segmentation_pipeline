@@ -21,6 +21,12 @@ Description of input JSON:
     #reuse prediction ilastik ilp for fast turnaround
     "ilastik_training_volume" : false,
 
+    #volumes should use non zero boundary methodology
+    "nonzero_boundary" : true,
+
+    #efficient memory handling of large volumes
+    "memory_mode" : false,
+    
     #perform ilastik prediction
     "flow_generate_boundary_prediction" : false,
 
@@ -62,8 +68,8 @@ Description of input JSON:
     "seeded_watershed" : true,
 
     #threshold for picking seeds
-    "watershed seed threshold" : 0,
-
+    "watershed_seed_threshold" : 0,
+    
     #manipulation of watershed seeds
     "seed_manipulation_recipe" : [
         { "operation" : <type>, "params" : <params> },
@@ -107,6 +113,8 @@ class PipelineOptions:
         # load options
         self.stack_path = self.set_option("stack_path", required=True)
         self.ilastik_training_volume = self.set_option("ilastik_training_volume", False)
+        self.nonzero_boundary = self.set_option("nonzero_boundary", True)
+        self.memory_mode = self.set_option("memory_mode", False)
         self.flow_generate_boundary_prediction = self.set_option("flow_generate_boundary_prediction", False)
         self.flow_generate_watershed = self.set_option("flow_generate_watershed", False)
         self.flow_perform_median_agglomeration = self.set_option("flow_perform_median_agglomeration", False)
@@ -130,7 +138,7 @@ class PipelineOptions:
 
 
     def set_option(self, json_name, default=None, warning=True, required=False):
-        temp_option = self.json_val[json_name]
+        temp_option = self.json_val.get(json_name)
         if temp_option is None:
             if required:
                 raise Exception(json_name + " needs to be specified")
@@ -182,6 +190,7 @@ def flow_generate_boundary_prediction(options, image_stack, experimentprefix, ou
     json_val_out = {}
     json_val_out["output_dir"] = output_dir
     json_val_out["session"] = options.ilpfile
+    json_val_out["memory_mode"] = options.memory_mode
     json_val_out["images"] = []
     image_array = json_val_out["images"]
     image_array.append( { "name" : str(experimentprefix + ".h5") } )
@@ -194,13 +203,13 @@ def flow_generate_boundary_prediction(options, image_stack, experimentprefix, ou
             json_val_out["features"].append([feat, FeatureHash[featsize] ])
     json_file_out = open(str(experimentprefix + ".json"), "w")
     json_out = json.dumps(json_val_out, indent=4)
-    MasterLogger.debug("ilastik batch json file: " + json_out)
+    MasterLogger.debug("ilastik batch_fast json file: " + json_out)
     json_file_out.write(json_out)
     json_file_out.close()
 
     #run ilastik
     MasterLogger.info("Running Ilastik batch")
-    ilastik_command = str("ilastik_batch --config_file=" + experimentprefix + ".json")
+    ilastik_command = str("ilastik_batch_fast --config_file=" + experimentprefix + ".json")
     os.system(ilastik_command)
 
     #deleting ilastik
@@ -244,14 +253,14 @@ def flow_generate_watershed(options, image_stack, experimentprefix, output_dir):
     MasterLogger.info("Finished watershed")
     return watershed, prediction0
 
-def flow_perform_inclusion_removal(rag, watershed, prediction):
+def flow_perform_inclusion_removal(options, rag, watershed, prediction):
     if watershed is None:
         raise Exception("Watershed needed for inclusion removal")
 
     if rag is None:
         MasterLogger.info("Building RAG")
         rag = agglo.Rag(watershed, prediction, merge_priority_function=agglo.boundary_median,
-            show_progress=True, nozeros=True)
+            show_progress=True, nozeros=options.nonzero_boundary)
         MasterLogger.info("Finished building RAG")
     # ?? how to save rag
     MasterLogger.info("Starting inclusion removal with " + str(rag.number_of_nodes()) + " nodes")
@@ -268,7 +277,7 @@ def flow_perform_median_agglomeration(options, rag, watershed, prediction, image
     if rag is None:
         MasterLogger.info("Building RAG")
         rag = agglo.Rag(watershed, prediction, merge_priority_function=agglo.boundary_median,
-            show_progress=True, nozeros=True)
+            show_progress=True, nozeros=options.nonzero_boundary)
         MasterLogger.info("Finished building RAG")
     # ?? how to save rag
     sorted_output_thresholds = sorted(options.agglomeration_output_thresholds)
@@ -367,7 +376,7 @@ def main(argv):
 
         if options.flow_perform_inclusion_removal:
             # ?? how to save previous watershed to avoid recomputation
-            rag = flow_perform_inclusion_removal(rag, watershed, prediction)
+            rag = flow_perform_inclusion_removal(options, rag, watershed, prediction)
 
         if options.flow_perform_median_agglomeration:
             rag = flow_perform_median_agglomeration(options, rag, watershed, prediction, image_stack,
