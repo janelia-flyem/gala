@@ -286,7 +286,6 @@ def segs_to_raveler(sps, bodies, min_size=0, do_conn_comp=False, sps_out=None):
     logging.info('total superpixels before: ' + str(len(unique(sps))) +
                 ' total superpixels after: ' + str(len(unique(sps_out))))
     sp_to_segment = concatenate(sp_to_segment, axis=0)
-    segment_to_body = concatenate(segment_to_body, axis=0)
     return sps_out, sp_to_segment, segment_to_body
 
 def raveler_serial_section_map(nd_map, min_size=0, do_conn_comp=False):
