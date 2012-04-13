@@ -269,7 +269,7 @@ def ucm_to_raveler(ucm, sp_threshold=0, body_threshold=0.1, **kwargs):
 
 def segs_to_raveler(sps, bodies, min_size=0, do_conn_comp=False, sps_out=None):
     if sps_out is None:
-        sps_out = raveler_serial_section_map(sps, min_size, do_conn_comp)
+        sps_out = raveler_serial_section_map(sps, min_size, do_conn_comp, False)
     segment_map = raveler_serial_section_map(bodies, min_size, do_conn_comp)
     segment_to_body = unique(zip(segment_map.ravel(), bodies.ravel()))
     segment_to_body = segment_to_body[segment_to_body[:,0] != 0]
@@ -288,13 +288,16 @@ def segs_to_raveler(sps, bodies, min_size=0, do_conn_comp=False, sps_out=None):
     sp_to_segment = concatenate(sp_to_segment, axis=0)
     return sps_out, sp_to_segment, segment_to_body
 
-def raveler_serial_section_map(nd_map, min_size=0, do_conn_comp=False):
-    nd_map = serial_section_map(nd_map, min_size, do_conn_comp)
+def raveler_serial_section_map(nd_map, min_size=0, do_conn_comp=False, 
+                                                    globally_unique_ids=True):
+    nd_map = serial_section_map(nd_map, min_size, do_conn_comp, 
+                                                        globally_unique_ids)
     if not (nd_map == 0).any():
         nd_map[:,0,0] = 0
     return nd_map
 
-def serial_section_map(nd_map, min_size=0, do_conn_comp=False):
+def serial_section_map(nd_map, min_size=0, do_conn_comp=False, 
+                                                    globally_unique_ids=True):
     if do_conn_comp:
         label_fct = label
     else:
@@ -305,7 +308,8 @@ def serial_section_map(nd_map, min_size=0, do_conn_comp=False):
         return morpho.remove_small_connected_components(a, min_size, False)
     mplanes = map(remove_small, nd_map)
     relabeled_planes, nids_per_plane = zip(*map(label_fct, mplanes))
-    start_ids = concatenate((array([0], int), cumsum(nids_per_plane)[:-1]))
+    start_ids = concatenate((array([0], int), cumsum(nids_per_plane)[:-1])) \
+        if globally_unique_ids else [0]*len(nids_per_plane)
     relabeled_planes = [(relabeled_plane + start_id)[newaxis, ...]
         for relabeled_plane, start_id in zip(relabeled_planes, start_ids)]
     return concatenate(relabeled_planes, axis=0)
