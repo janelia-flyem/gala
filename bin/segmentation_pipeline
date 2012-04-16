@@ -222,10 +222,10 @@ def flow_generate_watershed(options, image_stack, experimentprefix, output_dir):
     if not os.path.isfile(training_file):
         raise Exception("Training file not found: " + training_file)
 
-    prediction = imio.read_image_stack(training_file, group='/volume/prediction')
+    prediction0 = imio.read_image_stack(training_file, group='/volume/prediction')
 
     MasterLogger.info("Manipulating prediction")
-    prediction0 = prediction[...,0]
+    #prediction0 = prediction[...,0]
     if options.ilastik_training_volume:
         prediction0 = prediction0.transpose((2, 1, 0))
     for action in options.boundary_manipulation_recipe:
