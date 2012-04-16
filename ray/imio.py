@@ -393,7 +393,7 @@ def write_to_raveler(sps, sp_to_segment, segment_to_body, directory, gray=None,
 def raveler_output_shortcut(svs, seg, gray, outdir, sps_out=None):
     """Compute the Raveler format and write to directory, all at once."""
     sps_out, sp2seg, seg2body = segs_to_raveler(svs, seg, sps_out=sps_out)
-    write_to_raveler(sps, sp2seg, seg2body, outdir, gray, body_annot=seg)
+    write_to_raveler(sps_out, sp2seg, seg2body, outdir, gray, body_annot=seg)
     return sps_out
 
 def raveler_body_annotations(orphans, non_traversing=None):
