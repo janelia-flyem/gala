@@ -549,4 +549,7 @@ def read_prediction_from_ilastik_batch(fn, **kwargs):
     """Read the prediction produced by Ilastik from batch processing."""
     if not kwargs.has_key('group'):
         kwargs['group'] = '/volume/prediction'
-    return squeeze(read_h5_stack(fn, **kwargs))
+    a = squeeze(read_h5_stack(fn, **kwargs))
+    if kwargs.get('single-channel', True):
+        a = a[...,0]
+    return a
