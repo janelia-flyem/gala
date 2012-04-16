@@ -75,6 +75,8 @@ def read_image_stack(fn, *args, **kwargs):
     If reading in .h5 format, keyword arguments are passed through to
     read_h5_stack().
     """
+    if os.path.isdir(fn):
+        fn += '/'
     d, fn = split_path(os.path.expanduser(fn))
     if len(d) == 0: d = '.'
     crop = kwargs.get('crop', [None]*6)
@@ -108,10 +110,9 @@ def read_image_stack(fn, *args, **kwargs):
     elif fn.endswith('.h5'):
         # other HDF5 file
         stack = read_h5_stack(join_path(d,fn), *args, **kwargs)
-    elif os.path.isdir(fn) and \
-        os.path.isfile(os.path.join(fn, 'superpixel_to_segment_map.txt')):
+    elif os.path.isfile(os.path.join(d, 'superpixel_to_segment_map.txt')):
         # Raveler export
-        stack = raveler_to_labeled_volume(fn, *args, **kwargs)
+        stack = raveler_to_labeled_volume(d, *args, **kwargs)
     return squeeze(stack)
 
 def single_arg_read_image_stack(fn):
