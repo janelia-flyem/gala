@@ -5,13 +5,14 @@ from numpy import   shape, reshape, \
                     array, zeros, zeros_like, ones, ones_like, arange, \
                     double, \
                     int8, int16, int32, int64, uint8, uint16, uint32, uint64, \
+                    uint, \
                     iinfo, isscalar, \
                     unique, \
                     where, unravel_index, newaxis, \
                     ceil, floor, prod, cumprod, \
                     concatenate, \
                     ndarray, minimum, bincount, dot, nonzero, concatenate, \
-                    setdiff1d, inf
+                    setdiff1d, inf, flatnonzero
 import itertools
 import re
 from collections import defaultdict, deque as queue
@@ -317,11 +318,11 @@ def non_traversing_segments(a):
     """Find segments that enter the volume but do not leave it elsewhere."""
     if a.all():
         a = damify(a)
-    surface = hollowed(self.get_segmentation())
+    surface = hollowed(a)
     surface_ccs = label(surface)[0]
     idxs = flatnonzero(surface)
     pairs = unique(zip(surface.ravel()[idxs], surface_ccs.ravel()[idxs]))
-    return flatnonzero(bincount(pairs.astype(uint)[:,0])==1)
+    return flatnonzero(bincount(pairs.astype(int)[:,0])==1)
 
 def damify(a, in_place=False):
     """Add dams to a borderless segmentation."""

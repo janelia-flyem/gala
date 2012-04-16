@@ -350,7 +350,7 @@ def write_to_raveler(sps, sp_to_segment, segment_to_body, directory, gray=None,
     if not os.path.exists(directory):
         os.makedirs(directory)
     if not os.path.exists(sp_path): os.mkdir(sp_path)
-    write_png_image_stack(sps, os.path.join(sp_path, 'sp_map.%05i.png'), 
+    write_png_image_stack(sps, os.path.join(sp_path, 'sp_map.%05i.png'),
                                                         bitdepth=16, axis=0)
     savetxt(os.path.join(directory, 'superpixel_to_segment_map.txt'),
                                                         sp_to_segment, '%i') 
