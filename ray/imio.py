@@ -18,7 +18,7 @@ from scipy.ndimage.measurements import label
 
 from numpy import array, asarray, uint8, uint16, uint32, uint64, zeros, \
     zeros_like, squeeze, fromstring, ndim, concatenate, newaxis, swapaxes, \
-    savetxt, unique, double, ones, ones_like, prod, cumsum
+    savetxt, unique, double, ones, ones_like, prod, cumsum, ndarray
 import numpy as np
 try:
     from numpy import imread
@@ -316,7 +316,8 @@ def serial_section_map(nd_map, min_size=0, do_conn_comp=False,
     return concatenate(relabeled_planes, axis=0)
 
 def write_to_raveler(sps, sp_to_segment, segment_to_body, directory, gray=None,
-                    raveler_dir='/usr/local/raveler-hdf', nproc_contours=16):
+                    raveler_dir='/usr/local/raveler-hdf', nproc_contours=16,
+                    body_annot=None):
     """Output a segmentation to Raveler format. 
 
     Arguments:
@@ -333,6 +334,10 @@ def write_to_raveler(sps, sp_to_segment, segment_to_body, directory, gray=None,
         - [raveler dir]: where Raveler is installed.
         - [nproc_contours]: how many processors to use when generating the 
           Raveler contours.
+        - [body_annot]: either a dictionary to write to JSON in Raveler body
+          annotation format, or a numpy ndarray of the segmentation from which
+          to compute orphans and non traversing bodies (which then get written
+          out as body annotations).
     Value:
         None.
 
@@ -355,6 +360,13 @@ def write_to_raveler(sps, sp_to_segment, segment_to_body, directory, gray=None,
         if not os.path.exists(im_path): os.mkdir(im_path)
         write_png_image_stack(gray, os.path.join(im_path, 'img.%05d.png'),
                                                                          axis=0)
+    # body annotations
+    if body_annot is not None:
+        if type(body_annot) == ndarray:
+            orphans = morpho.orphans(body_annot)
+            non_traversing = morpho.non_traversing_segments(body_annot)
+            body_annot = raveler_body_annotations(orphans, non_traversing)
+        write_json(body_annot, os.path.join(directory, 'annotations-body.json'))
     # make tiles, bounding boxes, and contours, and compile HDF5 stack info.
     with tmp.TemporaryFile() as tmp_stdout:
         try: 
@@ -377,8 +389,23 @@ def write_to_raveler(sps, sp_to_segment, segment_to_body, directory, gray=None,
     # make permissions friendly for proofreaders.
     subprocess.call(['chmod', '-R', 'go=u', directory])
 
-def write_json_body_annotations(annot, 
-                                    directory='.', fn='annotations-body.json'):
+
+def raveler_output_shortcut(svs, seg, gray, outdir, sps_out=None):
+    """Compute the Raveler format and write to directory, all at once."""
+    sps_out, sp2seg, seg2body = segs_to_raveler(svs, seg, sps_out=sps_out)
+    write_to_raveler(sps, sp2seg, seg2body, outdir, gray, body_annot=seg)
+    return sps_out
+
+def raveler_body_annotations(orphans, non_traversing=None):
+    data = [{'status': 'not sure', 'comment': 'orphan', 'body ID': int(o)}
+        for o in orphans]
+    if non_traversing is not None:
+        data.extend([{'status': 'not sure', 'comment': 'does not traverse',
+            'body ID': int(n)} for n in non_traversing])
+    metadata = {'description': 'body annotations', 'file version': 2}
+    return {'data': data, 'metadata': metadata}
+
+def write_json(annot, fn='annotations-body.json', directory=None):
     """Write an annotation dictionary in Raveler format to a JSON file.
     
     The annotation file format is described in:
@@ -386,7 +413,9 @@ def write_json_body_annotations(annot,
     and:
     https://wiki.janelia.org/wiki/display/flyem/generic+file+format
     """
-    with open(join_path(directory, fn), 'w') as f:
+    if directory is not None:
+        fn = join_path(directory, fn)
+    with open(fn, 'w') as f:
         json.dump(annot, f, indent=2)
 
 def raveler_to_labeled_volume(rav_export_dir, get_glia=False, 
