@@ -303,10 +303,38 @@ def get_neighbor_idxs(ar, idxs, connectivity=1):
             steps.append(prod.dot(i_strides).ravel())
     return idxs[:,newaxis] + concatenate(steps)
 
+def orphans(a):
+    """Find all the segments that do not touch the volume boundary.
+    
+    This function differs from agglo.Rag.orphans() in that it does not use the
+    graph, but rather computes orphans directly from a volume.
+    """
+    return setdiff1d(
+            unique(a), unique(concatenate([s.ravel() for s in surfaces(a)]))
+            )
+
+def non_traversing_segments(a):
+    """Find segments that enter the volume but do not leave it elsewhere."""
+    if a.all():
+        a = damify(a)
+    surface = hollowed(self.get_segmentation())
+    surface_ccs = label(surface)[0]
+    idxs = flatnonzero(surface)
+    pairs = unique(zip(surface.ravel()[idxs], surface_ccs.ravel()[idxs]))
+    return flatnonzero(bincount(pairs.astype(uint)[:,0])==1)
+
+def damify(a, in_place=False):
+    """Add dams to a borderless segmentation."""
+    if not in_place:
+        b = a.copy()
+    b[seg_to_bdry(a)] = 0
+    return b
+
 def seg_to_bdry(seg, connectivity=1):
     """Given a borderless segmentation, return the boundary map."""
     strel = generate_binary_structure(seg.ndim, connectivity)
-    return maximum_filter(seg,footprint=strel) != minimum_filter(seg,footprint=strel)
+    return maximum_filter(seg, footprint=strel) != \
+           minimum_filter(seg, footprint=strel)
     
 def undam(seg):
     """ Assign zero-dams to nearest non-zero region. """
@@ -315,7 +343,8 @@ def undam(seg):
     ind = nonzero(bdrymap.ravel())[0]
     closest_sub = concatenate([i.ravel()[:,newaxis] for i in k[1]],axis=1)
     closest_sub = closest_sub[ind,:]
-    closest_ind = [dot(bdrymap.strides, i)/bdrymap.itemsize for i in closest_sub]
+    closest_ind = [
+        dot(bdrymap.strides, i)/bdrymap.itemsize for i in closest_sub]
     sp = seg.shape
     seg = seg.ravel()
     seg[ind] = seg[closest_ind]

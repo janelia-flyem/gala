@@ -804,11 +804,7 @@ class Rag(Graph):
         This function differs from 'orphans' in that it does not use the graph,
         but rather computes orphans directly from the segmentation.
         """
-        seg = self.get_segmentation()
-        return setdiff1d(
-                unique(seg), 
-                unique(concatenate([s.ravel() for s in morpho.surfaces(seg)]))
-               )
+        return morpho.orphans(self.get_segmentation())
 
     def is_traversed_by_node(self, n):
         """Determine whether a body traverses the volume.
@@ -823,13 +819,6 @@ class Rag(Graph):
         _, n = label(v, ones([3]*v.ndim))
         return n > 1
 
-    def compute_non_traversing_bodies(self):
-        surface = morpho.hollowed(self.get_segmentation())
-        surface_ccs = label(surface)[0]
-        idxs = flatnonzero(surface)
-        pairs = unique(zip(surface.ravel()[idxs], surface_ccs.ravel()[idxs]))
-        return flatnonzero(bincount(pairs.astype(uint)[:,0])==1)
-
     def traversing_bodies(self):
         """List all bodies that traverse the volume."""
         return [n for n in self.nodes() if self.is_traversed_by_node(n)]
@@ -838,6 +827,10 @@ class Rag(Graph):
         """List bodies that are not orphans and do not traverse the volume."""
         return [n for n in self.nodes() if self.at_volume_boundary(n) and
             not self.is_traversed_by_node(n)]
+
+    def compute_non_traversing_bodies(self):
+        """Same as agglo.Rag.non_traversing_bodies, but doesn't use graph."""
+        return morpho.non_traversing_bodies(self.get_segmentation())
 
     def raveler_body_annotations(self, traverse=False):
         """Return JSON-compatible dict formatted for Raveler annotations."""
