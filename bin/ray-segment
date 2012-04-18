@@ -3,6 +3,7 @@
 # Python standard library
 import sys, os, argparse, cPickle
 import subprocess as sp
+import logging
 
 # external libraries
 from numpy import unique, inf
@@ -59,6 +60,7 @@ if __name__ == '__main__':
         help='specify the grayscale images for Raveler export.')
     args = parser.parse_args()
 
+    # load all the required data
     p = imio.read_image_stack(args.fin)
     im = imio.read_image_stack(args.images) if args.images is not None else None
     if args.watershed is not None:
@@ -66,6 +68,24 @@ if __name__ == '__main__':
     else:
         ws = skmorph.watershed(p, label(p==0)[0])
     fm = eval(args.feature_manager, {}, {'classify': classify})
+
+    # Before doing anything drastic, check that output files are writeable:
+    d, _ = os.path.split(args.fout)
+    if not os.access(d, os.W_OK):
+        logging.critical("No write access to " + d + ". Exiting.")
+        sys.exit(1)
+    if args.raveler_dir is not None:
+        d, _ = os.path.split(args.raveler_dir)
+        while len(d) > 0:
+            if os.path.exists(d) and os.access(d, os.W_OK):
+                break
+            elif os.path.exists(d) and not os.access(d, os.W_OK):
+                logging.critical("No write access to " + d + ". Exiting.")
+                sys.exit(1)
+            else:
+                d, _ = os.path.split(d)
+
+    # Load training data or classifier
     if args.training_data is not None or args.classifier is not None:
         if args.classifier is not None:
             cl = classify.RandomForest()
