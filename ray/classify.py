@@ -771,7 +771,9 @@ class RandomForest(object):
         self.sample_classes_individually = sample_classes_individually
 
     def fit(self, features, labels, num_train_examples=None, **kwargs):
-        idxs = shuffle(xrange(len(features)))[:num_train_examples]
+        idxs = xrange(len(features))
+        shuffle(idxs)
+        idxs = idxs[:num_train_examples]
         features = self.check_features_vector(features[idxs])
         labels = self.check_labels_vector(labels[idxs])
         if self.use_feature_importance:
