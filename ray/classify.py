@@ -6,6 +6,7 @@ import cPickle
 import logging
 from math import sqrt
 from abc import ABCMeta, abstractmethod
+from random import shuffle
 
 # libraries
 import h5py
@@ -767,11 +768,12 @@ class RandomForest(object):
         self.rf = VigraRandomForest(treeCount=ntrees, 
             sample_classes_individually=sample_classes_individually)
         self.use_feature_importance = use_feature_importance
-        self.sample_classes_individually=sample_classes_individually
+        self.sample_classes_individually = sample_classes_individually
 
-    def fit(self, features, labels, **kwargs):
-        features = self.check_features_vector(features)
-        labels = self.check_labels_vector(labels)
+    def fit(self, features, labels, num_train_examples=None, **kwargs):
+        idxs = shuffle(xrange(len(features)))[:num_train_examples]
+        features = self.check_features_vector(features[idxs])
+        labels = self.check_labels_vector(labels[idxs])
         if self.use_feature_importance:
             self.oob, self.feature_importance = \
                         self.rf.learnRFWithFeatureSelection(features, labels)

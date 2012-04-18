@@ -42,7 +42,10 @@ if __name__ == '__main__':
     parser.add_argument('-f', '--priority-function', metavar='EVAL_STR',
         default='agglo.boundary_median',
         help='Use specified priority function (when not using a classifier).')
+    parser.add_argument('-N', '--num-training', metavar='UINT', type=int,
+        help='Specify the number of training examples to sample.')
     parser.add_argument('-t', '--thresholds', nargs='+', default=[],
+        metavar='FLOAT',
         help='Output segmentations for the specified thresholds.')
     parser.add_argument('-w', '--watershed', metavar='FILE',
         help='Load the watershed or other oversegmentation from FILE.')
@@ -92,7 +95,7 @@ if __name__ == '__main__':
             cl.load_from_disk(args.classifier)
         else:
             cl = classify.RandomForest().fit(args.training_data[0], 
-                                             args.training_data[1][:,0])
+                args.training_data[1][:,0], args.num_training)
         if args.expected_vi:
             mpf = agglo.expected_change_vi(fm, cl)
         else:
