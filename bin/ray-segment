@@ -137,7 +137,7 @@ if __name__ == '__main__':
     if args.raveler_dir is not None:
         sps = imio.raveler_serial_section_map(ws, 0, False, False)
     for t in map(float, args.thresholds):
-        MasterLogger.info("Agglomeration RAG to " + str(t))
+        MasterLogger.info("Agglomerating RAG to " + str(t))
         g.agglomerate(t)
         MasterLogger.info("Removing inclusions")
         g.remove_inclusions()
