@@ -37,12 +37,13 @@ if __name__ == '__main__':
         metavar='MODE',
         help='Set the priority mode during learning (default: %(default)s).')
     parser.add_argument('-m', '--no-memory', action='store_false', default=True,
-        help='Don\'t remember all training epochs.')
+        help='Don\'t remember all training epochs.', dest="memory")
     parser.add_argument('-u', '--no-unique', action='store_false', default=True,
-        help='Allow use of repeated training examples.')
+        help='Allow use of repeated training examples.', dest="unique")
     parser.add_argument('-f', '--no-learn-flat', action='store_false',
         default=True,
-        help='Don\'t perform a flat region adjacency graph learning to begin.')
+        help='Don\'t perform a flat region adjacency graph learning to begin.',
+        dest="learn_flat" )
     parser.add_argument('-e', '--num-epochs', type=int, metavar='UINT',
         default=5, help='Set the number of epochs of training to run ' +\
         '(default: %(default)s).')
