@@ -338,6 +338,8 @@ def main(argv):
         log_filename = experimentprefix + ".log"
         provenance_filename = output_dir + "/" + experiment_name + ".provenance.log"
         set_logger(args.debug, log_filename, aux_filename = provenance_filename)
+        MasterLogger.info("Script called: " + ' '.join(sys.argv))
+        MasterLogger.info("Script run from: " + os.path.realpath('.'))
         MasterLogger.info("Experimental path and name: " + experimentprefix)
 
         # parse json and set global options

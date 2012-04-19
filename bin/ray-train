@@ -3,6 +3,7 @@
 # Python standard library
 import sys, os, argparse, cPickle
 import subprocess as sp
+import logging
 
 # external libraries
 from numpy import unique
@@ -13,6 +14,23 @@ from scipy.ndimage import label
 from ray import imio, agglo, morpho, classify, evaluate
 
 if __name__ == '__main__':
+    MasterLogger = logging.getLogger('pipeline')
+    MasterLogger.propagate = False
+    MasterLogger.setLevel(logging.DEBUG)
+    console = logging.StreamHandler(sys.stdout)
+    console.setLevel(logging.INFO)
+    
+    formatter = logging.Formatter('%(levelname)-8s %(message)s')
+    console.setFormatter(formatter)
+    MasterLogger.addHandler(console)
+    prim = logging.FileHandler("ray-train.log", 'a')
+    prim.setLevel(logging.DEBUG)
+    prim.setFormatter(logging.Formatter(fmt='%(asctime)s %(levelname)-8s %(message)s', datefmt='%m-%d-%y %H:%M'))
+    MasterLogger.addHandler(prim)
+
+    MasterLogger.info("Script called: " + ' '.join(sys.argv))
+    MasterLogger.info("Script run from: " + os.path.realpath('.'))
+
     parser = argparse.ArgumentParser(
         description='Train a classifier for agglomerative segmentation.')
     parser.add_argument('fin', nargs=2,
@@ -73,11 +91,15 @@ if __name__ == '__main__':
 
     p, gs = map(imio.read_image_stack, args.fin)
     gs = evaluate.relabel_from_one(gs)[0]
+    MasterLogger.info("Performing watershed")
     ws = skmorph.watershed(p, label(p==0)[0])
     fm = eval(args.feature_manager, {}, {'classify': classify})
+    MasterLogger.info("Building RAG")
     g = agglo.Rag(ws, p, feature_manager=fm, show_progress=args.show_progress,
             nozeros=args.nozeros)
+    MasterLogger.info("Starting inclusion removal")
     g.remove_inclusions()
+    MasterLogger.info("Learning epochs")
     d, epochs = g.learn_agglomerate(gs, fm, args.min_num_examples, 
         learn_flat=args.learn_flat, learning_mode=args.learning_mode,
         labeling_mode=args.labeling_mode, priority_mode=args.priority_mode,
@@ -90,13 +112,17 @@ if __name__ == '__main__':
         sp.check_output(['git', 'status']).split('\n').count(
         'nothing to commit (working directory clean)') == 1 else \
         'uncommitted changes from ' + git_commit
+    MasterLogger.debug(git_stamp)
     os.chdir(current_directory)
     info_string = '\n'.join(args.fin + [args.feature_manager, git_stamp])
+    MasterLogger.info("Saving training data to disk")
     classify.save_training_data_to_disk(d, 
         args.fout + args.training_data_extension, info=info_string)
     for i, epoch in enumerate(epochs):
         classify.save_training_data_to_disk(epoch, 
             args.fout + args.training_data_extension + '.' + str(i),
             info=info_string)
+    MasterLogger.info("Training classifier")
     rf = classify.RandomForest().fit(d[0], d[1][:,0], args.num_examples)
+    MasterLogger.info("Saving classifier to disk")
     rf.save_to_disk(args.fout + args.classifier_extension)

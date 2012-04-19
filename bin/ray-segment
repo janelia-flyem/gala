@@ -14,6 +14,23 @@ from scipy.ndimage import label
 from ray import imio, agglo, morpho, classify
 
 if __name__ == '__main__':
+    MasterLogger = logging.getLogger('pipeline')
+    MasterLogger.propagate = False
+    MasterLogger.setLevel(logging.DEBUG)
+    console = logging.StreamHandler(sys.stdout)
+    console.setLevel(logging.INFO)
+    
+    formatter = logging.Formatter('%(levelname)-8s %(message)s')
+    console.setFormatter(formatter)
+    MasterLogger.addHandler(console)
+    prim = logging.FileHandler("ray-segment.log", 'a')
+    prim.setLevel(logging.DEBUG)
+    prim.setFormatter(logging.Formatter(fmt='%(asctime)s %(levelname)-8s %(message)s', datefmt='%m-%d-%y %H:%M'))
+    MasterLogger.addHandler(prim)
+
+    MasterLogger.info("Script called: " + ' '.join(sys.argv))
+    MasterLogger.info("Script run from: " + os.path.realpath('.'))
+
     parser = argparse.ArgumentParser(
         description='Train a classifier for agglomerative segmentation.')
     parser.add_argument('fin',
@@ -69,13 +86,15 @@ if __name__ == '__main__':
     if args.watershed is not None:
         ws = imio.read_image_stack(args.watershed)
     else:
+        MasterLogger.info("Performing watershed")
         ws = skmorph.watershed(p, label(p==0)[0])
+        MasterLogger.info("Finished performing watershed")
     fm = eval(args.feature_manager, {}, {'classify': classify})
 
     # Before doing anything drastic, check that output files are writeable:
     d, _ = os.path.split(args.fout)
     if not os.access(d, os.W_OK):
-        logging.critical("No write access to " + d + ". Exiting.")
+        MasterLogger.critical("No write access to " + d + ". Exiting.")
         sys.exit(1)
     if args.raveler_dir is not None:
         d, _ = os.path.split(args.raveler_dir)
@@ -83,7 +102,7 @@ if __name__ == '__main__':
             if os.path.exists(d) and os.access(d, os.W_OK):
                 break
             elif os.path.exists(d) and not os.access(d, os.W_OK):
-                logging.critical("No write access to " + d + ". Exiting.")
+                MasterLogger.critical("No write access to " + d + ". Exiting.")
                 sys.exit(1)
             else:
                 d, _ = os.path.split(d)
@@ -91,11 +110,14 @@ if __name__ == '__main__':
     # Load training data or classifier
     if args.training_data is not None or args.classifier is not None:
         if args.classifier is not None:
+            MasterLogger.info("Loading classifier")
             cl = classify.RandomForest()
             cl.load_from_disk(args.classifier)
         else:
+            MasterLogger.info("Training classifier")
             cl = classify.RandomForest().fit(args.training_data[0], 
                 args.training_data[1][:,0], args.num_training)
+            MasterLogger.info("Finished training classifier")
         if args.expected_vi:
             mpf = agglo.expected_change_vi(fm, cl)
         else:
@@ -103,17 +125,24 @@ if __name__ == '__main__':
     else:
         mpf = eval(args.priority_function, {}, {'agglo': agglo})
 
+    MasterLogger.info("Building RAG")
     g = agglo.Rag(ws, p, mpf, feature_manager=fm, 
                   show_progress=args.show_progress, nozeros=args.nozeros)
+    MasterLogger.info("Finished building RAG")
     if args.remove_inclusions:
+        MasterLogger.info("Removing inclusions")
         g.remove_inclusions()
+        MasterLogger.info("Finished removing inclusions")
         ws = g.get_segmentation()
     if args.raveler_dir is not None:
         sps = imio.raveler_serial_section_map(ws, 0, False, False)
     for t in map(float, args.thresholds):
+        MasterLogger.info("Agglomeration RAG to " + str(t))
         g.agglomerate(t)
+        MasterLogger.info("Removing inclusions")
         g.remove_inclusions()
         s = g.get_segmentation()
+        MasterLogger.info("Exporting volume")
         imio.write_image_stack(s, (args.fout+'.lzf.h5')%t, compression='lzf')
         g.rebuild_merge_queue()
         if args.raveler_dir is not None:
@@ -121,6 +150,9 @@ if __name__ == '__main__':
             if not args.no_graph_json:
                 g.write_plaza_json(
                             os.path.join(args.raveler_dir%t, 'graph.json'))
+    MasterLogger.info("Complete RAG agglomeration")
     g.agglomerate(inf)
+    MasterLogger.info("Finished complete RAG agglomeration")
     u = g.get_ucm()
+    MasterLogger.info("Writing final ucm")
     imio.write_image_stack(u, (args.fout+'.ucm.lzf.h5')%inf, compression='lzf')
