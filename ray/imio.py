@@ -106,7 +106,7 @@ def read_image_stack(fn, *args, **kwargs):
                 stack[i] = im[xmin:xmax,ymin:ymax]
     elif fn.endswith('_processed.h5'):
         # Ilastik batch prediction output file
-        stack = read_prediction_from_ilastik_batch(fn, **kwargs)
+        stack = read_prediction_from_ilastik_batch(os.path.join(d,fn), **kwargs)
     elif fn.endswith('.h5'):
         # other HDF5 file
         stack = read_h5_stack(join_path(d,fn), *args, **kwargs)

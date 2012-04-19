@@ -49,14 +49,6 @@ Description of input JSON:
     #ilp file produced by ilastik needed for boundary prediction
     "ilpfile" : "<ilastik ilp>",
 
-    #ilastik features
-    "features" : {
-        "Color" : ["small", "medium"],
-        "Texture" : ["large", "gigahuge"],
-        "Orientation" : ["gigahuge"],
-        "Edge": ["small"]
-    },
-
     #manipulation of boundary map
     "boundary_manipulation_recipe" : [
         { "operation" : <type>, "params" : <params> },
@@ -124,8 +116,7 @@ class PipelineOptions:
         self.agglomeration_output_thresholds = self.set_option("agglomeration_output_thresholds", default = [])
         self.ilpfile = self.set_option("ilpfile", warning = False,
             required = self.flow_generate_boundary_prediction or self.ilastik_training_volume)
-        self.features = self.set_option("features", warning = False,
-            required = self.flow_generate_boundary_prediction)
+        self.features = self.set_option("features", default = [], warning = False)
         self.boundary_manipulation_recipe = self.set_option("boundary_manipulation_recipe", default = [],
             warning = self.flow_generate_watershed)
 
