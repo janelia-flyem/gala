@@ -130,17 +130,19 @@ if __name__ == '__main__':
                   show_progress=args.show_progress, nozeros=args.nozeros)
     MasterLogger.info("Finished building RAG")
     if args.remove_inclusions:
-        MasterLogger.info("Removing inclusions")
+        MasterLogger.info("Removing inclusions with " + str(g.number_of_nodes()) + " nodes")
         g.remove_inclusions()
-        MasterLogger.info("Finished removing inclusions")
+        MasterLogger.info("Finished removing inclusions with " + str(g.number_of_nodes()) + " nodes")
         ws = g.get_segmentation()
     if args.raveler_dir is not None:
         sps = imio.raveler_serial_section_map(ws, 0, False, False)
     for t in map(float, args.thresholds):
-        MasterLogger.info("Agglomerating RAG to " + str(t))
+        MasterLogger.info("Agglomerating RAG to " + str(t) + " with " + str(g.number_of_nodes()) + " nodes")
         g.agglomerate(t)
-        MasterLogger.info("Removing inclusions")
+        MasterLogger.info("Finished agglomerating RAG to " + str(t) + " with " + str(g.number_of_nodes()) + " nodes")
+        MasterLogger.info("Removing inclusions" + " with " + str(g.number_of_nodes()) + " nodes")
         g.remove_inclusions()
+        MasterLogger.info("Finished removing inclusions" + " with " + str(g.number_of_nodes()) + " nodes")
         s = g.get_segmentation()
         MasterLogger.info("Exporting volume")
         imio.write_image_stack(s, (args.fout+'.lzf.h5')%t, compression='lzf')

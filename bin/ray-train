@@ -97,8 +97,9 @@ if __name__ == '__main__':
     MasterLogger.info("Building RAG")
     g = agglo.Rag(ws, p, feature_manager=fm, show_progress=args.show_progress,
             nozeros=args.nozeros)
-    MasterLogger.info("Starting inclusion removal")
+    MasterLogger.info("Starting inclusion removal" + " with " + str(g.number_of_nodes()) + " nodes")
     g.remove_inclusions()
+    MasterLogger.info("Finished removing inclusions with " + str(g.number_of_nodes()) + " nodes")
     MasterLogger.info("Learning epochs")
     d, epochs = g.learn_agglomerate(gs, fm, args.min_num_examples, 
         learn_flat=args.learn_flat, learning_mode=args.learning_mode,
