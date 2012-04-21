@@ -209,7 +209,7 @@ def flow_generate_boundary_prediction(options, image_stack, experimentprefix, ou
 
 def flow_generate_watershed(options, image_stack, experimentprefix, output_dir):
     MasterLogger.info("Watershed Flow")
-    training_file = experimentprefix + ".h5_processed.h5"
+    training_file = experimentprefix + ".h5_boundpred.h5"
     if not os.path.isfile(training_file):
         raise Exception("Training file not found: " + training_file)
 
@@ -355,10 +355,10 @@ def main(argv):
             flow_generate_boundary_prediction(options, image_stack, experimentprefix, output_dir)
         elif options.ilastik_training_volume:
             MasterLogger.info("Loading saved ilastik volume")
-            os.system("rm -f " + str(experimentprefix + ".h5_processed.h5"))
-            imio.write_ilastik_batch_volume(image_stack, str(experimentprefix + ".h5_processed.h5"))
+            os.system("rm -f " + str(experimentprefix + ".h5_boundpred.h5"))
+            imio.write_ilastik_batch_volume(image_stack, str(experimentprefix + ".h5_boundpred.h5"))
             image_stack = image_stack.transpose((0, 2, 1))
-            f1 = h5py.File(str(experimentprefix + ".h5_processed.h5"), 'a')
+            f1 = h5py.File(str(experimentprefix + ".h5_boundpred.h5"), 'a')
             f2 = h5py.File(options.ilpfile, 'r')
             f1.copy(f2['/DataSets/dataItem00/prediction'], 'volume/prediction')
             f1.close()

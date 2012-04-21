@@ -36,8 +36,6 @@ if __name__ == '__main__':
     parser.add_argument('fin',
         help='The boundary probability map to be segmented, in HDF5 format ' +\
         '(group "stack" is assumed).')
-    parser.add_argument('fout', 
-        help='The output filename for the segmentations (use %%f-format).')
     parser.add_argument('-I', '--remove-inclusions', action='store_true',
         default=False, 
         help='Remove inclusions before segmenting and before output.')
@@ -72,16 +70,40 @@ if __name__ == '__main__':
         default=True, help='Disable nozeros mode.')
     parser.add_argument('-v', '--verbose', action='store_true', default=False,
         help='Print runtime information about execution.')
-    parser.add_argument('-R', '--raveler-dir',
-        help='Output segmentations to Raveler. Specify with %%f-format.')
     parser.add_argument('-J', '--no-graph-json', action='store_true',
         help='When outputting to Raveler, don\'t bother outputting graph.')
     parser.add_argument('-i', '--images',
         help='specify the grayscale images for Raveler export.')
+    parser.add_argument('--output_dir', type=str,
+        help="Directory for all output", default='./', dest='output_dir')
+    parser.add_argument('--experiment_name', type=str, 
+        help="Name of the experiment -- will be used as the base name for all outputs",
+        dest='experiment_name', required=True)
     args = parser.parse_args()
+
+    if not os.path.exists(args.output_dir):
+        os.makedirs(args.output_dir)
+
+    dname, fname = os.path.split(args.experiment_name)
+
+    if dname != "":
+        MasterLogger.error("Experiment name cannot be a path")
+        sys.exit(1)    
+
+    h5stacks = args.output_dir + "/segmentations"
+    if not os.path.exists(h5stacks):
+        os.makedirs(h5stacks)
+    h5stacks = h5stacks + "/" + args.experiment_name + '-%0.2f'
+
+    ravelervol = args.output_dir + "/raveler-exports"
+    if not os.path.exists(ravelervol):
+        os.makedirs(ravelervol)
+    ravelervol = ravelervol + "/" + args.experiment_name + '-%0.2f'   
+
 
     # load all the required data
     p = imio.read_image_stack(args.fin)
+
     im = imio.read_image_stack(args.images) if args.images is not None else None
     if args.watershed is not None:
         ws = imio.read_image_stack(args.watershed)
@@ -91,22 +113,7 @@ if __name__ == '__main__':
         MasterLogger.info("Finished performing watershed")
     fm = eval(args.feature_manager, {}, {'classify': classify})
 
-    # Before doing anything drastic, check that output files are writeable:
-    d, _ = os.path.split(args.fout)
-    if not os.access(d, os.W_OK):
-        MasterLogger.critical("No write access to " + d + ". Exiting.")
-        sys.exit(1)
-    if args.raveler_dir is not None:
-        d, _ = os.path.split(args.raveler_dir)
-        while len(d) > 0:
-            if os.path.exists(d) and os.access(d, os.W_OK):
-                break
-            elif os.path.exists(d) and not os.access(d, os.W_OK):
-                MasterLogger.critical("No write access to " + d + ". Exiting.")
-                sys.exit(1)
-            else:
-                d, _ = os.path.split(d)
-
+    
     # Load training data or classifier
     if args.training_data is not None or args.classifier is not None:
         if args.classifier is not None:
@@ -134,8 +141,7 @@ if __name__ == '__main__':
         g.remove_inclusions()
         MasterLogger.info("Finished removing inclusions with " + str(g.number_of_nodes()) + " nodes")
         ws = g.get_segmentation()
-    if args.raveler_dir is not None:
-        sps = imio.raveler_serial_section_map(ws, 0, False, False)
+    sps = imio.raveler_serial_section_map(ws, 0, False, False)
     for t in map(float, args.thresholds):
         MasterLogger.info("Agglomerating RAG to " + str(t) + " with " + str(g.number_of_nodes()) + " nodes")
         g.agglomerate(t)
@@ -145,16 +151,15 @@ if __name__ == '__main__':
         MasterLogger.info("Finished removing inclusions" + " with " + str(g.number_of_nodes()) + " nodes")
         s = g.get_segmentation()
         MasterLogger.info("Exporting volume")
-        imio.write_image_stack(s, (args.fout+'.lzf.h5')%t, compression='lzf')
+        imio.write_image_stack(s, (h5stacks +'.lzf.h5')%t, compression='lzf')
         g.rebuild_merge_queue()
-        if args.raveler_dir is not None:
-            imio.raveler_output_shortcut(ws, s, im, args.raveler_dir%t, sps)
-            if not args.no_graph_json:
-                g.write_plaza_json(
-                            os.path.join(args.raveler_dir%t, 'graph.json'))
+        imio.raveler_output_shortcut(ws, s, im, (ravelervol)%t, sps)
+        if not args.no_graph_json:
+            g.write_plaza_json(
+                os.path.join((ravelervol)%t, 'graph.json'))
     MasterLogger.info("Complete RAG agglomeration")
     g.agglomerate(inf)
     MasterLogger.info("Finished complete RAG agglomeration")
     u = g.get_ucm()
     MasterLogger.info("Writing final ucm")
-    imio.write_image_stack(u, (args.fout+'.ucm.lzf.h5')%inf, compression='lzf')
+    imio.write_image_stack(u, (h5stacks + '.ucm.lzf.h5')%inf, compression='lzf')
