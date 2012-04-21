@@ -72,7 +72,7 @@ if __name__ == '__main__':
         help='Print runtime information about execution.')
     parser.add_argument('-J', '--no-graph-json', action='store_true',
         help='When outputting to Raveler, don\'t bother outputting graph.')
-    parser.add_argument('-i', '--images',
+    parser.add_argument('-i', '--images', nargs='+',
         help='specify the grayscale images for Raveler export.')
     parser.add_argument('--output_dir', type=str,
         help="Directory for all output", default='./', dest='output_dir')
