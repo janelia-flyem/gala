@@ -104,7 +104,7 @@ def read_image_stack(fn, *args, **kwargs):
             stack = zeros((len(fns),)+im0.shape, dtype)
             for i, im in enumerate(ars):
                 stack[i] = im[xmin:xmax,ymin:ymax]
-    elif fn.endswith('_boundpred.h5'):
+    elif fn.endswith('_boundpred.h5') or fn.endswith('_processed.h5'):
         # Ilastik batch prediction output file
         stack = read_prediction_from_ilastik_batch(os.path.join(d,fn), **kwargs)
     elif fn.endswith('.h5'):
