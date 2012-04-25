@@ -16,7 +16,7 @@ from numpy import bool, array, double, zeros, mean, random, concatenate, where,\
     uint8, ones, float32, uint32, unique, newaxis, zeros_like, arange, floor, \
     histogram, seterr, __version__ as numpy_version, unravel_index, diff, \
     nonzero, sort, log, inf, argsort, repeat, ones_like, cov, arccos, dot, \
-    pi, bincount, isfinite, mean, median
+    pi, bincount, isfinite, mean, median, sign
 seterr(divide='ignore')
 from numpy.linalg import det, eig, norm
 from scipy import arange
@@ -94,11 +94,12 @@ class NullFeatureManager(object):
 
 class MomentsFeatureManager(NullFeatureManager):
     def __init__(self, nmoments=4, use_diff_features=True, oriented=False, 
-            *args, **kwargs):
+            normalize=False, *args, **kwargs):
         super(MomentsFeatureManager, self).__init__()
         self.nmoments = nmoments
         self.use_diff_features = use_diff_features
         self.oriented = oriented
+        self.normalize = normalize
 
     def compute_moment_sums(self, ar, idxs):
         values = ar[idxs][...,newaxis]
@@ -147,12 +148,18 @@ class MomentsFeatureManager(NullFeatureManager):
     def compute_node_features(self, g, n, cache=None):
         if cache is None: 
             cache = g.node[n][self.default_cache]
-        return central_moments_from_noncentral_sums(cache).ravel()
+        feat = central_moments_from_noncentral_sums(cache).ravel()
+        if self.normalize:
+            feat = ith_root(feat)
+        return feat
 
     def compute_edge_features(self, g, n1, n2, cache=None):
         if cache is None: 
             cache = g[n1][n2][self.default_cache]
-        return central_moments_from_noncentral_sums(cache).ravel()
+        feat = central_moments_from_noncentral_sums(cache).ravel()
+        if self.normalize:
+            feat = ith_root(feat)
+        return feat
 
     def compute_difference_features(self,g, n1, n2, cache1=None, cache2=None,
                                                             nthroot=False):
@@ -166,12 +173,8 @@ class MomentsFeatureManager(NullFeatureManager):
             cache2 = g.node[n2][self.default_cache]
         m2 = central_moments_from_noncentral_sums(cache2)
        
-        if m1.ndim==1:
-            m1 = m1[:,newaxis]
-            m2 = m2[:,newaxis]
-        if nthroot:
-            m1[2:] = sgn(m1[2:]) * (abs(m1[2:]) ** (1.0/arange(2, len(m1))))
-            m2[2:] = sgn(m2[2:]) * (abs(m2[2:]) ** (1.0/arange(2, len(m2))))
+        if nthroot or self.normalize:
+            m1, m2 = map(ith_root, [m1, m2])
         return abs(m1-m2).ravel()
 
 def central_moments_from_noncentral_sums(a):
@@ -197,6 +200,15 @@ def central_moments_from_noncentral_sums(a):
     ac[0] = N
     ac[1] = mu
     return ac
+
+def ith_root(ar):
+    """Get the ith root of the array values at ar[i] for i > 1."""
+    if len(ar) < 2:
+        return ar
+    ar = ar.copy()
+    ar[2:] = sign(ar[2:]) * \
+        (abs(ar[2:]) ** (1.0/arange(2, len(ar)))[:, newaxis])
+    return ar
 
 class OrientationFeatureManager(NullFeatureManager):
     def __init__(self, *args, **kwargs):
