@@ -148,18 +148,20 @@ class MomentsFeatureManager(NullFeatureManager):
     def compute_node_features(self, g, n, cache=None):
         if cache is None: 
             cache = g.node[n][self.default_cache]
-        feat = central_moments_from_noncentral_sums(cache).ravel()
+        feat = central_moments_from_noncentral_sums(cache)
         if self.normalize:
             feat = ith_root(feat)
-        return feat
+        n = feat.ravel()[0]
+        return concatenate(([n], feat[1:].T.ravel()))
 
     def compute_edge_features(self, g, n1, n2, cache=None):
         if cache is None: 
             cache = g[n1][n2][self.default_cache]
-        feat = central_moments_from_noncentral_sums(cache).ravel()
+        feat = central_moments_from_noncentral_sums(cache)
         if self.normalize:
             feat = ith_root(feat)
-        return feat
+        n = feat.ravel()[0]
+        return concatenate(([n], feat[1:].T.ravel()))
 
     def compute_difference_features(self,g, n1, n2, cache1=None, cache2=None,
                                                             nthroot=False):
@@ -175,7 +177,9 @@ class MomentsFeatureManager(NullFeatureManager):
        
         if nthroot or self.normalize:
             m1, m2 = map(ith_root, [m1, m2])
-        return abs(m1-m2).ravel()
+        feat = abs(m1-m2)
+        n = feat.ravel()[0]
+        return concatenate(([n], feat[1:].T.ravel()))
 
 def central_moments_from_noncentral_sums(a):
     """Compute moments about the mean from sums of x**i, for i=0, ..., len(a).
