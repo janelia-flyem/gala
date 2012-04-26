@@ -20,7 +20,8 @@ from scipy.ndimage import filters, grey_dilation, generate_binary_structure, \
         maximum_filter, minimum_filter
 from scipy.ndimage import distance_transform_cdt
 from scipy.ndimage.measurements import label, find_objects
-from scipy.ndimage.morphology import binary_opening, binary_dilation, \
+from scipy.ndimage.morphology import binary_opening, binary_closing, \
+    binary_dilation, grey_opening, grey_closing, \
     generate_binary_structure, iterate_structure
 #from scipy.spatial.distance import cityblock as manhattan_distance
 import iterprogress as ip
@@ -30,7 +31,7 @@ zero3d = array([0,0,0])
 def manhattan_distance(a, b):
     return sum(abs(a-b))
 
-def diamondse(radius, dimension):
+def diamond_se(radius, dimension):
     se = generate_binary_structure(dimension, 1)
     return iterate_structure(se, radius)
     
@@ -61,6 +62,7 @@ def hminima(a, thresh):
 imhmin = hminima
 
 def remove_small_connected_components(a, min_size=64, in_place=False):
+    original_dtype = a.dtype
     if a.dtype == bool:
         a = label(a)[0]
     elif not in_place:
@@ -71,7 +73,7 @@ def remove_small_connected_components(a, min_size=64, in_place=False):
     too_small = component_sizes < min_size
     too_small_locations = too_small[a]
     a[too_small_locations] = 0
-    return a
+    return a.astype(original_dtype)
 
 def regional_minima(a, connectivity=1):
     """Find the regional minima in an ndarray."""
@@ -98,6 +100,21 @@ def impose_minima(a, minima, connectivity=1):
     minima = minima.astype(bool)
     marker[minima] = mask[minima]
     return m - morphological_reconstruction(marker, mask, connectivity)
+
+def refined_seeding(a, maximum_height=0, grey_close_radius=1, 
+    binary_open_radius=1, binary_close_radius=1, minimum_size=0):
+    if grey_close_radius > 0:
+        strel = diamond_se(grey_close_radius, a.ndim)
+        a = grey_closing(a, footprint=strel)
+    s = (a <= maximum_height)
+    if binary_open_radius > 0:
+        strel = diamond_se(binary_open_radius, s.ndim)
+        s = binary_opening(s, structure=strel)
+    if binary_close_radius > 0:
+        strel = diamond_se(binary_close_radius, s.ndim)
+        s = binary_closing(s, structure=strel)
+    s = remove_small_connected_components(s, minimum_size)
+    return label(s)[0]
 
 def watershed(a, seeds=None, smooth_thresh=0.0, smooth_seeds=False, 
         minimum_seed_size=0, dams=True, show_progress=False, connectivity=1):
