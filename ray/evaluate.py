@@ -86,8 +86,8 @@ def split_vi(x, y=None, ignore_x=[0], ignore_y=[0]):
 def vi_pairwise_matrix(segs, split=False):
     """Compute the pairwise VI distances within a set of segmentations.
     
-    If 'split' is set to True, two matrices are returned, one for each direction of
-    the conditional entropy.
+    If 'split' is set to True, two matrices are returned, one for each 
+    direction of the conditional entropy.
 
     0-labeled pixels are ignored.
     """
