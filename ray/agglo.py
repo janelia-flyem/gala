@@ -114,8 +114,8 @@ class Rag(Graph):
         if watershed is None:
             self.ucm = None
         else:
-            self.ucm = array(self.watershed==0, dtype=float)
-            self.ucm[self.ucm==0] = -inf
+            self.ucm = -inf*ones(self.watershed.shape, dtype=float)
+            self.ucm[self.watershed==0] = inf
             self.ucm_r = self.ucm.ravel()
         self.max_merge_score = -inf
         self.build_graph_from_watershed(allow_shared_boundaries, nozerosfast=self.nozeros)
@@ -392,7 +392,6 @@ class Rag(Graph):
                                         self.merge_queue.peek()[0] < threshold:
             merge_priority, valid, n1, n2 = self.merge_queue.pop()
             if valid:
-                self.update_ucm(n1,n2,merge_priority)
                 self.merge_nodes(n1,n2)
                 if save_history: 
                     history.append((n1,n2))
@@ -413,10 +412,9 @@ class Rag(Graph):
             merge_priority, valid, n1, n2 = self.merge_queue.pop()
             if valid:
                 i += 1
-                self.update_ucm(n1,n2,merge_priority)
-                self.merge_nodes(n1,n2)
+                self.merge_nodes(n1, n2)
                 if save_history: 
-                    history.append((n1,n2))
+                    history.append((n1, n2))
                     evaluation.append(
                         (self.number_of_nodes()-1, self.split_vi())
                     )
@@ -628,15 +626,18 @@ class Rag(Graph):
                 break
         return count, nodes
 
-    def update_ucm(self, n1, n2, score=-inf):
+    def update_ucm(self, n1, n2):
         """Update ultrametric contour map."""
+        edge = self[n1][n2]
+        w = edge['weight'] if edge.has_key('weight') else -inf
         if self.ucm is not None:
-            self.max_merge_score = max(self.max_merge_score, score)
+            self.max_merge_score = max(self.max_merge_score, w)
             idxs = list(self[n1][n2]['boundary'])
             self.ucm_r[idxs] = self.max_merge_score
 
     def merge_nodes(self, n1, n2):
         """Merge two nodes, while updating the necessary edges."""
+        self.update_ucm(n1, n2)
         self.node[n1]['extent'].update(self.node[n2]['extent'])
         self.feature_manager.update_node_cache(self, n1, n2,
                 self.node[n1]['feature-cache'], self.node[n2]['feature-cache'])
