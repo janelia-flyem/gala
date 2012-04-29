@@ -14,22 +14,7 @@ from scipy.ndimage import label
 from ray import imio, agglo, morpho, classify
 
 if __name__ == '__main__':
-    MasterLogger = logging.getLogger('pipeline')
-    MasterLogger.propagate = False
-    MasterLogger.setLevel(logging.DEBUG)
-    console = logging.StreamHandler(sys.stdout)
-    console.setLevel(logging.INFO)
-    
-    formatter = logging.Formatter('%(levelname)-8s %(message)s')
-    console.setFormatter(formatter)
-    MasterLogger.addHandler(console)
-    prim = logging.FileHandler("ray-segment.log", 'a')
-    prim.setLevel(logging.DEBUG)
-    prim.setFormatter(logging.Formatter(fmt='%(asctime)s %(levelname)-8s %(message)s', datefmt='%m-%d-%y %H:%M'))
-    MasterLogger.addHandler(prim)
 
-    MasterLogger.info("Script called: " + ' '.join(sys.argv))
-    MasterLogger.info("Script run from: " + os.path.realpath('.'))
 
     parser = argparse.ArgumentParser(
         description='Train a classifier for agglomerative segmentation.')
@@ -81,6 +66,18 @@ if __name__ == '__main__':
         dest='experiment_name', required=True)
     args = parser.parse_args()
 
+    experiment_prefix = args.output_dir + "/" + args.experiment_name
+
+    MasterLogger = logging.getLogger('pipeline')
+    MasterLogger.propagate = False
+    MasterLogger.setLevel(logging.DEBUG)
+    console = logging.StreamHandler(sys.stdout)
+    console.setLevel(logging.INFO)
+    
+    formatter = logging.Formatter('%(levelname)-8s %(message)s')
+    console.setFormatter(formatter)
+    MasterLogger.addHandler(console)
+   
     if not os.path.exists(args.output_dir):
         os.makedirs(args.output_dir)
 
@@ -90,6 +87,15 @@ if __name__ == '__main__':
         MasterLogger.error("Experiment name cannot be a path")
         sys.exit(1)    
 
+    prim = logging.FileHandler(experiment_prefix + ".ray-segment.log", 'a')
+    prim.setLevel(logging.DEBUG)
+    prim.setFormatter(logging.Formatter(fmt='%(asctime)s %(levelname)-8s %(message)s', datefmt='%m-%d-%y %H:%M'))
+    MasterLogger.addHandler(prim)
+
+    MasterLogger.info("Script called: " + ' '.join(sys.argv))
+    MasterLogger.info("Script run from: " + os.path.realpath('.'))
+
+    
     h5stacks = args.output_dir + "/segmentations"
     if not os.path.exists(h5stacks):
         os.makedirs(h5stacks)
