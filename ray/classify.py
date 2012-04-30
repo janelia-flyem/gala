@@ -16,7 +16,7 @@ from numpy import bool, array, double, zeros, mean, random, concatenate, where,\
     uint8, ones, float32, uint32, unique, newaxis, zeros_like, arange, floor, \
     histogram, seterr, __version__ as numpy_version, unravel_index, diff, \
     nonzero, sort, log, inf, argsort, repeat, ones_like, cov, arccos, dot, \
-    pi, bincount, isfinite, mean, median, sign
+    pi, bincount, isfinite, mean, median, sign, intersect1d
 seterr(divide='ignore')
 from numpy.linalg import det, eig, norm
 from scipy import arange
@@ -29,6 +29,7 @@ except ImportError:
         'Convex hull features not available.')
 from scipy.misc import comb as nchoosek
 from scipy.stats import sem
+import networkx as nx
 
 try:
     from sklearn.svm import SVC
@@ -93,14 +94,15 @@ class NullFeatureManager(object):
     
 class GraphTopologyFeatureManager(NullFeatureManager):
     def __init__(self, *args, **kwargs):
-        pass
+        super(GraphTopologyFeatureManager, self).__init__()
 
     def compute_node_features(self, g, n, cache=None):
         deg = g.degree(n)
-        ndeg = average_neighbor_degree(g, nodes=[n])[n]
+        ndeg = nx.algorithms.average_neighbor_degree(g, nodes=[n])[n]
         try:
             wdeg = g.degree(n, 'weight')
-            wndeg = average_neighbor_degree(g, nodes=[n], weight='weight')[n]
+            wndeg = nx.algorithms.average_neighbor_degree(g, nodes=[n],
+                                                        weight='weight')[n]
         except KeyError:
             wdeg = deg
             wndeg = ndeg
@@ -118,8 +120,8 @@ class GraphTopologyFeatureManager(NullFeatureManager):
         return array([common_neighbors, favorability])
 
     def compute_difference_features(self, g, n1, n2, cache1=None, cache2=None):
-        return self.compute_node_features(n1, cache1) - \
-               self.compute_node_features(n2, cache2)
+        return self.compute_node_features(g, n1, cache1) - \
+               self.compute_node_features(g, n2, cache2)
 
 class MomentsFeatureManager(NullFeatureManager):
     def __init__(self, nmoments=4, use_diff_features=True, oriented=False, 
