@@ -70,13 +70,13 @@ if __name__ == '__main__':
     parser.add_argument('-Z', '--nozeros', action='store_false', 
         default=True, help='Disable nozeros mode.')
     parser.add_argument('--output_dir', type=str,
-        help="Directory for all output", default='./', dest='output_dir')
+        help='Directory for all output', default='./', dest='output_dir')
     parser.add_argument('--experiment_name', type=str, 
-        help="Name of the experiment -- will be used as the base name for all outputs",
-        dest='experiment_name', required=True)
+        help='Name of the experiment -- will be used as the base name for ' +\
+            'all outputs', required=True)
     args = parser.parse_args()
 
-    experiment_prefix = args.output_dir + "/" + args.experiment_name
+    experiment_prefix = os.path.join(args.output_dir, args.experiment_name)
 
     MasterLogger = logging.getLogger('pipeline')
     MasterLogger.propagate = False
@@ -91,25 +91,19 @@ if __name__ == '__main__':
     if not os.path.exists(args.output_dir):
         os.makedirs(args.output_dir)
 
-    dname, fname = os.path.split(args.experiment_name)
-
-    if dname != "":
+    if args.experiment_name.find('/') != -1:
         MasterLogger.error("Experiment name cannot be a path")
         sys.exit(1)    
 
     prim = logging.FileHandler(experiment_prefix + ".ray-train.log", 'a')
     prim.setLevel(logging.DEBUG)
-    prim.setFormatter(logging.Formatter(fmt='%(asctime)s %(levelname)-8s %(message)s', datefmt='%m-%d-%y %H:%M'))
+    prim.setFormatter(logging.Formatter(
+        fmt='%(asctime)s %(levelname)-8s %(message)s', 
+        datefmt='%m-%d-%y %H:%M'))
     MasterLogger.addHandler(prim)
 
     MasterLogger.info("Script called: " + ' '.join(sys.argv))
     MasterLogger.info("Script run from: " + os.path.realpath('.'))
-
-
-
-
-
- 
 
     p, gs = map(imio.read_image_stack, args.fin)
     gs = evaluate.relabel_from_one(gs)[0]
@@ -119,9 +113,11 @@ if __name__ == '__main__':
     MasterLogger.info("Building RAG")
     g = agglo.Rag(ws, p, feature_manager=fm, show_progress=args.show_progress,
             nozeros=args.nozeros)
-    MasterLogger.info("Starting inclusion removal" + " with " + str(g.number_of_nodes()) + " nodes")
+    MasterLogger.info("Starting inclusion removal with %i nodes"
+                                                        % g.number_of_nodes())
     g.remove_inclusions()
-    MasterLogger.info("Finished removing inclusions with " + str(g.number_of_nodes()) + " nodes")
+    MasterLogger.info("Finished inclusion removal with %i nodes"
+                                                        % g.number_of_nodes())
     MasterLogger.info("Learning epochs")
     d, epochs = g.learn_agglomerate(gs, fm, args.min_num_examples, 
         learn_flat=args.learn_flat, learning_mode=args.learning_mode,
