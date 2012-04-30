@@ -91,6 +91,35 @@ class NullFeatureManager(object):
     def compute_difference_features(self, *args, **kwargs):
         return array([])
     
+class GraphTopologyFeatureManager(NullFeatureManager):
+    def __init__(self, *args, **kwargs):
+        pass
+
+    def compute_node_features(self, g, n, cache=None):
+        deg = g.degree(n)
+        ndeg = average_neighbor_degree(g, nodes=[n])[n]
+        try:
+            wdeg = g.degree(n, 'weight')
+            wndeg = average_neighbor_degree(g, nodes=[n], weight='weight')[n]
+        except KeyError:
+            wdeg = deg
+            wndeg = ndeg
+        return array([deg, wdeg, ndeg, wndeg])
+
+    def compute_edge_features(self, g, n1, n2, cache=None):
+        nn1, nn2 = g.neighbors(n1), g.neighbors(n2)
+        common_neighbors = len(intersect1d(nn1, nn2))
+        try:
+            favorability = -log(g[n1][n2]['weight'] / mean(
+                [g[n1][n]['weight'] for n in nn1] + 
+                [g[n2][n]['weight'] for n in nn2]))
+        except KeyError:
+            favorability = 0.0
+        return array([common_neighbors, favorability])
+
+    def compute_difference_features(self, g, n1, n2, cache1=None, cache2=None):
+        return self.compute_node_features(n1, cache1) - \
+               self.compute_node_features(n2, cache2)
 
 class MomentsFeatureManager(NullFeatureManager):
     def __init__(self, nmoments=4, use_diff_features=True, oriented=False, 
