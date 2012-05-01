@@ -4,10 +4,14 @@
 import sys, os, argparse, cPickle
 import subprocess as sp
 import logging
+import functools
 
 # external libraries
 from numpy import unique
-from skimage import morphology as skmorph
+try:
+    from skimage import morphology as skmorph
+except ImportError:
+    logging.warning('Could not import skimage.')
 from scipy.ndimage import label
 
 # local modules
@@ -24,6 +28,12 @@ if __name__ == '__main__':
         'group "stack" is assumed), _boundpred.h5 Ilastik batch prediction '+\
         'files (group "/volume/prediction" is assumed), and Raveler export '+\
         'directories.')
+    parser.add_argument('-s', '--single-channel', action='store_true',
+        default=False,
+        help='Use only one channel from the boundary prediction map.')
+    parser.add_argument('-C', '--no-channel-data', action='store_true',
+        default=False,
+        help='The probability map has no separate dimension for channels.')
     parser.add_argument('-I', '--remove-inclusions', action='store_true',
         default=False, 
         help='Remove inclusions before training and before output.')
@@ -51,6 +61,10 @@ if __name__ == '__main__':
         default=1, help='Set the minimum number of training examples.')
     parser.add_argument('-N', '--num-examples', type=int, metavar='UINT',
         default=None, help='Set the sampled number of training examples.')
+    parser.add_argument('-a', '--active-vi', action='store_true',
+        help='Use expected VI change for active learning.')
+    parser.add_argument('-B', '--active-vi-beta', type=float, default=1.0,
+        help='Relative penalty for false merges in weighted expected VI.')
     parser.add_argument('-F', '--feature-manager', metavar='PY_STR',
         default='classify.CompositeFeatureManager(children=' +\
             '[classify.MomentsFeatureManager(), ' +\
@@ -69,9 +83,11 @@ if __name__ == '__main__':
         help='Print runtime information about execution.')
     parser.add_argument('-Z', '--nozeros', action='store_false', 
         default=True, help='Disable nozeros mode.')
-    parser.add_argument('--output_dir', type=str,
-        help='Directory for all output', default='./', dest='output_dir')
-    parser.add_argument('--experiment_name', type=str, 
+    parser.add_argument('-w', '--watershed-file', type=str,
+        help='Use a pre-computed watershed segmentation.')
+    parser.add_argument('--output-dir', type=str, default='./', metavar='DIR',
+        help='Directory for all output')
+    parser.add_argument('--experiment-name', type=str, metavar='EXPT_NAME',
         help='Name of the experiment -- will be used as the base name for ' +\
             'all outputs', required=True)
     args = parser.parse_args()
@@ -105,10 +121,15 @@ if __name__ == '__main__':
     MasterLogger.info("Script called: " + ' '.join(sys.argv))
     MasterLogger.info("Script run from: " + os.path.realpath('.'))
 
-    p, gs = map(imio.read_image_stack, args.fin)
-    gs = evaluate.relabel_from_one(gs)[0]
+    p = imio.read_image_stack(args.fin[0], single_channel=False)
+    p0 = p if args.no_channel_data else p[..., 0]
+    if args.single_channel: p = p0
+    gs = evaluate.relabel_from_one(imio.read_image_stack(args.fin[1]))[0]
     MasterLogger.info("Performing watershed")
-    ws = skmorph.watershed(p, label(p==0)[0])
+    if args.watershed_file is None:
+        ws = skmorph.watershed(p0, label(p0==0)[0])
+    else:
+        ws = imio.read_image_stack(args.watershed_file)
     fm = eval(args.feature_manager, {}, {'classify': classify})
     MasterLogger.info("Building RAG")
     g = agglo.Rag(ws, p, feature_manager=fm, show_progress=args.show_progress,
@@ -119,18 +140,27 @@ if __name__ == '__main__':
     MasterLogger.info("Finished inclusion removal with %i nodes"
                                                         % g.number_of_nodes())
     MasterLogger.info("Learning epochs")
+    if args.active_vi:
+        active_function = functools.partial(agglo.expected_change_vi,
+                                            beta=args.active_vi_beta)
+    else:
+        active_function = agglo.classifier_probability
     d, epochs = g.learn_agglomerate(gs, fm, args.min_num_examples, 
         learn_flat=args.learn_flat, learning_mode=args.learning_mode,
         labeling_mode=args.labeling_mode, priority_mode=args.priority_mode,
-        memory=args.memory, unique=args.unique, min_num_epochs=args.num_epochs)
+        memory=args.memory, unique=args.unique, min_num_epochs=args.num_epochs,
+        active_function=active_function)
     current_directory = os.path.realpath('.')
     os.chdir(os.path.dirname(classify.__file__))
-    git_commit = sp.check_output(['git', 'log', '-n', '1']).split('\n')[0]\
-                 .split()[1]
-    git_stamp = 'commit ' + git_commit if \
-        sp.check_output(['git', 'status']).split('\n').count(
-        'nothing to commit (working directory clean)') == 1 else \
-        'uncommitted changes from ' + git_commit
+    try:
+        git_commit = sp.check_output(['git', 'log', '-n', '1']).split('\n')[0]\
+                    .split()[1]
+        git_stamp = 'commit ' + git_commit if \
+            sp.check_output(['git', 'status']).split('\n').count(
+            'nothing to commit (working directory clean)') == 1 else \
+            'uncommitted changes from ' + git_commit
+    except OSError, sp.CalledProcessError:
+        git_stamp = 'git commit unknown'
     MasterLogger.debug(git_stamp)
     os.chdir(current_directory)
     info_string = '\n'.join(args.fin + [args.feature_manager, git_stamp])
