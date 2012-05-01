@@ -59,11 +59,10 @@ if __name__ == '__main__':
         help='When outputting to Raveler, don\'t bother outputting graph.')
     parser.add_argument('-i', '--images', 
         help='specify the grayscale images for Raveler export.')
-    parser.add_argument('--output_dir', type=str,
-        help="Directory for all output", default='./', dest='output_dir')
-    parser.add_argument('--experiment_name', type=str, 
-        help="Name of the experiment -- will be used as the base name for all outputs",
-        dest='experiment_name', required=True)
+    parser.add_argument('--output-dir', type=str, default='./',
+        help="Directory for all output")
+    parser.add_argument('--experiment-name', type=str, required=True,
+        help="Name of the experiment, used as the base name for all outputs.")
     args = parser.parse_args()
 
     experiment_prefix = args.output_dir + "/" + args.experiment_name
