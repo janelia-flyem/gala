@@ -56,6 +56,9 @@ Description of input JSON:
         { "operation" : <type>, "params" : <params> }
     ],
 
+    #connected component threshold
+    "seed_cc_threshold" : 0,
+    
     #only seeded watershed currently
     "seeded_watershed" : true,
 
@@ -120,6 +123,8 @@ class PipelineOptions:
         self.boundary_manipulation_recipe = self.set_option("boundary_manipulation_recipe", default = [],
             warning = self.flow_generate_watershed)
 
+        self.seed_cc_threshold = self.set_option("seed_cc_threshold", default=0,
+            warning = self.flow_generate_watershed)
         self.seeded_watershed = self.set_option("seeded_watershed", default=True,
             warning = self.flow_generate_watershed)
         self.watershed_seed_threshold = self.set_option("watershed_seed_threshold", default=0,
@@ -250,6 +255,11 @@ def flow_generate_watershed(options, image_stack, experimentprefix, output_dir):
     # ?? is threshold a int or float
     MasterLogger.debug("watershed seed threshold: " + str(options.watershed_seed_threshold))
     seeds = label(prediction0<=options.watershed_seed_threshold)[0]
+
+    if options.seed_cc_threshold > 0:
+        MasterLogger.info("Removing small seeds")
+        seeds = morpho.remove_small_connected_components(seeds, options.seed_cc_threshold)
+        MasterLogger.info("Finished removing small seeds")
 
     for action in options.seed_manipulation_recipe:
         if action["operation"] not in SeedActionFunction:
