@@ -61,7 +61,7 @@ if __name__ == '__main__':
         default=1, help='Set the minimum number of training examples.')
     parser.add_argument('-N', '--num-examples', type=int, metavar='UINT',
         default=None, help='Set the sampled number of training examples.')
-    parser.add_argument('-a', '--active-vi', action='store_true',
+    parser.add_argument('-V', '--active-vi', action='store_true',
         help='Use expected VI change for active learning.')
     parser.add_argument('-B', '--active-vi-beta', type=float, default=1.0,
         help='Relative penalty for false merges in weighted expected VI.')
@@ -85,9 +85,10 @@ if __name__ == '__main__':
         default=True, help='Disable nozeros mode.')
     parser.add_argument('-w', '--watershed-file', type=str,
         help='Use a pre-computed watershed segmentation.')
-    parser.add_argument('--output-dir', type=str, default='./', metavar='DIR',
-        help='Directory for all output')
-    parser.add_argument('--experiment-name', type=str, metavar='EXPT_NAME',
+    parser.add_argument('-o', '--output-dir', type=str, default='./',
+        metavar='DIR', help='Directory for all output')
+    parser.add_argument('-x', '--experiment-name', type=str,
+        metavar='EXPT_NAME',
         help='Name of the experiment -- will be used as the base name for ' +\
             'all outputs', required=True)
     args = parser.parse_args()
@@ -109,7 +110,7 @@ if __name__ == '__main__':
 
     if args.experiment_name.find('/') != -1:
         MasterLogger.error("Experiment name cannot be a path")
-        sys.exit(1)    
+        sys.exit(1)
 
     prim = logging.FileHandler(experiment_prefix + ".ray-train.log", 'a')
     prim.setLevel(logging.DEBUG)
