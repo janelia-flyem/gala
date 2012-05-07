@@ -980,8 +980,11 @@ def boundary_median(g, n1, n2):
     return median(g.probabilities_r[list(g[n1][n2]['boundary'])])
 
 def approximate_boundary_mean(g, n1, n2):
-    n, sum_xs = g[n1][n2]['feature-cache'][0:2]
-    return sum_xs/n
+    """Return the boundary mean as computed by a MomentsFeatureManager.
+    
+    The feature manager is assumed to have been set up for g at construction.
+    """
+    return g.feature_manager(g, n1, n2)[1]
 
 def make_ladder(priority_function, threshold, strictness=1):
     def ladder_function(g, n1, n2):
