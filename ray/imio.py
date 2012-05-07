@@ -1,5 +1,6 @@
 # built-ins
 import os
+import sys
 import argparse
 import re
 import json
@@ -260,7 +261,9 @@ def read_h5_stack(fn, *args, **kwargs):
         a = a[xmin:xmax,ymin:ymax]
     elif ndim(a) == 3:
         a = a[xmin:xmax,ymin:ymax,zmin:zmax]
-    return array(a)
+    ar = array(a)
+    dset.close()
+    return ar
 
 def ucm_to_raveler(ucm, sp_threshold=0, body_threshold=0.1, **kwargs):
     """Return Raveler map from a UCM."""
@@ -516,7 +519,7 @@ def write_h5_stack(npy_vol, fn, **kwargs):
         del kwargs['group']
     except KeyError:
         group = 'stack'
-    fout = h5py.File(fn, 'a')
+    fout = h5py.File(fn, 'r+')
     if group in fout:
         del fout[group]
     fout.create_dataset(group, data=npy_vol, **kwargs)
