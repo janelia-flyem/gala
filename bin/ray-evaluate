@@ -1,0 +1,81 @@
+#!/usr/bin/env python
+
+# Python standard library
+import sys, os, argparse, cPickle
+import subprocess as sp
+import logging
+
+# external libraries
+from numpy import unique, inf
+import numpy as np
+try:
+    from skimage import morphology as skmorph
+except ImportError:
+    logging.warning('Could not import skimage.')
+from scipy.ndimage import label
+
+# local modules
+from ray import imio, agglo, morpho, classify, evaluate as ev
+
+if __name__ == '__main__':
+
+    parser = argparse.ArgumentParser(
+        description='Evaluate the results of a segmentation given ground ' +\
+        'truth')
+    parser.add_argument('seg', help='The segmentation to be evaluated.')
+    parser.add_argument('gt', help='The ground truth segmentation.')
+    parser.add_argument('-V', help='Evaluate using variation of information.')
+    parser.add_argument('-B', '--vi-beta', type=float, default=1.0,
+        help='Relative penalty for false merges in weighted VI.')
+    parser.add_argument('-u', '--ucm', action='store_true', default=False,
+        help='Assume the segmentation is an ultrametric contour map.')
+    parser.add_argument('-1', '--no-relabel-from-one', action='store_false',
+        default=True, dest='relabel_from_one',
+        help='Don\'t relabel the volumes from 1 before evaluating.')
+    parser.add_argument('-t', '--threshold', type=float, default=0.0,
+        help='The threshold at which the segmentation was produced.')
+    parser.add_argument('-L', '--label-ground-truth', action='store_true',
+        default=False, help='Run connected components on ground truth volume.')
+    args = parser.parse_args()
+
+    master_log = logging.getLogger('evaluation')
+    master_log.propagate = False
+    master_log.setLevel(logging.DEBUG)
+    console = logging.StreamHandler(sys.stdout)
+    console.setLevel(logging.INFO)
+    
+    formatter = logging.Formatter('%(levelname)-8s %(message)s')
+    console.setFormatter(formatter)
+    master_log.addHandler(console)
+   
+    prim = logging.FileHandler(args.seg + ".ray-evaluate.log", 'a')
+    prim.setLevel(logging.DEBUG)
+    prim.setFormatter(logging.Formatter(
+        fmt='%(asctime)s %(levelname)-8s %(message)s',
+        datefmt='%m-%d-%y %H:%M'))
+    master_log.addHandler(prim)
+
+    master_log.info("Script called: " + ' '.join(sys.argv))
+    master_log.info("Script run from: " + os.path.realpath('.'))
+
+    seg, gt = map(imio.read_image_stack, [args.seg, args.gt])
+    
+    args.ucm = args.ucm or args.seg.endswith('.ucm.lzf.h5') or \
+                           args.seg.endswith('.ucm.h5')
+    if args.label_ground_truth: 
+        master_log.info('GT connected components...')
+        gt, ngt = label(gt)
+        master_log.info('Ground truth bodies: %i' % ngt)
+    else:
+        master_log.info('Ground truth bodies: %i' % len(np.unique(gt)))
+        if args.relabel_from_one:
+            gt = ev.relabel_from_one(gt)[0]
+    if args.ucm:
+        vi = ev.vi_by_threshold(seg, gt, [0], [0], args.npoints)
+    else:
+        if args.relabel_from_one:
+            seg = ev.relabel_from_one(seg)[0]
+        vi = np.concatenate((np.array([args.threshold]), 
+            ev.split_vi(seg, gt)))[..., np.newaxis]
+    imio.write_h5_stack(vi, args.seg, group='vi')
+    print vi[:, :max(6, len(vi[0]))]
