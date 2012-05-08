@@ -519,7 +519,7 @@ def write_h5_stack(npy_vol, fn, **kwargs):
         del kwargs['group']
     except KeyError:
         group = 'stack'
-    fout = h5py.File(fn, 'r+')
+    fout = h5py.File(fn, 'a+')
     if group in fout:
         del fout[group]
     fout.create_dataset(group, data=npy_vol, **kwargs)
