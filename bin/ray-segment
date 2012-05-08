@@ -7,7 +7,10 @@ import logging
 
 # external libraries
 from numpy import unique, inf
-from skimage import morphology as skmorph
+try:
+    from skimage import morphology as skmorph
+except ImportError:
+    logging.warning('Could not import skimage.')
 from scipy.ndimage import label
 
 # local modules
@@ -24,6 +27,12 @@ if __name__ == '__main__':
     parser.add_argument('-I', '--remove-inclusions', action='store_true',
         default=False, 
         help='Remove inclusions before segmenting and before output.')
+    parser.add_argument('-s', '--single-channel', action='store_true',
+        default=False,
+        help='Use only one channel from the boundary prediction map.')
+    parser.add_argument('-C', '--no-channel-data', action='store_true',
+        default=False,
+        help='The probability map has no separate dimension for channels.')
     parser.add_argument('-F', '--feature-manager', metavar='EVAL_STR',
         default='classify.CompositeFeatureManager(children=' +\
             '[classify.MomentsFeatureManager(), ' +\
@@ -39,6 +48,8 @@ if __name__ == '__main__':
     parser.add_argument('-V', '--expected-vi', action='store_true', 
         default=False,
         help='Use expected change in VI as agglomeration function.')
+    parser.add_argument('-B', '--active-vi-beta', type=float, default=1.0,
+        help='Relative penalty for false merges in weighted expected VI.')
     parser.add_argument('-f', '--priority-function', metavar='EVAL_STR',
         default='agglo.boundary_median',
         help='Use specified priority function (when not using a classifier).')
@@ -55,19 +66,24 @@ if __name__ == '__main__':
         default=True, help='Disable nozeros mode.')
     parser.add_argument('-v', '--verbose', action='store_true', default=False,
         help='Print runtime information about execution.')
-    parser.add_argument('-J', '--no-graph-json', action='store_true',
+    parser.add_argument('-J', '--no-graph-json', dest='graph_json_export',
+        action='store_false', default=True,
         help='When outputting to Raveler, don\'t bother outputting graph.')
     parser.add_argument('-i', '--images', 
         help='specify the grayscale images for Raveler export.')
-    parser.add_argument('--output-dir', type=str, default='./',
+    parser.add_argument('-R', '--no-raveler-export', dest='raveler_export',
+        action='store_false', default=True,
+        help='Turn off Raveler export.')
+    parser.add_argument('--output-dir', type=str, default='./', metavar='DIR',
         help="Directory for all output")
     parser.add_argument('--experiment-name', type=str, required=True,
+        metavar='EXP_NAME',
         help="Name of the experiment, used as the base name for all outputs.")
     parser.add_argument('--seed-cc-threshold', type=int, default=0,
         help='Connected component threshold in seed creation')
     args = parser.parse_args()
 
-    experiment_prefix = args.output_dir + "/" + args.experiment_name
+    experiment_prefix = os.path.join(args.output_dir, args.experiment_name)
 
     MasterLogger = logging.getLogger('pipeline')
     MasterLogger.propagate = False
@@ -82,46 +98,49 @@ if __name__ == '__main__':
     if not os.path.exists(args.output_dir):
         os.makedirs(args.output_dir)
 
-    dname, fname = os.path.split(args.experiment_name)
-
-    if dname != "":
+    if args.experiment_name.find('/') != -1:
         MasterLogger.error("Experiment name cannot be a path")
-        sys.exit(1)    
+        sys.exit(1)
 
     prim = logging.FileHandler(experiment_prefix + ".ray-segment.log", 'a')
     prim.setLevel(logging.DEBUG)
-    prim.setFormatter(logging.Formatter(fmt='%(asctime)s %(levelname)-8s %(message)s', datefmt='%m-%d-%y %H:%M'))
+    prim.setFormatter(logging.Formatter(
+        fmt='%(asctime)s %(levelname)-8s %(message)s',
+        datefmt='%m-%d-%y %H:%M'))
     MasterLogger.addHandler(prim)
 
     MasterLogger.info("Script called: " + ' '.join(sys.argv))
     MasterLogger.info("Script run from: " + os.path.realpath('.'))
 
     
-    h5stacks = args.output_dir + "/segmentations"
+    h5stacks = os.path.join(args.output_dir, "segmentations") \
+        if args.raveler_export else args.output_dir
     if not os.path.exists(h5stacks):
         os.makedirs(h5stacks)
-    h5stacks = h5stacks + "/" + args.experiment_name + '-%0.2f'
+    h5stacks = os.path.join(h5stacks, args.experiment_name + '-%0.2f')
 
-    ravelervol = args.output_dir + "/raveler-exports"
-    if not os.path.exists(ravelervol):
-        os.makedirs(ravelervol)
-    ravelervol = ravelervol + "/" + args.experiment_name + '-%0.2f'   
+    if args.raveler_export:
+        ravelervol = args.output_dir + "/raveler-exports"
+        if not os.path.exists(ravelervol):
+            os.makedirs(ravelervol)
+        ravelervol = ravelervol + "/" + args.experiment_name + '-%0.2f'   
 
 
     # load all the required data
-    p = imio.read_image_stack(args.fin)
+    p = imio.read_image_stack(args.fin, single_channel=False)
+    p0 = p if args.no_channel_data else p[..., 0]
+    if args.single_channel: p = p0
 
     im = imio.read_image_stack(args.images) if args.images is not None else None
     if args.watershed is not None:
         ws = imio.read_image_stack(args.watershed)
     else:
         MasterLogger.info("Performing watershed")
-        
-        seeds = label(p==0)[0]
+        seeds = label(p0==0)[0]
         if args.seed_cc_threshold > 0:
             seeds = morpho.remove_small_connected_components(seeds, args.seed_cc_threshold)
 
-        ws = skmorph.watershed(p, seeds)
+        ws = skmorph.watershed(p0, seeds)
         MasterLogger.info("Finished performing watershed")
     fm = eval(args.feature_manager, {}, {'classify': classify})
 
@@ -138,7 +157,7 @@ if __name__ == '__main__':
                 args.training_data[1][:,0], args.num_training)
             MasterLogger.info("Finished training classifier")
         if args.expected_vi:
-            mpf = agglo.expected_change_vi(fm, cl)
+            mpf = agglo.expected_change_vi(fm, cl, beta=args.active_vi_beta)
         else:
             mpf = agglo.classifier_probability(fm, cl)
     else:
@@ -149,24 +168,31 @@ if __name__ == '__main__':
                   show_progress=args.show_progress, nozeros=args.nozeros)
     MasterLogger.info("Finished building RAG")
     if args.remove_inclusions:
-        MasterLogger.info("Removing inclusions with " + str(g.number_of_nodes()) + " nodes")
+        MasterLogger.info("Removing inclusions with %i nodes" % 
+                                                g.number_of_nodes())
         g.remove_inclusions()
-        MasterLogger.info("Finished removing inclusions with " + str(g.number_of_nodes()) + " nodes")
+        MasterLogger.info("Finished removing inclusions with %i nodes" %
+                                                g.number_of_nodes())
         ws = g.get_segmentation()
     sps = imio.raveler_serial_section_map(ws, 0, False, False)
     for t in map(float, args.thresholds):
-        MasterLogger.info("Agglomerating RAG to " + str(t) + " with " + str(g.number_of_nodes()) + " nodes")
+        MasterLogger.info("Agglomerating RAG to %f with %i nodes" % 
+                                                (t, g.number_of_nodes()))
         g.agglomerate(t)
-        MasterLogger.info("Finished agglomerating RAG to " + str(t) + " with " + str(g.number_of_nodes()) + " nodes")
-        MasterLogger.info("Removing inclusions" + " with " + str(g.number_of_nodes()) + " nodes")
+        MasterLogger.info("Finished agglomerating RAG to %f with %i nodes" %
+                                                (t, g.number_of_nodes()))
+        MasterLogger.info("Removing inclusions")
         g.remove_inclusions()
-        MasterLogger.info("Finished removing inclusions" + " with " + str(g.number_of_nodes()) + " nodes")
+        MasterLogger.info("Finished removing inclusions with %i nodes" % 
+                                                g.number_of_nodes())
         s = g.get_segmentation()
         MasterLogger.info("Exporting volume")
         imio.write_image_stack(s, (h5stacks +'.lzf.h5')%t, compression='lzf')
+        if args.raveler_export:
+            imio.raveler_output_shortcut(ws, s, im, (ravelervol)%t, sps)
+        MasterLogger.info("Rebuilding the merge queue")
         g.rebuild_merge_queue()
-        imio.raveler_output_shortcut(ws, s, im, (ravelervol)%t, sps)
-        if not args.no_graph_json:
+        if args.raveler_export and args.graph_json_export:
             g.write_plaza_json(
                 os.path.join((ravelervol)%t, 'graph.json'))
     MasterLogger.info("Complete RAG agglomeration")
