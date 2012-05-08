@@ -7,26 +7,31 @@ from numpy import array
 arguments = argparse.ArgumentParser(add_help=False)
 arggroup = arguments.add_argument_group('HDF5 cat options')
 arggroup.add_argument('-g', '--group', metavar='GROUP',
-    help='Preview only path given by GROUP'
-)
+    help='Preview only path given by GROUP')
+arggroup.add_argument('-v', '--verbose', action='store_true', default=False,
+    help='Include array printout.')
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
         'Preview the contents of an HDF5 file',
         parents=[arguments]
     )
-    parser.add_argument('fin', help='The input HDF5 file.')
+    parser.add_argument('fin', nargs='+', help='The input HDF5 files.')
 
     args = parser.parse_args()
-    f = h5py.File(args.fin, 'r')
-    if args.group is not None:
-        groups = [args.group]
-    else:
-        groups = []
-        f.visit(groups.append)
-    for g in groups:
-        print g
-        if type(f[g]) == h5py.highlevel.Dataset:
-            a = array(f[g])
-            print 'shape: ', a.shape
-            print a
+    for fin in args.fin:
+        print '>>>', fin
+        f = h5py.File(fin, 'r')
+        if args.group is not None:
+            groups = [args.group]
+        else:
+            groups = []
+            f.visit(groups.append)
+        for g in groups:
+            print '\n   ', g
+            if type(f[g]) == h5py.highlevel.Dataset:
+                a = f[g]
+                print '      shape: ', a.shape, '\n      type: ', a.dtype
+                if args.verbose:
+                    a = array(f[g])
+                    print a
