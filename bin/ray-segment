@@ -63,6 +63,8 @@ if __name__ == '__main__':
         help="Directory for all output")
     parser.add_argument('--experiment-name', type=str, required=True,
         help="Name of the experiment, used as the base name for all outputs.")
+    parser.add_argument('--seed-cc-threshold', type=int, default=0,
+        help='Connected component threshold in seed creation')
     args = parser.parse_args()
 
     experiment_prefix = args.output_dir + "/" + args.experiment_name
@@ -114,7 +116,12 @@ if __name__ == '__main__':
         ws = imio.read_image_stack(args.watershed)
     else:
         MasterLogger.info("Performing watershed")
-        ws = skmorph.watershed(p, label(p==0)[0])
+        
+        seeds = label(p==0)[0]
+        if args.seed_cc_threshold > 0:
+            seeds = morpho.remove_small_connected_components(seeds, args.seed_cc_threshold)
+
+        ws = skmorph.watershed(p, seeds)
         MasterLogger.info("Finished performing watershed")
     fm = eval(args.feature_manager, {}, {'classify': classify})
 

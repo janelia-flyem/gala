@@ -350,8 +350,8 @@ def main(argv):
     parser = argparse.ArgumentParser(description="Segmentation pipeline (featuring boundary prediction, median agglomeration, and inclusion removal)", formatter_class=argparse.RawDescriptionHelpFormatter, epilog=format_help)
     parser.add_argument('--initfile', type=str, help="Initial configuration json file needed",
         dest='initfile', required=True)
-    parser.add_argument('--experiment_name', type=str, help="Name of the experiment -- will be used as the base name for all outputs", dest='experiment_name', required=True)
-    parser.add_argument('--output_dir', type=str, help="Directory for all output", default='./', dest='output_dir')
+    parser.add_argument('--experiment-name', type=str, help="Name of the experiment -- will be used as the base name for all outputs", dest='experiment_name', required=True)
+    parser.add_argument('--output-dir', type=str, help="Directory for all output", default='./', dest='output_dir')
     parser.add_argument('--debug', action="store_true", help="Show debug output", dest="debug", default=False)
     args = parser.parse_args()
 
