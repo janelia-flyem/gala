@@ -22,7 +22,8 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(
         description='Evaluate the results of a segmentation given ground ' +\
         'truth')
-    parser.add_argument('seg', help='The segmentation to be evaluated.')
+    parser.add_argument('seg', help='The segmentations to be evaluated.', 
+        nargs='+')
     parser.add_argument('gt', help='The ground truth segmentation.')
     parser.add_argument('-V', help='Evaluate using variation of information.')
     parser.add_argument('-B', '--vi-beta', type=float, default=1.0,
@@ -48,20 +49,11 @@ if __name__ == '__main__':
     console.setFormatter(formatter)
     master_log.addHandler(console)
    
-    prim = logging.FileHandler(args.seg + ".ray-evaluate.log", 'a')
-    prim.setLevel(logging.DEBUG)
-    prim.setFormatter(logging.Formatter(
-        fmt='%(asctime)s %(levelname)-8s %(message)s',
-        datefmt='%m-%d-%y %H:%M'))
-    master_log.addHandler(prim)
-
     master_log.info("Script called: " + ' '.join(sys.argv))
     master_log.info("Script run from: " + os.path.realpath('.'))
 
-    seg, gt = map(imio.read_image_stack, [args.seg, args.gt])
+    gt = imio.read_image_stack(args.gt)
     
-    args.ucm = args.ucm or args.seg.endswith('.ucm.lzf.h5') or \
-                           args.seg.endswith('.ucm.h5')
     if args.label_ground_truth: 
         master_log.info('GT connected components...')
         gt, ngt = label(gt)
@@ -70,12 +62,16 @@ if __name__ == '__main__':
         master_log.info('Ground truth bodies: %i' % len(np.unique(gt)))
         if args.relabel_from_one:
             gt = ev.relabel_from_one(gt)[0]
-    if args.ucm:
-        vi = ev.vi_by_threshold(seg, gt, [0], [0], args.npoints)
-    else:
-        if args.relabel_from_one:
-            seg = ev.relabel_from_one(seg)[0]
-        vi = np.concatenate((np.array([args.threshold]), 
-            ev.split_vi(seg, gt)))[..., np.newaxis]
-    imio.write_h5_stack(vi, args.seg, group='vi')
-    print vi[:, :max(6, len(vi[0]))]
+    for segfn in args.seg:
+        args.ucm = args.ucm or segfn.endswith('.ucm.lzf.h5') or \
+                               segfn.endswith('.ucm.h5')
+        seg = imio.read_image_stack(segfn)
+        if args.ucm:
+            vi = ev.vi_by_threshold(seg, gt, [0], [0], args.npoints)
+        else:
+            if args.relabel_from_one:
+                seg = ev.relabel_from_one(seg)[0]
+            vi = np.concatenate((np.array([args.threshold]), 
+                ev.split_vi(seg, gt)))[..., np.newaxis]
+        imio.write_h5_stack(vi, segfn, group='vi')
+        print vi[:, :max(6, len(vi[0]))]
