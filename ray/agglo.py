@@ -984,7 +984,7 @@ def approximate_boundary_mean(g, n1, n2):
     
     The feature manager is assumed to have been set up for g at construction.
     """
-    return g.feature_manager(g, n1, n2)[1]
+    return g.feature_manager.compute_edge_features(g, n1, n2)[1]
 
 def make_ladder(priority_function, threshold, strictness=1):
     def ladder_function(g, n1, n2):
