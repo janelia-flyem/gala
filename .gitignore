@@ -1,6 +1,6 @@
 tmp/
 data/
-cluster/
+cluster
 *.pyc
 .*.swp
 ipython_log.py*
