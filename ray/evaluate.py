@@ -1,5 +1,7 @@
 import numpy
 import multiprocessing
+import itertools as it
+import h5py
 from scipy.sparse import coo_matrix
 from scipy.ndimage.measurements import label
 from scipy.spatial.distance import pdist, cdist, squareform
@@ -257,3 +259,14 @@ def fm_index(x, y=None):
     a, b, c, d = rand_values(cont)
     return a/(numpy.sqrt((a+b)*(a+c)))
 
+def reduce_vi(fn='testing/%i/flat-single-channel-tr%i-%i-%.2f.lzf.h5',
+    iterable=[(ts, tr, ts) for ts, tr in it.combinations(range(8), 2)],
+    thresholds=numpy.arange(0, 1.01, 0.01)):
+    iterable = list(iterable)
+    vi = numpy.zeros((3, len(thresholds), len(iterable)), numpy.double)
+    for i, t in enumerate(thresholds):
+        for j, v in enumerate(iterable):
+            f = h5py.File(fn % (tuple(v) + (t,)), 'r')
+            vi[:, i, j] += numpy.array(f['vi'])[:, 0]
+            f.close()
+    return vi
