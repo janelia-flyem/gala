@@ -1,5 +1,6 @@
 # built-ins
-from itertools import combinations, izip, repeat, product
+from itertools import combinations, izip, repeat, product, count
+import itertools as it
 import argparse
 import random
 import sys
@@ -13,7 +14,8 @@ from numpy import array, mean, zeros, zeros_like, uint8, int8, where, unique, \
     ones_like, finfo, size, double, transpose, newaxis, uint32, nonzero, \
     median, exp, ceil, dot, log2, float, ones, arange, inf, flatnonzero, \
     intersect1d, dtype, squeeze, sqrt, reshape, setdiff1d, argmin, sign, \
-    concatenate, nan, __version__ as numpyversion, unravel_index, bincount
+    concatenate, nan, __version__ as numpyversion, unravel_index, bincount, \
+    uint
 import numpy
 from scipy.stats import sem
 from scipy.sparse import lil_matrix
@@ -83,15 +85,31 @@ def conditional_countdown(seq, start=1, pred=bool):
             remaining -= 1
         yield remaining
 
+class AgglomerationTree(object):
+    def __init__(self, num_nodes=0, node_dtype=uint):
+        self.node_ids = zeros((num_nodes, 2), dtype=node_dtype)
+        self.w = zeros(num_nodes, dtype=float)
+        self.i = it.count(0)
+
+    def add(self, n1, n2, w=0.0):
+        i = self.i.next()
+        self.node_ids[i] = [n1, n2]
+        self.w[i] = w
+
+    def threshold(self, t=0.5):
+        node_ids = self.node_ids.copy()
+        node_ids[self.w >= t] = 0
+        return node_ids[node_ids.sum(axis=1) > 0]
+
 class Rag(Graph):
     """Region adjacency graph for segmentation of nD volumes."""
 
     def __init__(self, watershed=array([]), probabilities=array([]), 
             merge_priority_function=None, allow_shared_boundaries=True,
-            gt_vol=None, feature_manager=NullFeatureManager(), 
-            show_progress=False, lowmem=False, connectivity=1,
-            channel_is_oriented=None, orientation_map=array([]),
-            normalize_probabilities=False, nozeros=False):
+            feature_manager=NullFeatureManager(), show_progress=False,
+            lowmem=False, connectivity=1, channel_is_oriented=None,
+            orientation_map=array([]), normalize_probabilities=False,
+            nozeros=False):
         """Create a graph from a watershed volume and image volume.
         
         The watershed is assumed to have dams of label 0 in between basins.
@@ -101,7 +119,6 @@ class Rag(Graph):
         """
         super(Rag, self).__init__(weighted=False)
         self.show_progress = show_progress
-        self.nozeros = nozeros
         self.pbar = ip.StandardProgressBar() if self.show_progress \
                else ip.NoProgressBar()
         if merge_priority_function is None:
@@ -118,9 +135,8 @@ class Rag(Graph):
             self.ucm[self.watershed==0] = inf
             self.ucm_r = self.ucm.ravel()
         self.max_merge_score = -inf
-        self.build_graph_from_watershed(allow_shared_boundaries, nozerosfast=self.nozeros)
+        self.build_graph_from_watershed(allow_shared_boundaries, nozeros)
         self.set_feature_manager(feature_manager)
-        self.set_ground_truth(gt_vol)
         self.merge_queue = MergeQueue()
 
     def __copy__(self):
@@ -284,8 +300,6 @@ class Rag(Graph):
         so = orientation_map.shape
         sw = tuple(array(self.watershed.shape, dtype=int)-\
                 2*self.pad_thickness*ones(self.watershed.ndim, dtype=int))
-        o_ndim = orientation_map.ndim
-        w_ndim = self.watershed.ndim
         padding = [0]+(self.pad_thickness-1)*[0]
         self.orientation_map = morpho.pad(orientation_map, padding).astype(int)
         self.orientation_map_r = self.orientation_map.ravel()
@@ -334,25 +348,6 @@ class Rag(Graph):
                 morpho.build_neighbors_array(self.watershed, connectivity)
             self.neighbor_idxs = self.get_neighbor_idxs_fast
 
-    def set_ground_truth(self, gt=None):
-        if gt is not None:
-            gtm = gt.max()+1
-            gt_ignore = [0, gtm] if (gt==0).any() else [gtm]
-            seg_ignore = [0, self.boundary_body] if \
-                        (self.segmentation==0).any() else [self.boundary_body]
-            self.gt = morpho.pad(gt, gt_ignore)
-            self.rig = contingency_table(self.segmentation, self.gt)
-            self.rig[:, gt_ignore] = 0
-            self.rig[seg_ignore, :] = 0
-        else:
-            self.gt = None
-            # null pattern to transparently allow merging of nodes.
-            # Bonus feature: counts how many sp's went into a single node.
-            try:
-                self.rig = ones(self.watershed.max()+1)
-            except ValueError:
-                self.rig = ones(self.number_of_nodes()+1)
-
     def build_merge_queue(self):
         """Build a queue of node pairs to be merged in a specific priority.
         
@@ -372,7 +367,7 @@ class Rag(Graph):
         """
         queue_items = []
         for l1, l2 in self.real_edges_iter():
-            w = self.merge_priority_function(self,l1,l2)
+            w = self.merge_priority_function(self, l1, l2)
             qitem = [w, True, l1, l2]
             queue_items.append(qitem)
             self[l1][l2]['qlink'] = qitem
@@ -383,43 +378,26 @@ class Rag(Graph):
         """Build a merge queue from scratch and assign to self.merge_queue."""
         self.merge_queue = self.build_merge_queue()
 
-    def agglomerate(self, threshold=0.5, save_history=False):
+    def agglomerate(self, threshold=0.5):
         """Merge nodes sequentially until given edge confidence threshold."""
         if self.merge_queue.is_empty():
             self.merge_queue = self.build_merge_queue()
-        history, scores, evaluation = [], [], []
         while len(self.merge_queue) > 0 and \
                                         self.merge_queue.peek()[0] < threshold:
             merge_priority, valid, n1, n2 = self.merge_queue.pop()
             if valid:
                 self.merge_nodes(n1,n2)
-                if save_history: 
-                    history.append((n1,n2))
-                    scores.append(merge_priority)
-                    evaluation.append(
-                        (self.number_of_nodes()-1, self.split_vi())
-                    )
-        if save_history:
-            return history, scores, evaluation
 
-    def agglomerate_count(self, stepsize=100, save_history=False):
+    def agglomerate_count(self, stepsize=100):
         """Agglomerate until 'stepsize' merges have been made."""
         if self.merge_queue.is_empty():
             self.merge_queue = self.build_merge_queue()
-        history, evaluation = [], []
         i = 0
         while len(self.merge_queue) > 0 and i < stepsize:
             merge_priority, valid, n1, n2 = self.merge_queue.pop()
             if valid:
                 i += 1
                 self.merge_nodes(n1, n2)
-                if save_history: 
-                    history.append((n1, n2))
-                    evaluation.append(
-                        (self.number_of_nodes()-1, self.split_vi())
-                    )
-        if save_history:
-            return history, evaluation
         
     def agglomerate_ladder(self, threshold=1000, strictness=1):
         """Merge sequentially all nodes smaller than threshold.
@@ -609,12 +587,12 @@ class Rag(Graph):
         merge pair observed.
         """
         if labels is None:
-            labels1 = itertools.repeat(False)
-            labels2 = itertools.repeat(False)
+            labels1 = it.repeat(False)
+            labels2 = it.repeat(False)
         else:
             labels1 = (label > 0 for label in labels)
             labels2 = (label > 0 for label in labels)
-        counter = itertools.count()
+        counter = it.count()
         errors_remaining = conditional_countdown(labels2, num_errors)
         nodes = None
         for nodes, label, errs, count in \
@@ -869,14 +847,6 @@ class Rag(Graph):
         ids, ls = map(array,zip(*labels))
         ar[ids] = ls.astype(ar.dtype)
         return ar.reshape(self.watershed.shape)
-
-    def split_vi(self, gt=None):
-        if self.gt is None and gt is None:
-            return array([0,0])
-        elif self.gt is not None:
-            return split_vi(None, None, self.rig)
-        else:
-            return split_vi(self.get_segmentation(), gt, None, [0], [0])
 
     def boundary_indices(self, n1, n2):
         return list(self[n1][n2]['boundary'])
