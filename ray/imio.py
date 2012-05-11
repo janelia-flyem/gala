@@ -400,11 +400,14 @@ def write_to_raveler(sps, sp_to_segment, segment_to_body, directory, gray=None,
         try: 
             def call(arglist):
                 return subprocess.call(arglist, stdout=tmp_stdout)
-            call(['python', os.path.join(raveler_dir, 'util/createtiles.py'), 
+            r1, r2, r3, r4 = [-1]*4
+            r1 = call(['python', 
+                os.path.join(raveler_dir, 'util/createtiles.py'), 
                 directory, '1024', '0'])
-            call([os.path.join(raveler_dir, 'bin/bounds'), directory])
-            call([os.path.join(raveler_dir, 'bin/compilestack'), directory])
-            call(['python', 
+            r2 = call([os.path.join(raveler_dir, 'bin/bounds'), directory])
+            r3 = call([
+                os.path.join(raveler_dir, 'bin/compilestack'), directory])
+            r4 = call(['python', 
                 os.path.join(raveler_dir, 'util/run-contours-std.py'),
                 directory, '-n', '%i'%nproc_contours])
         except:
@@ -412,10 +415,14 @@ def write_to_raveler(sps, sp_to_segment, segment_to_body, directory, gray=None,
                 'Error during Raveler export post-processing step. ' +
                 'Possible causes are that you do not have Raveler installed ' +
                 'or you did not specify the correct installation path.')
-            with sys.exc_info() as ex:
-                logging.warning('Exception info:\n' + '\n'.join(map(str, ex)))
+            logging.warning('Return codes: %i, %i, %i, %i' % (r1, r2, r3, r4))
+#            with sys.exc_info() as ex:
+#                logging.warning('Exception info:\n' + '\n'.join(map(str, ex)))
     # make permissions friendly for proofreaders.
-    subprocess.call(['chmod', '-R', 'go=u', directory])
+    try:
+        subprocess.call(['chmod', '-R', 'go=u', directory])
+    except:
+        logging.warning('Could not change Raveler export permissions.')
 
 def raveler_output_shortcut(svs, seg, gray, outdir, sps_out=None):
     """Compute the Raveler format and write to directory, all at once."""
