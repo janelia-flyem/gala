@@ -67,16 +67,17 @@ def xlogx(x, out=None):
     return y
 
 def special_points_evaluate(eval_fct, coords, flatten=True, coord_format=True):
+    if coord_format:
+        coords = tuple([coords[:,i] for i in range(coords.shape[1])])
     def special_eval_fct(x, y, *args, **kwargs):
-        sx = np.zeros_like(x)
-        sy = np.zeros_like(y)
-        if coord_format:
-            coords = tuple([coords[:,i] for i in range(coords.shape[1])])
         if flatten:
-            coords = np.ravel_multi_index(coords, x.shape)
-        sx.ravel()[coords] = x.ravel()[coords]
-        sy.ravel()[coords] = y.ravel()[coords]
+            coords2 = np.ravel_multi_index(coords, x.shape)
+        else:
+            coords2 = coords
+        sx = x.ravel()[coords2]
+        sy = y.ravel()[coords2]
         return eval_fct(sx, sy, *args, **kwargs)
+    return special_eval_fct
 
 def make_synaptic_vi(fn):
     synapse_coords = \
