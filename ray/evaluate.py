@@ -1,4 +1,4 @@
-import np as np
+import numpy as np
 import multiprocessing
 import itertools as it
 import h5py
@@ -74,8 +74,8 @@ def special_points_evaluate(eval_fct, coords, flatten=True, coord_format=True):
             coords = tuple([coords[:,i] for i in range(coords.shape[1])])
         if flatten:
             coords = np.ravel_multi_index(coords, x.shape)
-        sx.ravel() = x.ravel()[coords]
-        sy.ravel() = y.ravel()[coords]
+        sx.ravel()[coords] = x.ravel()[coords]
+        sy.ravel()[coords] = y.ravel()[coords]
         return eval_fct(sx, sy, *args, **kwargs)
 
 def make_synaptic_vi(fn):
