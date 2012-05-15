@@ -1,4 +1,4 @@
-import np as np
+import numpy as np
 import multiprocessing
 import itertools as it
 import h5py
@@ -67,16 +67,17 @@ def xlogx(x, out=None):
     return y
 
 def special_points_evaluate(eval_fct, coords, flatten=True, coord_format=True):
+    if coord_format:
+        coords = tuple([coords[:,i] for i in range(coords.shape[1])])
     def special_eval_fct(x, y, *args, **kwargs):
-        sx = np.zeros_like(x)
-        sy = np.zeros_like(y)
-        if coord_format:
-            coords = tuple([coords[:,i] for i in range(coords.shape[1])])
         if flatten:
-            coords = np.ravel_multi_index(coords, x.shape)
-        sx.ravel() = x.ravel()[coords]
-        sy.ravel() = y.ravel()[coords]
+            coords2 = np.ravel_multi_index(coords, x.shape)
+        else:
+            coords2 = coords
+        sx = x.ravel()[coords2]
+        sy = y.ravel()[coords2]
         return eval_fct(sx, sy, *args, **kwargs)
+    return special_eval_fct
 
 def make_synaptic_vi(fn):
     synapse_coords = \
@@ -286,3 +287,13 @@ def reduce_vi(fn='testing/%i/flat-single-channel-tr%i-%i-%.2f.lzf.h5',
             vi[:, i, j] += np.array(f['vi'])[:, 0]
             f.close()
     return vi
+
+def sem(a, axis=None):
+    if axis is None:
+        a = a.ravel()
+        axis = 0
+    return np.std(a, axis=axis) / np.sqrt(a.shape[axis])
+
+def vi_statistics(vi_table):
+    return np.mean(vi_table, axis=-1), sem(vi_table, axis=-1), \
+        np.median(vi_table, axis=-1)
