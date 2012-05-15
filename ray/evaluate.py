@@ -287,3 +287,13 @@ def reduce_vi(fn='testing/%i/flat-single-channel-tr%i-%i-%.2f.lzf.h5',
             vi[:, i, j] += np.array(f['vi'])[:, 0]
             f.close()
     return vi
+
+def sem(a, axis=None):
+    if axis is None:
+        a = a.ravel()
+        axis = 0
+    return np.std(a, axis=axis) / np.sqrt(a.shape[axis])
+
+def vi_statistics(vi_table):
+    return np.mean(vi_table, axis=-1), sem(vi_table, axis=-1), \
+        np.median(vi_table, axis=-1)
