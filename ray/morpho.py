@@ -119,13 +119,20 @@ def refined_seeding(a, maximum_height=0, grey_close_radius=1,
 
 def minimum_seeds(current_seeds, min_seed_coordinates, connectivity=1):
     """Ensure that each point in given coordinates has its own seed."""
-    s = generate_binary_structure(current_seeds.ndim, connectivity)
-    new_seeds = grey_dilation(current_seeds, footprint=s)
+    seeds = current_seeds.copy()
+    sel = generate_binary_structure(seeds.ndim, connectivity)
+    if seeds.dtype == bool:
+        seeds = label(seeds, sel)[0]
+    new_seeds = grey_dilation(seeds, footprint=sel)
     overlap = new_seeds[min_seed_coordinates]
-    seed_overlap_counts = bincount(overlap)
-    seeds_to_delete = (seed_overlap_counts > 1)[current_seeds]
-    current_seeds[seeds_to_delete] = 0
-    seeds_to_add = flatnonzero(seed_overlap_counts == 0)
+    seed_overlap_counts = bincount(concatenate((overlap, unique(seeds)))) - 1
+    seeds_to_delete = (seed_overlap_counts > 1)[seeds]
+    seeds[seeds_to_delete] = 0
+    seeds_to_add = [m[overlap==0] for m in min_seed_coordinates]
+    start = seeds.max() + 1
+    num_seeds = len(seeds_to_add[0])
+    seeds[seeds_to_add] = arange(start, start + num_seeds)
+    return seeds
 
 def watershed(a, seeds=None, smooth_thresh=0.0, smooth_seeds=False, 
         minimum_seed_size=0, dams=True, show_progress=False, connectivity=1):
