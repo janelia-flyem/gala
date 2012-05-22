@@ -68,9 +68,12 @@ def xlogx(x, out=None):
 
 def special_points_evaluate(eval_fct, coords, flatten=True, coord_format=True):
     if coord_format:
-        coords = tuple([coords[:,i] for i in range(coords.shape[1])])
+        coords = [coords[:,i] for i in range(coords.shape[1])]
     def special_eval_fct(x, y, *args, **kwargs):
         if flatten:
+            for i in range(len(coords)):
+                if coords[i][0] < 0:
+                    coords[i] += x.shape[i]
             coords2 = np.ravel_multi_index(coords, x.shape)
         else:
             coords2 = coords
@@ -80,8 +83,9 @@ def special_points_evaluate(eval_fct, coords, flatten=True, coord_format=True):
     return special_eval_fct
 
 def make_synaptic_vi(fn):
+    from syngeo import io as synio
     synapse_coords = \
-        syngeo.io.raveler_synapse_annotations_to_coords(fn, 'arrays')
+        synio.raveler_synapse_annotations_to_coords(fn, 'arrays')
     synapse_coords = np.array(list(it.chain(*synapse_coords)))
     return special_points_evaluate(split_vi, synapse_coords)
 

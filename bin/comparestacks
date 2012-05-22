@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 from numpy import *
-from ray import *
+from ray import imio, morpho, evaluate as ev
 import getopt
 import errno
 import os
@@ -24,15 +24,20 @@ def main(argv):
     parser = argparse.ArgumentParser(description='Perform VI accuracy comparison between two stacks')
     parser.add_argument('--stack1', type=str, help='Stack compared against base stack (stack path or h5)', dest='stack1', required=True)
     parser.add_argument('--stackbase', type=str, help='Base stack (stack path or h5)', dest='stackbase', required=True)
+    parser.add_argument('--synapsejson', type=str, help='JSON file with synapse annotations', dest='synapsejson', default='')
     
     parser.add_argument('--relabel1', action='store_true', default=False, help='Relabel ids in stack 1 to prevent memory issues', dest='relabel1')
     parser.add_argument('--relabelbase', action='store_true', default=False, help='Relabel ids in stack base to prevent memory issues', dest='relabelbase')
-    parser.add_argument('--filtersize', type=int, default=800, help='Size below which comparisons are not made', dest='filtersize')
+    parser.add_argument('--filtersize', type=int, default=1000, help='Size below which comparisons are not made', dest='filtersize')
     parser.add_argument('--VIthres', type=float, default=0.02, help='VI difference below which is unimportant', dest='VIthres')
     parser.add_argument('--stack1_outjson', type=str, default='stack1_merged.json', help='output json file name for stack 1 (outputs over-merged bodies in stack 1)', dest='stack1_outjson')
     parser.add_argument('--stackbase_outjson', type=str, default='stackbase_merged.json', help='output json file name for stack base (outputs over-merged bodies in stack base)', dest='stackbase_outjson')
 
     args = parser.parse_args()
+
+    filtersize = args.filtersize
+    if args.synapsejson != '':
+        filtersize = 0
 
     stack1=args.stack1
     stack1_int = None
@@ -40,10 +45,10 @@ def main(argv):
         stack1_int = imio.read_image_stack(stack1)
     else: 
         stack1_int = imio.raveler_to_labeled_volume(stack1, glia=False, use_watershed=False)
-    stack1_int = morpho.remove_small_connected_components(stack1_int, min_size=args.filtersize, in_place=True)
+    stack1_int = morpho.remove_small_connected_components(stack1_int, min_size=filtersize, in_place=True)
     
     if args.relabel1:
-        stack1_int, dummy1, dummy2 = evaluate.relabel_from_one(stack1_int)
+        stack1_int, dummy1, dummy2 = ev.relabel_from_one(stack1_int)
     print "Imported first stack"
 
 
@@ -53,15 +58,23 @@ def main(argv):
         stackbase_int = imio.read_image_stack(stackbase)
     else:
         stackbase_int = imio.raveler_to_labeled_volume(stackbase, glia=False, use_watershed=False)
-    stackbase_int = morpho.remove_small_connected_components(stackbase_int, min_size=args.filtersize, in_place=True)
+    stackbase_int = morpho.remove_small_connected_components(stackbase_int, min_size=filtersize, in_place=True)
     if args.relabelbase:
-        stackbase_int, dummy1, dummy2 = evaluate.relabel_from_one(stackbase_int)
+        stackbase_int, dummy1, dummy2 = ev.relabel_from_one(stackbase_int)
     print "Imported base stack"
     
-    merge, split = evaluate.split_vi(stack1_int, stackbase_int)
-    print "MergeSplit: " + str((merge, split))
+    merge = None
+    split = None
 
-    stack1_bodies, stack1_vis, gt_bodies, gt_vis = evaluate.sorted_vi_components(stack1_int, stackbase_int)
+    if args.synapsejson != '':
+        synaptic_vi = ev.make_synaptic_vi(args.synapsejson)
+        merge, split = synaptic_vi(stack1_int, stackbase_int)
+        print "SynMergeSplit: " + str((merge, split))
+    else:
+        merge, split = ev.split_vi(stack1_int, stackbase_int)
+        print "MergeSplit: " + str((merge, split))
+
+    stack1_bodies, stack1_vis, gt_bodies, gt_vis = ev.sorted_vi_components(stack1_int, stackbase_int)
 
     data=[]
     database=[]
