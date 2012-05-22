@@ -117,18 +117,15 @@ def refined_seeding(a, maximum_height=0, grey_close_radius=1,
     s = remove_small_connected_components(s, minimum_size)
     return label(s)[0]
 
-def minimum_seeds(current_seeds, min_seed_coordinates, connectivity=1,
-                  margin=0):
+def minimum_seeds(current_seeds, min_seed_coordinates, connectivity=1):
     """Ensure that each point in given coordinates has its own seed."""
-    if margin > 0:
-        s = generate_binary_structure(current_seeds.ndim, connectivity)
-        new_seeds = grey_dilation(current_seeds, footprint=s)
-    else:
-        new_seeds = current_seeds.copy()
+    s = generate_binary_structure(current_seeds.ndim, connectivity)
+    new_seeds = grey_dilation(current_seeds, footprint=s)
     overlap = new_seeds[min_seed_coordinates]
     seed_overlap_counts = bincount(overlap)
-    seeds_to_delete = flatnonzero(seed_overlap_counts > 1)
-    seeds_to_add = (overlap == 0).flatnonzero
+    seeds_to_delete = (seed_overlap_counts > 1)[current_seeds]
+    current_seeds[seeds_to_delete] = 0
+    seeds_to_add = flatnonzero(seed_overlap_counts == 0)
 
 def watershed(a, seeds=None, smooth_thresh=0.0, smooth_seeds=False, 
         minimum_seed_size=0, dams=True, show_progress=False, connectivity=1):
