@@ -65,16 +65,21 @@ def main(argv):
     
     merge = None
     split = None
+    stack1_bodies = None
+    stack1_vis = None
+    gt_bodies = None
+    gt_vis = None
 
     if args.synapsejson != '':
-        synaptic_vi = ev.make_synaptic_vi(args.synapsejson)
+        synaptic_vi, synaptic_comps = ev.make_synaptic_functions(args.synapsejson, [ev.split_vi, ev.sorted_vi_components])
         merge, split = synaptic_vi(stack1_int, stackbase_int)
         print "SynMergeSplit: " + str((merge, split))
+        stack1_bodies, stack1_vis, gt_bodies, gt_vis = synaptic_comps(stack1_int, stackbase_int)
     else:
         merge, split = ev.split_vi(stack1_int, stackbase_int)
         print "MergeSplit: " + str((merge, split))
+        stack1_bodies, stack1_vis, gt_bodies, gt_vis = ev.sorted_vi_components(stack1_int, stackbase_int)
 
-    stack1_bodies, stack1_vis, gt_bodies, gt_vis = ev.sorted_vi_components(stack1_int, stackbase_int)
 
     data=[]
     database=[]
@@ -84,21 +89,24 @@ def main(argv):
 
     i=0
     accum = 0
-    for bodyid in stack1_bodies:
-        accum += stack1_vis[i]
-        i += 1
-        if accum > (merge - args.VIthres):
-            break        
-        data.append({'status' : 'not sure', 'body ID' : int(bodyid)})    
+
+    if merge > args.VIthres:
+        for bodyid in stack1_bodies:
+            if accum > (merge - args.VIthres):
+                break        
+            accum += stack1_vis[i]
+            i += 1
+            data.append({'status' : 'not sure', 'body ID' : int(bodyid), 'vi contrib' : stack1_vis[i-1]})    
 
     i=0
     accum = 0
-    for bodyid in gt_bodies:
-        accum += gt_vis[i]
-        i += 1
-        if accum > (split - args.VIthres):
-            break        
-        database.append({'status' : 'not sure', 'body ID' : int(bodyid)})
+    if split > args.VIthres:
+        for bodyid in gt_bodies:
+            if accum > (split - args.VIthres):
+                break        
+            accum += gt_vis[i]
+            i += 1
+            database.append({'status' : 'not sure', 'body ID' : int(bodyid), 'vi contrib' : gt_vis[i-1]})    
 
     json_out_data = {'data' : data}
     json_out_data2 = {'data' : database}
