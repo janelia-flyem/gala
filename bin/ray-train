@@ -55,8 +55,11 @@ if __name__ == '__main__':
         help='Don\'t perform a flat region adjacency graph learning to begin.',
         dest="learn_flat" )
     parser.add_argument('-e', '--num-epochs', type=int, metavar='UINT',
-        default=5, help='Set the number of epochs of training to run ' +\
+        default=5, help='Set the min number of epochs of training to run ' +\
         '(default: %(default)s).')
+    parser.add_argument('-E', '--max-num-epochs', type=int, metavar='UINT',
+        default=20, help='Set the maximum number of epochs of training to ' +\
+        'run (default: %(default)s).')
     parser.add_argument('-n', '--min-num-examples', type=int, metavar='UINT',
         default=1, help='Set the minimum number of training examples.')
     parser.add_argument('-N', '--num-examples', type=int, metavar='UINT',
@@ -71,7 +74,7 @@ if __name__ == '__main__':
             'classify.HistogramFeatureManager(25, 0, 1, [0.1, 0.5, 0.9])]' +\
             ')',
         help='Specify the feature manager you would like to use.')
-    parser.add_argument('-E', '--training-data-extension', metavar='EXT',
+    parser.add_argument('-t', '--training-data-extension', metavar='EXT',
         default='.trdat.h5',
         help='The filename extension for the training data.')
     parser.add_argument('-c', '--classifier-extension', metavar='EXT',
@@ -132,8 +135,8 @@ if __name__ == '__main__':
     if args.watershed_file is None:
         seeds = label(p0==0)[0]
         if args.seed_cc_threshold > 0:
-            seeds = morpho.remove_small_connected_components(seeds, args.seed_cc_threshold)
-
+            seeds = morpho.remove_small_connected_components(seeds,
+                                                    args.seed_cc_threshold)
         ws = skmorph.watershed(p0, seeds)
     else:
         ws = imio.read_image_stack(args.watershed_file)
@@ -152,11 +155,12 @@ if __name__ == '__main__':
                                             beta=args.active_vi_beta)
     else:
         active_function = agglo.classifier_probability
+
     d, epochs = g.learn_agglomerate(gs, fm, args.min_num_examples, 
         learn_flat=args.learn_flat, learning_mode=args.learning_mode,
         labeling_mode=args.labeling_mode, priority_mode=args.priority_mode,
         memory=args.memory, unique=args.unique, min_num_epochs=args.num_epochs,
-        active_function=active_function)
+        max_num_expochs=args.max_num_epochs, active_function=active_function)
     current_directory = os.path.realpath('.')
     os.chdir(os.path.dirname(classify.__file__))
     try:
