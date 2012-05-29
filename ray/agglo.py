@@ -773,7 +773,11 @@ class Rag(Graph):
     def get_ucm(self):
         if hasattr(self, 'ignored_boundary'):
             self.ucm[self.ignored_boundary] = self.max_merge_score
-        return morpho.juicy_center(self.ucm, self.pad_thickness)    
+        ucm = morpho.juicy_center(self.ucm, self.pad_thickness)    
+        umin, umax = unique(ucm)[([1, -2],)]
+        ucm[ucm==-inf] = umin-1
+        ucm[ucm==inf] = umax+1
+        return ucm
 
     def build_volume(self, nbunch=None):
         """Return the segmentation (numpy.ndarray) induced by the graph."""
