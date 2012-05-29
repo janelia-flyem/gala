@@ -91,7 +91,7 @@ class Rag(Graph):
             gt_vol=None, feature_manager=NullFeatureManager(), 
             show_progress=False, lowmem=False, connectivity=1,
             channel_is_oriented=None, orientation_map=array([]),
-            normalize_probabilities=False, nozeros=False):
+            normalize_probabilities=False, nozeros=False, exclusions=array([])):
         """Create a graph from a watershed volume and image volume.
         
         The watershed is assumed to have dams of label 0 in between basins.
@@ -121,6 +121,7 @@ class Rag(Graph):
         self.build_graph_from_watershed(allow_shared_boundaries, nozerosfast=self.nozeros)
         self.set_feature_manager(feature_manager)
         self.set_ground_truth(gt_vol)
+        self.set_exclusions(exclusions)
         self.merge_queue = MergeQueue()
 
     def __copy__(self):
@@ -352,6 +353,17 @@ class Rag(Graph):
                 self.rig = ones(self.watershed.max()+1)
             except ValueError:
                 self.rig = ones(self.number_of_nodes()+1)
+
+    def set_exclusions(self, excl):
+        if excl.size != 0:
+            excl = morpho.pad(excl, [0]*self.pad_thickness)
+        for n in self.nodes():
+            if excl.size != 0:
+                eids = unique(excl.ravel()[list(self.node[n]['extent'])])
+                eids = eids[flatnonzero(eids)]
+                self.node[n]['exclusions'] = set(list(eids))
+            else:
+                self.node[n]['exclusions'] = set()
 
     def build_merge_queue(self):
         """Build a queue of node pairs to be merged in a specific priority.
@@ -632,11 +644,22 @@ class Rag(Graph):
         w = edge['weight'] if edge.has_key('weight') else -inf
         if self.ucm is not None:
             self.max_merge_score = max(self.max_merge_score, w)
-            idxs = list(self[n1][n2]['boundary'])
+            idxs = list(edge['boundary'])
             self.ucm_r[idxs] = self.max_merge_score
 
+    def update_max_ucm(self, n1, n2):
+        """Update the UCM locally with an infinite value."""
+        edge = self[n1][n2]
+        if self.ucm is not None:
+            self.ucm_r[list(edge['boundary'])] = inf
+        
     def merge_nodes(self, n1, n2):
         """Merge two nodes, while updating the necessary edges."""
+        if len(self.node[n1]['exclusions'] & self.node[n2]['exclusions']) > 0:
+            self.update_max_ucm(n1, n2)
+            return
+        else:
+            self.node[n1]['exclusions'].update(self.node[n2]['exclusions'])
         self.update_ucm(n1, n2)
         self.node[n1]['extent'].update(self.node[n2]['extent'])
         self.feature_manager.update_node_cache(self, n1, n2,
