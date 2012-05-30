@@ -109,7 +109,7 @@ class Rag(Graph):
             feature_manager=NullFeatureManager(), show_progress=False,
             lowmem=False, connectivity=1, channel_is_oriented=None,
             orientation_map=array([]), normalize_probabilities=False,
-            nozeros=False):
+            nozeros=False, exclusions=array([])):
         """Create a graph from a watershed volume and image volume.
         
         The watershed is assumed to have dams of label 0 in between basins.
@@ -137,6 +137,7 @@ class Rag(Graph):
         self.max_merge_score = -inf
         self.build_graph_from_watershed(allow_shared_boundaries, nozeros)
         self.set_feature_manager(feature_manager)
+        self.set_exclusions(exclusions)
         self.merge_queue = MergeQueue()
 
     def __copy__(self):
@@ -347,6 +348,17 @@ class Rag(Graph):
             self.pixel_neighbors = \
                 morpho.build_neighbors_array(self.watershed, connectivity)
             self.neighbor_idxs = self.get_neighbor_idxs_fast
+
+    def set_exclusions(self, excl):
+        if excl.size != 0:
+            excl = morpho.pad(excl, [0]*self.pad_thickness)
+        for n in self.nodes():
+            if excl.size != 0:
+                eids = unique(excl.ravel()[list(self.node[n]['extent'])])
+                eids = eids[flatnonzero(eids)]
+                self.node[n]['exclusions'] = set(list(eids))
+            else:
+                self.node[n]['exclusions'] = set()
 
     def build_merge_queue(self):
         """Build a queue of node pairs to be merged in a specific priority.
@@ -610,11 +622,22 @@ class Rag(Graph):
         w = edge['weight'] if edge.has_key('weight') else -inf
         if self.ucm is not None:
             self.max_merge_score = max(self.max_merge_score, w)
-            idxs = list(self[n1][n2]['boundary'])
+            idxs = list(edge['boundary'])
             self.ucm_r[idxs] = self.max_merge_score
 
+    def update_max_ucm(self, n1, n2):
+        """Update the UCM locally with an infinite value."""
+        edge = self[n1][n2]
+        if self.ucm is not None:
+            self.ucm_r[list(edge['boundary'])] = inf
+        
     def merge_nodes(self, n1, n2):
         """Merge two nodes, while updating the necessary edges."""
+        if len(self.node[n1]['exclusions'] & self.node[n2]['exclusions']) > 0:
+            self.update_max_ucm(n1, n2)
+            return
+        else:
+            self.node[n1]['exclusions'].update(self.node[n2]['exclusions'])
         self.update_ucm(n1, n2)
         self.node[n1]['extent'].update(self.node[n2]['extent'])
         self.feature_manager.update_node_cache(self, n1, n2,
@@ -728,7 +751,11 @@ class Rag(Graph):
     def get_ucm(self):
         if hasattr(self, 'ignored_boundary'):
             self.ucm[self.ignored_boundary] = self.max_merge_score
-        return morpho.juicy_center(self.ucm, self.pad_thickness)    
+        ucm = morpho.juicy_center(self.ucm, self.pad_thickness)    
+        umin, umax = unique(ucm)[([1, -2],)]
+        ucm[ucm==-inf] = umin-1
+        ucm[ucm==inf] = umax+1
+        return ucm
 
     def build_volume(self, nbunch=None):
         """Return the segmentation (numpy.ndarray) induced by the graph."""
