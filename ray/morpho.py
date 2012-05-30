@@ -103,6 +103,7 @@ def impose_minima(a, minima, connectivity=1):
 
 def refined_seeding(a, maximum_height=0, grey_close_radius=1, 
     binary_open_radius=1, binary_close_radius=1, minimum_size=0):
+    """Perform morphological operations to get good segmentation seeds."""
     if grey_close_radius > 0:
         strel = diamond_se(grey_close_radius, a.ndim)
         a = grey_closing(a, footprint=strel)
@@ -116,8 +117,26 @@ def refined_seeding(a, maximum_height=0, grey_close_radius=1,
     s = remove_small_connected_components(s, minimum_size)
     return label(s)[0]
 
+def minimum_seeds(current_seeds, min_seed_coordinates, connectivity=1):
+    """Ensure that each point in given coordinates has its own seed."""
+    seeds = current_seeds.copy()
+    sel = generate_binary_structure(seeds.ndim, connectivity)
+    if seeds.dtype == bool:
+        seeds = label(seeds, sel)[0]
+    new_seeds = grey_dilation(seeds, footprint=sel)
+    overlap = new_seeds[min_seed_coordinates]
+    seed_overlap_counts = bincount(concatenate((overlap, unique(seeds)))) - 1
+    seeds_to_delete = (seed_overlap_counts > 1)[seeds]
+    seeds[seeds_to_delete] = 0
+    seeds_to_add = [m[overlap==0] for m in min_seed_coordinates]
+    start = seeds.max() + 1
+    num_seeds = len(seeds_to_add[0])
+    seeds[seeds_to_add] = arange(start, start + num_seeds)
+    return seeds
+
 def watershed(a, seeds=None, smooth_thresh=0.0, smooth_seeds=False, 
         minimum_seed_size=0, dams=True, show_progress=False, connectivity=1):
+    """Perform the watershed algorithm of Vincent & Soille (1991)."""
     seeded = seeds is not None
     sel = generate_binary_structure(a.ndim, connectivity)
     if smooth_thresh > 0.0:
