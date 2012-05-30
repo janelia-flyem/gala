@@ -89,16 +89,18 @@ class AgglomerationTree(object):
     def __init__(self, num_nodes=0, node_dtype=uint):
         self.node_ids = zeros((num_nodes, 2), dtype=node_dtype)
         self.w = zeros(num_nodes, dtype=float)
+        self.wmax = zeros(num_nodes, dtype=float)
         self.i = it.count(0)
 
     def add(self, n1, n2, w=0.0):
         i = self.i.next()
         self.node_ids[i] = [n1, n2]
         self.w[i] = w
+        self.wmax[i] = w if i == 0 else max(w, self.wmax[i-1])
 
     def threshold(self, t=0.5):
         node_ids = self.node_ids.copy()
-        node_ids[self.w >= t] = 0
+        node_ids[self.wmax >= t] = 0
         return node_ids[node_ids.sum(axis=1) > 0]
 
 class Rag(Graph):
@@ -135,10 +137,12 @@ class Rag(Graph):
             self.ucm[self.watershed==0] = inf
             self.ucm_r = self.ucm.ravel()
         self.max_merge_score = -inf
-        self.build_graph_from_watershed(allow_shared_boundaries, nozeros)
+        self.build_graph_from_watershed(allow_shared_boundaries,
+                                                        nozerosfast=nozeros)
         self.set_feature_manager(feature_manager)
         self.set_exclusions(exclusions)
         self.merge_queue = MergeQueue()
+        self.tree = AgglomerationTree(self.number_of_nodes())
 
     def __copy__(self):
         if sys.version_info[:2] < (2,7):
@@ -639,6 +643,10 @@ class Rag(Graph):
         else:
             self.node[n1]['exclusions'].update(self.node[n2]['exclusions'])
         self.update_ucm(n1, n2)
+        try:
+            self.tree.add(n1, n2, self[n1][n2]['weight'])
+        except KeyError:
+            self.tree.add(n1, n2)
         self.node[n1]['extent'].update(self.node[n2]['extent'])
         self.feature_manager.update_node_cache(self, n1, n2,
                 self.node[n1]['feature-cache'], self.node[n2]['feature-cache'])
@@ -650,8 +658,6 @@ class Rag(Graph):
         # this if statement enables merging of non-adjacent nodes
         if self.has_edge(n1,n2) and self.has_zero_boundaries:
             self.refine_post_merge_boundaries(n1, n2)
-        self.rig[n1] += self.rig[n2]
-        self.rig[n2] = 0
         self.remove_node(n2)
 
     def refine_post_merge_boundaries(self, n1, n2):
