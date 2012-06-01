@@ -36,9 +36,10 @@ class MergeQueue(object):
         return self.pop_no_start()
 
     def pop_no_start(self):
-        if self.q[0][1]:
-            self.num_valid_items -= 1
-            self.pbar.update_i(self.original_length - self.num_valid_items)
+        while not self.q[0][1]:
+            _ = heappop(self.q)
+        self.num_valid_items -= 1
+        self.pbar.update_i(self.original_length - self.num_valid_items)
         return heappop(self.q)
 
     def push(self, item):
