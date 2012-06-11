@@ -3,6 +3,7 @@ import multiprocessing
 import itertools as it
 import collections
 from functools import partial
+import logging
 import h5py
 from scipy.sparse import coo_matrix
 from scipy.ndimage.measurements import label
@@ -292,14 +293,23 @@ def fm_index(x, y=None):
     return a/(np.sqrt((a+b)*(a+c)))
 
 def reduce_vi(fn='testing/%i/flat-single-channel-tr%i-%i-%.2f.lzf.h5',
-    iterable=[(ts, tr, ts) for ts, tr in it.combinations(range(8), 2)],
-    thresholds=np.arange(0, 1.01, 0.01)):
+        iterable=[(ts, tr, ts) for ts, tr in it.permutations(range(8), 2)],
+        thresholds=np.arange(0, 1.01, 0.01)):
     iterable = list(iterable)
     vi = np.zeros((3, len(thresholds), len(iterable)), np.double)
+    current_vi = np.zeros(3)
     for i, t in enumerate(thresholds):
         for j, v in enumerate(iterable):
-            f = h5py.File(fn % (tuple(v) + (t,)), 'r')
-            vi[:, i, j] += np.array(f['vi'])[:, 0]
+            current_fn = fn % (tuple(v) + (t,))
+            try:
+                f = h5py.File(current_fn, 'r')
+                current_vi = np.array(f['vi'])[:, 0]
+            except IOError:
+                logging.warning('IOError: could not open file %s' % current_fn)
+            except KeyError:
+                logging.warning('KeyError: could not find vi in file %s'
+                    % current_fn)
+            vi[:, i, j] += current_vi
             f.close()
     return vi
 
