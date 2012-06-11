@@ -6,12 +6,18 @@ import subprocess as sp
 import logging
 
 # external libraries
-from numpy import unique, inf
+from numpy import unique, inf, nonzero, zeros, uint8
 try:
     from skimage import morphology as skmorph
 except ImportError:
     logging.warning('Could not import skimage.')
 from scipy.ndimage import label
+
+try:
+    import syngeo
+except ImportError:
+    logging.warning('Could not import syngeo. ' +
+                                        'Synapse-aware mode not available.')
 
 # local modules
 from ray import imio, agglo, morpho, classify
@@ -81,6 +87,8 @@ if __name__ == '__main__':
         help="Name of the experiment, used as the base name for all outputs.")
     parser.add_argument('--seed-cc-threshold', type=int, default=0,
         help='Connected component threshold in seed creation')
+    parser.add_argument('-S', '--synapse-file', type=str, metavar='FN',
+        help='Use a synapse annotation json file to help segmentation.')
     args = parser.parse_args()
 
     experiment_prefix = os.path.join(args.output_dir, args.experiment_name)
@@ -127,19 +135,31 @@ if __name__ == '__main__':
 
 
     # load all the required data
+    
+    # probability map
     p = imio.read_image_stack(args.fin, single_channel=False)
     p0 = p if args.no_channel_data else p[..., 0]
     if args.single_channel: p = p0
-
+    # grayscale image
     im = imio.read_image_stack(args.images) if args.images is not None else None
+    # synapses
+    synapse_aware = args.synapse_file is not None
+    if synapse_aware:
+        pre_post_pairs = syngeo.io.raveler_synapse_annotations_to_coords(
+            args.synapse_file)
+        synapse_volume = syngeo.io.volume_synapse_view(pre_post_pairs, p0.shape)
+    else:
+        synapse_volume = zeros(p0.shape, uint8)
     if args.watershed is not None:
         ws = imio.read_image_stack(args.watershed)
     else:
         MasterLogger.info("Performing watershed")
         seeds = label(p0==0)[0]
         if args.seed_cc_threshold > 0:
-            seeds = morpho.remove_small_connected_components(seeds, args.seed_cc_threshold)
-
+            seeds = morpho.remove_small_connected_components(seeds,
+                args.seed_cc_threshold)
+        if synapse_aware:
+            seeds = morpho.minimum_seeds(seeds, nonzero(synapse_volume))
         ws = skmorph.watershed(p0, seeds)
         MasterLogger.info("Finished performing watershed")
     fm = eval(args.feature_manager, {}, {'classify': classify})
@@ -165,7 +185,8 @@ if __name__ == '__main__':
 
     MasterLogger.info("Building RAG")
     g = agglo.Rag(ws, p, mpf, feature_manager=fm, 
-                  show_progress=args.show_progress, nozeros=args.nozeros)
+        show_progress=args.show_progress, nozeros=args.nozeros, 
+        exclusions=synapse_volume)
     MasterLogger.info("Finished building RAG")
     if args.remove_inclusions:
         MasterLogger.info("Removing inclusions with %i nodes" % 
