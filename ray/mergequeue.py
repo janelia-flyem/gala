@@ -19,7 +19,7 @@ class MergeQueue(object):
             self.pbar = NoProgressBar()
 
     def __len__(self):
-        return len(self.q)
+        return self.num_valid_items
 
     def finish(self):
         self.pbar.finish()
@@ -36,8 +36,11 @@ class MergeQueue(object):
         return self.pop_no_start()
 
     def pop_no_start(self):
-        while not self.q[0][1]:
-            _ = heappop(self.q)
+        try:
+            while not self.q[0][1]:
+                _ = heappop(self.q)
+        except IndexError:
+            raise IndexError('pop from empty merge queue')
         self.num_valid_items -= 1
         self.pbar.update_i(self.original_length - self.num_valid_items)
         return heappop(self.q)
@@ -55,3 +58,6 @@ class MergeQueue(object):
         if item[1]:
             self.num_valid_items -= 1
         item[1] = False
+
+    def _total_len(self):
+        return len(self.q)
