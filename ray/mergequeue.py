@@ -41,9 +41,10 @@ class MergeQueue(object):
                 _ = heappop(self.q)
         except IndexError:
             raise IndexError('pop from empty merge queue')
-        self.num_valid_items -= 1
+        item = heappop(self.q)
+        self.invalidate(item)
         self.pbar.update_i(self.original_length - self.num_valid_items)
-        return heappop(self.q)
+        return item
 
     def push(self, item):
         self.is_null_queue = False

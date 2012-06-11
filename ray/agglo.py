@@ -674,6 +674,10 @@ class Rag(Graph):
             self.refine_post_merge_boundaries(n1, n2)
         self.rig[n1] += self.rig[n2]
         self.rig[n2] = 0
+        try:
+            self.merge_queue.invalidate(self[n1][n2]['qlink'])
+        except KeyError:
+            pass
         self.remove_node(n2)
 
     def refine_post_merge_boundaries(self, n1, n2):
