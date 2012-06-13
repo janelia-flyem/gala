@@ -26,6 +26,7 @@ from scipy.ndimage.measurements import center_of_mass, label
 from networkx import Graph, biconnected_components
 from networkx.algorithms.traversal.depth_first_search import dfs_preorder_nodes
 from networkx.algorithms.components.connected import connected_components
+from morelia import tree
 
 # local modules
 import morpho
@@ -85,24 +86,6 @@ def conditional_countdown(seq, start=1, pred=bool):
             remaining -= 1
         yield remaining
 
-class AgglomerationTree(object):
-    def __init__(self, num_nodes=0, node_dtype=uint):
-        self.node_ids = zeros((num_nodes, 2), dtype=node_dtype)
-        self.w = zeros(num_nodes, dtype=float)
-        self.wmax = zeros(num_nodes, dtype=float)
-        self.i = it.count(0)
-
-    def add(self, n1, n2, w=0.0):
-        i = self.i.next()
-        self.node_ids[i] = [n1, n2]
-        self.w[i] = w
-        self.wmax[i] = w if i == 0 else max(w, self.wmax[i-1])
-
-    def threshold(self, t=0.5):
-        node_ids = self.node_ids.copy()
-        node_ids[self.wmax >= t] = 0
-        return node_ids[node_ids.sum(axis=1) > 0]
-
 class Rag(Graph):
     """Region adjacency graph for segmentation of nD volumes."""
 
@@ -142,7 +125,7 @@ class Rag(Graph):
         self.set_feature_manager(feature_manager)
         self.set_exclusions(exclusions)
         self.merge_queue = MergeQueue()
-        self.tree = AgglomerationTree(self.number_of_nodes())
+        self.tree = tree.Ultrametric(self.nodes())
 
     def __copy__(self):
         if sys.version_info[:2] < (2,7):
@@ -153,7 +136,6 @@ class Rag(Graph):
         pr_shape = self.probabilities_r.shape
         g = super(Rag, self).copy()
         g.watershed_r = g.watershed.ravel()
-        g.segmentation_r = g.segmentation.ravel()
         g.ucm_r = g.ucm.ravel()
         g.probabilities_r = g.probabilities.reshape(pr_shape)
         if sys.version_info[:2] < (2,7):
@@ -212,8 +194,6 @@ class Rag(Graph):
                                 idxs=None, nozerosfast=False):
         if nozerosfast:
             return self.build_graph_from_watershed_nozerosfast(idxs)
-
-
         if self.watershed.size == 0: return # stop processing for empty graphs
         if not allow_shared_boundaries:
             self.ignored_boundary = zeros(self.watershed.shape, bool)
@@ -340,10 +320,8 @@ class Rag(Graph):
             self.watershed = morpho.pad(ws, [0, self.boundary_body])
         else:
             self.watershed = morpho.pad(ws, self.boundary_body)
-        self.segmentation = self.watershed.copy()
         self.watershed_r = self.watershed.ravel()
-        self.segmentation_r = self.segmentation.ravel() # reduce fct calls
-        self.pad_thickness = 2 if (self.segmentation==0).any() else 1
+        self.pad_thickness = 2 if (self.watershed==0).any() else 1
         if lowmem:
             def neighbor_idxs(x): 
                 return self.get_neighbor_idxs_lean(x, connectivity)
@@ -635,6 +613,12 @@ class Rag(Graph):
         if self.ucm is not None:
             self.ucm_r[list(edge['boundary'])] = inf
         
+    def rename_node(self, old, new):
+        self.add_node(new, attr_dict=self.node[old])
+        self.add_edges_from(
+            [(new, v, self[old][v]) for v in self.neighbors(old)])
+        self.remove_node(old)
+
     def merge_nodes(self, n1, n2):
         """Merge two nodes, while updating the necessary edges."""
         if len(self.node[n1]['exclusions'] & self.node[n2]['exclusions']) > 0:
@@ -643,61 +627,17 @@ class Rag(Graph):
         else:
             self.node[n1]['exclusions'].update(self.node[n2]['exclusions'])
         self.update_ucm(n1, n2)
-        try:
-            self.tree.add(n1, n2, self[n1][n2]['weight'])
-        except KeyError:
-            self.tree.add(n1, n2)
+        w = self[n1][n2].get('weight', 0.0)
+        node_id = self.tree.merge(n1, n2, w)
         self.node[n1]['extent'].update(self.node[n2]['extent'])
         self.feature_manager.update_node_cache(self, n1, n2,
                 self.node[n1]['feature-cache'], self.node[n2]['feature-cache'])
-        self.segmentation_r[list(self.node[n2]['extent'])] = n1
         new_neighbors = [n for n in self.neighbors(n2)
                                         if n not in [n1, self.boundary_body]]
         for n in new_neighbors:
             self.merge_edge_properties((n2,n), (n1,n))
-        # this if statement enables merging of non-adjacent nodes
-        if self.has_edge(n1,n2) and self.has_zero_boundaries:
-            self.refine_post_merge_boundaries(n1, n2)
         self.remove_node(n2)
-
-    def refine_post_merge_boundaries(self, n1, n2):
-        boundary = array(list(self[n1][n2]['boundary']))
-        boundary_neighbor_pixels = self.segmentation_r[
-            self.neighbor_idxs(boundary)
-        ]
-        add = ( (boundary_neighbor_pixels == 0) + 
-            (boundary_neighbor_pixels == n1) + 
-            (boundary_neighbor_pixels == n2) ).all(axis=1)
-        check = True-add
-        self.node[n1]['extent'].update(boundary[add])
-        boundary_probs = self.probabilities_r[boundary[add]]
-        self.feature_manager.pixelwise_update_node_cache(self, n1,
-                        self.node[n1]['feature-cache'], boundary[add])
-        self.segmentation_r[boundary[add]] = n1
-        boundaries_to_edit = {}
-        for px in boundary[check]:
-            for lb in unique(
-                        self.segmentation_r[self.neighbor_idxs(px)]):
-                if lb not in [0, n1, self.boundary_body]:
-                    try:
-                        boundaries_to_edit[(n1,lb)].append(px)
-                    except KeyError:
-                        boundaries_to_edit[(n1,lb)] = [px]
-        for u, v in boundaries_to_edit.keys():
-            idxs = set(boundaries_to_edit[(u,v)])
-            if self.has_edge(u, v):
-                idxs = idxs - self[u][v]['boundary']
-                self[u][v]['boundary'].update(idxs)
-                self.feature_manager.pixelwise_update_edge_cache(self, u, v,
-                                    self[u][v]['feature-cache'], list(idxs))
-            else:
-                self.add_edge(u, v, boundary=set(idxs))
-                self[u][v]['feature-cache'] = \
-                    self.feature_manager.create_edge_cache(self, u, v)
-            self.update_merge_queue(u, v)
-        for n in self.neighbors(n2):
-            if not boundaries_to_edit.has_key((n1,n)) and n != n1:
-                self.update_merge_queue(n1, n)
+        self.rename_node(n1, node_id)
 
     def merge_subgraph(self, subgraph=None, source=None):
         if type(subgraph) not in [Rag, Graph]: # input is node list
@@ -752,7 +692,8 @@ class Rag(Graph):
             self.merge_queue.push(new_qitem)
 
     def get_segmentation(self):
-        return morpho.juicy_center(self.segmentation, self.pad_thickness)
+        m = self.tree.get_map()
+        return morpho.juicy_center(m[self.watershed], self.pad_thickness)
 
     def get_ucm(self):
         if hasattr(self, 'ignored_boundary'):
@@ -826,7 +767,7 @@ class Rag(Graph):
         """
         if not self.at_volume_boundary(n) or n == self.boundary_body:
             return False
-        v = zeros(self.segmentation.shape, uint8)
+        v = zeros(self.watershed.shape, uint8)
         v.ravel()[list(self[n][self.boundary_body]['boundary'])] = 1
         _, n = label(v, ones([3]*v.ndim))
         return n > 1
