@@ -70,7 +70,10 @@ Description of input JSON:
         { "operation" : <type>, "params" : <params> },
         { "operation" : <type>, "params" : <params> },
         { "operation" : <type>, "params" : <params> }
-    ]
+    ],
+
+    #synapse-aware watershed and segmentation
+    "synapse_file": "<file_path.json>"
 }"""
 
 FeatureHash = None
@@ -131,6 +134,8 @@ class PipelineOptions:
             warning = (self.flow_generate_watershed and self.seeded_watershed))
         self.seed_manipulation_recipe = self.set_option("seed_manipulation_recipe", default = [],
             warning = (self.flow_generate_watershed and self.seeded_watershed))
+        self.synapse_file = \
+            self.set_option("synapse_file", default=None, warning=False)
 
 
     def set_option(self, json_name, default=None, warning=True, required=False):
@@ -269,6 +274,11 @@ def flow_generate_watershed(options, image_stack, experimentprefix, output_dir):
         SeedActionFunction[(action["operation"])](seeds, action["params"])
 
 
+    if options.synapse_file is not None:
+        pre_post_pairs = syngeo.io.raveler_synapse_annotations_to_coords(
+            args.synapse_file)
+        synapse_volume = syngeo.io.volume_synapse_view(pre_post_pairs, p0.shape)
+        seeds = morpho.minimum_seeds(seeds, numpy.nonzero(synapse_volume))
     MasterLogger.info("Starting watershed")
     watershed = skmorph.watershed(prediction0, seeds)
     MasterLogger.info("Finished watershed")
@@ -301,6 +311,12 @@ def flow_perform_median_agglomeration(options, rag, watershed, prediction, image
             show_progress=True, nozeros=options.nonzero_boundary)
         MasterLogger.info("Finished building RAG")
     # ?? how to save rag
+    if options.synapse_file is not None:
+        pre_post_pairs = syngeo.io.raveler_synapse_annotations_to_coords(
+            args.synapse_file)
+        synapse_volume = \
+            syngeo.io.volume_synapse_view(pre_post_pairs, watershed.shape)
+        rag.set_exclusions(synapse_volume)
     sorted_output_thresholds = sorted(options.agglomeration_output_thresholds)
     sps_out = None
     for threshold in sorted_output_thresholds:
