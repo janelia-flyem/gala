@@ -303,14 +303,20 @@ def reduce_vi(fn='testing/%i/flat-single-channel-tr%i-%i-%.2f.lzf.h5',
             current_fn = fn % (tuple(v) + (t,))
             try:
                 f = h5py.File(current_fn, 'r')
-                current_vi = np.array(f['vi'])[:, 0]
             except IOError:
                 logging.warning('IOError: could not open file %s' % current_fn)
-            except KeyError:
-                logging.warning('KeyError: could not find vi in file %s'
-                    % current_fn)
+            else:
+                try:
+                    current_vi = np.array(f['vi'])[:, 0]
+                except IOError:
+                    logging.warning('IOError: could not open file %s' 
+                        % current_fn)
+                except KeyError:
+                    logging.warning('KeyError: could not find vi in file %s'
+                        % current_fn)
+                finally:
+                    f.close()
             vi[:, i, j] += current_vi
-            f.close()
     return vi
 
 def sem(a, axis=None):
