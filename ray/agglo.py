@@ -594,17 +594,16 @@ class Rag(Graph):
         data = []
         while len(g.merge_queue) > 0:
             merge_priority, valid, n1, n2 = g.merge_queue.pop()
-            if valid:
-                dat = g.learn_edge((n1,n2), ctables, assignments, feature_map)
-                data.append(dat)
-                label = dat[1][label_type_keys[labeling_mode]]
-                if learning_mode != 'strict' or label < 0:
-                    for ctable, assignment in zip(ctables, assignments):
-                        ctable[n1] += ctable[n2]
-                        ctable[n2] = 0
-                        assignment[n1] = ctable[n1] == ctable[n1].max()
-                        assignment[n2] = 0
-                    g.merge_nodes(n1, n2)
+            dat = g.learn_edge((n1,n2), ctables, assignments, feature_map)
+            data.append(dat)
+            label = dat[1][label_type_keys[labeling_mode]]
+            if learning_mode != 'strict' or label < 0:
+                for ctable, assignment in zip(ctables, assignments):
+                    ctable[n1] += ctable[n2]
+                    ctable[n2] = 0
+                    assignment[n1] = ctable[n1] == ctable[n1].max()
+                    assignment[n2] = 0
+                g.merge_nodes(n1, n2)
         return map(array, zip(*data))
 
     def replay_merge_history(self, merge_seq, labels=None, num_errors=1):

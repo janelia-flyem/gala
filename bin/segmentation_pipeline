@@ -317,9 +317,6 @@ def flow_perform_median_agglomeration(options, rag, watershed, prediction, image
         sps_out = output_raveler(rag, watershed, image_stack, experiment_name,
                     output_dir, provenance_filename, threshold, sps_out)
 
-        if removed_inclusions:
-            rag.rebuild_merge_queue()
-
     return rag
 
 def output_raveler(rag, watershed, image_stack, experiment_name, output_dir, 
