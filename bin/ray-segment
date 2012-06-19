@@ -211,8 +211,6 @@ if __name__ == '__main__':
         imio.write_image_stack(s, (h5stacks +'.lzf.h5')%t, compression='lzf')
         if args.raveler_export:
             imio.raveler_output_shortcut(ws, s, im, (ravelervol)%t, sps)
-        MasterLogger.info("Rebuilding the merge queue")
-        g.rebuild_merge_queue()
         if args.raveler_export and args.graph_json_export:
             g.write_plaza_json(
                 os.path.join((ravelervol)%t, 'graph.json'))

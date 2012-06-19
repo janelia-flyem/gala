@@ -402,15 +402,14 @@ class Rag(Graph):
         history, scores, evaluation = [], [], []
         while len(self.merge_queue) > 0 and \
                                         self.merge_queue.peek()[0] < threshold:
-            merge_priority, valid, n1, n2 = self.merge_queue.pop()
-            if valid:
-                self.merge_nodes(n1,n2)
-                if save_history: 
-                    history.append((n1,n2))
-                    scores.append(merge_priority)
-                    evaluation.append(
-                        (self.number_of_nodes()-1, self.split_vi())
-                    )
+            merge_priority, _, n1, n2 = self.merge_queue.pop()
+            self.merge_nodes(n1,n2)
+            if save_history: 
+                history.append((n1,n2))
+                scores.append(merge_priority)
+                evaluation.append(
+                    (self.number_of_nodes()-1, self.split_vi())
+                )
         if save_history:
             return history, scores, evaluation
 
@@ -420,16 +419,17 @@ class Rag(Graph):
             self.merge_queue = self.build_merge_queue()
         history, evaluation = [], []
         i = 0
-        while len(self.merge_queue) > 0 and i < stepsize:
-            merge_priority, valid, n1, n2 = self.merge_queue.pop()
-            if valid:
-                i += 1
-                self.merge_nodes(n1, n2)
-                if save_history: 
-                    history.append((n1, n2))
-                    evaluation.append(
-                        (self.number_of_nodes()-1, self.split_vi())
-                    )
+        for i in range(stepsize):
+            if len(self.merge_queue) == 0:
+                break
+            merge_priority, _, n1, n2 = self.merge_queue.pop()
+            i += 1
+            self.merge_nodes(n1, n2)
+            if save_history: 
+                history.append((n1, n2))
+                evaluation.append(
+                    (self.number_of_nodes()-1, self.split_vi())
+                )
         if save_history:
             return history, evaluation
         
@@ -594,17 +594,16 @@ class Rag(Graph):
         data = []
         while len(g.merge_queue) > 0:
             merge_priority, valid, n1, n2 = g.merge_queue.pop()
-            if valid:
-                dat = g.learn_edge((n1,n2), ctables, assignments, feature_map)
-                data.append(dat)
-                label = dat[1][label_type_keys[labeling_mode]]
-                if learning_mode != 'strict' or label < 0:
-                    for ctable, assignment in zip(ctables, assignments):
-                        ctable[n1] += ctable[n2]
-                        ctable[n2] = 0
-                        assignment[n1] = ctable[n1] == ctable[n1].max()
-                        assignment[n2] = 0
-                    g.merge_nodes(n1, n2)
+            dat = g.learn_edge((n1,n2), ctables, assignments, feature_map)
+            data.append(dat)
+            label = dat[1][label_type_keys[labeling_mode]]
+            if learning_mode != 'strict' or label < 0:
+                for ctable, assignment in zip(ctables, assignments):
+                    ctable[n1] += ctable[n2]
+                    ctable[n2] = 0
+                    assignment[n1] = ctable[n1] == ctable[n1].max()
+                    assignment[n2] = 0
+                g.merge_nodes(n1, n2)
         return map(array, zip(*data))
 
     def replay_merge_history(self, merge_seq, labels=None, num_errors=1):
@@ -674,6 +673,10 @@ class Rag(Graph):
             self.refine_post_merge_boundaries(n1, n2)
         self.rig[n1] += self.rig[n2]
         self.rig[n2] = 0
+        try:
+            self.merge_queue.invalidate(self[n1][n2]['qlink'])
+        except KeyError:
+            pass
         self.remove_node(n2)
 
     def refine_post_merge_boundaries(self, n1, n2):
