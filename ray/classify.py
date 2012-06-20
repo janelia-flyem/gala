@@ -662,7 +662,7 @@ class SquigglinessFeatureManager(NullFeatureManager):
     def create_edge_cache(self, g, n1, n2):
         edge_idxs = g[n1][n2]['boundary']
         return concatenate(
-            self.compute_bounding_box(edge_idxs, g.segmentation.shape)
+            self.compute_bounding_box(edge_idxs, g.watershed.shape)
         )
 
     def update_edge_cache(self, g, e1, e2, dst, src):
@@ -678,7 +678,7 @@ class SquigglinessFeatureManager(NullFeatureManager):
             pass
             # dst = self.create_edge_cache(g, n1, n2)
         if len(idxs) == 0: return
-        b = concatenate(self.compute_bounding_box(idxs, g.segmentation.shape))
+        b = concatenate(self.compute_bounding_box(idxs, g.watershed.shape))
         self.update_edge_cache(g, (n1,n2), None, dst, b)
 
     def compute_edge_features(self, g, n1, n2, cache=None):
