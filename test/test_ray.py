@@ -195,7 +195,7 @@ class TestFeatures(unittest.TestCase):
                                             children=[self.f1,self.f2,self.f3])
 
     def run_matched_test(self, f, fn, c=1,
-                            edges=[(1,2),(1,3),(1,4)], merges=[(1,2),(1,3)]):
+                            edges=[(1,2),(6,3),(7,4)], merges=[(1,2),(6,3)]):
         if c == 1: p = self.probs1
         else: p = self.probs2
         g = agglo.Rag(self.wss1, p, feature_manager=f)

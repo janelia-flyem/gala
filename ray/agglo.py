@@ -371,7 +371,7 @@ class Rag(Graph):
                                         self.merge_queue.peek()[0] < threshold:
             merge_priority, valid, n1, n2 = self.merge_queue.pop()
             if valid:
-                self.merge_nodes(n1, n2, merge_priority)
+                self.merge_nodes(n1, n2)
 
     def agglomerate_count(self, stepsize=100):
         """Agglomerate until 'stepsize' merges have been made."""
@@ -608,6 +608,13 @@ class Rag(Graph):
         self.add_node(new, attr_dict=self.node[old])
         self.add_edges_from(
             [(new, v, self[old][v]) for v in self.neighbors(old)])
+        for v in self.neighbors(new):
+            qitem = self[new][v].get('qitem', None)
+            if qitem is not None:
+                if qitem[2] == old:
+                    qitem[2] = new
+                else:
+                    qitem[3] = new
         self.remove_node(old)
 
     def merge_nodes(self, n1, n2):
@@ -627,8 +634,49 @@ class Rag(Graph):
                                         if n not in [n1, self.boundary_body]]
         for n in new_neighbors:
             self.merge_edge_properties((n2,n), (n1,n))
+        if self.has_edge(n1,n2) and self.has_zero_boundaries:
+            self.refine_post_merge_boundaries(n1, n2, node_id)
         self.remove_node(n2)
         self.rename_node(n1, node_id)
+
+    def refine_post_merge_boundaries(self, n1, n2, nn):
+        boundary = array(list(self[n1][n2]['boundary']))
+        boundary_neighbor_pixels = self.watershed_r[
+            self.neighbor_idxs(boundary)
+        ]
+        forward = self.tree.get_map()
+        boundary_neighbor_pixels = forward[boundary_neighbor_pixels]
+        add = ( (boundary_neighbor_pixels == 0) + 
+            (boundary_neighbor_pixels == nn) ).all(axis=1)
+        check = True-add
+        self.node[n1]['extent'].update(boundary[add])
+        boundary_probs = self.probabilities_r[boundary[add]]
+        self.feature_manager.pixelwise_update_node_cache(self, n1,
+                        self.node[n1]['feature-cache'], boundary[add])
+        boundaries_to_edit = {}
+        for px in boundary[check]:
+            for lb in unique(forward[
+                        self.watershed_r[self.neighbor_idxs(px)]]):
+                if lb not in [0, nn, self.boundary_body]:
+                    try:
+                        boundaries_to_edit[(n1,lb)].append(px)
+                    except KeyError:
+                        boundaries_to_edit[(n1,lb)] = [px]
+        for u, v in boundaries_to_edit.keys():
+            idxs = set(boundaries_to_edit[(u,v)])
+            if self.has_edge(u, v):
+                idxs = idxs - self[u][v]['boundary']
+                self[u][v]['boundary'].update(idxs)
+                self.feature_manager.pixelwise_update_edge_cache(self, u, v,
+                                    self[u][v]['feature-cache'], list(idxs))
+            else:
+                self.add_edge(u, v, boundary=set(idxs))
+                self[u][v]['feature-cache'] = \
+                    self.feature_manager.create_edge_cache(self, u, v)
+            self.update_merge_queue(u, v)
+        for n in self.neighbors(n2):
+            if not boundaries_to_edit.has_key((n1,n)) and n != n1:
+                self.update_merge_queue(n1, n)
 
     def merge_subgraph(self, subgraph=None, source=None):
         if type(subgraph) not in [Rag, Graph]: # input is node list
