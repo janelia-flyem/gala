@@ -26,6 +26,13 @@ from scipy.ndimage.morphology import binary_opening, binary_closing, \
 #from scipy.spatial.distance import cityblock as manhattan_distance
 import iterprogress as ip
 
+try:
+    import skimage.morphology
+    skimage_available = True
+except ImportError:
+    logging.warning('Unable to load skimage.')
+    skimage_available = False
+
 zero3d = array([0,0,0])
 
 def manhattan_distance(a, b):
@@ -179,6 +186,8 @@ def watershed(a, seeds=None, connectivity=1, mask=None, smooth_thresh=0.0,
         ws = label(seeds, sel)[0]
     else:
         ws = seeds
+    if skimage_available and not dams:
+        return skimage.morphology.watershed(a, seeds, sel, None, mask)
     levels = unique(b)
     a = pad(a, a.max()+1)
     b = pad(b, b.max()+1)
