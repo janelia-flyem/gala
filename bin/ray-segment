@@ -142,14 +142,6 @@ if __name__ == '__main__':
     if args.single_channel: p = p0
     # grayscale image
     im = imio.read_image_stack(args.images) if args.images is not None else None
-    # synapses
-    synapse_aware = args.synapse_file is not None
-    if synapse_aware:
-        pre_post_pairs = syngeo.io.raveler_synapse_annotations_to_coords(
-            args.synapse_file)
-        synapse_volume = syngeo.io.volume_synapse_view(pre_post_pairs, p0.shape)
-    else:
-        synapse_volume = zeros(p0.shape, uint8)
     if args.watershed is not None:
         ws = imio.read_image_stack(args.watershed)
     else:
@@ -158,12 +150,22 @@ if __name__ == '__main__':
         if args.seed_cc_threshold > 0:
             seeds = morpho.remove_small_connected_components(seeds,
                 args.seed_cc_threshold)
-        if synapse_aware:
-            seeds = morpho.minimum_seeds(seeds, nonzero(synapse_volume))
         ws = skmorph.watershed(p0, seeds)
         MasterLogger.info("Finished performing watershed")
     fm = eval(args.feature_manager, {}, {'classify': classify})
 
+    # synapses
+    synapse_aware = args.synapse_file is not None
+    if synapse_aware:
+        MasterLogger.info("Processing synapses")
+        pre_post_pairs = syngeo.io.raveler_synapse_annotations_to_coords(
+            args.synapse_file)
+        synapse_volume = syngeo.io.volume_synapse_view(pre_post_pairs, p0.shape)
+        ws = morpho.split_exclusions(p0, ws, synapse_volume, 
+                                                        args.synapse_dilation)
+        MasterLogger.info("Finished processing synapses")
+    else:
+        synapse_volume = zeros(p0.shape, uint8)
     
     # Load training data or classifier
     if args.training_data is not None or args.classifier is not None:
