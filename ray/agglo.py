@@ -639,7 +639,10 @@ class Rag(Graph):
 
     def update_ucm(self, n1, n2):
         """Update ultrametric contour map."""
-        edge = self[n1][n2]
+        try:
+            edge = self[n1][n2]
+        except KeyError:
+            return
         w = edge['weight'] if edge.has_key('weight') else -inf
         if self.ucm is not None:
             self.max_merge_score = max(self.max_merge_score, w)

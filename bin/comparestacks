@@ -2,6 +2,7 @@
 
 from numpy import *
 from ray import imio, morpho, evaluate as ev
+from scipy.ndimage import binary_dilation, generate_binary_structure
 import getopt
 import errno
 import os
@@ -33,7 +34,11 @@ def main(argv):
     parser.add_argument('--stack1_outjson', type=str, default='stack1_merged.json', help='output json file name for stack 1 (outputs over-merged bodies in stack 1)', dest='stack1_outjson')
     parser.add_argument('--stackbase_outjson', type=str, default='stackbase_merged.json', help='output json file name for stack base (outputs over-merged bodies in stack base)', dest='stackbase_outjson')
 
+    parser.add_argument('--dilate1', type=int, default=0, help='Create and dilate edges on stack 1', dest='dilate1')
+    parser.add_argument('--dilatebase', type=int, default=0, help='Create and dilate edges on base image', dest='dilatebase')
+
     args = parser.parse_args()
+
 
     filtersize = args.filtersize
     if args.synapsejson != '':
@@ -46,7 +51,14 @@ def main(argv):
     else: 
         stack1_int = imio.raveler_to_labeled_volume(stack1, glia=False, use_watershed=False)
     stack1_int = morpho.remove_small_connected_components(stack1_int, min_size=filtersize, in_place=True)
-    
+   
+    if args.dilate1 > 0:
+        conn = 1 # the connectivity, can be in {1, 2, ..., seg.ndim}
+        strel = generate_binary_structure(stack1_int.ndim, conn)        
+        bound = morpho.seg_to_bdry(stack1_int)
+        bound = binary_dilation(bound, strel, iterations=args.dilate1)
+        stack1_int[bound] = 0
+ 
     if args.relabel1:
         stack1_int, dummy1, dummy2 = ev.relabel_from_one(stack1_int)
     print "Imported first stack"
@@ -59,6 +71,14 @@ def main(argv):
     else:
         stackbase_int = imio.raveler_to_labeled_volume(stackbase, glia=False, use_watershed=False)
     stackbase_int = morpho.remove_small_connected_components(stackbase_int, min_size=filtersize, in_place=True)
+
+    if args.dilatebase > 0:
+        conn = 1 # the connectivity, can be in {1, 2, ..., seg.ndim}
+        strel = generate_binary_structure(stackbase_int.ndim, conn)        
+        bound = morpho.seg_to_bdry(stackbase_int)
+        bound = binary_dilation(bound, strel, iterations=args.dilatebase)
+        stackbase_int[bound] = 0
+
     if args.relabelbase:
         stackbase_int, dummy1, dummy2 = ev.relabel_from_one(stackbase_int)
     print "Imported base stack"
