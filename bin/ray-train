@@ -88,6 +88,8 @@ if __name__ == '__main__':
         default=True, help='Disable nozeros mode.')
     parser.add_argument('-w', '--watershed-file', type=str,
         help='Use a pre-computed watershed segmentation.')
+    parser.add_argument('-S', '--synapse-file', type=str, metavar='FN',
+        help='Use a synapse annotation json file to help segmentation.')
     parser.add_argument('-o', '--output-dir', type=str, default='./',
         metavar='DIR', help='Directory for all output')
     parser.add_argument('-x', '--experiment-name', type=str,
@@ -141,9 +143,23 @@ if __name__ == '__main__':
     else:
         ws = imio.read_image_stack(args.watershed_file)
     fm = eval(args.feature_manager, {}, {'classify': classify})
+
+    # synapses
+    synapse_aware = args.synapse_file is not None
+    if synapse_aware:
+        MasterLogger.info("Processing synapses")
+        pre_post_pairs = syngeo.io.raveler_synapse_annotations_to_coords(
+            args.synapse_file)
+        synapse_volume = syngeo.io.volume_synapse_view(pre_post_pairs, p0.shape)
+        ws = morpho.split_exclusions(p0, ws, synapse_volume, 
+                                                        args.synapse_dilation)
+        MasterLogger.info("Finished processing synapses")
+    else:
+        synapse_volume = zeros(p0.shape, uint8)
+
     MasterLogger.info("Building RAG")
     g = agglo.Rag(ws, p, feature_manager=fm, show_progress=args.show_progress,
-            nozeros=args.nozeros)
+            nozeros=args.nozeros, exclusions=synapse_volume)
     MasterLogger.info("Starting inclusion removal with %i nodes"
                                                         % g.number_of_nodes())
     g.remove_inclusions()
