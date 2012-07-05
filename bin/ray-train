@@ -14,6 +14,12 @@ except ImportError:
     logging.warning('Could not import skimage.')
 from scipy.ndimage import label
 
+try:
+    import syngeo
+except ImportError:
+    logging.warning('Could not import syngeo. ' +
+                                        'Synapse-aware mode not available.')
+
 # local modules
 from ray import imio, agglo, morpho, classify, evaluate
 
