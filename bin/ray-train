@@ -163,7 +163,7 @@ if __name__ == '__main__':
                                                         args.synapse_dilation)
         MasterLogger.info("Finished processing synapses")
     else:
-        synapse_volume = zeros(p0.shape, uint8)
+        synapse_volume = np.zeros(p0.shape, uint8)
 
     MasterLogger.info("Building RAG")
     g = agglo.Rag(ws, p, feature_manager=fm, show_progress=args.show_progress,
