@@ -89,6 +89,8 @@ if __name__ == '__main__':
         help='Connected component threshold in seed creation')
     parser.add_argument('-S', '--synapse-file', type=str, metavar='FN',
         help='Use a synapse annotation json file to help segmentation.')
+    parser.add_argument('-d', '--synapse-dilation', type=int, metavar='INT',
+        help='Dilate synapse points by this amount.', default=1)
     args = parser.parse_args()
 
     experiment_prefix = os.path.join(args.output_dir, args.experiment_name)
