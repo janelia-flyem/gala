@@ -168,7 +168,7 @@ if __name__ == '__main__':
                                                         args.synapse_dilation)
         MasterLogger.info("Finished processing synapses")
     else:
-        synapse_volume = np.zeros(p0.shape, uint8)
+        synapse_volume = np.zeros(p0.shape, np.uint8)
     
     # Load training data or classifier
     if args.training_data is not None or args.classifier is not None:
