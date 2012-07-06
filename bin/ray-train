@@ -8,6 +8,7 @@ import functools
 
 # external libraries
 from numpy import unique
+import numpy as np
 try:
     from skimage import morphology as skmorph
 except ImportError:
