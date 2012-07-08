@@ -479,6 +479,9 @@ def raveler_to_labeled_volume(rav_export_dir, get_glia=False,
     probs = kwargs.get('probability_map', ones_like(spmap))
     output_volume = morpho.watershed(probs, seeds=initial_output_volume) \
         if use_watershed else initial_output_volume
+    if (output_volume[:, 0, 0] == 0).all() and \
+                        (output_volume == 0).sum() == output_volume.shape[0]:
+        output_volume[:, 0, 0] = output_volume[:, 0, 1]
     if get_glia:
         annots = json.load(
             open(os.path.join(rav_export_dir, 'annotations-body.json'), 'r'))
