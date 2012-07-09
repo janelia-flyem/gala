@@ -925,8 +925,34 @@ class Rag(Graph):
             raise ValueError('Unsupported output format for agglo.Rag: %s'
                 % output_format)
         
-    def write_plaza_json(self, fout):
+    def write_plaza_json(self, fout, synapsejson=None):
         """Write graph to Steve Plaza's JSON spec."""
+        
+        json_vals = {}
+        if synapsejson is not None:        
+            synapse_file = open(synapsejson)
+            json_vals1 = json.load(synapse_file)
+            body_count = {}
+
+            for item in json_vals1["data"]:
+                bodyid = ((item["T-bar"])["body ID"])
+                if bodyid in body_count:
+                    body_count[bodyid] += 1
+                else:
+                    body_count[bodyid] = 1
+            
+                for psd in item["partners"]:
+                    bodyid = psd["body ID"]
+                    if bodyid in body_count:
+                        body_count[bodyid] += 1
+                    else:
+                        body_count[bodyid] = 1
+
+            json_vals["synapse_bodies"] = []
+            for body, count in body_count.items():
+                temp = [body, count]
+                json_vals["synapse_bodies"].append(temp)
+
         edge_list = [
             {'location': map(int, self.get_edge_coordinates(i, j)[-1::-1]),
             'node1': int(i), 'node2': int(j),
@@ -936,8 +962,10 @@ class Rag(Graph):
             'weight': float(self[i][j]['weight'])}
             for i, j in self.real_edges()
         ]
+        json_vals['edge_list'] = edge_list        
+
         with open(fout, 'w') as f:
-            json.dump({'edge_list': edge_list}, f, indent=4)
+            json.dump(json_vals, f, indent=4)
 
     def ncut(self, num_clusters=10, kmeans_iters=5, sigma=255.0*20, nodes=None,
             **kwargs):
