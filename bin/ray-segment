@@ -218,7 +218,7 @@ if __name__ == '__main__':
             imio.raveler_output_shortcut(ws, s, im, (ravelervol)%t, sps)
         if args.raveler_export and args.graph_json_export:
             g.write_plaza_json(
-                os.path.join((ravelervol)%t, 'graph.json'))
+                os.path.join((ravelervol)%t, 'graph.json'), args.synapse_file)
     MasterLogger.info("Complete RAG agglomeration")
     g.agglomerate(inf)
     MasterLogger.info("Finished complete RAG agglomeration")
