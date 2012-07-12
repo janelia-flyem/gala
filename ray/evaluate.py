@@ -1,6 +1,8 @@
 import numpy as np
 import multiprocessing
 import itertools as it
+import collections
+from functools import partial
 import h5py
 from scipy.sparse import coo_matrix
 from scipy.ndimage.measurements import label
@@ -39,6 +41,8 @@ def relabel_from_one(a):
         return a, labels, labels
     forward_map = np.zeros(m+1, int)
     forward_map[labels0] = np.arange(1, len(labels0)+1)
+    if not (labels == 0).any():
+        labels = np.concatenate(([0], labels))
     inverse_map = labels
     return forward_map[a], forward_map, inverse_map
 
@@ -68,9 +72,12 @@ def xlogx(x, out=None):
 
 def special_points_evaluate(eval_fct, coords, flatten=True, coord_format=True):
     if coord_format:
-        coords = tuple([coords[:,i] for i in range(coords.shape[1])])
+        coords = [coords[:,i] for i in range(coords.shape[1])]
     def special_eval_fct(x, y, *args, **kwargs):
         if flatten:
+            for i in range(len(coords)):
+                if coords[i][0] < 0:
+                    coords[i] += x.shape[i]
             coords2 = np.ravel_multi_index(coords, x.shape)
         else:
             coords2 = coords
@@ -80,10 +87,18 @@ def special_points_evaluate(eval_fct, coords, flatten=True, coord_format=True):
     return special_eval_fct
 
 def make_synaptic_vi(fn):
+    return make_synaptic_functions(fn, split_vi)
+
+def make_synaptic_functions(fn, fncts):
+    from syngeo import io as synio
     synapse_coords = \
-        syngeo.io.raveler_synapse_annotations_to_coords(fn, 'arrays')
+        synio.raveler_synapse_annotations_to_coords(fn, 'arrays')
     synapse_coords = np.array(list(it.chain(*synapse_coords)))
-    return special_points_evaluate(split_vi, synapse_coords)
+    make_function = partial(special_points_evaluate, coords=synapse_coords)
+    if not isinstance(fncts, collections.Iterable):
+        return make_function(fncts)
+    else:
+        return map(make_function, fncts)
 
 def vi(x, y=None, weights=np.ones(2), ignore_x=[0], ignore_y=[0]):
     """Return the variation of information metric."""

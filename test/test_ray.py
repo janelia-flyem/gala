@@ -11,7 +11,7 @@ from scipy.ndimage.measurements import label
 rundir = os.path.dirname(__file__)
 sys.path.append(rundir)
 
-from ray import imio, morpho, agglo, classify
+from ray import imio, morpho, agglo, classify, evaluate as ev
 
 def time_me(function):
     def wrapped(*args, **kwargs):
@@ -112,12 +112,14 @@ class TestAgglomeration(unittest.TestCase):
         g = agglo.Rag(self.wss[i], self.probs[i], agglo.boundary_mean, 
                                                 normalize_probabilities=True)
         v = g.one_shot_agglomeration(0.76)
-        self.assertTrue((v==self.results[i]).all(), 
+        seg = imio.remove_merged_boundaries(v)
+        self.assertTrue(
+            ev.vi(seg, self.results[i], ignore_x=[], ignore_y=[]) == 0, 
                         'One shot agglomeration failed.')
         v = g.build_boundary_map()
         v = label(g.build_boundary_map()<0.76)[0]
-        v[v==2] = 3
-        self.assertTrue((v==self.results[i]).all(),
+        self.assertTrue(
+            ev.vi(v, self.results[i], ignore_x=[], ignore_y=[]) == 0, 
                         'Build boundary map failed.')
 
     def test_agglomeration(self):
@@ -125,8 +127,10 @@ class TestAgglomeration(unittest.TestCase):
         g = agglo.Rag(self.wss[i], self.probs[i], agglo.boundary_mean, 
             normalize_probabilities=True)
         g.agglomerate(0.51)
-        self.assertTrue((g.get_segmentation()==self.results[i]).all(), 
-                        'Mean agglomeration failed.')
+        seg = imio.remove_merged_boundaries(g.get_segmentation())
+        self.assertTrue(
+            ev.vi(seg, self.results[i], ignore_x=[], ignore_y=[]) == 0, 
+            'Mean agglomeration failed.')
                         
     def test_ladder_agglomeration(self):
         i = 2
@@ -134,7 +138,9 @@ class TestAgglomeration(unittest.TestCase):
             normalize_probabilities=True)
         g.agglomerate_ladder(2)
         g.agglomerate(0.5)
-        self.assertTrue((g.get_segmentation()==self.results[i]).all(),
+        seg = imio.remove_merged_boundaries(g.get_segmentation())
+        self.assertTrue(
+            ev.vi(seg, self.results[i], ignore_x=[], ignore_y=[]) == 0, 
                         'Ladder agglomeration failed.')
 
     def test_no_dam_agglomeration(self):
@@ -142,7 +148,9 @@ class TestAgglomeration(unittest.TestCase):
         g = agglo.Rag(self.wss[i], self.probs[i], agglo.boundary_mean, 
             normalize_probabilities=True)
         g.agglomerate(0.75)
-        self.assertTrue((g.get_segmentation()==self.results[i]).all(),
+        seg = imio.remove_merged_boundaries(g.get_segmentation())
+        self.assertTrue(
+            ev.vi(seg, self.results[i], ignore_x=[], ignore_y=[]) == 0, 
                         'No dam agglomeration failed.')
 
 
@@ -195,7 +203,7 @@ class TestFeatures(unittest.TestCase):
                                             children=[self.f1,self.f2,self.f3])
 
     def run_matched_test(self, f, fn, c=1,
-                            edges=[(1,2),(1,3),(1,4)], merges=[(1,2),(1,3)]):
+                            edges=[(1,2),(6,3),(7,4)], merges=[(1,2),(6,3)]):
         if c == 1: p = self.probs1
         else: p = self.probs2
         g = agglo.Rag(self.wss1, p, feature_manager=f)
