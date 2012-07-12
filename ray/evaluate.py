@@ -12,23 +12,39 @@ from scipy.spatial.distance import pdist, cdist, squareform
 from scipy.misc import comb as nchoosek
 from sklearn.metrics import precision_recall_curve
 
+def bin_values(a, bins=255):
+    if len(unique(a)) < 2*bins:
+        return a.copy()
+    b = np.zeros_like(a)
+    m, M = a.min(), a.max()
+    r = M - m
+    step = r / bins
+    lows = np.arange(m, M, step)
+    highs = np.arange(m+step, M+step, step)
+    for low, high in zip(lows, highs):
+        locations = np.flatnonzero((low <= a) * (a < high))
+        if len(locations) > 0:
+            values = a.ravel()[locations]
+            b.ravel()[locations] = values.mean()
+    return b
+
 def pixel_wise_boundary_precision_recall(aseg, gt):
     tp = float((gt * aseg).sum())
     fp = (aseg * (1-gt)).sum()
     fn = (gt * (1-aseg)).sum()
     return tp/(tp+fp), tp/(tp+fn)
 
-def wiggle_room_precision_recall(pred, boundary, margin=2, connectivity=1, 
-                                                            thresholds=100):
+def wiggle_room_precision_recall(pred, boundary, margin=2, connectivity=1):
     struct = nd.generate_binary_structure(boundary.ndim, connectivity)
-    gtmask = True - nd.binary_dilation(boundary, struct, margin)
+    gtd = nd.binary_dilation(boundary, struct, margin)
     struct_m = nd.iterate_structure(struct, margin)
     pred_dil = nd.grey_dilation(pred, footprint=struct_m)
-    if not isinstance(thresholds, coll.Iterable):
-        thresholds = get_stratified_sample(pred, thresholds)
-    for t in thresholds:
-        pred_mask = pred_dil < t
-
+    missing = np.setdiff1d(np.unique(pred), np.unique(pred_dil))
+    for m in missing:
+        pred_dil.ravel()[np.flatnonzero(pred==m)[0]] = m
+    prec, _, ts = precision_recall_curve(gtd.ravel(), pred.ravel())
+    _, rec, _ = precision_recall_curve(boundary.ravel(), pred_dil.ravel())
+    return zip(ts, prec, rec)
 
 def get_stratified_sample(a, n):
     u = np.unique(a)
