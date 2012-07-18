@@ -1,6 +1,12 @@
 #!/usr/bin/env python
 
-from ray import *
+from ray import imio, agglo, morpho, classify, evaluate
+
+try:
+    from ray import agglo_np
+except ImportError:
+    pass
+
 import sys
 import os
 from skimage import morphology as skmorph
@@ -23,6 +29,9 @@ Description of input JSON:
 
     #volumes should use non zero boundary methodology
     "nonzero_boundary" : true,
+
+    #use NeuroProof RAG and Stack for boosted performance
+    "nonzero_boundary" : false,
 
     #efficient memory handling of large volumes
     "memory_mode" : false,
@@ -112,6 +121,7 @@ class PipelineOptions:
         self.stack_path = self.set_option("stack_path", required=True)
         self.ilastik_training_volume = self.set_option("ilastik_training_volume", False)
         self.nonzero_boundary = self.set_option("nonzero_boundary", True)
+        self.use_neuroproof = self.set_option("use_neuroproof", False)
         self.memory_mode = self.set_option("memory_mode", False)
         self.flow_generate_boundary_prediction = self.set_option("flow_generate_boundary_prediction", False)
         self.flow_generate_watershed = self.set_option("flow_generate_watershed", False)
@@ -137,6 +147,15 @@ class PipelineOptions:
         self.synapse_file = \
             self.set_option("synapse_file", default=None, warning=False)
 
+        if self.use_neuroproof and (self.synapse_file is not None or self.flow_perform_inclusion_removal or self.flow_perform_agglomeration_inclusion_removal):
+            MasterLogger.warning("NeuroProof cannot be enabled with the options set")
+            self.use_neuroproof = False
+
+        if self.use_neuroproof:
+            try:
+                from ray import agglo_np
+            except ImportError:
+                raise Exception("NeuroProof could not be imported")
 
     def set_option(self, json_name, default=None, warning=True, required=False):
         temp_option = self.json_val.get(json_name)
@@ -290,8 +309,11 @@ def flow_perform_inclusion_removal(options, rag, watershed, prediction):
 
     if rag is None:
         MasterLogger.info("Building RAG")
-        rag = agglo.Rag(watershed, prediction, merge_priority_function=agglo.boundary_median,
-            show_progress=True, nozeros=options.nonzero_boundary)
+        if options.use_neuroproof:
+            rag = agglo_np.Stack(watershed, prediction) 
+        else:
+            rag = agglo.Rag(watershed, prediction, merge_priority_function=agglo.boundary_median,
+                show_progress=True, nozeros=options.nonzero_boundary)
         MasterLogger.info("Finished building RAG")
     # ?? how to save rag
     MasterLogger.info("Starting inclusion removal with " + str(rag.number_of_nodes()) + " nodes")
@@ -307,8 +329,11 @@ def flow_perform_median_agglomeration(options, rag, watershed, prediction, image
 
     if rag is None:
         MasterLogger.info("Building RAG")
-        rag = agglo.Rag(watershed, prediction, merge_priority_function=agglo.boundary_median,
-            show_progress=True, nozeros=options.nonzero_boundary)
+        if options.use_neuroproof:
+            rag = agglo_np.Stack(watershed, prediction) 
+        else:
+            rag = agglo.Rag(watershed, prediction, merge_priority_function=agglo.boundary_median,
+                show_progress=True, nozeros=options.nonzero_boundary)
         MasterLogger.info("Finished building RAG")
     # ?? how to save rag
     if options.synapse_file is not None:
