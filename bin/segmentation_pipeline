@@ -147,7 +147,7 @@ class PipelineOptions:
         self.synapse_file = \
             self.set_option("synapse_file", default=None, warning=False)
 
-        if self.use_neuroproof and (self.synapse_file is not None or self.flow_perform_inclusion_removal or self.flow_perform_agglomeration_inclusion_removal):
+        if self.use_neuroproof and (self.synapse_file is not None):
             MasterLogger.warning("NeuroProof cannot be enabled with the options set")
             self.use_neuroproof = False
 

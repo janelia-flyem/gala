@@ -44,7 +44,7 @@ class Stack:
         return seg_buffer
 
     def remove_inclusions(self):
-        raise Exception("Not implemented yet")
+        self.stack.remove_inclusions()    
 
     # just a simple rag export -- need feature for max size in a specified dimension
     def write_plaza_json(self, fout):
