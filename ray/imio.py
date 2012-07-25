@@ -570,12 +570,12 @@ def read_shiv_raw_stack(ws_fn, sp2body_fn):
     ar = sp2b[ws]
     return remove_merged_boundaries(ar)
 
-def remove_merged_boundaries(ar):
+def remove_merged_boundaries(ar, connectivity=1):
     import morpho
     arp = morpho.pad(ar, [0,ar.max()+1])
     arpr = arp.ravel()
     zero_idxs = (arpr == 0).nonzero()[0]
-    ns = arpr[morpho.get_neighbor_idxs(arp, zero_idxs)]
+    ns = arpr[morpho.get_neighbor_idxs(arp, zero_idxs, connectivity)]
     ns_compl = ns.copy()
     ns_compl[ns==0] = ns.max()+1
     merged_boundaries = (ns.max(axis=1) == ns_compl.min(axis=1)).nonzero()[0]
