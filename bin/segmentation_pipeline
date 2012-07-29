@@ -3,7 +3,7 @@
 from ray import imio, agglo, morpho, classify, evaluate
 
 try:
-    from ray import agglo_np
+    from ray import stack_np
 except ImportError:
     pass
 
@@ -153,7 +153,7 @@ class PipelineOptions:
 
         if self.use_neuroproof:
             try:
-                from ray import agglo_np
+                from ray import stack_np
             except ImportError:
                 raise Exception("NeuroProof could not be imported")
 
@@ -310,7 +310,7 @@ def flow_perform_inclusion_removal(options, rag, watershed, prediction):
     if rag is None:
         MasterLogger.info("Building RAG")
         if options.use_neuroproof:
-            rag = agglo_np.Stack(watershed, prediction) 
+            rag = stack_np.Stack(watershed, prediction) 
         else:
             rag = agglo.Rag(watershed, prediction, merge_priority_function=agglo.boundary_median,
                 show_progress=True, nozeros=options.nonzero_boundary)
@@ -330,7 +330,7 @@ def flow_perform_median_agglomeration(options, rag, watershed, prediction, image
     if rag is None:
         MasterLogger.info("Building RAG")
         if options.use_neuroproof:
-            rag = agglo_np.Stack(watershed, prediction) 
+            rag = stack_np.Stack(watershed, prediction) 
         else:
             rag = agglo.Rag(watershed, prediction, merge_priority_function=agglo.boundary_median,
                 show_progress=True, nozeros=options.nonzero_boundary)
