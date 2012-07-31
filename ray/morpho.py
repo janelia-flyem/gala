@@ -172,28 +172,26 @@ def watershed(a, seeds=None, connectivity=1, mask=None, smooth_thresh=0.0,
         show_progress=False):
     """Perform the watershed algorithm of Vincent & Soille (1991)."""
     seeded = seeds is not None
+    if seeds.dtype == bool:
+        ws = label(seeds, sel)[0]
     sel = generate_binary_structure(a.ndim, connectivity)
+    if skimage_available and not dams:
+        return skimage.morphology.watershed(a, seeds, sel, None, mask)
+    if seeded and smooth_seeds:
+        seeds = binary_opening(seeds, sel)
     if smooth_thresh > 0.0:
         b = hminima(a, smooth_thresh)
     if seeded:
-        if smooth_seeds:
-            seeds = binary_opening(seeds, sel)
         b = impose_minima(a, seeds.astype(bool), connectivity)
     else:
         seeds = regional_minima(a, connectivity)
         b = a
-    if seeds.dtype == bool:
-        ws = label(seeds, sel)[0]
-    else:
-        ws = seeds
-    if skimage_available and not dams:
-        return skimage.morphology.watershed(a, seeds, sel, None, mask)
     levels = unique(b)
     a = pad(a, a.max()+1)
     b = pad(b, b.max()+1)
     ar = a.ravel()
     br = b.ravel()
-    ws = pad(ws, 0)
+    ws = pad(seeds, 0)
     wsr = ws.ravel()
     current_label = 0
     neighbors = build_neighbors_array(a, connectivity)
