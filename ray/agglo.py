@@ -1,5 +1,6 @@
 # built-ins
 from itertools import combinations, izip, repeat, product
+import itertools as it
 import argparse
 import random
 import sys
@@ -14,13 +15,11 @@ from numpy import array, mean, zeros, zeros_like, uint8, int8, where, unique, \
     median, exp, ceil, dot, log2, float, ones, arange, inf, flatnonzero, \
     intersect1d, dtype, squeeze, sqrt, reshape, setdiff1d, argmin, sign, \
     concatenate, nan, __version__ as numpyversion, unravel_index, bincount
-import numpy
+import numpy as np
 from scipy.stats import sem
 from scipy.sparse import lil_matrix
-from scipy.ndimage import generate_binary_structure, iterate_structure, \
-    distance_transform_cdt
 from scipy.misc import comb as nchoosek
-from scipy.ndimage.measurements import center_of_mass, label
+from scipy.ndimage.measurements import label
 from networkx import Graph, biconnected_components
 from networkx.algorithms.traversal.depth_first_search import dfs_preorder_nodes
 from networkx.algorithms.components.connected import connected_components
@@ -31,9 +30,8 @@ import iterprogress as ip
 from ncut import ncutW
 from mergequeue import MergeQueue
 from evaluate import contingency_table, split_vi, xlogx
-from classify import NullFeatureManager, MomentsFeatureManager, \
-    HistogramFeatureManager, RandomForest, unique_learning_data_elements, \
-    concatenate_data_elements
+from classify import NullFeatureManager, RandomForest, \
+    unique_learning_data_elements, concatenate_data_elements
 
 arguments = argparse.ArgumentParser(add_help=False)
 arggroup = arguments.add_argument_group('Agglomeration options')
@@ -282,11 +280,6 @@ class Rag(Graph):
         if len(orientation_map) == 0:
             self.orientation_map = zeros_like(self.watershed)
             self.orientation_map_r = self.orientation_map.ravel()
-        so = orientation_map.shape
-        sw = tuple(array(self.watershed.shape, dtype=int)-\
-                2*self.pad_thickness*ones(self.watershed.ndim, dtype=int))
-        o_ndim = orientation_map.ndim
-        w_ndim = self.watershed.ndim
         padding = [0]+(self.pad_thickness-1)*[0]
         self.orientation_map = morpho.pad(orientation_map, padding).astype(int)
         self.orientation_map_r = self.orientation_map.ravel()
@@ -620,12 +613,12 @@ class Rag(Graph):
         merge pair observed.
         """
         if labels is None:
-            labels1 = itertools.repeat(False)
-            labels2 = itertools.repeat(False)
+            labels1 = it.repeat(False)
+            labels2 = it.repeat(False)
         else:
             labels1 = (label > 0 for label in labels)
             labels2 = (label > 0 for label in labels)
-        counter = itertools.count()
+        counter = it.count()
         errors_remaining = conditional_countdown(labels2, num_errors)
         nodes = None
         for nodes, label, errs, count in \
@@ -692,7 +685,6 @@ class Rag(Graph):
             (boundary_neighbor_pixels == n2) ).all(axis=1)
         check = True-add
         self.node[n1]['extent'].update(boundary[add])
-        boundary_probs = self.probabilities_r[boundary[add]]
         self.feature_manager.pixelwise_update_node_cache(self, n1,
                         self.node[n1]['feature-cache'], boundary[add])
         self.segmentation_r[boundary[add]] = n1
