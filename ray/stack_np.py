@@ -21,8 +21,11 @@ class Stack:
 
         probs = probabilities.astype(numpy.double)
         self.probabilities = morpho.pad(probs, 0)
-    
-        self.stack = neuroproof.build_stack(self.watershed, self.probabilities)
+
+
+        self.stack = neuroproof.build_stack(self.watershed)
+        neuroproof.add_prediction_channel(self.stack, self.probabilities)
+        
         self.stack.build_rag()
 
     def number_of_nodes(self):
