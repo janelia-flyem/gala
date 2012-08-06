@@ -14,4 +14,4 @@ def write_segmentation_pipeline_json(jsonfn, ilfn, ilbfn, outdir='.'):
     d['output_dir'] = outdir
     d['features'] = default_feature_set
     with open(jsonfn, 'w') as f:
-        json.write(d, f)
+        json.dump(d, f)

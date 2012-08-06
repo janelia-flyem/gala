@@ -34,7 +34,7 @@ class TestMorphologicalOperations(unittest.TestCase):
         self.landscape = numpy.array([1,0,1,2,1,3,2,0,2,4,1,0])
 
     def test_watershed_images(self):
-        wss = [morpho.watershed(self.probs[i]) for i in range(3)] + \
+        wss = [morpho.watershed(self.probs[i], dams=True) for i in range(3)] + \
             [morpho.watershed(self.probs[3], dams=False)]
         for i in range(self.num_tests):
             self.assertTrue((wss[i]==self.results[i]).all(),
@@ -42,7 +42,7 @@ class TestMorphologicalOperations(unittest.TestCase):
 
     def test_watershed(self):
         regular_watershed_result = numpy.array([1,1,1,0,2,0,3,3,3,0,4,4])
-        regular_watershed = morpho.watershed(self.landscape)
+        regular_watershed = morpho.watershed(self.landscape, dams=True)
         self.assertTrue((regular_watershed == regular_watershed_result).all())
 
     def test_watershed_nodams(self):
@@ -54,22 +54,24 @@ class TestMorphologicalOperations(unittest.TestCase):
         seeds_bool = self.landscape==0
         seeds_unique = label(seeds_bool)[0]
         seeded_watershed_result = numpy.array([1,1,1,1,1,0,2,2,2,0,3,3])
-        seeded_watershed1 = morpho.watershed(self.landscape, seeds_bool)
-        seeded_watershed2 = morpho.watershed(self.landscape, seeds_unique)
+        seeded_watershed1 = \
+            morpho.watershed(self.landscape, seeds_bool, dams=True)
+        seeded_watershed2 = \
+            morpho.watershed(self.landscape, seeds_unique, dams=True)
         self.assertTrue((seeded_watershed1 == seeded_watershed_result).all())
         self.assertTrue((seeded_watershed2 == seeded_watershed_result).all())
 
     def test_watershed_seeded_nodams(self):
         seeds_bool = self.landscape==0
         seeded_nodam_ws_result = numpy.array([1,1,1,1,1,1,2,2,2,3,3,3])
-        seeded_nodam_ws = \
-                morpho.watershed(self.landscape, seeds=seeds_bool, dams=False)
+        seeded_nodam_ws = morpho.watershed(self.landscape,
+                    seeds=seeds_bool, override_skimage=True, dams=False)
         self.assertTrue((seeded_nodam_ws == seeded_nodam_ws_result).all())
         
     def test_watershed_saddle_basin(self):
         saddle_landscape = numpy.array([[0,0,3],[2,1,2],[0,0,3]])
         saddle_result = numpy.array([[1,1,1],[0,0,0],[2,2,2]])
-        saddle_ws = morpho.watershed(saddle_landscape)
+        saddle_ws = morpho.watershed(saddle_landscape, dams=True)
         self.assertTrue((saddle_ws==saddle_result).all())
 
     def test_watershed_plateau_performance(self):

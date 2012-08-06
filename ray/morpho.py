@@ -169,31 +169,29 @@ def split_exclusions(image, labels, exclusions, dilation=0, connectivity=1):
 
 def watershed(a, seeds=None, connectivity=1, mask=None, smooth_thresh=0.0, 
         smooth_seeds=False, minimum_seed_size=0, dams=False,
-        show_progress=False):
+        override_skimage=False, show_progress=False):
     """Perform the watershed algorithm of Vincent & Soille (1991)."""
     seeded = seeds is not None
     sel = generate_binary_structure(a.ndim, connectivity)
+    b = a
+    if not seeded:
+        seeds = regional_minima(a, connectivity)
+    if seeds.dtype == bool:
+        seeds = label(seeds, sel)[0]
+    if smooth_seeds:
+        seeds = binary_opening(seeds, sel)
     if smooth_thresh > 0.0:
         b = hminima(a, smooth_thresh)
-    if seeded:
-        if smooth_seeds:
-            seeds = binary_opening(seeds, sel)
+    if skimage_available and not override_skimage and not dams:
+        return skimage.morphology.watershed(b, seeds, sel, None, mask)
+    elif seeded:
         b = impose_minima(a, seeds.astype(bool), connectivity)
-    else:
-        seeds = regional_minima(a, connectivity)
-        b = a
-    if seeds.dtype == bool:
-        ws = label(seeds, sel)[0]
-    else:
-        ws = seeds
-    if skimage_available and not dams:
-        return skimage.morphology.watershed(a, seeds, sel, None, mask)
     levels = unique(b)
     a = pad(a, a.max()+1)
     b = pad(b, b.max()+1)
     ar = a.ravel()
     br = b.ravel()
-    ws = pad(ws, 0)
+    ws = pad(seeds, 0)
     wsr = ws.ravel()
     current_label = 0
     neighbors = build_neighbors_array(a, connectivity)
