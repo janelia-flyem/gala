@@ -117,42 +117,30 @@ class InclusivenessFeatureManager(NullFeatureManager):
         super(InclusivenessFeatureManager, self).__init__()
 
     def compute_node_features(self, g, n, cache=None):
-        neighbors = g.neighbors(n)
-        bd_lengths = []
-        for x in neighbors:
-            bd_lengths.append(len(g[n][x]["boundary"]))
-        bd_lengths.sort()    
+        bd_lengths = sorted([len(g[n][x]['boundary']) for x in g.neighbors(n)])
         ratio1 = float(bd_lengths[-1])/float(sum(bd_lengths))
         try:
-            ratio2 = float(bd_lengths[-1])/float(bd_lengths[-2])
-        except:
-            ratio2 = 1          
+            ratio2 = float(bd_lengths[-2])/float(bd_lengths[-1])
+        except IndexError:
+            ratio2 = 0.0
         return array([ratio1, ratio2])
 
     def compute_edge_features(self, g, n1, n2, cache=None):
-        neighbors1 = g.neighbors(n1)
-        neighbors2 = g.neighbors(n2)
-        bd_lengths1 = []
-        bd_lengths2 = []
-        for x in neighbors1:
-            bd_lengths1.append(len(g[n1][x]["boundary"]))
-        bd_lengths1.sort()
-        for x in neighbors2:
-            bd_lengths2.append(len(g[n2][x]["boundary"]))    
-        ratios1 = [float(len(g[n1][n2]["boundary"]))/float(sum(bd_lengths1)),\
-        float(len(g[n1][n2]["boundary"]))/float(sum(bd_lengths2))]
+        bd_lengths1 = sorted([len(g[n1][x]['boundary'])
+                              for x in g.neighbors(n1)])
+        bd_lengths2 = sorted([len(g[n2][x]['boundary'])
+                              for x in g.neighbors(n2)])
+        ratios1 = [float(len(g[n1][n2]["boundary"]))/float(sum(bd_lengths1)),
+                   float(len(g[n1][n2]["boundary"]))/float(sum(bd_lengths2))]
         ratios1.sort()
-        ratios2 = [float(len(g[n1][n2]["boundary"]))/float(max(bd_lengths1)),\
-        float(len(g[n1][n2]["boundary"]))/float(max(bd_lengths2))]
-        ratios2.sort()    
+        ratios2 = [float(len(g[n1][n2]["boundary"]))/float(max(bd_lengths1)),
+                   float(len(g[n1][n2]["boundary"]))/float(max(bd_lengths2))]
+        ratios2.sort()
         return concatenate((ratios1, ratios2))
 
     def compute_difference_features(self, g, n1, n2, cache1=None, cache2=None):
         return self.compute_node_features(g, n1, cache1) - \
                self.compute_node_features(g, n2, cache2)
-               
-               
-               
 
 class MomentsFeatureManager(NullFeatureManager):
     def __init__(self, nmoments=4, use_diff_features=True, oriented=False, 
