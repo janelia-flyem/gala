@@ -489,13 +489,15 @@ class ConvexHullFeatureManager(NullFeatureManager):
 class HistogramFeatureManager(NullFeatureManager):
     def __init__(self, nbins=4, minval=0.0, maxval=1.0, 
             compute_percentiles=[], oriented=False, 
-            compute_histogram=True, *args, **kwargs):
+            compute_histogram=True, use_neuroproof=False, *args, **kwargs):
         super(HistogramFeatureManager, self).__init__()
         self.minval = minval
         self.maxval = maxval
         self.nbins = nbins
         self.oriented = oriented
         self.compute_histogram = compute_histogram
+        self.use_neuroproof = use_neuroproof
+
         try:
             _ = len(compute_percentiles)
         except TypeError: # single percentile value given
@@ -611,7 +613,10 @@ class HistogramFeatureManager(NullFeatureManager):
             cache = g.node[n1][self.default_cache]
         h, ps = self.normalized_histogram_from_cache(cache, 
                                                      self.compute_percentiles)
-        return concatenate((h,ps), axis=1).ravel()
+        if self.use_neuroproof:
+            return ps.ravel()
+        else:
+            return concatenate((h,ps), axis=1).ravel()
 
     def compute_edge_features(self, g, n1, n2, cache=None):
         if not self.compute_histogram:
@@ -620,7 +625,10 @@ class HistogramFeatureManager(NullFeatureManager):
             cache = g[n1][n2][self.default_cache]
         h, ps = self.normalized_histogram_from_cache(cache, 
                                                     self.compute_percentiles)
-        return concatenate((h,ps), axis=1).ravel()
+        if self.use_neuroproof:
+            return ps.ravel()
+        else:
+            return concatenate((h,ps), axis=1).ravel()
 
     def compute_difference_features(self,g, n1, n2, cache1=None, cache2=None):
         if cache1 is None:
@@ -631,7 +639,12 @@ class HistogramFeatureManager(NullFeatureManager):
             cache2 = g.node[n2][self.default_cache]
         h2, _ = self.normalized_histogram_from_cache(cache2, 
                                                     self.compute_percentiles)
-        return self.JS_divergence(h1, h2)
+        
+        if self.use_neuroproof:
+            features = []
+            return array(features)
+        else:
+            return self.JS_divergence(h1, h2)
 
           
 class SquigglinessFeatureManager(NullFeatureManager):

@@ -5,6 +5,8 @@ import sys, os, argparse, cPickle
 import subprocess as sp
 import logging
 
+
+
 # external libraries
 from numpy import unique, inf, nonzero, zeros, uint8
 import numpy as np
@@ -22,6 +24,11 @@ except ImportError:
 
 # local modules
 from ray import imio, agglo, morpho, classify
+
+try:
+    from ray import stack_np
+except ImportError:
+    pass
 
 if __name__ == '__main__':
 
@@ -69,6 +76,9 @@ if __name__ == '__main__':
         help='Load the watershed or other oversegmentation from FILE.')
     parser.add_argument('-P', '--show-progress', action='store_true', 
         default=False, help='Show a progress bar.')
+    parser.add_argument('--use-neuroproof', action='store_true',
+        default=False, 
+        help='Use NeuroProof.')
     parser.add_argument('-Z', '--nozeros', action='store_false', 
         default=True, help='Disable nozeros mode.')
     parser.add_argument('-v', '--verbose', action='store_true', default=False,
@@ -93,6 +103,18 @@ if __name__ == '__main__':
     parser.add_argument('-d', '--synapse-dilation', type=int, metavar='INT',
         help='Dilate synapse points by this amount.', default=1)
     args = parser.parse_args()
+    
+
+    if args.use_neuroproof and (args.synapse_file is not None):
+        MasterLogger.warning("NeuroProof cannot be enabled with the synapse file set")
+        args.use_neuroproof = False
+
+    if args.use_neuroproof:
+        try:
+            from ray import stack_np
+        except ImportError:
+            MasterLogger.warning("NeuroProof could not be imported")
+            sys.exit(1)
 
     experiment_prefix = os.path.join(args.output_dir, args.experiment_name)
 
@@ -189,9 +211,13 @@ if __name__ == '__main__':
         mpf = eval(args.priority_function, {}, {'agglo': agglo})
 
     MasterLogger.info("Building RAG")
-    g = agglo.Rag(ws, p, mpf, feature_manager=fm, 
-        show_progress=args.show_progress, nozeros=args.nozeros, 
-        exclusions=synapse_volume)
+    g = None
+    if args.use_neuroproof:
+        g = stack_np.Stack(ws, p, single_channel=args.single_channel, classifier=cl) 
+    else:
+        g = agglo.Rag(ws, p, mpf, feature_manager=fm, 
+            show_progress=args.show_progress, nozeros=args.nozeros, 
+            exclusions=synapse_volume)
     MasterLogger.info("Finished building RAG")
     if args.remove_inclusions:
         MasterLogger.info("Removing inclusions with %i nodes" % 
@@ -220,8 +246,9 @@ if __name__ == '__main__':
             g.write_plaza_json(
                 os.path.join((ravelervol)%t, 'graph.json'), args.synapse_file)
     MasterLogger.info("Complete RAG agglomeration")
-    g.agglomerate(inf)
-    MasterLogger.info("Finished complete RAG agglomeration")
-    u = g.get_ucm()
-    MasterLogger.info("Writing final ucm")
-    imio.write_image_stack(u, (h5stacks + '.ucm.lzf.h5')%inf, compression='lzf')
+    if not args.use_neuroproof:
+        g.agglomerate(inf)
+        MasterLogger.info("Finished complete RAG agglomeration")
+        u = g.get_ucm()
+        MasterLogger.info("Writing final ucm")
+        imio.write_image_stack(u, (h5stacks + '.ucm.lzf.h5')%inf, compression='lzf')

@@ -6,6 +6,8 @@ import subprocess as sp
 import logging
 import functools
 
+
+
 # external libraries
 from numpy import unique
 import numpy as np
@@ -23,6 +25,13 @@ except ImportError:
 
 # local modules
 from ray import imio, agglo, morpho, classify, evaluate
+
+
+try:
+    from ray import stack_np
+except ImportError:
+    pass
+
 
 if __name__ == '__main__':
 
@@ -44,6 +53,9 @@ if __name__ == '__main__':
     parser.add_argument('-I', '--remove-inclusions', action='store_true',
         default=False, 
         help='Remove inclusions before training and before output.')
+    parser.add_argument('--use-neuroproof', action='store_true',
+        default=False, 
+        help='Use NeuroProof.')
     parser.add_argument('-L', '--learning-mode', metavar='MODE', 
         default='strict',
         help='Set the learning mode (strict or loose).')
@@ -109,6 +121,13 @@ if __name__ == '__main__':
         help='Connected component threshold in seed creation')
     args = parser.parse_args()
 
+    if args.use_neuroproof:
+        try:
+            from ray import stack_np
+        except ImportError:
+            MasterLogger.warning("NeuroProof could not be imported")
+            sys.exit(1)
+    
     experiment_prefix = os.path.join(args.output_dir, args.experiment_name)
 
     MasterLogger = logging.getLogger('pipeline')
@@ -151,7 +170,17 @@ if __name__ == '__main__':
         ws = skmorph.watershed(p0, seeds)
     else:
         ws = imio.read_image_stack(args.watershed_file)
-    fm = eval(args.feature_manager, {}, {'classify': classify})
+    
+    fm = None
+
+    if args.use_neuroproof:
+        features='classify.CompositeFeatureManager(children=' +\
+            '[classify.MomentsFeatureManager(), ' +\
+            'classify.HistogramFeatureManager(25, 0, 1, [0.1, 0.5, 0.9], use_neuroproof=True)]' +\
+            ')'
+        fm = eval(features, {}, {'classify': classify})
+    else :
+        fm = eval(args.feature_manager, {}, {'classify': classify})
 
     # synapses
     synapse_aware = args.synapse_file is not None
