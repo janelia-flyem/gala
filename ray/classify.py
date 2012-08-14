@@ -7,6 +7,7 @@ import logging
 from math import sqrt
 from abc import ABCMeta, abstractmethod
 from random import shuffle
+import json
 
 # libraries
 import h5py
@@ -58,6 +59,8 @@ class NullFeatureManager(object):
         self.default_cache = 'feature-cache'
     def __call__(self, g, n1, n2=None):
         return self.compute_features(g, n1, n2)
+    def write_fm(self, json_fm):
+        pass  
 
     def compute_features(self, g, n1, n2=None):
         if n2 is None:
@@ -91,7 +94,7 @@ class NullFeatureManager(object):
         return array([])
     def compute_difference_features(self, *args, **kwargs):
         return array([])
-    
+ 
 class GraphTopologyFeatureManager(NullFeatureManager):
     def __init__(self, *args, **kwargs):
         super(GraphTopologyFeatureManager, self).__init__()
@@ -115,6 +118,9 @@ class GraphTopologyFeatureManager(NullFeatureManager):
 class InclusivenessFeatureManager(NullFeatureManager):
     def __init__(self, *args, **kwargs):
         super(InclusivenessFeatureManager, self).__init__()
+
+    def write_fm(self, json_fm):
+        json_fm['inclusiveness'] = {} 
 
     def compute_node_features(self, g, n, cache=None):
         bd_lengths = sorted([len(g[n][x]['boundary']) for x in g.neighbors(n)])
@@ -150,6 +156,14 @@ class MomentsFeatureManager(NullFeatureManager):
         self.use_diff_features = use_diff_features
         self.oriented = oriented
         self.normalize = normalize
+
+    def write_fm(self, json_fm):
+        json_fm['moments'] = {
+            'nmoments' : self.nmoments,
+            'use_diff' : self.use_diff_features,
+            'oriented' : self.oriented,
+            'normalize' : self.normalize
+        } 
 
     def compute_moment_sums(self, ar, idxs):
         values = ar[idxs][...,newaxis]
@@ -535,6 +549,17 @@ class HistogramFeatureManager(NullFeatureManager):
         except TypeError: # single percentile value given
             compute_percentiles = [compute_percentiles]
         self.compute_percentiles = compute_percentiles
+    
+    def write_fm(self, json_fm):
+        json_fm['histogram'] = {
+            'minval' : self.minval, 
+            'maxval' : self.maxval, 
+            'nbins' : self.nbins, 
+            'oriented' : self.oriented, 
+            'compute_histogram' : self.compute_histogram, 
+            'use_neuroproof' : self.use_neuroproof, 
+            'compute_percentiles' : self.compute_percentiles
+        } 
 
     def histogram(self, vals):
         if vals.ndim == 1:
@@ -737,7 +762,11 @@ class CompositeFeatureManager(NullFeatureManager):
     def __init__(self, children=[], *args, **kwargs):
         super(CompositeFeatureManager, self).__init__()
         self.children = children
-    
+ 
+    def write_fm(self, json_fm):
+        for i, child in enumerate(self.children):
+            child.write_fm(json_fm)
+   
     def create_node_cache(self, *args, **kwargs):
         return [c.create_node_cache(*args, **kwargs) for c in self.children]
 
@@ -783,9 +812,8 @@ class CompositeFeatureManager(NullFeatureManager):
                 child.compute_difference_features(g, n1, n2, cache1[i], cache2[i])
             )
         return concatenate(features)
-
-        
     
+   
 def mean_and_sem(g, n1, n2):
     bvals = g.probabilities_r[list(g[n1][n2]['boundary'])]
     return array([mean(bvals), sem(bvals)]).reshape(1,2)
@@ -887,13 +915,15 @@ class RandomForest(object):
         labels = labels.reshape((labels.size, 1))
         return labels
 
-    def save_to_disk(self, fn, rfgroupname='rf', overwrite=True):
+    def save_to_disk(self, fn, rfgroupname='rf', overwrite=True, json_fm=None):
         self.rf.writeHDF5(fn, rfgroupname, overwrite)
         attr_list = ['oob', 'feature_importance', 'use_feature_importance']
         f = h5py.File(fn)
         for attr in attr_list:
             if hasattr(self, attr):
                 f[attr] = getattr(self, attr)
+        if json_fm is not None:
+            f['feature_description'] = json.dumps(json_fm)
 
     def load_from_disk(self, fn, rfgroupname='rf'):
         self.rf = VigraRandomForest(fn, rfgroupname)

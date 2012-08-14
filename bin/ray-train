@@ -239,4 +239,11 @@ if __name__ == '__main__':
     MasterLogger.info("Training classifier")
     rf = classify.RandomForest().fit(d[0], d[1][:,0], args.num_examples)
     MasterLogger.info("Saving classifier to disk")
-    rf.save_to_disk(experiment_prefix + args.classifier_extension)
+    
+    # grab features json
+    json_fm = {}
+    json_fm["neuroproof_features"] = args.use_neuroproof
+    fm.write_fm(json_fm)
+    rf.save_to_disk(experiment_prefix + args.classifier_extension, json_fm=json_fm)
+
+
