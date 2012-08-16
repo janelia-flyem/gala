@@ -91,7 +91,7 @@ class Rag(Graph):
             gt_vol=None, feature_manager=features.base.Null(), 
             show_progress=False, lowmem=False, connectivity=1,
             channel_is_oriented=None, orientation_map=array([]),
-            normalize_probabilities=False, nozeros=False, exclusions=array([])):
+            normalize_probabilities=False, nozeros=False, exclusions=array([]), mitos=array([])):
         """Create a graph from a watershed volume and image volume.
         
         The watershed is assumed to have dams of label 0 in between basins.
@@ -123,7 +123,7 @@ class Rag(Graph):
         self.set_ground_truth(gt_vol)
         self.set_exclusions(exclusions)
         self.merge_queue = MergeQueue()
-
+        self.mitos = array(mitos)
     def __copy__(self):
         if sys.version_info[:2] < (2,7):
             # Python versions prior to 2.7 don't handle deepcopy of function
@@ -554,6 +554,10 @@ class Rag(Graph):
             logging.debug('NaN or 0 labels found. ' + 
                                     ' '.join(map(str, [labels, (n1, n2)])))
         labels = [1 if i==0 or isnan(i) else i for i in labels]
+        if mean(self.probabilities_r[list(self.node[n1]["extent"]), 2])>0.5 \
+        or mean(self.probabilities_r[list(self.node[n2]["extent"]), 2])>0.5:
+            labels = [1]*3
+
         return features, labels, weights, (n1,n2)
 
     def _learn_agglomerate(self, ctables, feature_map, gt_dts, 
@@ -1060,7 +1064,37 @@ def make_ladder(priority_function, threshold, strictness=1):
         else:
             return inf
     return ladder_function
-
+    
+def mito_merger1(priority_function, mitos):
+    def mito_merger_function(g, n1, n2):
+        merge_flag = False
+        cyto_nbor_1 = array([x for x in g.neighbors(n1) if x not in mitos])
+        cyto_nbor_2 = array([x for x in g.neighbors(n2) if x not in mitos])
+        mito_nbor_1 = array([x for x in g.neighbors(n1) if x in mitos])
+        mito_nbor_2 = array([x for x in g.neighbors(n2) if x in mitos])
+        if  n1 in mitos or n2 in mitos:
+            if cyto_nbor_1.size==1 and cyto_nbor_2.size==1:
+                if cyto_nbor_1==cyto_nbor_2:
+                    merge_flag = True
+            if mito_nbor_1.size==1 and mito_nbor_2.size==1:
+                if mito_nbor_1==mito_nbor_2:
+                    merge_flag = True        
+        if merge_flag:
+            return priority_function(g, n1, n2)
+        else:
+            return inf
+    return mito_merger_function
+    
+def mito_merger(mitos):
+    def mito_merger_function(g, n1, n2):
+        if  n1 in mitos or n2 in mitos:
+            ratio1 = float(len(g[n1][n2]["boundary"]))/sum([len(g[n1][x]["boundary"]) for x in g.neighbors(n1)])
+            ratio2 = float(len(g[n1][n2]["boundary"]))/sum([len(g[n2][x]["boundary"]) for x in g.neighbors(n2)])
+            return 1.0-max(ratio1, ratio2)                         
+        else:
+            return 5.0
+    return mito_merger_function                            
+                    
 def classifier_probability(feature_extractor, classifier):
     def predict(g, n1, n2):
         if n1 == g.boundary_body or n2 == g.boundary_body:

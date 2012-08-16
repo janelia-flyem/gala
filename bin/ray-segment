@@ -15,7 +15,7 @@ import subprocess as sp
 import logging
 
 # external libraries
-from numpy import unique, inf, nonzero, zeros, uint8
+from numpy import unique, inf, nonzero, zeros, uint8, mean, array
 import numpy as np
 try:
     from skimage import morphology as skmorph
@@ -243,6 +243,24 @@ if __name__ == '__main__':
         g.remove_inclusions()
         MasterLogger.info("Finished removing inclusions with %i nodes" % 
                                                 g.number_of_nodes())
+        
+        # Changes
+        mitos = []      
+        for n in g.nodes():
+            if mean(g.probabilities_r[list(g.node[n]["extent"]), 2])>0.5:
+                mitos.append(n) 
+        mitos = array(mitos)
+        print len(mitos)
+        original_merge_priority_function = g.merge_priority_function
+        g.merge_priority_function = agglo.mito_merger(mitos)
+        g.rebuild_merge_queue()
+        g.agglomerate(0.5)
+        print "After mito agglomeration ", g.number_of_nodes() 
+        g.remove_inclusions()
+        print "After inclusion removal ", g.number_of_nodes() 
+        # End of Changes
+        
+                                                                                        
         s = g.get_segmentation()
         MasterLogger.info("Exporting volume")
         imio.write_image_stack(s, (h5stacks +'.lzf.h5')%t, compression='lzf')
@@ -250,7 +268,7 @@ if __name__ == '__main__':
             imio.raveler_output_shortcut(ws, s, im, (ravelervol)%t, sps)
         if args.raveler_export and args.graph_json_export:
             g.write_plaza_json(
-                os.path.join((ravelervol)%t, 'graph.json'), args.synapse_file)
+                os.path.join((ravelervol)%t, 'graph.json'), args.synapse_file)         
     MasterLogger.info("Complete RAG agglomeration")
     if not args.use_neuroproof:
         g.agglomerate(inf)
