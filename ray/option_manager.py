@@ -21,6 +21,7 @@ class OptionNamespace:
             raise Exception("Option attribute: " + name + " does not exist")
 
     def __contains__(self, key):
+        key = key.replace('-', '_')
         return key in self.__dict__
 
 class OptionManager:
@@ -51,10 +52,11 @@ class OptionManager:
             option_val = None
             if json_data is not None and name in json_data:
                 option_val = json_data[name]
-           
-            overridden = False 
-            if args_dict and name in args_dict:
-                option_val = args_dict[name]
+ 
+            overridden = False
+            nametemp = name.replace('-','_') 
+            if args_dict and nametemp in args_dict and args_dict[nametemp]:
+                option_val = args_dict[nametemp]
                 overridden = True           
 
             if option.required and option_val is None:
@@ -64,8 +66,8 @@ class OptionManager:
             elif option_val is None:
                 self.master_logger.debug(name + " was not specified and set to default "
                     + str(option.default_val))
-            elif option_val and overriden:
-                self.master_logger.debug(name + " was overriden by command line to "
+            elif option_val and overridden:
+                self.master_logger.debug(name + " was overridden by command line to "
                     + str(option.default_val))
             else:
                 self.master_logger.debug(name + " was set to " + str(option.default_val))
@@ -102,9 +104,12 @@ class OptionManager:
             json_data = {}
 
         for name, option in self.options_config.items():
-            option_val = self.options.get_value(name)
-            if option_val is not None:
-                json_data[name] = option_val
+            try:
+                option_val = self.options.get_value(name)
+                if option_val is not None:
+                    json_data[name] = option_val
+            except Exception:
+                return
 
         fout = open(file_name, 'w')
         fout.write(json.dumps(json_data, indent=4))

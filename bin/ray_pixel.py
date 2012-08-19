@@ -1,7 +1,12 @@
 #!/usr/bin/env python
 
-from ray import imio, option_manager, app_logger
+from ray import imio, option_manager, app_logger, session_manager
 import os
+import sys
+import glob
+import h5py
+import numpy
+import json
 
 def image_stack_verify(options_parser, options, master_logger):
     if options.image_stack:
@@ -17,7 +22,7 @@ def gen_pixel_verify(options_parser, options, master_logger):
     if options.gen_pixel:
         if options.ilp_file is None:
             raise Exception("Generating pixel probabilities cannot be done without an ILP")
-        if not options.extract_ilp_prediction and options.image_stack is None:
+        if "extract-ilp-prediction" in options and not options.extract_ilp_prediction and options.image_stack is None:
             raise Exception("Image volume needs to be supplied to generate pixel probabilities")
 
 def pixelprob_file_verify(options_parser, options, master_logger):
@@ -31,12 +36,12 @@ def ilp_file_verify(options_parser, options, master_logger):
             raise Exception("ILP file " + options.ilp_file + " not found")
 
 def create_pixel_options(options_parser, standalone=True):
-    options_parser.create_option("image_stack", "image file(s) (h5 or png format)", 
+    options_parser.create_option("image-stack", "image file(s) (h5 or png format)", 
         required=standalone, verify_fn=image_stack_verify,
          shortcut='I', warning=True) 
 
     options_parser.create_option("pixelprob-name", "Name for pixel classification", 
-        default_val="pixelprob.h5", required=standalone, dtype=str, verify_fn=None, num_args=None,
+        default_val="pixel_boundpred.h5", required=False, dtype=str, verify_fn=None, num_args=None,
         shortcut=None, warning=False, hidden=(not standalone)) 
  
     
@@ -64,7 +69,7 @@ def gen_pixel_probabilities(session_location, options, master_logger, image_stac
     if not image_stack:
         image_stack = imio.read_image_stack(options.image_stack)
  
-    if options.extract_ilp_prediction:
+    if "extract-ilp-prediction" in options and options.extract_ilp_prediction:
         master_logger.info("Loading saved ilastik volume")
         filename = session_location + "/" + options.pixelprob_name
         os.remove(filename)
@@ -95,7 +100,8 @@ def gen_pixel_probabilities(session_location, options, master_logger, image_stac
             master_logger.debug(str(val) + "\n")
         ilastik_h5.close()
 
-        os.remove(session_location + "/image_stack.h5")
+        if os.path.exists(session_location + "/image_stack.h5"):
+            os.remove(session_location + "/image_stack.h5")
         imio.write_ilastik_batch_volume(image_stack, session_location + "/image_stack.h5")
 
         #create temporary json for ilastik batch
@@ -122,15 +128,15 @@ def gen_pixel_probabilities(session_location, options, master_logger, image_stac
         #deleting ilastik
         os.remove(session_location + "/image_stack.h5")
         os.remove(session_location + "/ilastik.json")
-        os.rename(session_location + "/image_stack.h5_boundpred.h5", self.pixelprob_name)
-
+        os.rename(session_location + "/image_stack.h5_boundpred.h5",
+            session_location + "/" + options.pixelprob_name)
 
 
 def main(argv):
     master_logger = app_logger.set_logger(False, 'gen-pixel')
    
     try:
-        session = Session("gen-pixel", "Pixel classification wrapper for Ilastik", 
+        session = session_manager.Session("gen-pixel", "Pixel classification wrapper for Ilastik", 
             master_logger, create_pixel_options)    
 
         gen_pixel_probabilities(session.session_location, session.options, master_logger)
