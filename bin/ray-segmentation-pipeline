@@ -8,6 +8,7 @@ import os
 import argparse
 import h5py
 import numpy
+import shutil
 from skimage import morphology as skmorph
 from scipy.ndimage import label
 
@@ -30,13 +31,12 @@ def grab_boundary(prediction, channels, master_logger):
     return boundary
 
 
-def gen_supervoxels(session_location, options, prediction_file):
+def gen_supervoxels(session_location, options, prediction_file, master_logger):
     master_logger.debug("Generating supervoxels")
-    training_file = session_location + "/" + prediction_file 
-    if not os.path.isfile(training_file):
-        raise Exception("Training file not found: " + training_file)
+    if not os.path.isfile(prediction_file):
+        raise Exception("Training file not found: " + prediction_file)
 
-    prediction = imio.read_image_stack(training_file, group='/volume/prediction')
+    prediction = imio.read_image_stack(prediction_file, group='/volume/prediction')
 
     if options.extract_ilp_prediction:
         prediction = prediction.transpose((2, 1, 0))
@@ -108,10 +108,11 @@ def output_raveler(segmentation, supervoxels, image_stack, name, session_locatio
     rav = imio.segs_to_raveler(supervoxels, segmentation, 0, do_conn_comp=False, sps_out=sps_out)
     sps_out, dummy1, dummy2 = rav
     
-    if os.path.find(outdir):
+    if os.path.exists(outdir):
         master_logger.warning("Overwriting Raveler diretory: " + outdir)
-        os.remove(outdir)
+        shutil.rmtree(outdir)
     imio.write_to_raveler(*rav, directory=outdir, gray=image_stack)
+    print "fsdf"
     return sps_out
 
 
@@ -157,7 +158,7 @@ def flow_perform_agglomeration(options, supervoxels, prediction, image_stack,
         if options.use_neuroproof:
             stack_agglom = stack_np.Stack(supervoxels, boundary, synapse_file=options.synapse_file)
         else:
-            stack_agglom = agglo.Rag(watershed, prediction, merge_priority_function=agglo.boundary_median,
+            stack_agglom = agglo.Rag(supervoxels, boundary, merge_priority_function=agglo.boundary_median,
                 show_progress=True, nozeros=True, exclusions=synapse_volume)
 
 
@@ -183,7 +184,7 @@ def run_segmentation_pipeline(session_location, options, master_logger):
     prediction_file = None
     # run boundary prediction -- produces a prediction file 
     if options.gen_pixel:
-        gen_pixel_probabilities(session_location, options, master_logger, image_stack)
+        ray_pixel.gen_pixel_probabilities(session_location, options, master_logger, image_stack)
         prediction_file = session_location + "/" + options.pixelprob_name
     else:
         prediction_file  = options.pixelprob_file
@@ -193,20 +194,19 @@ def run_segmentation_pipeline(session_location, options, master_logger):
     supervoxels = None
     prediction = None
     if options.gen_supervoxels:
-        supervoxels, prediction = gen_supervoxels(session_location, options, prediction_file) 
+        supervoxels, prediction = gen_supervoxels(session_location, options, prediction_file, master_logger) 
     elif options.supervoxels_file:
         supervoxels = imio.read_image_stack(options.supervoxels_file) 
     
-    if supervoxels:
+    if supervoxels is not None:
         if options.h5_output:
             imio.write_image_stack(supervoxels,
                 session_location + "/" + options.supervoxels_name, compression='lzf')
 
         if options.raveler_output:
-            sps_out = output_raveler(supervoxels, None, image_stack, "supervoxels", session_location, master_logger)
+            sps_out = output_raveler(supervoxels, supervoxels, image_stack, "supervoxels", session_location, master_logger)
 
-
-    
+    print "fsdfd0"
     # agglomerate and generate output
     if options.gen_agglomeration:
         if not prediction and options.pixelsprob_file:
@@ -238,7 +238,7 @@ def classifier_verify(options_parser, options, master_logger):
             raise Exception("Classifier " + options.classifier + " does not end with .h5")
 
 def gen_supervoxels_verify(options_parser, options, master_logger):
-    if options.gen_supervoxels and not options.gen_pixel and not options.pixelprob_fil:
+    if options.gen_supervoxels and not options.gen_pixel and not options.pixelprob_file:
         raise Exception("Must have a pixel prediction to generate supervoxels")
      
 
@@ -251,7 +251,7 @@ def gen_agglomeration_verify(options_parser, options, master_logger):
     if options.gen_agglomeration:
         if not options.gen_supervoxels and not options.supervoxels_file:
             raise Exception("No supervoxels available for agglomeration")
-        if not options.gen_pixels and not options.pixelprob_file:
+        if not options.gen_pixel and not options.pixelprob_file:
             raise Exception("No prediction available for agglomeration")
 
 
@@ -291,7 +291,7 @@ def create_segmentation_pipeline_options(options_parser):
         shortcut='SJ', warning=False, hidden=False) 
 
     options_parser.create_option("segmentation-thresholds", "Segmentation thresholds", 
-        default_val=[], required=False, dtype=list, verify_fn=None, num_args='+',
+        default_val=[], required=False, dtype=float, verify_fn=None, num_args='+',
         shortcut='ST', warning=True, hidden=False) 
 
     options_parser.create_option("gen-agglomeration", "Enable agglomeration", 
@@ -311,7 +311,7 @@ def create_segmentation_pipeline_options(options_parser):
         shortcut='k', warning=False, hidden=False) 
 
     options_parser.create_option("bound-channels", "Channel numbers designated as boundary", 
-        default_val=[0], required=False, dtype=list, verify_fn=None, num_args='+',
+        default_val=[0], required=False, dtype=int, verify_fn=None, num_args='+',
         shortcut=None, warning=False, hidden=True) 
 
     options_parser.create_option("expected-vi", "Enable expected VI during agglomeration", 

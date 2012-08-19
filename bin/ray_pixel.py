@@ -66,9 +66,9 @@ def create_pixel_options(options_parser, standalone=True):
 def gen_pixel_probabilities(session_location, options, master_logger, image_stack=None):
     master_logger.info("Generating Pixel Probabilities") 
  
-    if not image_stack:
+    if image_stack is None:
         image_stack = imio.read_image_stack(options.image_stack)
- 
+
     if "extract-ilp-prediction" in options and options.extract_ilp_prediction:
         master_logger.info("Loading saved ilastik volume")
         filename = session_location + "/" + options.pixelprob_name
