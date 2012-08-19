@@ -54,6 +54,26 @@ import iterprogress as ip
 from imio import read_h5_stack, write_h5_stack, write_image_stack
 from adaboost import AdaBoost
 
+
+def create_fm(fm_info):
+    children = []
+    for feature in fm_info['feature_list']:
+        if feature == "histogram":
+            children.append(HistogramFeatureManager.load_dict(fm_info[feature]))
+        elif feature == "moments":
+            children.append(MomentFeatureManager.load_dict(fm_info[feature]))
+        elif feature == "inclusiveness":
+            children.append(InclusivenessFeatureManager.load_dict(fm_info[feature]))
+        else:
+            raise Exception("Feature " + feature + " not found") 
+    if len(children) == 0:
+        raise Exception("No features loaded")
+    if len(children) == 1:
+        return children[0]
+    
+    return CompositeFeatureManager(children=children) 
+    
+
 class NullFeatureManager(object):
     def __init__(self, *args, **kwargs):
         self.default_cache = 'feature-cache'
@@ -119,7 +139,13 @@ class InclusivenessFeatureManager(NullFeatureManager):
     def __init__(self, *args, **kwargs):
         super(InclusivenessFeatureManager, self).__init__()
 
+    @classmethod
+    def load_dict(cls, fm_info):
+        obj = cls()
+        return obj
+
     def write_fm(self, json_fm):
+        json_fm['feature_list'].append('inclusiveness')
         json_fm['inclusiveness'] = {} 
 
     def compute_node_features(self, g, n, cache=None):
@@ -157,7 +183,14 @@ class MomentsFeatureManager(NullFeatureManager):
         self.oriented = oriented
         self.normalize = normalize
 
+    @classmethod
+    def load_dict(cls, fm_info):
+        obj = cls(fm_info['nmoments'], fm_info['use_diff'],
+                    fm_info['oriented'], fm_info['normalize'])
+        return obj
+
     def write_fm(self, json_fm):
+        json_fm['feature_list'].append('moments')
         json_fm['moments'] = {
             'nmoments' : self.nmoments,
             'use_diff' : self.use_diff_features,
@@ -549,8 +582,16 @@ class HistogramFeatureManager(NullFeatureManager):
         except TypeError: # single percentile value given
             compute_percentiles = [compute_percentiles]
         self.compute_percentiles = compute_percentiles
-    
+   
+    @classmethod
+    def load_dict(cls, fm_info):
+        obj = cls(fm_info['nbins'], fm_info['minval'], fm_info['maxval'],
+                    fm_info['compute_percentiles', fm_info['oriented'],
+                    fm_info['compute_histogram'], fm_info['use_neuroproof']])
+        return obj
+ 
     def write_fm(self, json_fm):
+        json_fm['feature_list'].append('histogram')
         json_fm['histogram'] = {
             'minval' : self.minval, 
             'maxval' : self.maxval, 
@@ -933,6 +974,9 @@ class RandomForest(object):
         attrs = [g for g in groups if not g.startswith(rfgroupname)]
         for attr in attrs:
             setattr(self, attr, array(f[attr]))
+        if 'feature_description' in groups:
+            json_data = json.loads(f['feature_description'])
+        return json_data
 
 def read_rf_info(fn):
     f = h5py.File(fn)

@@ -14,7 +14,8 @@ def get_prob_handle(classifier):
 class Stack:
     """Region adjacency graph for segmentation of nD volumes."""
 
-    def __init__(self, watershed=numpy.array([]), probabilities=numpy.array([]), single_channel=True, classifier=None): 
+    def __init__(self, watershed=numpy.array([]), probabilities=numpy.array([]),
+                single_channel=True, classifier=None, synapse_file=None, feature_info=None): 
         """Create a graph from a watershed volume and image volume.
         
         """
@@ -43,10 +44,23 @@ class Stack:
 
         if classifier is not None:
             self.fmgr.set_python_rf_function(get_prob_handle(classifier))
-            self.fmgr.add_moment_feature(4, True) 
-            self.fmgr.add_hist_feature(25, [0.1,0.5,0.9], False) 
-
+                    
+            if feature_info:
+                for feature in fm_info['feature_list']:
+                    desc = fm_info[feature]
+                    if feature == "histogram":
+                        self.fmgr.add_hist_feature(desc["nbins"], desc["compute_percentiles"], False) 
+                    elif feature == "moments":
+                        self.fmgr.add_moment_feature(desc["nmoments"], desc["use_diff"]) 
+                    else:
+                        raise Exception("Feature " + feature + " not supported in NeuroProof") 
+            else:
+                raise Exception("No feature information for Rag")
+            
         self.stack.build_rag()
+
+        if synapse_file:
+            self.set_exclusions(synapse_file)
 
     def number_of_nodes(self):
         return self.stack.get_num_bodies()
@@ -73,6 +87,9 @@ class Stack:
     def write_plaza_json(self, fout, synapse_file):
         print "Should be writing plaza json but not because I am a jerk"
         #raise Exception("Not implemented yet")
+
+    def set_exclusions(self, synapse_volume):
+        print "Setting synapse merge constraints not supported in NeuroProof yet"
 
     def learn_agglomerate(self, gts, feature_map, min_num_samples=1,
                                 *args, **kwargs):
