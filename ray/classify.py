@@ -145,7 +145,7 @@ class InclusivenessFeatureManager(NullFeatureManager):
         return obj
 
     def write_fm(self, json_fm):
-        if 'feature_list' not in json_fm['feature_list']:
+        if 'feature_list' not in json_fm:
             json_fm['feature_list'] = []
         json_fm['feature_list'].append('inclusiveness')
         json_fm['inclusiveness'] = {} 
@@ -192,7 +192,7 @@ class MomentsFeatureManager(NullFeatureManager):
         return obj
 
     def write_fm(self, json_fm):
-        if 'feature_list' not in json_fm['feature_list']:
+        if 'feature_list' not in json_fm:
             json_fm['feature_list'] = []
         json_fm['feature_list'].append('moments')
         json_fm['moments'] = {
@@ -595,7 +595,7 @@ class HistogramFeatureManager(NullFeatureManager):
         return obj
  
     def write_fm(self, json_fm):
-        if 'feature_list' not in json_fm['feature_list']:
+        if 'feature_list' not in json_fm:
             json_fm['feature_list'] = []
         json_fm['feature_list'].append('histogram')
         json_fm['histogram'] = {
