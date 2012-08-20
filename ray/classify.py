@@ -980,6 +980,7 @@ class RandomForest(object):
         attrs = [g for g in groups if not g.startswith(rfgroupname)]
         for attr in attrs:
             setattr(self, attr, array(f[attr]))
+        json_data = None
         if 'feature_description' in groups:
             json_data = json.loads(str(array(f['feature_description'])))
         return json_data
