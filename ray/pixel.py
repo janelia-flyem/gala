@@ -1,6 +1,4 @@
-#!/usr/bin/env python
-
-from ray import imio, option_manager, app_logger, session_manager
+import imio, option_manager, app_logger, session_manager
 import os
 import sys
 import glob
@@ -132,7 +130,7 @@ def gen_pixel_probabilities(session_location, options, master_logger, image_stac
             session_location + "/" + options.pixelprob_name)
 
 
-def main(argv):
+def entrypoint(argv):
     master_logger = app_logger.set_logger(False, 'gen-pixel')
    
     try:
@@ -144,8 +142,4 @@ def main(argv):
         master_logger.error(e)
     except KeyboardInterrupt, err:
         master_logger.error(e)
- 
-
-if __name__ == "__main__":
-    sys.exit(main(sys.argv))
  
