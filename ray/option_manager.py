@@ -54,7 +54,8 @@ class OptionManager:
                 option_val = json_data[name]
  
             overridden = False
-            nametemp = name.replace('-','_') 
+            #nametemp = name.replace('-','_') 
+            nametemp = name 
             if args_dict and nametemp in args_dict and args_dict[nametemp] is not None:
                 option_val = args_dict[nametemp]
                 overridden = True           
@@ -68,9 +69,9 @@ class OptionManager:
                     + str(option.default_val))
             elif option_val is not None and overridden:
                 self.master_logger.debug(name + " was overridden by command line to "
-                    + str(option.default_val))
+                    + str(option_val))
             else:
-                self.master_logger.debug(name + " was set to " + str(option.default_val))
+                self.master_logger.debug(name + " was set to " + str(option_val))
                
             if option_val is not None:
                 setattr(self.options, name.replace('-', '_'), option_val)
@@ -91,6 +92,8 @@ class OptionManager:
     def help_message(self):
         config_format = "Command Options\n\n"
         for name, option in self.options_config.items():
+            if option.dtype == bool:
+                name = "[enable|disable]-" + name
             config_format += name + ": " + option.description + " "
             if option.required:
                 config_format += "(required: " + str(option.dtype) + ")"
@@ -130,19 +133,17 @@ class OptionManager:
             help_message = argparse.SUPPRESS                
 
         if dtype == bool:
-            bool_val = "store_true"
             if default_val is None:
                 raise Exception("Cannot create a bool option without a default value: "
                     + str(unique_name))
-            elif default_val == True:
-                bool_val = "store_false" 
-            
-            if shortcut:
-                self.arg_parser.add_argument("--" + unique_name, "-" + shortcut, action=bool_val,
-                    help=help_message, default=None) 
-            else:
-                self.arg_parser.add_argument("--" + unique_name, action=bool_val,
-                    help=help_message, default=None) 
+            true_val = "store_true" 
+            false_val = "store_false" 
+           
+            #group = self.arg_parser.add_mutuall_exclusive_group() 
+            self.arg_parser.add_argument("--" + "enable-" + unique_name, action="store_true",
+                    help=help_message, default=None, dest=unique_name) 
+            self.arg_parser.add_argument("--" + "disable-" + unique_name, action="store_false",
+                    help=help_message, default=None, dest=unique_name) 
         else:
             if shortcut:
                 self.arg_parser.add_argument("--" + unique_name, "-" + shortcut, type=dtype, 
