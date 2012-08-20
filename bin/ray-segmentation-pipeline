@@ -126,7 +126,7 @@ def output_raveler(segmentation, supervoxels, image_stack, name, session_locatio
 def flow_perform_agglomeration(options, supervoxels, prediction, image_stack,
                                 session_location, sps_out, master_logger): 
     # make synapse constraints
-    synapse_volume = None
+    synapse_volume = numpy.array([])
     if not options.use_neuroproof and options.synapse_file is not None:
         pre_post_pairs = syngeo.io.raveler_synapse_annotations_to_coords(
             options.synapse_file)
@@ -155,12 +155,9 @@ def flow_perform_agglomeration(options, supervoxels, prediction, image_stack,
             else:
                 mpf = agglo.classifier_probability(fm, cl)
             
-            exclusions = numpy.array([])
-            if synapse_volume is not None:
-                exclusions = synapse_volume
             agglom_stack = agglo.Rag(supervoxels, prediction, mpf,
                     feature_manager=fm, show_progress=True, nozeros=True, 
-                    exclusions=exclusions)
+                    exclusions=synapse_volume)
         master_logger.info("Finished building RAG")
     else:
         boundary = grab_boundary(prediction, options.bound_channels, master_logger)   
@@ -205,7 +202,8 @@ def run_segmentation_pipeline(session_location, options, master_logger):
         supervoxels, prediction = gen_supervoxels(session_location, options, prediction_file, master_logger) 
     elif options.supervoxels_file:
         supervoxels = imio.read_image_stack(options.supervoxels_file) 
-  
+
+    sps_out = None  
     if supervoxels is not None:
         if options.h5_output:
             imio.write_image_stack(supervoxels,
@@ -216,8 +214,8 @@ def run_segmentation_pipeline(session_location, options, master_logger):
 
     # agglomerate and generate output
     if options.gen_agglomeration:
-        if prediction is None and options.pixelsprob_file is not None:
-            prediction = imio.read_image_stack(options.pixelsprob_file)
+        if prediction is None and options.pixelprob_file is not None:
+            prediction = imio.read_image_stack(options.pixelprob_file, group='/volume/prediction', single_channel=False)
         elif prediction is None:
             raise Exception("No pixel probs available for agglomeration")
 
