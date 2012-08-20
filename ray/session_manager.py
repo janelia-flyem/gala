@@ -4,10 +4,10 @@ import sys
 import datetime
 import getpass
 
-import app_logger, option_manager 
+import option_manager 
 
 class Session:
-    def __init__(self, name, description, master_logger, option_fn=None):
+    def __init__(self, name, description, master_logger, applogger, option_fn=None):
         self.master_logger = master_logger
         
         self.session_location = None
@@ -38,7 +38,7 @@ class Session:
 
         # set verbosity 
         if self.verbose:
-            app_logger.set_debug_console()
+            applogger.set_debug_console()
 
         if not os.path.exists(self.session_location):
             os.makedirs(self.session_location)
@@ -52,7 +52,7 @@ class Session:
 
         # set log name
         log_filename = self.session_location + "/." + name + ".log"
-        app_logger.set_log_file(master_logger, log_filename)
+        applogger.set_log_file(log_filename)
 
         # load the options from the config file and args    
         self.options = self.options_parser.load_config(self.config_file, args)

@@ -1,34 +1,35 @@
 import logging
 import sys
 
-def set_logger(debug, logger_name, log_filename = None):
-    app_logger = logging.getLogger(logger_name)
-    app_logger.propagate = False
-    app_logger.setLevel(logging.DEBUG)
+class AppLogger:
+    def __init__(self, debug, logger_name, log_filename = None):
+        self.app_logger = logging.getLogger(logger_name)
+        self.app_logger.propagate = False
+        self.app_logger.setLevel(logging.DEBUG)
 
-    console = logging.StreamHandler(sys.stdout)
-    if debug:
-        console.setLevel(logging.DEBUG)
-    else:
-        console.setLevel(logging.INFO)
+        self.console = logging.StreamHandler(sys.stdout)
+        if debug:
+            self.console.setLevel(logging.DEBUG)
+        else:
+            self.console.setLevel(logging.INFO)
 
-    formatter = logging.Formatter('%(levelname)-8s %(message)s')
-    console.setFormatter(formatter)
-    app_logger.addHandler(console)
+        formatter = logging.Formatter('%(levelname)-8s %(message)s')
+        self.console.setFormatter(formatter)
+        self.app_logger.addHandler(self.console)
 
-    if log_filename is not None:
-        set_log_file(app_logger, log_filename)
+        if log_filename is not None:
+            set_log_file(self.app_logger, log_filename)
 
-    return app_logger
+    def get_logger(self):
+        return self.app_logger
 
-def set_debug_console():
-    console = logging.StreamHandler(sys.stdout)
-    console.setlevel(logging.DEBUG)
+    def set_debug_console(self):
+        self.console.setLevel(logging.DEBUG)
 
-def set_log_file(app_logger, log_filename):
-    prim = logging.FileHandler(log_filename, 'a')
-    prim.setLevel(logging.DEBUG)
-    prim.setFormatter(logging.Formatter(fmt='%(asctime)s %(levelname)-8s %(message)s', datefmt='%m-%d-%y %H:%M'))
-    app_logger.addHandler(prim)
+    def set_log_file(self, log_filename):
+        prim = logging.FileHandler(log_filename, 'a')
+        prim.setLevel(logging.DEBUG)
+        prim.setFormatter(logging.Formatter(fmt='%(asctime)s %(levelname)-8s %(message)s', datefmt='%m-%d-%y %H:%M'))
+        self.app_logger.addHandler(prim)
 
 

@@ -131,11 +131,12 @@ def gen_pixel_probabilities(session_location, options, master_logger, image_stac
 
 
 def entrypoint(argv):
-    master_logger = app_logger.set_logger(False, 'gen-pixel')
+    applogger = app_logger.AppLogger(False, 'gen-pixel')
+    master_logger = applogger.get_logger()
    
     try:
         session = session_manager.Session("gen-pixel", "Pixel classification wrapper for Ilastik", 
-            master_logger, create_pixel_options)    
+            master_logger, applogger, create_pixel_options)    
 
         gen_pixel_probabilities(session.session_location, session.options, master_logger)
     except Exception, e:
