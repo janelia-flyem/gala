@@ -26,7 +26,7 @@ class Session:
         # create json and command line options 
         self.options_parser = option_manager.OptionManager(master_logger, parser)
 
-        if option_fn:
+        if option_fn is not None:
             option_fn(self.options_parser)
         parser.epilog = self.options_parser.help_message()
 
@@ -76,12 +76,12 @@ class Session:
             meta_data["end-time"] = self.end_time 
         config_data["meta-data"] = meta_data
         
-        if self.options_parser:
+        if self.options_parser is not None:
             self.options_parser.export_json(self.session_location + "/config.json", config_data)
 
 
     def __del__(self):
-        if self.session_location:
+        if self.session_location is not None:
             if os.path.exists(self.session_location + "/.running"):
                 os.remove(self.session_location + "/.running")
             with open(self.session_location + "/.finished", 'w'):

@@ -61,7 +61,7 @@ def create_fm(fm_info):
         if feature == "histogram":
             children.append(HistogramFeatureManager.load_dict(fm_info[feature]))
         elif feature == "moments":
-            children.append(MomentFeatureManager.load_dict(fm_info[feature]))
+            children.append(MomentsFeatureManager.load_dict(fm_info[feature]))
         elif feature == "inclusiveness":
             children.append(InclusivenessFeatureManager.load_dict(fm_info[feature]))
         else:
@@ -590,8 +590,8 @@ class HistogramFeatureManager(NullFeatureManager):
     @classmethod
     def load_dict(cls, fm_info):
         obj = cls(fm_info['nbins'], fm_info['minval'], fm_info['maxval'],
-                    fm_info['compute_percentiles', fm_info['oriented'],
-                    fm_info['compute_histogram'], fm_info['use_neuroproof']])
+                    fm_info['compute_percentiles'], fm_info['oriented'],
+                    fm_info['compute_histogram'], fm_info['use_neuroproof'])
         return obj
  
     def write_fm(self, json_fm):
@@ -973,7 +973,7 @@ class RandomForest(object):
             f['feature_description'] = json.dumps(json_fm)
 
     def load_from_disk(self, fn, rfgroupname='rf'):
-        self.rf = VigraRandomForest(fn, rfgroupname)
+        self.rf = VigraRandomForest(str(fn), rfgroupname)
         f = h5py.File(fn, 'r')
         groups = []
         f.visit(groups.append)
@@ -981,7 +981,7 @@ class RandomForest(object):
         for attr in attrs:
             setattr(self, attr, array(f[attr]))
         if 'feature_description' in groups:
-            json_data = json.loads(f['feature_description'])
+            json_data = json.loads(str(array(f['feature_description'])))
         return json_data
 
 def read_rf_info(fn):

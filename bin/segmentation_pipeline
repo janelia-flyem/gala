@@ -264,6 +264,8 @@ def flow_generate_watershed(options, image_stack, experimentprefix, output_dir):
 
     prediction0 = imio.read_image_stack(training_file, group='/volume/prediction')
 
+    print prediction0.shape
+
     MasterLogger.info("Manipulating prediction")
     #prediction0 = prediction[...,0]
     if options.ilastik_training_volume:

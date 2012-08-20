@@ -55,7 +55,7 @@ class OptionManager:
  
             overridden = False
             nametemp = name.replace('-','_') 
-            if args_dict and nametemp in args_dict and args_dict[nametemp]:
+            if args_dict and nametemp in args_dict and args_dict[nametemp] is not None:
                 option_val = args_dict[nametemp]
                 overridden = True           
 
@@ -66,19 +66,19 @@ class OptionManager:
             elif option_val is None:
                 self.master_logger.debug(name + " was not specified and set to default "
                     + str(option.default_val))
-            elif option_val and overridden:
+            elif option_val is not None and overridden:
                 self.master_logger.debug(name + " was overridden by command line to "
                     + str(option.default_val))
             else:
                 self.master_logger.debug(name + " was set to " + str(option.default_val))
                
-            if option_val:
+            if option_val is not None:
                 setattr(self.options, name.replace('-', '_'), option_val)
             else:
                 setattr(self.options, name.replace('-', '_'), option.default_val)
 
         for name, option in self.options_config.items():
-            if option.verify_fn:
+            if option.verify_fn is not None:
                 option.verify_fn(self, self.options, self.master_logger)
 
         return self.options
@@ -106,8 +106,8 @@ class OptionManager:
         for name, option in self.options_config.items():
             try:
                 option_val = self.options.get_value(name)
-                if option_val is not None:
-                    json_data[name] = option_val
+                #if option_val is not None:
+                json_data[name] = option_val
             except Exception:
                 return
 

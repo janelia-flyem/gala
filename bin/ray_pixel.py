@@ -9,7 +9,7 @@ import numpy
 import json
 
 def image_stack_verify(options_parser, options, master_logger):
-    if options.image_stack:
+    if options.image_stack is not None:
         if options.image_stack.endswith('.png'):
             images = glob.glob(options.image_stack)
             if len(images) == 0:
@@ -26,12 +26,12 @@ def gen_pixel_verify(options_parser, options, master_logger):
             raise Exception("Image volume needs to be supplied to generate pixel probabilities")
 
 def pixelprob_file_verify(options_parser, options, master_logger):
-    if options.pixelprob_file:
+    if options.pixelprob_file is not None:
         if not os.path.exists(options.pixelprob_file):
             raise Exception("Pixel prob file " + options.ilp_file + " not found")
 
 def ilp_file_verify(options_parser, options, master_logger):
-    if options.ilp_file:
+    if options.ilp_file is not None:
         if not os.path.exists(options.ilp_file):
             raise Exception("ILP file " + options.ilp_file + " not found")
 

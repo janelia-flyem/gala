@@ -45,9 +45,9 @@ class Stack:
         if classifier is not None:
             self.fmgr.set_python_rf_function(get_prob_handle(classifier))
                     
-            if feature_info:
-                for feature in fm_info['feature_list']:
-                    desc = fm_info[feature]
+            if feature_info is not None:
+                for feature in feature_info['feature_list']:
+                    desc = feature_info[feature]
                     if feature == "histogram":
                         self.fmgr.add_hist_feature(desc["nbins"], desc["compute_percentiles"], False) 
                     elif feature == "moments":

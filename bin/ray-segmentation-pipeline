@@ -19,11 +19,17 @@ try:
 except ImportError:
     np_installed = False   
 
+try:
+    import syngeo
+except ImportError:
+    logging.warning('Could not import syngeo. ' +
+                                        'Synapse-aware mode not available.')
+
 def grab_boundary(prediction, channels, master_logger):
     boundary = None
     master_logger.debug("Grabbing boundary labels: " + str(channels))
     for channel_id in channels:
-        if not boundary:
+        if boundary is None:
             boundary = prediction[...,channel_id] 
         else:
             boundary += prediction[...,channel_id]
@@ -36,7 +42,7 @@ def gen_supervoxels(session_location, options, prediction_file, master_logger):
     if not os.path.isfile(prediction_file):
         raise Exception("Training file not found: " + prediction_file)
 
-    prediction = imio.read_image_stack(prediction_file, group='/volume/prediction')
+    prediction = imio.read_image_stack(prediction_file, group='/volume/prediction', single_channel=False)
 
     if options.extract_ilp_prediction:
         prediction = prediction.transpose((2, 1, 0))
@@ -48,7 +54,7 @@ def gen_supervoxels(session_location, options, prediction_file, master_logger):
 
     if options.seed_size > 0:
         master_logger.debug("Removing small seeds")
-        seeds = morpho.remove_small_connected_components(seeds, options.seed_cc_threshold)
+        seeds = morpho.remove_small_connected_components(seeds, options.seed_size)
         master_logger.debug("Finished removing small seeds")
 
     master_logger.info("Starting watershed")
@@ -58,7 +64,7 @@ def gen_supervoxels(session_location, options, prediction_file, master_logger):
     if options.synapse_file is not None:
         master_logger.info("Processing synapses")
         pre_post_pairs = syngeo.io.raveler_synapse_annotations_to_coords(
-            option.synapse_file)
+            options.synapse_file)
         synapse_volume = syngeo.io.volume_synapse_view(pre_post_pairs, boundary.shape)
         supervoxels = morpho.split_exclusions(boundary, supervoxels, synapse_volume, 
                                                         options.synapse_dilation)
@@ -72,7 +78,7 @@ def agglomeration(options, agglom_stack, supervoxels, prediction,
     
     seg_thresholds = sorted(options.segmentation_thresholds)
     for threshold in seg_thresholds:
-        if threshold != 0:
+        if threshold != 0 or not options.use_neuroproof:
             master_logger.info("Starting agglomeration to threshold " + str(threshold)
                 + " with " + str(agglom_stack.number_of_nodes()))
             agglom_stack.agglomerate(threshold)
@@ -82,23 +88,24 @@ def agglomeration(options, agglom_stack, supervoxels, prediction,
             if options.inclusion_removal:
                 inclusion_removal(agglom_stack, master_logger)
 
-        segmentation = g.get_segmentation()     
+        segmentation = agglom_stack.get_segmentation()     
 
         if options.h5_output:
             imio.write_image_stack(segmentation,
                 session_location+"/agglom-"+str(threshold)+".lzf.h", compression='lzf')
-            
+           
         if options.raveler_output:
             sps_outs = output_raveler(supervoxels, segmentation, image_stack, "agglom-" + str(threshold),
                 session_location, master_logger)   
-            agglom_stack.write_plaza_json(options.synapse_file)
+            agglom_stack.write_plaza_json(session_location+"/raveler-export/agglom-"+str(threshold)+"/graph.json",
+                                            options.synapse_file)
 
 
 
 def inclusion_removal(agglom_stack, master_logger):
-    master_logger.info("Starting inclusion removal with " + str(rag.number_of_nodes()) + " nodes")
+    master_logger.info("Starting inclusion removal with " + str(agglom_stack.number_of_nodes()) + " nodes")
     agglom_stack.remove_inclusions()
-    master_logger.info("Finished inclusion removal with " + str(rag.number_of_nodes()) + " nodes")
+    master_logger.info("Finished inclusion removal with " + str(agglom_stack.number_of_nodes()) + " nodes")
 
 
 def output_raveler(segmentation, supervoxels, image_stack, name, session_location, master_logger, sps_out=None):
@@ -112,7 +119,6 @@ def output_raveler(segmentation, supervoxels, image_stack, name, session_locatio
         master_logger.warning("Overwriting Raveler diretory: " + outdir)
         shutil.rmtree(outdir)
     imio.write_to_raveler(*rav, directory=outdir, gray=image_stack)
-    print "fsdf"
     return sps_out
 
 
@@ -121,7 +127,7 @@ def flow_perform_agglomeration(options, supervoxels, prediction, image_stack,
                                 session_location, sps_out, master_logger): 
     # make synapse constraints
     synapse_volume = None
-    if not options.use_neuroproof:
+    if not options.use_neuroproof and options.synapse_file is not None:
         pre_post_pairs = syngeo.io.raveler_synapse_annotations_to_coords(
             options.synapse_file)
         synapse_volume = \
@@ -129,9 +135,8 @@ def flow_perform_agglomeration(options, supervoxels, prediction, image_stack,
 
      # ?! build RAG (automatically load features if classifier file is available, default to median
     # if no classifier, check if np mode or not, automatically load features in NP as well)
-    stack_agglom = None
 
-    if options.classifier:
+    if options.classifier is not None:
         cl = classify.RandomForest()
         fm_info = cl.load_from_disk(options.classifier)
 
@@ -139,33 +144,36 @@ def flow_perform_agglomeration(options, supervoxels, prediction, image_stack,
         if options.use_neuroproof:
             if not fm_info["neuroproof_features"]:
                 raise Exception("random forest created not using neuroproof") 
-            stack_agglom = stack_np.Stack(supervoxels, prediction,
+            agglom_stack = stack_np.Stack(supervoxels, prediction,
                 single_channel=False, classifier=cl, feature_info=fm_info) 
         else:
-            if fm_info["neuroproof_features"]:
+            if fm_info["neuroproof_features"] is not None:
                 master_logger.warning("random forest created using neuroproof features -- should still work") 
             fm = classify.create_fm(fm_info)
             if options.expected_vi:
                 mpf = agglo.expected_change_vi(fm, cl, beta=options.vi_beta)
             else:
                 mpf = agglo.classifier_probability(fm, cl)
-            stack_agglom = agglo.Rag(supervoxels, prediction, mpf,
+            
+            exclusions = numpy.array([])
+            if synapse_volume is not None:
+                exclusions = synapse_volume
+            agglom_stack = agglo.Rag(supervoxels, prediction, mpf,
                     feature_manager=fm, show_progress=True, nozeros=True, 
-                    exclusions=synapse_volume)
+                    exclusions=exclusions)
         master_logger.info("Finished building RAG")
     else:
         boundary = grab_boundary(prediction, options.bound_channels, master_logger)   
         if options.use_neuroproof:
-            stack_agglom = stack_np.Stack(supervoxels, boundary, synapse_file=options.synapse_file)
+            agglom_stack = stack_np.Stack(supervoxels, boundary, synapse_file=options.synapse_file)
         else:
-            stack_agglom = agglo.Rag(supervoxels, boundary, merge_priority_function=agglo.boundary_median,
+            agglom_stack = agglo.Rag(supervoxels, boundary, merge_priority_function=agglo.boundary_median,
                 show_progress=True, nozeros=True, exclusions=synapse_volume)
 
 
     # remove inclusions 
     if options.inclusion_removal:
         inclusion_removal(agglom_stack, master_logger) 
-
 
     # actually perform the agglomeration
     agglomeration(options, agglom_stack, supervoxels, prediction, image_stack,
@@ -178,7 +186,7 @@ def flow_perform_agglomeration(options, supervoxels, prediction, image_stack,
 def run_segmentation_pipeline(session_location, options, master_logger): 
     # read grayscale
     image_stack = None
-    if options.image_stack:
+    if options.image_stack is not None:
         image_stack = imio.read_image_stack(options.image_stack)
 
     prediction_file = None
@@ -197,7 +205,7 @@ def run_segmentation_pipeline(session_location, options, master_logger):
         supervoxels, prediction = gen_supervoxels(session_location, options, prediction_file, master_logger) 
     elif options.supervoxels_file:
         supervoxels = imio.read_image_stack(options.supervoxels_file) 
-    
+  
     if supervoxels is not None:
         if options.h5_output:
             imio.write_image_stack(supervoxels,
@@ -206,12 +214,11 @@ def run_segmentation_pipeline(session_location, options, master_logger):
         if options.raveler_output:
             sps_out = output_raveler(supervoxels, supervoxels, image_stack, "supervoxels", session_location, master_logger)
 
-    print "fsdfd0"
     # agglomerate and generate output
     if options.gen_agglomeration:
-        if not prediction and options.pixelsprob_file:
-                prediction = imio.read_image_stack(options.pixelsprob_file)
-        else:
+        if prediction is None and options.pixelsprob_file is not None:
+            prediction = imio.read_image_stack(options.pixelsprob_file)
+        elif prediction is None:
             raise Exception("No pixel probs available for agglomeration")
 
         flow_perform_agglomeration(options, supervoxels, prediction, image_stack,
@@ -227,31 +234,31 @@ def synapse_file_verify(options_parser, options, master_logger):
     if options.synapse_file:
         if not os.path.exists(options.synapse_file):
             raise Exception("Synapse file " + options.synapse_file + " not found")
-        if not options.synapse_file.endswidth('.json'):
+        if not options.synapse_file.endswith('.json'):
             raise Exception("Synapse file " + options.synapse_file + " does not end with .json")
 
 def classifier_verify(options_parser, options, master_logger):
-    if options.classifier:
+    if options.classifier is not None:
         if not os.path.exists(options.classifier):
             raise Exception("Classifier " + options.classifier + " not found")
-        if not options.classifier.endswidth('.h5'):
+        if not options.classifier.endswith('.h5'):
             raise Exception("Classifier " + options.classifier + " does not end with .h5")
 
 def gen_supervoxels_verify(options_parser, options, master_logger):
-    if options.gen_supervoxels and not options.gen_pixel and not options.pixelprob_file:
+    if options.gen_supervoxels and not options.gen_pixel and options.pixelprob_file is None:
         raise Exception("Must have a pixel prediction to generate supervoxels")
      
 
 def supervoxels_file_verify(options_parser, options, master_logger):
-    if options.supervoxels_file:
+    if options.supervoxels_file is not None:
         if not os.path.exists(options.supervoxels_file):
-            raise Exception
+            raise Exception("Supervoxel file " + options.supervoxels_file + " does not exist")
 
 def gen_agglomeration_verify(options_parser, options, master_logger):
     if options.gen_agglomeration:
-        if not options.gen_supervoxels and not options.supervoxels_file:
+        if not options.gen_supervoxels and options.supervoxels_file is None:
             raise Exception("No supervoxels available for agglomeration")
-        if not options.gen_pixel and not options.pixelprob_file:
+        if not options.gen_pixel and options.pixelprob_file is None:
             raise Exception("No prediction available for agglomeration")
 
 

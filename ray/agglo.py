@@ -919,7 +919,7 @@ class Rag(Graph):
         
     def write_plaza_json(self, fout, synapsejson=None):
         """Write graph to Steve Plaza's JSON spec."""
-        
+       
         json_vals = {}
         if synapsejson is not None:        
             synapse_file = open(synapsejson)
