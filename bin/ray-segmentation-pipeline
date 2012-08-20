@@ -92,7 +92,7 @@ def agglomeration(options, agglom_stack, supervoxels, prediction,
 
         if options.h5_output:
             imio.write_image_stack(segmentation,
-                session_location+"/agglom-"+str(threshold)+".lzf.h", compression='lzf')
+                session_location+"/agglom-"+str(threshold)+".lzf.h5", compression='lzf')
            
         if options.raveler_output:
             sps_outs = output_raveler(supervoxels, segmentation, image_stack, "agglom-" + str(threshold),
