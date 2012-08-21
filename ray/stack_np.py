@@ -1,6 +1,7 @@
 # built-ins
 import libNeuroProofRag as neuroproof
 import morpho
+import json
 
 from numpy import zeros_like, array, double, zeros
 import numpy
@@ -15,12 +16,14 @@ class Stack:
     """Region adjacency graph for segmentation of nD volumes."""
 
     def __init__(self, watershed=numpy.array([]), probabilities=numpy.array([]),
-                single_channel=True, classifier=None, synapse_file=None, feature_info=None): 
+                single_channel=True, classifier=None, synapse_file=None, feature_info=None,
+                master_logger=None): 
         """Create a graph from a watershed volume and image volume.
         
         """
 
         self.depth, self.height, self.width = watershed.shape
+        self.master_logger = master_logger
 
 
         self.watershed = morpho.pad(watershed, 0)
@@ -29,6 +32,7 @@ class Stack:
         probs = probabilities.astype(numpy.double)
 
         self.stack = neuroproof.build_stack(self.watershed)
+
         self.fmgr = self.stack.get_feature_mgr()
         num_channels = 1
 
@@ -59,7 +63,7 @@ class Stack:
             
         self.stack.build_rag()
 
-        if synapse_file:
+        if synapse_file is not None:
             self.set_exclusions(synapse_file)
 
     def number_of_nodes(self):
@@ -89,11 +93,36 @@ class Stack:
         #raise Exception("Not implemented yet")
 
     def set_exclusions(self, synapse_volume):
-        print "Setting synapse merge constraints not supported in NeuroProof yet"
+        syn_file = open(synapse_volume, 'r')
+        json_vals = json.load(syn_file)
+
+        self.all_syn_locs = [] 
+
+        for item in json_vals["data"]:
+            curr_locs = []
+            loc_arr = (item["T-bar"])["location"]
+            loc = (loc_arr[0], loc_arr[1], loc_arr[2])
+            
+            self.all_syn_locs.append(loc)
+            curr_locs.append(loc)
+
+            for psd in item["partners"]:
+                loc_arr = psd["location"]
+                loc = (loc_arr[0], loc_arr[1], loc_arr[2])
+                
+                self.all_syn_locs.append(loc)
+                curr_locs.append(loc)
+
+            for i in range(0, len(curr_locs)):
+                for j in range(i+1, len(curr_locs)):
+                    status = self.stack.add_edge_constraint(curr_locs[i], curr_locs[j]) 
+                    if not status and self.master_logger is not None:
+                        self.master_logger.error("Tbar/PSD lie in same superpixel")     
+
 
     def learn_agglomerate(self, gts, feature_map, min_num_samples=1,
                                 *args, **kwargs):
-        raise Exception("Not implemented yet")
+        raise Exception("Learn agglomerate not implemented in NeuroProof yet")
 
 
 

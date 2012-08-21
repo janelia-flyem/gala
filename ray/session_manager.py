@@ -45,7 +45,7 @@ class Session:
 
         # check for old files 
         if os.path.exists(self.session_location + "/.running"):
-            raise Exception("Session " + args.output_dir + " incomplete")
+            raise Exception("Session " + self.session_location + " incomplete")
         if os.path.exists(self.session_location + "/.finished"):
             master_logger.warning("Overwriting previous session: " + self.session_location)
             os.remove(self.session_location + "/.finished")

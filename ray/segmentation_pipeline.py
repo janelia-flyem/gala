@@ -144,7 +144,8 @@ def flow_perform_agglomeration(options, supervoxels, prediction, image_stack,
             if not fm_info["neuroproof_features"]:
                 raise Exception("random forest created not using neuroproof") 
             agglom_stack = stack_np.Stack(supervoxels, prediction,
-                single_channel=False, classifier=cl, feature_info=fm_info) 
+                single_channel=False, classifier=cl, feature_info=fm_info, synapse_file=options.synapse_file,
+                master_logger=master_logger) 
         else:
             if fm_info["neuroproof_features"] is not None:
                 master_logger.warning("random forest created using neuroproof features -- should still work") 
@@ -161,7 +162,8 @@ def flow_perform_agglomeration(options, supervoxels, prediction, image_stack,
     else:
         boundary = grab_boundary(prediction, options.bound_channels, master_logger)   
         if options.use_neuroproof:
-            agglom_stack = stack_np.Stack(supervoxels, boundary, synapse_file=options.synapse_file)
+            agglom_stack = stack_np.Stack(supervoxels, boundary, synapse_file=options.synapse_file,
+                        master_logger=master_logger)
         else:
             agglom_stack = agglo.Rag(supervoxels, boundary, merge_priority_function=agglo.boundary_median,
                 show_progress=True, nozeros=True, exclusions=synapse_volume)
