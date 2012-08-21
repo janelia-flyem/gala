@@ -221,9 +221,10 @@ if __name__ == '__main__':
     if args.use_neuroproof:
         g = stack_np.Stack(ws, p, single_channel=args.single_channel, classifier=cl) 
     else:
+        mpf = agglo.mito_merger1(mpf)
         g = agglo.Rag(ws, p, mpf, feature_manager=fm, 
             show_progress=args.show_progress, nozeros=args.nozeros, 
-            exclusions=synapse_volume)
+            exclusions=synapse_volume)    
     MasterLogger.info("Finished building RAG")
     if args.remove_inclusions:
         MasterLogger.info("Removing inclusions with %i nodes" % 
@@ -242,25 +243,7 @@ if __name__ == '__main__':
         MasterLogger.info("Removing inclusions")
         g.remove_inclusions()
         MasterLogger.info("Finished removing inclusions with %i nodes" % 
-                                                g.number_of_nodes())
-        
-        # Changes
-        mitos = []      
-        for n in g.nodes():
-            if mean(g.probabilities_r[list(g.node[n]["extent"]), 2])>0.5:
-                mitos.append(n) 
-        mitos = array(mitos)
-        print len(mitos)
-        original_merge_priority_function = g.merge_priority_function
-        g.merge_priority_function = agglo.mito_merger(mitos)
-        g.rebuild_merge_queue()
-        g.agglomerate(0.5)
-        print "After mito agglomeration ", g.number_of_nodes() 
-        g.remove_inclusions()
-        print "After inclusion removal ", g.number_of_nodes() 
-        # End of Changes
-        
-                                                                                        
+                                                g.number_of_nodes())                                                                                      
         s = g.get_segmentation()
         MasterLogger.info("Exporting volume")
         imio.write_image_stack(s, (h5stacks +'.lzf.h5')%t, compression='lzf')
