@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-from ray import imio, agglo, morpho, classify, evaluate
+from ray import imio, agglo, morpho
 
 try:
     from ray import stack_np

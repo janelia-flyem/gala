@@ -23,7 +23,7 @@ except ImportError:
                                         'Synapse-aware mode not available.')
 
 # local modules
-from ray import imio, agglo, morpho, classify
+from ray import imio, agglo, morpho, classify, features
 
 try:
     from ray import stack_np
@@ -48,9 +48,9 @@ if __name__ == '__main__':
         default=False,
         help='The probability map has no separate dimension for channels.')
     parser.add_argument('-F', '--feature-manager', metavar='EVAL_STR',
-        default='classify.CompositeFeatureManager(children=' +\
-            '[classify.MomentsFeatureManager(), ' +\
-            'classify.HistogramFeatureManager(25, 0, 1, [0.1, 0.5, 0.9])]' +\
+        default='features.base.Composite(children=' +\
+            '[features.moments.Manager(), ' +\
+            'features.histogram.Manager(25, 0, 1, [0.1, 0.5, 0.9])]' +\
             ')',
         help='Specify the feature manager you would like to use. ' +\
         '(This HAS to match the one used during training!)')
@@ -177,7 +177,7 @@ if __name__ == '__main__':
                 args.seed_cc_threshold)
         ws = skmorph.watershed(p0, seeds)
         MasterLogger.info("Finished performing watershed")
-    fm = eval(args.feature_manager, {}, {'classify': classify})
+    fm = eval(args.feature_manager, {}, {'features': features})
 
     # synapses
     synapse_aware = args.synapse_file is not None
