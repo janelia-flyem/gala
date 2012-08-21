@@ -154,7 +154,7 @@ def flow_perform_agglomeration(options, supervoxels, prediction, image_stack,
         else:
             if fm_info["neuroproof_features"] is not None:
                 master_logger.warning("random forest created using neuroproof features -- should still work") 
-            fm = classify.create_fm(fm_info)
+            fm = features.io.create_fm(fm_info)
             if options.expected_vi:
                 mpf = agglo.expected_change_vi(fm, cl, beta=options.vi_beta)
             else:
