@@ -55,7 +55,7 @@ class OptionManager:
  
             overridden = False
             #nametemp = name.replace('-','_') 
-            nametemp = name 
+            nametemp = name
             if args_dict and nametemp in args_dict and args_dict[nametemp] is not None:
                 option_val = args_dict[nametemp]
                 overridden = True           
@@ -147,8 +147,8 @@ class OptionManager:
         else:
             if shortcut:
                 self.arg_parser.add_argument("--" + unique_name, "-" + shortcut, type=dtype, 
-                    nargs=num_args, help=help_message, default=None) 
+                    nargs=num_args, help=help_message, default=None, dest=unique_name) 
             else:
                 self.arg_parser.add_argument("--" + unique_name, type=dtype, nargs=num_args, 
-                    help=help_message, default=None) 
+                    help=help_message, default=None, dest=unique_name) 
 
