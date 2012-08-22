@@ -24,7 +24,7 @@ except ImportError:
                                         'Synapse-aware mode not available.')
 
 # local modules
-from ray import imio, agglo, morpho, classify, evaluate
+from ray import imio, agglo, morpho, classify, features, evaluate
 
 
 try:
@@ -87,10 +87,10 @@ if __name__ == '__main__':
         help='Use expected VI change for active learning.')
     parser.add_argument('-B', '--active-vi-beta', type=float, default=1.0,
         help='Relative penalty for false merges in weighted expected VI.')
-    parser.add_argument('-F', '--feature-manager', metavar='PY_STR',
-        default='classify.CompositeFeatureManager(children=' +\
-            '[classify.MomentsFeatureManager(), ' +\
-            'classify.HistogramFeatureManager(25, 0, 1, [0.1, 0.5, 0.9])]' +\
+    parser.add_argument('-F', '--feature-manager', metavar='EVAL_STR',
+        default='features.base.Composite(children=' +\
+            '[features.moments.Manager(), ' +\
+            'features.histogram.Manager(25, 0, 1, [0.1, 0.5, 0.9])]' +\
             ')',
         help='Specify the feature manager you would like to use.')
     parser.add_argument('-t', '--training-data-extension', metavar='EXT',
@@ -174,13 +174,12 @@ if __name__ == '__main__':
     fm = None
 
     if args.use_neuroproof:
-        features='classify.CompositeFeatureManager(children=' +\
-            '[classify.MomentsFeatureManager(), ' +\
-            'classify.HistogramFeatureManager(25, 0, 1, [0.1, 0.3, 0.5, 0.7, 0.9], use_neuroproof=True)]' +\
-            ')'
-        fm = eval(features, {}, {'classify': classify})
+        fm = features.base.Composite(children=[
+            features.moments.Manager(),
+            features.histogram.Manager(
+                25, 0, 1, [0.1, 0.3, 0.5, 0.7, 0.9], use_neuroproof=True)])
     else :
-        fm = eval(args.feature_manager, {}, {'classify': classify})
+        fm = eval(args.feature_manager, {}, {'features': features})
 
     # synapses
     synapse_aware = args.synapse_file is not None

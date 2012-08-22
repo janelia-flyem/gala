@@ -11,7 +11,7 @@ from scipy.ndimage.measurements import label
 rundir = os.path.dirname(__file__)
 sys.path.append(rundir)
 
-from ray import imio, morpho, agglo, classify
+from ray import imio, morpho, agglo, classify, features
 
 def time_me(function):
     def wrapped(*args, **kwargs):
@@ -190,11 +190,10 @@ class TestFeatures(unittest.TestCase):
         self.probs2 = imio.read_h5_stack(rundir+'/test-05-probabilities.h5')
         self.probs1 = self.probs2[...,0]
         self.wss1 = imio.read_h5_stack(rundir+'/test-05-watershed.h5')
-        self.f1, self.f2, self.f3 = classify.MomentsFeatureManager(2, False), \
-            classify.HistogramFeatureManager(3,compute_percentiles=[0.5]),\
-            classify.SquigglinessFeatureManager(ndim=2)
-        self.f4 = classify.CompositeFeatureManager(
-                                            children=[self.f1,self.f2,self.f3])
+        self.f1, self.f2, self.f3 = features.moments.Manager(2, False), \
+            features.histogram.Manager(3,compute_percentiles=[0.5]), \
+            features.squiggliness.Manager(ndim=2)
+        self.f4 = features.base.Composite(children=[self.f1, self.f2, self.f3])
 
     def run_matched_test(self, f, fn, c=1,
                             edges=[(1,2),(1,3),(1,4)], merges=[(1,2),(1,3)]):

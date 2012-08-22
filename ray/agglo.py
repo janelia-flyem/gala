@@ -30,7 +30,8 @@ import iterprogress as ip
 from ncut import ncutW
 from mergequeue import MergeQueue
 from evaluate import contingency_table, split_vi, xlogx
-from classify import NullFeatureManager, RandomForest, \
+import features
+from classify import RandomForest, \
     unique_learning_data_elements, concatenate_data_elements
 
 arguments = argparse.ArgumentParser(add_help=False)
@@ -86,7 +87,7 @@ class Rag(Graph):
 
     def __init__(self, watershed=array([]), probabilities=array([]), 
             merge_priority_function=None, allow_shared_boundaries=True,
-            gt_vol=None, feature_manager=NullFeatureManager(), 
+            gt_vol=None, feature_manager=features.base.Null(), 
             show_progress=False, lowmem=False, connectivity=1,
             channel_is_oriented=None, orientation_map=array([]),
             normalize_probabilities=False, nozeros=False, exclusions=array([])):
