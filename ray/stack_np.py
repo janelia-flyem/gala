@@ -117,7 +117,7 @@ class Stack:
         json_data["orphan_bodies"] = orphan_list
 
         if self.master_logger is not None:
-            self.master_logger.info("Determing optimal edge locations")
+            self.master_logger.info("Determining optimal edge locations")
         # ?! need NP implementation
         self.stack.determine_edge_locations()
         if self.master_logger is not None:
