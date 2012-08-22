@@ -7,9 +7,11 @@ all_types = ['Color', 'Texture', 'Edge', 'Orientation']
 full_feature_set = list(it.product(all_types, all_sizes))
 default_feature_set = list(it.product(all_types[:-1], all_sizes[1:-1]))
 
-def write_segmentation_pipeline_json(jsonfn, ilfn, ilbfn, outdir='.'):
+def write_segmentation_pipeline_json(jsonfn, ilfn, ilbfns, outdir='.'):
+    if isinstance(ilbfns, str) or isinstance(ilbfns, unicode):
+        ilbfns = [ilbfns]
     d = {}
-    d['images'] = [{'name': ilbfn}]
+    d['images'] = [{'name': ilbfn} for ilbfn in ilbfns]
     d['session'] = ilfn
     d['output_dir'] = outdir
     d['features'] = default_feature_set
