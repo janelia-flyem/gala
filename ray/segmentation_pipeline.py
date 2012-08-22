@@ -12,7 +12,7 @@ from skimage import morphology as skmorph
 from scipy.ndimage import label
 
 from . import imio, agglo, morpho, classify, evaluate, app_logger, \
-    session_manager, pixel
+    session_manager, pixel, features
 
 try:
     from ray import stack_np
