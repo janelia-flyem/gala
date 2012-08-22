@@ -24,7 +24,7 @@ class Stack:
 
         self.depth, self.height, self.width = watershed.shape
         self.master_logger = master_logger
-
+        self.all_syn_locs = None 
 
         self.watershed = morpho.pad(watershed, 0)
         self.watershed = self.watershed.astype(numpy.double)    
@@ -88,9 +88,72 @@ class Stack:
         self.stack.remove_inclusions()    
 
     # just a simple rag export -- need feature for max size in a specified dimension
-    def write_plaza_json(self, fout, synapse_file):
-        print "Should be writing plaza json but not because I am a jerk"
-        #raise Exception("Not implemented yet")
+    def write_plaza_json(self, outfile_name, synapse_file):
+        json_data = {}
+        # write synapse
+        if self.all_syn_locs is not None:
+            body_syn = {}
+            for loc in self.all_syn_locs:
+                x, y, z = loc
+                bodyid = self.stack.get_body_id(x, y, z)
+                if bodyid in body_syn:
+                    body_syn[bodyid] += 1
+                else:
+                    body_syn[bodyid] = 1
+           
+            synapse_bodies = []
+            for key, val in body_syn.items():
+                synapse_bodies.append([key, val])
+            json_data["synapse_bodies"] = synapse_bodies
+    
+        rag = self.stack.get_rag()
+        
+        # write orphans
+        orphan_list = []
+        for node in rag.get_nodes():
+            status = self.stack.is_orphan(node)
+            if status:
+                orphan_list.append(node.get_node_id())
+        json_data["orphan_bodies"] = orphan_list
+
+        if self.master_logger is not None:
+            self.master_logger.info("Determing optimal edge locations")
+        # ?! need NP implementation
+        self.stack.determine_edge_locations()
+        if self.master_logger is not None:
+            self.master_logger.info("Finished determining optimal edge locations")
+
+        edge_list = []
+        for edge in rag.get_edges():
+            edge_data = {}
+            edge_data["node1"] = edge.get_node1().get_node_id()
+            edge_data["node2"] = edge.get_node2().get_node_id()
+            edge_data["size1"] = edge.get_node1().get_size()
+            edge_data["size2"] = edge.get_node2().get_size()
+           
+            preserve = edge.is_preserve()
+            false_edge = edge.is_false_edge()
+            edge_data["preserve"] = preserve 
+            edge_data["false_edge"] = false_edge 
+
+            if false_edge: 
+                edge_data["weight"] = 1.0
+                edge_data["location"] = [0, 0, 0]
+            else: 
+                edge_data["weight"] = self.stack.get_edge_weight(edge) 
+                # ?! need NP implementation
+                x, y, z = self.stack.get_edge_loc(edge)
+                edge_data["location"] = [x, y, z]
+           
+
+
+            edge_list.append(edge_data)
+
+        json_data["edge_list"] = edge_list
+
+        fout = open(outfile_name, 'w')
+        fout.write(json.dumps(json_data, indent=4))
+                
 
     def set_exclusions(self, synapse_volume):
         syn_file = open(synapse_volume, 'r')

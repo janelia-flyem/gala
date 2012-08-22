@@ -96,8 +96,10 @@ def agglomeration(options, agglom_stack, supervoxels, prediction,
         if options.raveler_output:
             sps_outs = output_raveler(segmentation, supervoxels, image_stack, "agglom-" + str(threshold),
                 session_location, master_logger)   
+            master_logger.info("Writing graph.json")
             agglom_stack.write_plaza_json(session_location+"/raveler-export/agglom-"+str(threshold)+"/graph.json",
                                             options.synapse_file)
+            master_logger.info("Finished writing graph.json")
 
 
 
