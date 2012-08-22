@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 # system modules
+import os
 import logging
 from random import shuffle
 import json
@@ -16,7 +17,7 @@ try:
     from sklearn.linear_model import LogisticRegression, LinearRegression
     from sklearn.externals import joblib
 except ImportError:
-    logging.warning('scikits.learn not found. SVC, Regression not available.')
+    logging.warning('scikit-learn not found.')
     sklearn_available = False
 else:
     sklearn_available = True
@@ -26,8 +27,10 @@ try:
     from vigra.__version__ import version as vigra_version
     vigra_version = tuple(map(int, vigra_version.split('.')))
 except ImportError:
-    logging.warning(' vigra library is not available. '+
-        'Cannot use random forest classifier.')
+    logging.warning('Vigra library not available.')
+    vigra_available = False
+else:
+    vigra_available = True
 
 # local imports
 import iterprogress as ip
@@ -52,7 +55,7 @@ def load_classifier(fn):
     Parameters
     ----------
     fn : string
-        The filename in which the classifier is stored.
+        Filename in which the classifier is stored.
 
     Returns
     -------
@@ -79,10 +82,45 @@ def load_classifier(fn):
         try:
             cl.load_from_disk(fn)
             return cl
-        except IOError, RuntimeError:
+        except IOError:
+            pass
+        except RuntimeError:
             pass
     raise IOError("File '%s' does not appear to be a valid classifier file"
         % fn)
+
+def save_classifier(cl, fn, joblib=True, **kwargs):
+    """Save a classifier to disk.
+
+    Parameters
+    ----------
+    cl : classifier object
+        Pickleable object or a classify.VigraRandomForest object.
+    fn : string
+        Writeable path/filename.
+    joblib : bool, optional
+        Whether to prefer joblib persistence to pickle.
+    kwargs : keyword arguments
+        Keyword arguments to be passed on to either `pck.dump` or 
+        `joblib.dump`.
+
+    Returns
+    -------
+    None
+
+    Notes
+    -----
+    For joblib persistence, `compress=3` is the default.
+    """
+    if isinstance(cl, VigraRandomForest):
+        cl.save_to_disk(fn)
+    elif joblib and sklearn_available:
+        if not kwargs.has_key('compress'):
+            kwargs['compress'] = 3
+        joblib.dump(cl, fn, **kwargs)
+    else:
+        with open(fn, 'w') as f:
+            pck.dump(cl, f, protocol=kwargs.get('protocol', -1))
 
 class RandomForest(object):
     def __init__(self, ntrees=255, use_feature_importance=False, 
