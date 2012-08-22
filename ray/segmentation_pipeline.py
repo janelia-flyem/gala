@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 
-import imio, agglo, morpho, classify, evaluate, app_logger, session_manager, pixel
 
 import sys
 import os
@@ -8,15 +7,19 @@ import argparse
 import h5py
 import numpy
 import shutil
+import logging
 from skimage import morphology as skmorph
 from scipy.ndimage import label
 
-np_installed = True
+from . import imio, agglo, morpho, classify, evaluate, app_logger, \
+    session_manager, pixel
 
 try:
     from ray import stack_np
 except ImportError:
     np_installed = False   
+else:
+    np_installed = True
 
 try:
     import syngeo
