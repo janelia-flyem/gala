@@ -4,6 +4,7 @@
 import logging
 from random import shuffle
 import json
+import cPickle as pck
 
 # libraries
 import h5py
@@ -13,8 +14,12 @@ np.seterr(divide='ignore')
 try:
     from sklearn.svm import SVC
     from sklearn.linear_model import LogisticRegression, LinearRegression
+    from sklearn.externals import joblib
 except ImportError:
     logging.warning('scikits.learn not found. SVC, Regression not available.')
+    sklearn_available = False
+else:
+    sklearn_available = True
 
 try:
     from vigra.learning import RandomForest as VigraRandomForest
@@ -36,6 +41,48 @@ def h5py_stack(fn):
         print except_inst
         raise
     return a
+
+def load_classifier(fn):
+    """Load a classifier previously saved to disk, given a filename.
+    
+    Supported classifier types are:
+    - scikit-learn classifiers saved using either pickle or joblib persistence
+    - vigra random forest classifiers saved in HDF5 format
+
+    Parameters
+    ----------
+    fn : string
+        The filename in which the classifier is stored.
+
+    Returns
+    -------
+    cl : classifier object
+        cl is one of the supported classifier types; these support at least
+        the standard scikit-learn interface of `fit()` and `predict_proba()`
+    """
+    if not os.path.exists(fn):
+        raise IOError("No such file or directory: '%s'" % fn)
+    try:
+        with open(fn, 'r') as f:
+            cl = pck.load(f)
+        return cl
+    except pck.UnpicklingError:
+        pass
+    if sklearn_available:
+        try:
+            cl = joblib.load(fn)
+            return cl
+        except KeyError:
+            pass
+    if vigra_available:
+        cl = RandomForest()
+        try:
+            cl.load_from_disk(fn)
+            return cl
+        except IOError, RuntimeError:
+            pass
+    raise IOError("File '%s' does not appear to be a valid classifier file"
+        % fn)
 
 class RandomForest(object):
     def __init__(self, ntrees=255, use_feature_importance=False, 
