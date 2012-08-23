@@ -245,7 +245,7 @@ if __name__ == '__main__':
             info=info_string)
     MasterLogger.info("Training classifier")
     feat, lab = classify.sample_training_data(
-                                    data[0], data[1][:, 0], args.num_examples)
+                                    d[0], d[1][:, 0], args.num_examples)
     rf = classify.DefaultRandomForest().fit(feat, lab)
     MasterLogger.info("Saving classifier to disk")
     
