@@ -220,7 +220,8 @@ if __name__ == '__main__':
         learn_flat=args.learn_flat, learning_mode=args.learning_mode,
         labeling_mode=args.labeling_mode, priority_mode=args.priority_mode,
         memory=args.memory, unique=args.unique, min_num_epochs=args.num_epochs,
-        max_num_expochs=args.max_num_epochs, active_function=active_function)
+        max_num_expochs=args.max_num_epochs, 
+        max_num_samples=args.num_examples, active_function=active_function)
     current_directory = os.path.realpath('.')
     os.chdir(os.path.dirname(classify.__file__))
     try:
