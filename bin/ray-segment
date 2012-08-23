@@ -203,12 +203,11 @@ if __name__ == '__main__':
     if args.training_data is not None or args.classifier is not None:
         if args.classifier is not None:
             MasterLogger.info("Loading classifier")
-            cl = classify.RandomForest()
-            cl.load_from_disk(args.classifier)
+            cl = classify.load_classifier(args.classifier)
         else:
             MasterLogger.info("Training classifier")
-            cl = classify.RandomForest().fit(args.training_data[0], 
-                args.training_data[1][:,0], args.num_training)
+            cl = classify.DefaultRandomForest().fit(args.training_data[0], 
+                args.training_data[1][:,0])
             MasterLogger.info("Finished training classifier")
         if args.expected_vi:
             mpf = agglo.expected_change_vi(fm, cl, beta=args.active_vi_beta)

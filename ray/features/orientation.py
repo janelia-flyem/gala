@@ -6,6 +6,13 @@ class Manager(base.Null):
     def __init__(self, *args, **kwargs):
         super(Manager, self).__init__()
 
+    def write_fm(self, json_fm={}):
+        if 'feature_list' not in json_fm:
+            json_fm['feature_list'] = []
+        json_fm['feature_list'].append('orientation')
+        json_fm['orientation'] = {} 
+        return json_fm
+
     def create_node_cache(self, g, n):
         # Get subscripts of extent (morpho.unravel_index was slow)
         M = np.zeros_like(g.watershed); 

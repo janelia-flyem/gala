@@ -31,7 +31,7 @@ from ncut import ncutW
 from mergequeue import MergeQueue
 from evaluate import contingency_table, split_vi, xlogx
 import features
-from classify import RandomForest, \
+from classify import DefaultRandomForest, \
     unique_learning_data_elements, concatenate_data_elements
 
 arguments = argparse.ArgumentParser(add_help=False)
@@ -496,10 +496,8 @@ class Rag(Graph):
                 g.merge_priority_function = boundary_mean
             elif num_epochs > 0 and priority_mode == 'active' or \
                 num_epochs % 2 == 1 and priority_mode == 'mixed':
-                cl = kwargs.get('classifier', RandomForest())
+                cl = kwargs.get('classifier', DefaultRandomForest())
                 cl = cl.fit(data[0], data[1][:,label_type_keys[labeling_mode]])
-                if type(cl) == RandomForest:
-                    logging.info('classifier oob error: %.2f'%cl.oob)
                 g.merge_priority_function = active_function(feature_map, cl)
             elif priority_mode == 'random' or \
                 (priority_mode == 'active' and num_epochs == 0):

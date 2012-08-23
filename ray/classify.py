@@ -15,6 +15,7 @@ np.seterr(divide='ignore')
 try:
     from sklearn.svm import SVC
     from sklearn.linear_model import LogisticRegression, LinearRegression
+    from sklearn.ensemble import RandomForestClassifier
     from sklearn.externals import joblib
 except ImportError:
     logging.warning('scikit-learn not found.')
@@ -23,7 +24,7 @@ else:
     sklearn_available = True
 
 try:
-    from vigra.learning import RandomForest as VigraRandomForest
+    from vigra.learning import RandomForest as BaseVigraRandomForest
     from vigra.__version__ import version as vigra_version
     vigra_version = tuple(map(int, vigra_version.split('.')))
 except ImportError:
@@ -78,7 +79,7 @@ def load_classifier(fn):
         except KeyError:
             pass
     if vigra_available:
-        cl = RandomForest()
+        cl = VigraRandomForest()
         try:
             cl.load_from_disk(fn)
             return cl
@@ -89,7 +90,7 @@ def load_classifier(fn):
     raise IOError("File '%s' does not appear to be a valid classifier file"
         % fn)
 
-def save_classifier(cl, fn, joblib=True, **kwargs):
+def save_classifier(cl, fn, use_joblib=True, **kwargs):
     """Save a classifier to disk.
 
     Parameters
@@ -98,7 +99,7 @@ def save_classifier(cl, fn, joblib=True, **kwargs):
         Pickleable object or a classify.VigraRandomForest object.
     fn : string
         Writeable path/filename.
-    joblib : bool, optional
+    use_joblib : bool, optional
         Whether to prefer joblib persistence to pickle.
     kwargs : keyword arguments
         Keyword arguments to be passed on to either `pck.dump` or 
@@ -114,7 +115,7 @@ def save_classifier(cl, fn, joblib=True, **kwargs):
     """
     if isinstance(cl, VigraRandomForest):
         cl.save_to_disk(fn)
-    elif joblib and sklearn_available:
+    elif use_joblib and sklearn_available:
         if not kwargs.has_key('compress'):
             kwargs['compress'] = 3
         joblib.dump(cl, fn, **kwargs)
@@ -122,10 +123,24 @@ def save_classifier(cl, fn, joblib=True, **kwargs):
         with open(fn, 'w') as f:
             pck.dump(cl, f, protocol=kwargs.get('protocol', -1))
 
-class RandomForest(object):
+
+class DefaultRandomForest(RandomForestClassifier):
+    def __init__(self, *args, **kwargs):
+        if len(args) < 1 and not kwargs.has_key('n_estimators'):
+            kwargs['n_estimators'] = 100
+        if len(args) < 2 and not kwargs.has_key('criterion'):
+            kwargs['criterion'] = 'entropy'
+        if len(args) < 3 and not kwargs.has_key('max_depth'):
+            kwargs['max_depth'] = 20
+        if not kwargs.has_key('bootstrap'):
+            kwargs['bootstrap'] = False
+        super(DefaultRandomForest, self).__init__(*args, **kwargs)
+
+
+class VigraRandomForest(object):
     def __init__(self, ntrees=255, use_feature_importance=False, 
             sample_classes_individually=False):
-        self.rf = VigraRandomForest(treeCount=ntrees, 
+        self.rf = BaseVigraRandomForest(treeCount=ntrees, 
             sample_classes_individually=sample_classes_individually)
         self.use_feature_importance = use_feature_importance
         self.sample_classes_individually = sample_classes_individually
@@ -169,28 +184,24 @@ class RandomForest(object):
         labels = labels.reshape((labels.size, 1))
         return labels
 
-    def save_to_disk(self, fn, rfgroupname='rf', overwrite=True, json_fm=None):
+    def save_to_disk(self, fn, rfgroupname='rf', overwrite=True):
         self.rf.writeHDF5(fn, rfgroupname, overwrite)
-        attr_list = ['oob', 'feature_importance', 'use_feature_importance']
+        attr_list = ['oob', 'feature_importance', 'use_feature_importance',
+            'feature_description']
         f = h5py.File(fn)
         for attr in attr_list:
             if hasattr(self, attr):
                 f[attr] = getattr(self, attr)
-        if json_fm is not None:
-            f['feature_description'] = json.dumps(json_fm)
 
     def load_from_disk(self, fn, rfgroupname='rf'):
-        self.rf = VigraRandomForest(str(fn), rfgroupname)
+        self.rf = BaseVigraRandomForest(str(fn), rfgroupname)
         f = h5py.File(fn, 'r')
         groups = []
         f.visit(groups.append)
         attrs = [g for g in groups if not g.startswith(rfgroupname)]
         for attr in attrs:
             setattr(self, attr, np.array(f[attr]))
-        json_data = None
-        if 'feature_description' in groups:
-            json_data = json.loads(str(np.array(f['feature_description'])))
-        return json_data
+
 
 def read_rf_info(fn):
     f = h5py.File(fn)
@@ -280,13 +291,14 @@ def select_classifier(cname, features=None, labels=None, **kwargs):
     elif 'linear-regression'.startswith(cname):
         c = LinearRegression()
     elif 'random-forest'.startswith(cname):
-        try:
-            c = RandomForest()
-        except NameError:
-            logging.warning(' Tried to use random forest, but not available.'+
-                ' Falling back on adaboost.')
-            cname = 'ada'
-    if 'adaboost'.startswith(cname):
+        if sklearn_available:
+            c = DefaultRandomForest()
+        elif vigra_available:
+            c = VigraRandomForest()
+        else:
+            raise RuntimeError('tried to use random forest classifier, ' +
+                'but neither scikit-learn nor vigra are available.')
+    elif 'adaboost'.startswith(cname):
         c = AdaBoost(**kwargs)
     if features is not None and labels is not None:
         c = c.fit(features, labels, **kwargs)

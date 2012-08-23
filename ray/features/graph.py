@@ -9,6 +9,13 @@ class Manager(base.Null):
     def __init__(self, *args, **kwargs):
         super(Manager, self).__init__()
 
+    def write_fm(self, json_fm={}):
+        if 'feature_list' not in json_fm:
+            json_fm['feature_list'] = []
+        json_fm['feature_list'].append('graph')
+        json_fm['graph'] = {}
+        return json_fm
+
     def compute_node_features(self, g, n, cache=None):
         deg = g.degree(n)
         ndeg = nx.algorithms.average_neighbor_degree(g, nodes=[n])[n]
