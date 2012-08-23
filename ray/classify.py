@@ -3,8 +3,7 @@
 # system modules
 import os
 import logging
-from random import shuffle
-import json
+import random
 import cPickle as pck
 
 # libraries
@@ -145,12 +144,9 @@ class VigraRandomForest(object):
         self.use_feature_importance = use_feature_importance
         self.sample_classes_individually = sample_classes_individually
 
-    def fit(self, features, labels, num_train_examples=None, **kwargs):
-        idxs = range(len(features))
-        shuffle(idxs)
-        idxs = idxs[:num_train_examples]
-        features = self.check_features_vector(features[idxs])
-        labels = self.check_labels_vector(labels[idxs])
+    def fit(self, features, labels):
+        features = self.check_features_vector(features)
+        labels = self.check_labels_vector(labels)
         if self.use_feature_importance:
             self.oob, self.feature_importance = \
                         self.rf.learnRFWithFeatureSelection(features, labels)
@@ -227,6 +223,32 @@ def unique_learning_data_elements(alldata):
     )
     def get_uniques(ar): return ar[uids]
     return map(get_uniques, [f, l, w, h])
+
+def sample_training_data(features, labels, num_samples=None):
+    """Get a random sample from a classification training dataset.
+
+    Parameters
+    ----------
+    features: np.ndarray [M x N]
+        The M (number of samples) by N (number of features) feature matrix.
+    labels: np.ndarray [M] or [M x 1]
+        The training label for each feature vector.
+    num_samples: int, optional
+        The size of the training sample to draw. Return full dataset if `None`
+        or if num_samples >= M.
+
+    Returns
+    -------
+    feat: np.ndarray [num_samples x N]
+        The sampled feature vectors.
+    lab: np.ndarray [num_samples] or [num_samples x 1]
+        The sampled training labels
+    """
+    m = len(features)
+    if num_samples is None or num_samples >= m:
+        return features, labels
+    idxs = random.sample(range(m), num_samples)
+    return features[idxs], labels[idxs]
 
 def save_training_data_to_disk(data, fn, names=None, info='N/A'):
     if names is None:
