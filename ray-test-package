@@ -16,6 +16,14 @@ class testPackages(unittest.TestCase):
     def testRaveler(self):
         self.assertTrue(os.path.exists("/usr/local/raveler-hdf"))
     
+    def testSyngeo(self):
+        syngeo_installed = True
+        try:
+            import syngeo
+        except ImportError:
+            syngeo_installed = False
+        self.assertTrue(syngeo_installed)   
+ 
     def testVigra(self):
         vigra_installed = True
         try:
@@ -72,18 +80,6 @@ class testModules(unittest.TestCase):
         stack.remove_inclusions()
         self.assertEqual(stack.number_of_nodes(), 81)
 
-    def testNPBuild(self):
-        if not np_installed:
-            return
-        from ray import stack_np
-        watershed, boundary, dummy = self.gen_watershed()
-        stack = stack_np.Stack(watershed, boundary)
-        self.assertEqual(stack.number_of_nodes(), 3629)
-        stack.agglomerate(0.5)
-        self.assertEqual(stack.number_of_nodes(), 86)
-        stack.remove_inclusions()
-        self.assertEqual(stack.number_of_nodes(), 84)
-
     def testAggloRFBuild(self):
         from ray import agglo
         from ray import features
@@ -102,6 +98,18 @@ class testModules(unittest.TestCase):
         self.assertEqual(stack.number_of_nodes(), 88)
         stack.remove_inclusions()
         self.assertEqual(stack.number_of_nodes(), 86)
+
+    def testNPBuild(self):
+        if not np_installed:
+            return
+        from ray import stack_np
+        watershed, boundary, dummy = self.gen_watershed()
+        stack = stack_np.Stack(watershed, boundary)
+        self.assertEqual(stack.number_of_nodes(), 3629)
+        stack.agglomerate(0.5)
+        self.assertEqual(stack.number_of_nodes(), 86)
+        stack.remove_inclusions()
+        self.assertEqual(stack.number_of_nodes(), 84)
 
     def testAggoBuild(self):
         from ray import agglo
@@ -122,7 +130,7 @@ class testFlows(unittest.TestCase):
         import ray
         if not np_installed:
             return
-        self.datadir = os.path.abspath(os.path.dirname(sys.modules["ray"].__file__)) + "/testdata/"
+        self.datadir = os.path.abspath(os.path.dirname(sys.modules["ray"].__file__)) + "/testdata"
         writedir = "/tmp/NPregtest"
         
         if os.path.exists(writedir):
@@ -145,7 +153,7 @@ class testFlows(unittest.TestCase):
 
     def testRegFlow(self):
         import ray
-        self.datadir = os.path.abspath(os.path.dirname(sys.modules["ray"].__file__)) + "/testdata/"
+        self.datadir = os.path.abspath(os.path.dirname(sys.modules["ray"].__file__)) + "/testdata"
         writedir = "/tmp/regtest"
         
         if os.path.exists(writedir):
