@@ -174,7 +174,7 @@ class testFlows(unittest.TestCase):
                         open("/tmp/regtest/.seg-pipeline.log", 'r').read())         
 
 
-def main(argv):
+def entrypoint(argv):
     suite1 = unittest.TestLoader().loadTestsFromTestCase(testPackages)
     suite2 = unittest.TestLoader().loadTestsFromTestCase(testModules)
     suite3 = unittest.TestLoader().loadTestsFromTestCase(testFlows)
