@@ -69,7 +69,7 @@ class testModules(unittest.TestCase):
         self.datadir = os.path.abspath(os.path.dirname(sys.modules["ray"].__file__)) + "/testdata/"
 
         cl = classify.RandomForest()
-        fm_info = cl.load_from_disk(self.datadir + "agglomclassifier.rf.h5")
+        fm_info = cl.load_from_disk(self.datadir + "agglomclassifier_np.rf.h5")
 
         watershed, boundary, prediction = self.gen_watershed()
         stack = stack_np.Stack(watershed, prediction, single_channel=False,
