@@ -1,0 +1,31 @@
+{
+    "gen-supervoxels": true, 
+    "pixelprob-file": null, 
+    "raveler-output": false, 
+    "synapse-file": "ZZ/annotations-synapse.json", 
+    "gen-agglomeration": true, 
+    "image-stack": "ZZ/original_grayscales/*.png", 
+    "pixelprob-name": null, 
+    "h5-output": false, 
+    "segmentation-thresholds": [
+        0.0, 
+        0.1, 
+        0.15
+    ], 
+    "use-neuroproof": true, 
+    "expected-vi": false, 
+    "extract-ilp-prediction": false, 
+    "bound-channels": [
+        0
+    ], 
+    "ilp-file": "ZZ/boundclassifier.ilp", 
+    "gen-pixel": true, 
+    "seed-val": 0, 
+    "inclusion-removal": true, 
+    "seed-size": 3, 
+    "vi-beta": 1.0, 
+    "supervoxels-file": null, 
+    "synapse-dilation": 1, 
+    "supervoxels-name": null, 
+    "classifier": "ZZ/agglomclassifier.rf.h5"
+}

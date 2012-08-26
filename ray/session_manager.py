@@ -22,6 +22,8 @@ class Session:
         parser.add_argument('--config-file', '-c', help='json config file') 
         parser.add_argument('-v', '--verbose', action='store_true', default=False,
             help='Print runtime information about execution.')
+        parser.add_argument('--regression', action="store_true", default=False, 
+                help=argparse.SUPPRESS) 
 
         # create json and command line options 
         self.options_parser = option_manager.OptionManager(master_logger, parser)
@@ -32,6 +34,7 @@ class Session:
 
         args = parser.parse_args()
 
+        self.regression = args.regression
         self.verbose = args.verbose
         self.session_location = args.session_location
         self.config_file = args.config_file
@@ -52,7 +55,7 @@ class Session:
 
         # set log name
         log_filename = self.session_location + "/." + name + ".log"
-        applogger.set_log_file(log_filename)
+        applogger.set_log_file(log_filename, self.regression)
 
         # load the options from the config file and args    
         self.options = self.options_parser.load_config(self.config_file, args)

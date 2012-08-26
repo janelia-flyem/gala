@@ -26,10 +26,14 @@ class AppLogger:
     def set_debug_console(self):
         self.console.setLevel(logging.DEBUG)
 
-    def set_log_file(self, log_filename):
+    def set_log_file(self, log_filename, regression=False):
         prim = logging.FileHandler(log_filename, 'a')
         prim.setLevel(logging.DEBUG)
-        prim.setFormatter(logging.Formatter(fmt='%(asctime)s %(levelname)-8s %(message)s', datefmt='%m-%d-%y %H:%M'))
+        if regression:
+            prim.setFormatter(logging.Formatter('%(levelname)-8s %(message)s'))
+        else:
+            prim.setFormatter(logging.Formatter(fmt='%(asctime)s %(levelname)-8s %(message)s',
+                        datefmt='%m-%d-%y %H:%M'))
         self.app_logger.addHandler(prim)
 
 

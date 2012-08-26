@@ -10,7 +10,8 @@ setup(name = "ray",
     url = "https://github.com/jni/ray",
     author_email = 'jni@janelia.hhmi.org',
     packages = ['ray', 'ray.features'],
+    package_data = {'ray': ['testdata/*.*'] },
     install_requires = ['scikit-learn', 'progressbar', 'scikits-image>=0.5', 'matplotlib', 'h5py>=1.5.0', 'networkx>=1.6', 'scipy>=0.10.0',  'numpy>=1.6.0', 'f2py'
               ],
-    scripts = ["bin/ray-segmentation-pipeline", "bin/ray-train"]
+    scripts = ["bin/ray-segmentation-pipeline", "bin/ray-train", "ray-test-package"]
 )
