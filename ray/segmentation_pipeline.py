@@ -102,6 +102,9 @@ def agglomeration(options, agglom_stack, supervoxels, prediction,
             master_logger.info("Writing graph.json")
             agglom_stack.write_plaza_json(session_location+"/raveler-export/agglom-"+str(threshold)+"/graph.json",
                                             options.synapse_file)
+            if options.synapse_file is not None:
+                shutil.copyfile(options.synapse_file,
+                        session_location + "/raveler-export/agglom-"+str(threshold)+"/annotations-synapse.json") 
             master_logger.info("Finished writing graph.json")
 
 
@@ -219,6 +222,9 @@ def run_segmentation_pipeline(session_location, options, master_logger):
 
         if options.raveler_output:
             sps_out = output_raveler(supervoxels, supervoxels, image_stack, "supervoxels", session_location, master_logger)
+            if options.synapse_file is not None:
+                shutil.copyfile(options.synapse_file,
+                        session_location + "/raveler-export/supervoxels/annotations-synapse.json") 
 
     # agglomerate and generate output
     if options.gen_agglomeration:
