@@ -56,6 +56,8 @@ class Stack:
                         self.fmgr.add_hist_feature(desc["nbins"], desc["compute_percentiles"], False) 
                     elif feature == "moments":
                         self.fmgr.add_moment_feature(desc["nmoments"], desc["use_diff"]) 
+                    elif feature == "inclusiveness":
+                        self.fmgr.add_inclusiveness_feature(True) 
                     else:
                         raise Exception("Feature " + feature + " not supported in NeuroProof") 
             else:
