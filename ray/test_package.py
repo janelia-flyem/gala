@@ -76,9 +76,9 @@ class testModules(unittest.TestCase):
                 classifier=cl, feature_info=fm_info)
         self.assertEqual(stack.number_of_nodes(), 3629)
         stack.agglomerate(0.1)
-        self.assertEqual(stack.number_of_nodes(), 83)
+        self.assertEqual(stack.number_of_nodes(), 80)
         stack.remove_inclusions()
-        self.assertEqual(stack.number_of_nodes(), 83)
+        self.assertEqual(stack.number_of_nodes(), 78)
 
     def testAggloRFBuild(self):
         from ray import agglo
@@ -109,7 +109,7 @@ class testModules(unittest.TestCase):
         stack.agglomerate(0.5)
         self.assertEqual(stack.number_of_nodes(), 82)
         stack.remove_inclusions()
-        self.assertEqual(stack.number_of_nodes(), 80)
+        self.assertEqual(stack.number_of_nodes(), 82)
 
     def testAggoBuild(self):
         from ray import agglo
