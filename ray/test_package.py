@@ -107,9 +107,9 @@ class testModules(unittest.TestCase):
         stack = stack_np.Stack(watershed, boundary)
         self.assertEqual(stack.number_of_nodes(), 3629)
         stack.agglomerate(0.5)
-        self.assertEqual(stack.number_of_nodes(), 86)
+        self.assertEqual(stack.number_of_nodes(), 82)
         stack.remove_inclusions()
-        self.assertEqual(stack.number_of_nodes(), 84)
+        self.assertEqual(stack.number_of_nodes(), 80)
 
     def testAggoBuild(self):
         from ray import agglo
