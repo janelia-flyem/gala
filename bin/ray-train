@@ -175,6 +175,7 @@ if __name__ == '__main__':
 
     if args.use_neuroproof:
         fm = features.base.Composite(children=[
+            features.inclusion.Manager(),
             features.moments.Manager(),
             features.histogram.Manager(
                 25, 0, 1, [0.1, 0.3, 0.5, 0.7, 0.9], use_neuroproof=True)])

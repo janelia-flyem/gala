@@ -63,10 +63,10 @@ INFO     Finished building RAG
 INFO     Starting inclusion removal with 687 nodes
 INFO     Finished inclusion removal with 673 nodes
 INFO     Starting agglomeration to threshold 0.1 with 673
-INFO     Finished agglomeration to threshold 0.1 with 58
-INFO     Starting inclusion removal with 58 nodes
-INFO     Finished inclusion removal with 58 nodes
-INFO     Starting agglomeration to threshold 0.15 with 58
-INFO     Finished agglomeration to threshold 0.15 with 51
-INFO     Starting inclusion removal with 51 nodes
-INFO     Finished inclusion removal with 51 nodes
+INFO     Finished agglomeration to threshold 0.1 with 54
+INFO     Starting inclusion removal with 54 nodes
+INFO     Finished inclusion removal with 54 nodes
+INFO     Starting agglomeration to threshold 0.15 with 54
+INFO     Finished agglomeration to threshold 0.15 with 52
+INFO     Starting inclusion removal with 52 nodes
+INFO     Finished inclusion removal with 52 nodes

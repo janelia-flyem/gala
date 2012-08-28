@@ -168,6 +168,7 @@ def flow_perform_agglomeration(options, supervoxels, prediction, image_stack,
                     exclusions=synapse_volume)
         master_logger.info("Finished building RAG")
     else:
+        master_logger.info("Building RAG")
         boundary = grab_boundary(prediction, options.bound_channels, master_logger)   
         if options.use_neuroproof:
             agglom_stack = stack_np.Stack(supervoxels, boundary, synapse_file=options.synapse_file,
@@ -175,6 +176,7 @@ def flow_perform_agglomeration(options, supervoxels, prediction, image_stack,
         else:
             agglom_stack = agglo.Rag(supervoxels, boundary, merge_priority_function=agglo.boundary_median,
                 show_progress=True, nozeros=True, exclusions=synapse_volume)
+        master_logger.info("Finished building RAG")
 
 
     # remove inclusions 
