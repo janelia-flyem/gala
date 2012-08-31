@@ -1,5 +1,12 @@
 #!/usr/bin/env python
 
+# ensure imported package is local to this executable
+
+import os
+import sys
+
+sys.path.insert(0, os.path.realpath('..'))
+
 from ray import imio, agglo, morpho
 
 try:
@@ -7,8 +14,6 @@ try:
 except ImportError:
     pass
 
-import sys
-import os
 from skimage import morphology as skmorph
 from scipy.ndimage import label
 import argparse

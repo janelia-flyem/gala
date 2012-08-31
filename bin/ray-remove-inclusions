@@ -1,8 +1,13 @@
 #!/usr/bin/env python
 
-from ray import imio, agglo
-import sys
+# ensure imported package is local to this executable
+
 import os
+import sys
+
+sys.path.insert(0, os.path.realpath('..'))
+
+from ray import imio, agglo
 import argparse
 import logging
 

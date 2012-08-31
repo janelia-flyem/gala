@@ -1,11 +1,16 @@
 #!/usr/bin/env python
 
+# ensure imported package is local to this executable
+
+import os
+import sys
+
+sys.path.insert(0, os.path.realpath('..'))
+
 # Python standard library
-import sys, os, argparse, cPickle
+import argparse, cPickle
 import subprocess as sp
 import logging
-
-
 
 # external libraries
 from numpy import unique, inf, nonzero, zeros, uint8
