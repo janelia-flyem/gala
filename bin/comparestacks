@@ -3,7 +3,9 @@
 import os
 import sys
 
-sys.path.insert(0, os.path.realpath('..'))
+this_dir = os.path.realpath(sys.argv[0])
+pkg_dir = os.path.realpath(os.path.join(this_dir, '..'))
+sys.path.insert(0, pkg_dir)
 
 from numpy import *
 from ray import imio, morpho, evaluate as ev
