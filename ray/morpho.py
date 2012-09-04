@@ -156,7 +156,7 @@ def split_exclusions(image, labels, exclusions, dilation=0, connectivity=1,
     violations[0] = False
     if sum(violations) != 0:
         offending_labels = labels[violations[hashed]]
-        mask = np.zeros(labels.shape, dtype=bool)
+        mask = zeros(labels.shape, dtype=bool)
         for offlabel in offending_labels:
             mask += labels == offlabel
         if standard_seeds:
