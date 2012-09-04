@@ -141,7 +141,8 @@ def minimum_seeds(current_seeds, min_seed_coordinates, connectivity=1):
     seeds[seeds_to_add] = arange(start, start + num_seeds)
     return seeds
 
-def split_exclusions(image, labels, exclusions, dilation=0, connectivity=1):
+def split_exclusions(image, labels, exclusions, dilation=0, connectivity=1,
+    standard_seeds=False):
     """Ensure that no segment in 'labels' overlaps more than one exclusion."""
     labels = labels.copy()
     cur_label = labels.max() + 1
@@ -149,20 +150,20 @@ def split_exclusions(image, labels, exclusions, dilation=0, connectivity=1):
     foot = generate_binary_structure(exclusions.ndim, connectivity)
     for i in range(dilation):
         dilated_exclusions = grey_dilation(exclusions, footprint=foot)
-    while True:
-        hashed = labels * (exclusions.max() + 1) + exclusions
-        hashed[exclusions == 0] = 0
-        violations = bincount(hashed.ravel()) > 1
-        violations[0] = False
-        if sum(violations) == 0:
-            break
-        offending_label = labels[violations[hashed]][0]
-        offended_exclusion = exclusions[violations[hashed]][0]
-        mask = labels == offending_label
-        seeds, n = label(mask * (dilated_exclusions == offended_exclusion))
+    hashed = labels * (exclusions.max() + 1) + exclusions
+    hashed[exclusions == 0] = 0
+    violations = bincount(hashed.ravel()) > 1
+    violations[0] = False
+    if sum(violations) != 0:
+        offending_labels = labels[violations[hashed]]
+        mask = np.zeros(labels.shape, dtype=bool)
+        for offlabel in offending_labels:
+            mask += labels == offlabel
+        if standard_seeds:
+            seeds = label(mask * (image == 0))[0]
+        else:
+            seeds = label(mask * dilated_exclusions)[0]
         seeds[seeds > 1] += cur_label
-        cur_label += n-1
-        seeds[seeds == 1] = offending_label
         labels[mask] = watershed(image, seeds, connectivity, mask)[mask]
     return labels
 
