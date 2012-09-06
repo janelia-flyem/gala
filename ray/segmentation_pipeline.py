@@ -148,6 +148,8 @@ def flow_perform_agglomeration(options, supervoxels, prediction, image_stack,
         fm_info = cl.load_from_disk(options.classifier)
 
         master_logger.info("Building RAG")
+        if fm_info is None or fm_info["neuroproof_features"] is None:
+            raise Exception("agglomeration classifier to old to be used") 
         if options.use_neuroproof:
             if not fm_info["neuroproof_features"]:
                 raise Exception("random forest created not using neuroproof") 
@@ -155,7 +157,7 @@ def flow_perform_agglomeration(options, supervoxels, prediction, image_stack,
                 single_channel=False, classifier=cl, feature_info=fm_info, synapse_file=options.synapse_file,
                 master_logger=master_logger) 
         else:
-            if fm_info["neuroproof_features"] is not None:
+            if fm_info["neuroproof_features"]:
                 master_logger.warning("random forest created using neuroproof features -- should still work") 
             fm = features.io.create_fm(fm_info)
             if options.expected_vi:
