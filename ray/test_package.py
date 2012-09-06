@@ -63,7 +63,7 @@ class testModules(unittest.TestCase):
 
     def testNPRFBuild(self):
         if not np_installed:
-            return
+            self.assertTrue(np_installed)
         from ray import stack_np
         from ray import classify
         self.datadir = os.path.abspath(os.path.dirname(sys.modules["ray"].__file__)) + "/testdata/"
@@ -101,7 +101,7 @@ class testModules(unittest.TestCase):
 
     def testNPBuild(self):
         if not np_installed:
-            return
+            self.assertTrue(np_installed)
         from ray import stack_np
         watershed, boundary, dummy = self.gen_watershed()
         stack = stack_np.Stack(watershed, boundary)
@@ -129,13 +129,16 @@ class testFlows(unittest.TestCase):
     def testNPFlow(self):
         import ray
         if not np_installed:
-            return
+            self.assertTrue(np_installed)
         self.datadir = os.path.abspath(os.path.dirname(sys.modules["ray"].__file__)) + "/testdata"
         writedir = "/tmp/NPregtest"
         
         if os.path.exists(writedir):
-            shutil.rmtree(writedir)
-        os.makedirs(writedir)
+            #shutil.rmtree(writedir)
+            os.system("rm -f " + writedir + "/*")
+            os.system("rm -f " + writedir + "/.??*")
+        else:
+	    os.makedirs(writedir)
         
     
         configfile = open(self.datadir + "/config.json", 'r')
@@ -148,7 +151,13 @@ class testFlows(unittest.TestCase):
         os.system("ray-segmentation-pipeline " + writedir +  " --config-file " +
                "/tmp/NPregtest/config.json --regression --enable-use-neuroproof >& /dev/null")
         
-        self.assertEqual(open(self.datadir + "/seg-pipeline-np.log", 'r').read(),
+        log_data = open(self.datadir + "/seg-pipeline-np.log", 'r').read()
+	log_data = log_data.replace("ZZ", self.datadir)
+
+        os.system("chmod 777 " + writedir + "/*")
+        os.system("chmod 777 " + writedir + "/.??*")
+	
+        self.assertEqual(log_data,
                         open("/tmp/NPregtest/.seg-pipeline.log", 'r').read())         
 
     def testRegFlow(self):
@@ -157,8 +166,11 @@ class testFlows(unittest.TestCase):
         writedir = "/tmp/regtest"
         
         if os.path.exists(writedir):
-            shutil.rmtree(writedir)
-        os.makedirs(writedir)
+            #shutil.rmtree(writedir)
+            os.system("rm -f " + writedir + "/*")
+            os.system("rm -f " + writedir + "/.??*")
+        else:
+	    os.makedirs(writedir)
        
         configfile = open(self.datadir + "/config.json", 'r')
         configstr = configfile.read()
@@ -170,7 +182,13 @@ class testFlows(unittest.TestCase):
         os.system("ray-segmentation-pipeline " + writedir +  " --config-file " +
                 "/tmp/regtest/config.json --regression --disable-use-neuroproof >& /dev/null")
         
-        self.assertEqual(open(self.datadir + "/seg-pipeline.log", 'r').read(),
+        log_data = open(self.datadir + "/seg-pipeline.log", 'r').read()
+	log_data = log_data.replace("ZZ", self.datadir)
+        
+        os.system("chmod 777 " + writedir + "/*")
+        os.system("chmod 777 " + writedir + "/.??*")
+        
+        self.assertEqual(log_data,
                         open("/tmp/regtest/.seg-pipeline.log", 'r').read())         
 
 

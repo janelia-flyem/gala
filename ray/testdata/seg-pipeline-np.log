@@ -1,9 +1,9 @@
 DEBUG    gen-supervoxels was set to True
 DEBUG    pixelprob-file was not specified and set to default None
 DEBUG    raveler-output was set to False
-DEBUG    synapse-file was set to /home/plazas/ray/ray/testdata/annotations-synapse.json
+DEBUG    synapse-file was set to ZZ/annotations-synapse.json
 DEBUG    gen-agglomeration was set to True
-DEBUG    image-stack was set to /home/plazas/ray/ray/testdata/original_grayscales/*.png
+DEBUG    image-stack was set to ZZ/original_grayscales/*.png
 DEBUG    pixelprob-name was not specified and set to default pixel_boundpred.h5
 DEBUG    h5-output was set to False
 DEBUG    segmentation-thresholds was set to [0.0, 0.1, 0.15]
@@ -11,7 +11,7 @@ DEBUG    use-neuroproof was overridden by command line to True
 DEBUG    expected-vi was set to False
 DEBUG    extract-ilp-prediction was set to False
 DEBUG    bound-channels was set to [0]
-DEBUG    ilp-file was set to /home/plazas/ray/ray/testdata/boundclassifier.ilp
+DEBUG    ilp-file was set to ZZ/boundclassifier.ilp
 DEBUG    gen-pixel was set to True
 DEBUG    seed-val was set to 0
 DEBUG    inclusion-removal was set to True
@@ -20,7 +20,7 @@ DEBUG    vi-beta was set to 1.0
 DEBUG    supervoxels-file was not specified and set to default None
 DEBUG    synapse-dilation was set to 1
 DEBUG    supervoxels-name was not specified and set to default supervoxels.lzf.h5
-DEBUG    classifier was set to /home/plazas/ray/ray/testdata/agglomclassifier.rf.h5
+DEBUG    classifier was set to ZZ/agglomclassifier.rf.h5
 INFO     Options loaded and verified
 INFO     Generating Pixel Probabilities
 DEBUG    Extracting labels
@@ -43,7 +43,7 @@ DEBUG    ilastik batch_fast json file: {
             "name": "/tmp/NPregtest/image_stack.h5"
         }
     ], 
-    "session": "/home/plazas/ray/ray/testdata/boundclassifier.ilp", 
+    "session": "ZZ/boundclassifier.ilp", 
     "output_dir": "/tmp/NPregtest", 
     "memory_mode": false, 
     "features": []
