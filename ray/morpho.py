@@ -145,7 +145,7 @@ def split_exclusions(image, labels, exclusions, dilation=0, connectivity=1,
     standard_seeds=False):
     """Ensure that no segment in 'labels' overlaps more than one exclusion."""
     labels = labels.copy()
-    cur_label = labels.max() + 1
+    cur_label = labels.max()
     dilated_exclusions = exclusions.copy()
     foot = generate_binary_structure(exclusions.ndim, connectivity)
     for i in range(dilation):
@@ -163,7 +163,7 @@ def split_exclusions(image, labels, exclusions, dilation=0, connectivity=1,
             seeds = label(mask * (image == 0))[0]
         else:
             seeds = label(mask * dilated_exclusions)[0]
-        seeds[seeds > 1] += cur_label
+        seeds[seeds > 0] += cur_label
         labels[mask] = watershed(image, seeds, connectivity, mask)[mask]
     return labels
 
