@@ -460,67 +460,65 @@ class Rag(Graph):
             g.merge_subgraph(cc)
         return g.get_segmentation()
         
-    def learn_agglomerate(self, gts, feature_map, min_num_samples=1,
-                                                            *args, **kwargs):
+    def learn_agglomerate(self, gold_standard_segmentations, feature_map,
+                                learn_flat=True,
+                                learning_mode='strict',
+                                labeling_mode='assignment',
+                                priority_mode='active',
+                                initial_priority='mean',
+                                memory=True,
+                                unique=True,
+                                min_num_epochs=1,
+                                max_num_epochs=10,
+                                min_num_samples=1,
+                                max_num_samples=np.inf,
+                                samples_per_epoch=np.inf,
+                                active_function=classifier_probability,
+                                classifier='random forest'):
         """Agglomerate while comparing to ground truth & classifying merges."""
-        learn_flat = kwargs.get('learn_flat', True)
-        learning_mode = kwargs.get('learning_mode', 'strict').lower()
-        labeling_mode = kwargs.get('labeling_mode', 'assignment').lower()
-        priority_mode = kwargs.get('priority_mode', 'random').lower()
-        memory = kwargs.get('memory', True)
-        unique = kwargs.get('unique', True)
-        active_function = kwargs.get('active_function', classifier_probability)
-        max_num_epochs = kwargs.get('max_num_epochs', 10)
-        min_num_epochs = kwargs.get('min_num_epochs', 1)
-        max_num_samples = kwargs.get('max_num_samples', np.inf)
-        if priority_mode == 'mean' and unique: 
+        if priority_mode == 'mean' and unique:
             max_num_epochs = 2 if learn_flat else 1
         if priority_mode in ['random', 'mean'] and not memory:
             max_num_epochs = 1
         label_type_keys = {'assignment':0, 'voi-sign':1, 'rand-sign':2}
-        if type(gts) != list:
-            gts = [gts] # allow using single ground truth as input
-        master_ctables = \
-                [contingency_table(self.get_segmentation(), gt) for gt in gts]
+        if type(gold_standard_segmentations) != list:
+            gold_standard_segmentations = [gold_standard_segmentations] 
+            # allow using single ground truth as input
+        master_ctables = [contingency_table(self.get_segmentation(), gs)
+                    for gs in gold_standard_segmentations]
+        if initial_priority == 'mean':
+            self.merge_priority_function = boundary_mean
+        elif initial_priority == 'random':
+            self.merge_priority_function = random_priority
         alldata = []
         data = [[],[],[],[]]
         for num_epochs in range(max_num_epochs):
             ctables = deepcopy(master_ctables)
             if len(data[0]) > min_num_samples and num_epochs >= min_num_epochs:
                 break
-            if learn_flat and num_epochs == 0:
-                alldata.append(self.learn_flat(gts, feature_map))
-                data = unique_learning_data_elements(alldata) if memory \
-                    else alldata[-1]
-                continue
-            g = self.copy()
-            if priority_mode == 'mean':
-                g.merge_priority_function = boundary_mean
-            elif num_epochs > 0 and priority_mode == 'active' or \
-                num_epochs % 2 == 1 and priority_mode == 'mixed':
-                cl = get_classifier(kwargs.get('classifier', 'random forest'))
+            if num_epochs == 0 and learn_flat is True:
+                d = self.learn_flat(gold_standard_segmentations, feature_map))
+            else:
+                g = self.copy()
+                g.show_progress = False
+                g.rebuild_merge_queue()
+                d = g._learn_agglomerate(ctables, feature_map, 
+                                                learning_mode, labeling_mode))
+            d = classify.sample_training_data(d[0], d[1], samples_per_epoch)
+            alldata.append(d)
+            if memory and unique:
+                data = unique_learning_data_elements(alldata) 
+            elif memory and not unique:
+                data = concatenate_data_elements(alldata)
+            else:
+                data = alldata[-1]
+            if priority_mode == 'active':
+                cl = get_classifier(classifier)
                 feat, lab = classify.sample_training_data(
                     data[0], data[1][:, label_type_keys[labeling_mode]],
                     max_num_samples)
                 cl = cl.fit(feat, lab)
-                g.merge_priority_function = active_function(feature_map, cl)
-            elif priority_mode == 'random' or \
-                (priority_mode == 'active' and num_epochs == 0):
-                g.merge_priority_function = random_priority
-            elif priority_mode == 'custom':
-                g.merge_priority_function = kwargs.get('mpf', boundary_mean)
-            g.show_progress = False # bug in MergeQueue usage causes
-                                    # progressbar crash.
-            g.rebuild_merge_queue()
-            alldata.append(g._learn_agglomerate(ctables, feature_map, 
-                                                learning_mode, labeling_mode))
-            if memory:
-                if unique:
-                    data = unique_learning_data_elements(alldata) 
-                else:
-                    data = concatenate_data_elements(alldata)
-            else:
-                data = alldata[-1]
+                self.merge_priority_function = active_function(feature_map, cl)
             logging.debug('data size %d at epoch %d'%(len(data[0]), num_epochs))
         return data, alldata
 
