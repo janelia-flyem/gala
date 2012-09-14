@@ -3,10 +3,12 @@ import numpy as np
 class Null(object):
     def __init__(self, *args, **kwargs):
         self.default_cache = 'feature-cache'
+
     def __call__(self, g, n1, n2=None):
         return self.compute_features(g, n1, n2)
-    def write_fm(self, json_fm):
-        pass  
+
+    def write_fm(self, json_fm={}):
+        return json_fm
 
     def compute_features(self, g, n1, n2=None):
         if n2 is None:
@@ -47,9 +49,10 @@ class Composite(Null):
         super(Composite, self).__init__()
         self.children = children
  
-    def write_fm(self, json_fm):
-        for i, child in enumerate(self.children):
-            child.write_fm(json_fm)
+    def write_fm(self, json_fm={}):
+        for child in self.children:
+            json_fm.update(child.write_fm(json_fm))
+        return json_fm
    
     def create_node_cache(self, *args, **kwargs):
         return [c.create_node_cache(*args, **kwargs) for c in self.children]

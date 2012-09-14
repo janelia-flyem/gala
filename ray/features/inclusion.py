@@ -10,11 +10,12 @@ class Manager(base.Null):
         obj = cls()
         return obj
 
-    def write_fm(self, json_fm):
+    def write_fm(self, json_fm={}):
         if 'feature_list' not in json_fm:
             json_fm['feature_list'] = []
         json_fm['feature_list'].append('inclusiveness')
         json_fm['inclusiveness'] = {} 
+        return json_fm
 
     def compute_node_features(self, g, n, cache=None):
         bd_lengths = sorted([len(g[n][x]['boundary']) for x in g.neighbors(n)])

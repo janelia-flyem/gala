@@ -17,7 +17,7 @@ class Manager(base.Null):
                     fm_info['oriented'], fm_info['normalize'])
         return obj
 
-    def write_fm(self, json_fm):
+    def write_fm(self, json_fm={}):
         if 'feature_list' not in json_fm:
             json_fm['feature_list'] = []
         json_fm['feature_list'].append('moments')
@@ -26,7 +26,8 @@ class Manager(base.Null):
             'use_diff' : self.use_diff_features,
             'oriented' : self.oriented,
             'normalize' : self.normalize
-        } 
+        }
+        return json_fm
 
     def compute_moment_sums(self, ar, idxs):
         values = ar[idxs][...,np.newaxis]

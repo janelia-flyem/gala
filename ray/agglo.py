@@ -31,7 +31,8 @@ from ncut import ncutW
 from mergequeue import MergeQueue
 from evaluate import contingency_table, split_vi, xlogx
 import features
-from classify import RandomForest, \
+import classify
+from classify import DefaultRandomForest, get_classifier, \
     unique_learning_data_elements, concatenate_data_elements
 
 arguments = argparse.ArgumentParser(add_help=False)
@@ -471,6 +472,7 @@ class Rag(Graph):
         active_function = kwargs.get('active_function', classifier_probability)
         max_num_epochs = kwargs.get('max_num_epochs', 10)
         min_num_epochs = kwargs.get('min_num_epochs', 1)
+        max_num_samples = kwargs.get('max_num_samples', np.inf)
         if priority_mode == 'mean' and unique: 
             max_num_epochs = 2 if learn_flat else 1
         if priority_mode in ['random', 'mean'] and not memory:
@@ -496,10 +498,11 @@ class Rag(Graph):
                 g.merge_priority_function = boundary_mean
             elif num_epochs > 0 and priority_mode == 'active' or \
                 num_epochs % 2 == 1 and priority_mode == 'mixed':
-                cl = kwargs.get('classifier', RandomForest())
-                cl = cl.fit(data[0], data[1][:,label_type_keys[labeling_mode]])
-                if type(cl) == RandomForest:
-                    logging.info('classifier oob error: %.2f'%cl.oob)
+                cl = get_classifier(kwargs.get('classifier', 'random forest'))
+                feat, lab = classify.sample_training_data(
+                    data[0], data[1][:, label_type_keys[labeling_mode]],
+                    max_num_samples)
+                cl = cl.fit(feat, lab)
                 g.merge_priority_function = active_function(feature_map, cl)
             elif priority_mode == 'random' or \
                 (priority_mode == 'active' and num_epochs == 0):

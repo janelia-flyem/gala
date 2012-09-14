@@ -68,7 +68,7 @@ class testModules(unittest.TestCase):
         from ray import classify
         self.datadir = os.path.abspath(os.path.dirname(sys.modules["ray"].__file__)) + "/testdata/"
 
-        cl = classify.RandomForest()
+        cl = classify.get_classifier()
         fm_info = cl.load_from_disk(self.datadir + "agglomclassifier_np.rf.h5")
 
         watershed, boundary, prediction = self.gen_watershed()
@@ -86,7 +86,7 @@ class testModules(unittest.TestCase):
         from ray import classify
         self.datadir = os.path.abspath(os.path.dirname(sys.modules["ray"].__file__)) + "/testdata/"
 
-        cl = classify.RandomForest()
+        cl = classify.get_classifier()
         fm_info = cl.load_from_disk(self.datadir + "agglomclassifier.rf.h5")
         fm = features.io.create_fm(fm_info)
         mpf = agglo.classifier_probability(fm, cl)

@@ -32,7 +32,7 @@ class Manager(base.Null):
             fm_info['use_neuroproof'])
         return obj
  
-    def write_fm(self, json_fm):
+    def write_fm(self, json_fm={}):
         if 'feature_list' not in json_fm:
             json_fm['feature_list'] = []
         json_fm['feature_list'].append('histogram')
@@ -45,6 +45,7 @@ class Manager(base.Null):
             'use_neuroproof' : self.use_neuroproof, 
             'compute_percentiles' : self.compute_percentiles
         } 
+        return json_fm
 
     def histogram(self, vals):
         if vals.ndim == 1:

@@ -14,6 +14,13 @@ class Manager(base.Null):
         super(Manager, self).__init__()
         self.ndim = ndim
 
+    def write_fm(self, json_fm={}):
+        if 'feature_list' not in json_fm:
+            json_fm['feature_list'] = []
+        json_fm['feature_list'].append('squiggliness')
+        json_fm['squiggliness'] = {'ndim': self.ndim}
+        return json_fm
+
     # cache is min and max coordinates of bounding box
     def create_edge_cache(self, g, n1, n2):
         edge_idxs = g[n1][n2]['boundary']

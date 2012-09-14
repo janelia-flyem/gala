@@ -8,6 +8,7 @@ import h5py
 import numpy
 import shutil
 import logging
+import json
 from skimage import morphology as skmorph
 from scipy.ndimage import label
 
@@ -144,8 +145,8 @@ def flow_perform_agglomeration(options, supervoxels, prediction, image_stack,
     # if no classifier, check if np mode or not, automatically load features in NP as well)
 
     if options.classifier is not None:
-        cl = classify.RandomForest()
-        fm_info = cl.load_from_disk(options.classifier)
+        cl = classify.load_classifier(options.classifier)
+        fm_info = json.loads(str(cl.feature_description))
 
         master_logger.info("Building RAG")
         if fm_info is None or fm_info["neuroproof_features"] is None:

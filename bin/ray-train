@@ -14,6 +14,7 @@ import argparse, cPickle
 import subprocess as sp
 import logging
 import functools
+import json
 
 # external libraries
 from numpy import unique
@@ -104,7 +105,7 @@ if __name__ == '__main__':
         default='.trdat.h5',
         help='The filename extension for the training data.')
     parser.add_argument('-c', '--classifier-extension', metavar='EXT',
-        default='.rf.h5',
+        default='.classifier.joblib',
         help='The filename extension for the saved classifier.')
     parser.add_argument('-P', '--show-progress', action='store_true', 
         default=False, help='Show a progress bar.')
@@ -178,8 +179,6 @@ if __name__ == '__main__':
     else:
         ws = imio.read_image_stack(args.watershed_file)
     
-    fm = None
-
     if args.use_neuroproof:
         fm = features.base.Composite(children=[
             features.inclusion.Manager(),
@@ -221,7 +220,8 @@ if __name__ == '__main__':
         learn_flat=args.learn_flat, learning_mode=args.learning_mode,
         labeling_mode=args.labeling_mode, priority_mode=args.priority_mode,
         memory=args.memory, unique=args.unique, min_num_epochs=args.num_epochs,
-        max_num_expochs=args.max_num_epochs, active_function=active_function)
+        max_num_expochs=args.max_num_epochs, 
+        max_num_samples=args.num_examples, active_function=active_function)
     current_directory = os.path.realpath('.')
     os.chdir(os.path.dirname(classify.__file__))
     try:
@@ -244,13 +244,13 @@ if __name__ == '__main__':
             experiment_prefix + args.training_data_extension + '.' + str(i),
             info=info_string)
     MasterLogger.info("Training classifier")
-    rf = classify.RandomForest().fit(d[0], d[1][:,0], args.num_examples)
+    feat, lab = classify.sample_training_data(
+                                    d[0], d[1][:, 0], args.num_examples)
+    rf = classify.get_classifier().fit(feat, lab)
     MasterLogger.info("Saving classifier to disk")
     
     # grab features json
-    json_fm = {}
-    json_fm["neuroproof_features"] = args.use_neuroproof
-    fm.write_fm(json_fm)
-    rf.save_to_disk(experiment_prefix + args.classifier_extension, json_fm=json_fm)
-
-
+    fm_description = fm.write_fm()
+    fm_description["neuroproof_features"] = args.use_neuroproof
+    rf.feature_description = json.dumps(fm_description)
+    classify.save_classifier(rf, experiment_prefix + args.classifier_extension)
