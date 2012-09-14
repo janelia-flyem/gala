@@ -32,7 +32,7 @@ from mergequeue import MergeQueue
 from evaluate import contingency_table, split_vi, xlogx
 import features
 import classify
-from classify import DefaultRandomForest, \
+from classify import DefaultRandomForest, get_classifier, \
     unique_learning_data_elements, concatenate_data_elements
 
 arguments = argparse.ArgumentParser(add_help=False)
@@ -498,7 +498,7 @@ class Rag(Graph):
                 g.merge_priority_function = boundary_mean
             elif num_epochs > 0 and priority_mode == 'active' or \
                 num_epochs % 2 == 1 and priority_mode == 'mixed':
-                cl = kwargs.get('classifier', DefaultRandomForest())
+                cl = get_classifier(kwargs.get('classifier', 'random forest'))
                 feat, lab = classify.sample_training_data(
                     data[0], data[1][:, label_type_keys[labeling_mode]],
                     max_num_samples)

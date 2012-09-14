@@ -246,7 +246,7 @@ if __name__ == '__main__':
     MasterLogger.info("Training classifier")
     feat, lab = classify.sample_training_data(
                                     d[0], d[1][:, 0], args.num_examples)
-    rf = classify.DefaultRandomForest().fit(feat, lab)
+    rf = classify.get_classifier().fit(feat, lab)
     MasterLogger.info("Saving classifier to disk")
     
     # grab features json

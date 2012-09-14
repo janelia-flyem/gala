@@ -123,6 +123,17 @@ def save_classifier(cl, fn, use_joblib=True, **kwargs):
             pck.dump(cl, f, protocol=kwargs.get('protocol', -1))
 
 
+def get_classifier(name='random forest', *args, **kwargs):
+    name = name.lower()
+    is_random_forest = name.find('random') > -1 and name.find('forest') > -1
+    if vigra_available and is_random_forest:
+        return VigraRandomForest(*args, **kwargs)
+    elif sklearn_available and is_random_forest:
+        return DefaultRandomForest(*args, **kwargs)
+    else:
+        raise NotImplementedError('Classifier "%s" is either not installed ' +
+            'or not implemented in Ray.')
+
 class DefaultRandomForest(RandomForestClassifier):
     def __init__(self, *args, **kwargs):
         if len(args) < 1 and not kwargs.has_key('n_estimators'):

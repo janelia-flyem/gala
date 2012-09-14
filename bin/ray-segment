@@ -206,7 +206,7 @@ if __name__ == '__main__':
             cl = classify.load_classifier(args.classifier)
         else:
             MasterLogger.info("Training classifier")
-            cl = classify.DefaultRandomForest().fit(args.training_data[0], 
+            cl = classify.get_classifier().fit(args.training_data[0], 
                 args.training_data[1][:,0])
             MasterLogger.info("Finished training classifier")
         if args.expected_vi:
