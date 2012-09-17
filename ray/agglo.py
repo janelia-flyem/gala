@@ -497,27 +497,23 @@ class Rag(Graph):
             if len(data[0]) > min_num_samples and num_epochs >= min_num_epochs:
                 break
             if num_epochs == 0 and learn_flat is True:
-                d = self.learn_flat(gold_standard_segmentations, feature_map))
+                d = self.learn_flat(gold_standard_segmentations, feature_map)
             else:
-                g = self.copy()
-                g.show_progress = False
-                g.rebuild_merge_queue()
-                d = g._learn_agglomerate(ctables, feature_map, 
-                                                learning_mode, labeling_mode))
+                d = self.learn_epoch(ctables, feature_map, 
+                                                learning_mode, labeling_mode)
             d = classify.sample_training_data(d[0], d[1], samples_per_epoch)
             alldata.append(d)
-            if memory and unique:
-                data = unique_learning_data_elements(alldata) 
-            elif memory and not unique:
+            if memory:
                 data = concatenate_data_elements(alldata)
             else:
                 data = alldata[-1]
+            if unique:
+                data = unique_learning_data_elements(data)
             if priority_mode == 'active':
-                cl = get_classifier(classifier)
                 feat, lab = classify.sample_training_data(
                     data[0], data[1][:, label_type_keys[labeling_mode]],
                     max_num_samples)
-                cl = cl.fit(feat, lab)
+                cl = get_classifier(classifier).fit(feat, lab)
                 self.merge_priority_function = active_function(feature_map, cl)
             logging.debug('data size %d at epoch %d'%(len(data[0]), num_epochs))
         return data, alldata
@@ -554,8 +550,8 @@ class Rag(Graph):
         labels = [1 if i==0 or isnan(i) else i for i in labels]
         return features, labels, weights, (n1,n2)
 
-    def _learn_agglomerate(self, ctables, feature_map, gt_dts, 
-                        learning_mode='forbidden', labeling_mode='assignment'):
+    def learn_epoch(self, ctables, feature_map, gt_dts, 
+                        learning_mode='strict', labeling_mode='assignment'):
         """Learn the agglomeration process using various strategies.
 
         Arguments:
@@ -585,7 +581,9 @@ class Rag(Graph):
         """
         label_type_keys = {'assignment':0, 'voi-sign':1, 'rand-sign':2}
         assignments = [(ct == ct.max(axis=1)[:,newaxis]) for ct in ctables]
-        g = self
+        g = self.copy()
+        g.show_progress = False
+        g.rebuild_merge_queue()
         data = []
         while len(g.merge_queue) > 0:
             merge_priority, valid, n1, n2 = g.merge_queue.pop()
