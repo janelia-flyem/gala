@@ -127,6 +127,9 @@ if __name__ == '__main__':
             'all outputs', required=True)
     parser.add_argument('--seed-cc-threshold', type=int, default=0,
         help='Connected component threshold in seed creation')
+    parser.add_argument('--no-mito-merge', type=float, nargs='+', default=None,
+        help='Mitochodria channels, Mitochondria threshold, Boundary Threshold \
+        for training without merging the mitochondrial superpixels')    
     args = parser.parse_args()
 
     if args.use_neuroproof:
@@ -200,10 +203,18 @@ if __name__ == '__main__':
         MasterLogger.info("Finished processing synapses")
     else:
         synapse_volume = np.zeros(p0.shape, np.uint8)
+        
+    # mito aware
+    if args.no_mito_merge is not None:
+        is_mito = functools.partial(agglo.is_mito, channel=set(args.no_mito_merge[0:-2]),\ 
+        threshold=args.no_mito_merge[-2])
+        is_mito_boundary =  functools.partial(agglo.is_mito_boundary,\ 
+        channel=set(args.no_mito_merge[0:-2]), threshold=args.no_mito_merge[-1])
 
     MasterLogger.info("Building RAG")
     g = agglo.Rag(ws, p, feature_manager=fm, show_progress=args.show_progress,
-            nozeros=args.nozeros, exclusions=synapse_volume)
+            nozeros=args.nozeros, exclusions=synapse_volume, isfrozennode=is_mito,
+            isfrozenedge=is_mito_boundary)
     MasterLogger.info("Starting inclusion removal with %i nodes"
                                                         % g.number_of_nodes())
     g.remove_inclusions()
