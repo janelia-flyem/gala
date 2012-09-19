@@ -112,10 +112,10 @@ if __name__ == '__main__':
         help='Dilate synapse points by this amount.', default=1)
     parser.add_argument('--no-mito-merge', type=float, nargs='+', default=None,
         help='Mitochodria channels, Mitochondria threshold, Boundary Threshold \
-        for segmenting without merging the mitochondrial superpixels')
+        for segmenting without merging the mitochondrial superpixels.')
     parser.add_argument('--mito-merge', type=float, nargs='+', default=None,
         help='Mitochodria channels, Mitochondria threshold, Boundary Threshold \
-        for merging only the mitochondrial superpixels with the surrounding cytoplasms')          
+        for merging only the mitochondrial superpixels with the surrounding cytoplasms.')          
     args = parser.parse_args()
     
 
@@ -217,24 +217,29 @@ if __name__ == '__main__':
                 args.training_data[1][:,0])
             MasterLogger.info("Finished training classifier")
         if args.expected_vi:
-            mpf = agglo.expected_change_vi(fm, cl, beta=args.active_vi_beta) 
+            mpf = agglo.expected_change_vi(fm, cl, beta=args.active_vi_beta)
         else:
             mpf = agglo.classifier_probability(fm, cl)
     else:
         mpf = eval(args.priority_function, {}, {'agglo': agglo})
         
     if args.no_mito_merge is not None:
+        # In the mito-merge/ no-mito-merge optional argument list, the last (-1) arg is
+        # the threshold used for detecting whether two mitos are touching; and the 
+        # penultimate (-2) arg is the threshold for mito detection. The rest of the 
+        # elements in the argument list are the mito channels used in the boundary
+        # prediction.
         mpf = agglo.no_mito_merge(mpf)
-        is_mito = functools.partial(agglo.is_mito, channel=set(args.no_mito_merge[0:-2]),\
+        is_mito = functools.partial(agglo.is_mito, channel=args.no_mito_merge[0:-2],\
         threshold=args.no_mito_merge[-2])
         is_mito_boundary =  functools.partial(agglo.is_mito_boundary,\
-        channel=set(args.no_mito_merge[0:-2]), threshold=args.no_mito_merge[-1])
+        channel=args.no_mito_merge[0:-2], threshold=args.no_mito_merge[-1])
     if args.mito_merge is not None:
         mpf = agglo.mito_merge()
-        is_mito = functools.partial(agglo.is_mito, channel=set(args.mito_merge[0:-2]),\
+        is_mito = functools.partial(agglo.is_mito, channel=args.mito_merge[0:-2],\
         threshold=args.mito_merge[-2])
         is_mito_boundary =  functools.partial(agglo.is_mito_boundary,\
-        channel=set(args.mito_merge[0:-2]), threshold=args.mito_merge[-1])    
+        channel=args.mito_merge[0:-2], threshold=args.mito_merge[-1])    
 
     MasterLogger.info("Building RAG")
     g = None
@@ -247,7 +252,7 @@ if __name__ == '__main__':
     else:
         g = agglo.Rag(ws, p, mpf, feature_manager=fm, 
             show_progress=args.show_progress, nozeros=args.nozeros, 
-            exclusions=synapse_volume)            
+            exclusions=synapse_volume)
     MasterLogger.info("Finished building RAG")
     if args.remove_inclusions:
         MasterLogger.info("Removing inclusions with %i nodes" % 

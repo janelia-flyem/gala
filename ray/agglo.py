@@ -145,7 +145,7 @@ class Rag(Graph):
         g.watershed_r = g.watershed.ravel()
         g.segmentation_r = g.segmentation.ravel()
         g.ucm_r = g.ucm.ravel()
-        g.probabilities_r = g.probabilities.reshape(pr_shape)       
+        g.probabilities_r = g.probabilities.reshape(pr_shape)
         if sys.version_info[:2] < (2,7):
             g.neighbor_idxs = f
             self.neighbor_idxs = f
@@ -408,21 +408,7 @@ class Rag(Graph):
         while len(self.merge_queue) > 0 and \
                                         self.merge_queue.peek()[0] < threshold:
             merge_priority, _, n1, n2 = self.merge_queue.pop()
-            self.frozen_nodes.discard(n1)
-            self.frozen_nodes.discard(n2)
-            edges_to_remove = set()
-            edges_to_add = set()
-            for (x,y) in self.frozen_edges:
-                if x == n2:
-                    edges_to_remove.add((x,y))
-                    edges_to_add.add((n1, y))
-                if y == n2:
-                    edges_to_remove.add((x,y))
-                    edges_to_add.add((x,n1))
-            for (x,y) in edges_to_remove:
-                self.frozen_edges.remove((x,y))
-            for (x,y) in edges_to_add:
-                self.frozen_edges.add((x,y))                                
+            self.update_frozen_sets(n1, n2)
             self.merge_nodes(n1,n2)   
             if save_history: 
                 history.append((n1,n2))
@@ -1038,6 +1024,17 @@ class Rag(Graph):
             W[i,j] = W[j,i] = exp(-w**2/sigma)
         return W
         
+    def update_frozen_sets(self, n1, n2):
+        self.frozen_nodes.discard(n1)
+        self.frozen_nodes.discard(n2)
+        for x, y in self.frozen_edges:
+            if n2 in [x, y]:
+                self.frozen_edges.discard((x, y))
+            if x == n2:
+                self.frozen_edges.add((n1, y))
+            if y == n2:
+                self.frozen_edges.add((x, n1))
+
 def get_edge_coordinates(g, n1, n2, arbitrary=False):
     """Find where in the segmentation the edge (n1, n2) is most visible."""
     boundary = g[n1][n2]['boundary']
