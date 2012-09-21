@@ -10,14 +10,13 @@ pkg_dir = os.path.realpath(os.path.join(this_dir, '..'))
 sys.path.insert(0, pkg_dir)
 
 # Python standard library
-import argparse, cPickle
+import argparse
 import subprocess as sp
 import logging
 import functools
 import json
 
 # external libraries
-from numpy import unique
 import numpy as np
 try:
     from skimage import morphology as skmorph
@@ -223,7 +222,7 @@ if __name__ == '__main__':
         max_num_expochs=args.max_num_epochs, 
         max_num_samples=args.num_examples, active_function=active_function)
     current_directory = os.path.realpath('.')
-    os.chdir(os.path.dirname(classify.__file__))
+    os.chdir(this_dir)
     try:
         git_commit = sp.check_output(['git', 'log', '-n', '1']).split('\n')[0]\
                     .split()[1]
