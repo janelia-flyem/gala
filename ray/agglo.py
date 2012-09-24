@@ -1027,7 +1027,7 @@ class Rag(Graph):
     def update_frozen_sets(self, n1, n2):
         self.frozen_nodes.discard(n1)
         self.frozen_nodes.discard(n2)
-        for x, y in self.frozen_edges:
+        for x, y in self.frozen_edges.copy():
             if n2 in [x, y]:
                 self.frozen_edges.discard((x, y))
             if x == n2:
