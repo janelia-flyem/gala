@@ -5,6 +5,7 @@ import glob
 import h5py
 import numpy
 import json
+import traceback
 
 def image_stack_verify(options_parser, options, master_logger):
     if options.image_stack is not None:
@@ -140,7 +141,7 @@ def entrypoint(argv):
 
         gen_pixel_probabilities(session.session_location, session.options, master_logger)
     except Exception, e:
-        master_logger.error(e)
+        master_logger.error(str(traceback.format_exc()))
     except KeyboardInterrupt, err:
-        master_logger.error(e)
+        master_logger.error(str(traceback.format_exc()))
  

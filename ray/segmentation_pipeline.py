@@ -11,6 +11,7 @@ import logging
 import json
 from skimage import morphology as skmorph
 from scipy.ndimage import label
+import traceback
 
 from . import imio, agglo, morpho, classify, evaluate, app_logger, \
     session_manager, pixel, features
@@ -363,9 +364,9 @@ def entrypoint(argv):
 
         run_segmentation_pipeline(session.session_location, session.options, master_logger) 
     except Exception, e:
-        master_logger.error(e)
+        master_logger.error(str(traceback.format_exc()))
     except KeyboardInterrupt, err:
-        master_logger.error(e)
+        master_logger.error(str(traceback.format_exc()))
  
    
 if __name__ == "__main__":
