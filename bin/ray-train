@@ -211,9 +211,9 @@ if __name__ == '__main__':
         # penultimate (-2) value is the threshold for mito detection. The rest of the 
         # elements in the argument list are the mito channels used in the boundary
         # prediction.
-        is_mito = functools.partial(agglo.is_mito, channel=args.no_mito_merge[0:-2],\ 
+        is_mito = functools.partial(agglo.is_mito, channel=args.no_mito_merge[0:-2],\
         threshold=args.no_mito_merge[-2])
-        is_mito_boundary =  functools.partial(agglo.is_mito_boundary,\ 
+        is_mito_boundary =  functools.partial(agglo.is_mito_boundary,\
         channel=args.no_mito_merge[0:-2], threshold=args.no_mito_merge[-1])
 
     MasterLogger.info("Building RAG")
