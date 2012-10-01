@@ -8,7 +8,6 @@ import logging
 import json
 from copy import deepcopy
 from math import isnan
-
 # libraries
 from numpy import array, mean, zeros, zeros_like, uint8, int8, where, unique, \
     ones_like, finfo, size, double, transpose, newaxis, uint32, nonzero, \
@@ -91,7 +90,8 @@ class Rag(Graph):
             gt_vol=None, feature_manager=features.base.Null(), 
             show_progress=False, lowmem=False, connectivity=1,
             channel_is_oriented=None, orientation_map=array([]),
-            normalize_probabilities=False, nozeros=False, exclusions=array([])):
+            normalize_probabilities=False, nozeros=False, exclusions=array([]),
+            isfrozennode=None, isfrozenedge=None):
         """Create a graph from a watershed volume and image volume.
         
         The watershed is assumed to have dams of label 0 in between basins.
@@ -123,6 +123,16 @@ class Rag(Graph):
         self.set_ground_truth(gt_vol)
         self.set_exclusions(exclusions)
         self.merge_queue = MergeQueue()
+        self.frozen_nodes = set()
+        if isfrozennode is not None: 
+            for node in self.nodes():
+                if isfrozennode(self, node):
+                    self.frozen_nodes.add(node)
+        self.frozen_edges = set()
+        if isfrozenedge is not None:
+            for n1, n2 in self.edges():
+                if isfrozenedge(self, n1, n2):
+                    self.frozen_edges.add((n1,n2))
 
     def __copy__(self):
         if sys.version_info[:2] < (2,7):
@@ -398,7 +408,8 @@ class Rag(Graph):
         while len(self.merge_queue) > 0 and \
                                         self.merge_queue.peek()[0] < threshold:
             merge_priority, _, n1, n2 = self.merge_queue.pop()
-            self.merge_nodes(n1,n2)
+            self.update_frozen_sets(n1, n2)
+            self.merge_nodes(n1,n2)   
             if save_history: 
                 history.append((n1,n2))
                 scores.append(merge_priority)
@@ -553,8 +564,10 @@ class Rag(Graph):
         if any(map(isnan, labels)) or any([label == 0 for l in labels]):
             logging.debug('NaN or 0 labels found. ' + 
                                     ' '.join(map(str, [labels, (n1, n2)])))
-        labels = [1 if i==0 or isnan(i) else i for i in labels]
-        return features, labels, weights, (n1,n2)
+        labels = [1 if i==0 or isnan(i) or n1 in self.frozen_nodes or
+            n2 in self.frozen_nodes or (n1, n2) in self.frozen_edges else 
+            i for i in labels]
+        return features, labels, weights, (n1, n2)
 
     def _learn_agglomerate(self, ctables, feature_map, gt_dts, 
                         learning_mode='forbidden', labeling_mode='assignment'):
@@ -1010,6 +1023,17 @@ class Rag(Graph):
             w = merge_priority_function(self,u,v)
             W[i,j] = W[j,i] = exp(-w**2/sigma)
         return W
+        
+    def update_frozen_sets(self, n1, n2):
+        self.frozen_nodes.discard(n1)
+        self.frozen_nodes.discard(n2)
+        for x, y in self.frozen_edges.copy():
+            if n2 in [x, y]:
+                self.frozen_edges.discard((x, y))
+            if x == n2:
+                self.frozen_edges.add((n1, y))
+            if y == n2:
+                self.frozen_edges.add((x, n1))
 
 def get_edge_coordinates(g, n1, n2, arbitrary=False):
     """Find where in the segmentation the edge (n1, n2) is most visible."""
@@ -1022,7 +1046,15 @@ def get_edge_coordinates(g, n1, n2, arbitrary=False):
         boundary_idxs = unravel_index(list(boundary), g.watershed.shape)
         coords = [bincount(dimcoords).argmax() for dimcoords in boundary_idxs]
     return array(coords) - g.pad_thickness
-
+            
+def is_mito_boundary(g, n1, n2, channel=2, threshold=0.5):
+        return max(np.mean(g.probabilities_r[list(g[n1][n2]["boundary"]), c]) \
+        for c in channel) > threshold
+   
+def is_mito(g, n, channel=2, threshold=0.5):
+        return max(np.mean(g.probabilities_r[list(g.node[n]["extent"]), c]) \
+        for c in channel) > threshold 
+        
 ############################
 # Merge priority functions #
 ############################
@@ -1060,7 +1092,38 @@ def make_ladder(priority_function, threshold, strictness=1):
         else:
             return inf
     return ladder_function
-
+    
+def no_mito_merge(priority_function):
+    def predict(g, n1, n2):
+        if n1 in g.frozen_nodes or n2 in g.frozen_nodes \
+        or (n1, n2) in g.frozen_edges:
+            return np.inf
+        else:
+            return priority_function(g, n1, n2)
+    return predict            
+    
+def mito_merge():
+    def predict(g, n1, n2):  
+        if n1 in g.frozen_nodes and n2 in g.frozen_nodes:
+            return np.inf
+        elif (n1, n2) in g.frozen_edges:
+            return np.inf    
+        elif n1 not in g.frozen_nodes and n2 not in g.frozen_nodes:
+            return np.inf
+        else:
+            if n1 in g.frozen_nodes:
+                mito = n1
+                cyto = n2
+            else:
+                mito = n2
+                cyto = n1
+            if len(g.node[mito]["extent"])>len(g.node[cyto]["extent"]):
+                return np.inf
+            else:
+                return 1.0 - (float(len(g[mito][cyto]["boundary"]))/
+                sum([len(g[mito][x]["boundary"]) for x in g.neighbors(mito)]))
+    return predict            
+     
 def classifier_probability(feature_extractor, classifier):
     def predict(g, n1, n2):
         if n1 == g.boundary_body or n2 == g.boundary_body:

@@ -13,9 +13,10 @@ sys.path.insert(0, pkg_dir)
 import argparse, cPickle
 import subprocess as sp
 import logging
+import functools
 
 # external libraries
-from numpy import unique, inf, nonzero, zeros, uint8
+from numpy import unique, inf, nonzero, zeros, uint8, mean, array
 import numpy as np
 try:
     from skimage import morphology as skmorph
@@ -109,6 +110,12 @@ if __name__ == '__main__':
         help='Use a synapse annotation json file to help segmentation.')
     parser.add_argument('-d', '--synapse-dilation', type=int, metavar='INT',
         help='Dilate synapse points by this amount.', default=1)
+    parser.add_argument('--no-mito-merge', type=float, nargs='+', default=None,
+        help='Mitochodria channels, Mitochondria threshold, Boundary Threshold \
+        for segmenting without merging the mitochondrial superpixels.')
+    parser.add_argument('--mito-merge', type=float, nargs='+', default=None,
+        help='Mitochodria channels, Mitochondria threshold, Boundary Threshold \
+        for merging only the mitochondrial superpixels with the surrounding cytoplasms.')          
     args = parser.parse_args()
     
 
@@ -215,11 +222,33 @@ if __name__ == '__main__':
             mpf = agglo.classifier_probability(fm, cl)
     else:
         mpf = eval(args.priority_function, {}, {'agglo': agglo})
+        
+    if args.no_mito_merge is not None:
+        # In the mito-merge/ no-mito-merge optional argument list, the last (-1) arg is
+        # the threshold used for detecting whether two mitos are touching; and the 
+        # penultimate (-2) arg is the threshold for mito detection. The rest of the 
+        # elements in the argument list are the mito channels used in the boundary
+        # prediction.
+        mpf = agglo.no_mito_merge(mpf)
+        is_mito = functools.partial(agglo.is_mito, channel=args.no_mito_merge[0:-2],\
+        threshold=args.no_mito_merge[-2])
+        is_mito_boundary =  functools.partial(agglo.is_mito_boundary,\
+        channel=args.no_mito_merge[0:-2], threshold=args.no_mito_merge[-1])
+    if args.mito_merge is not None:
+        mpf = agglo.mito_merge()
+        is_mito = functools.partial(agglo.is_mito, channel=args.mito_merge[0:-2],\
+        threshold=args.mito_merge[-2])
+        is_mito_boundary =  functools.partial(agglo.is_mito_boundary,\
+        channel=args.mito_merge[0:-2], threshold=args.mito_merge[-1])    
 
     MasterLogger.info("Building RAG")
     g = None
     if args.use_neuroproof:
-        g = stack_np.Stack(ws, p, single_channel=args.single_channel, classifier=cl) 
+        g = stack_np.Stack(ws, p, single_channel=args.single_channel, classifier=cl)        
+    elif args.no_mito_merge is not None or args.mito_merge is not None:       
+        g = agglo.Rag(ws, p, mpf, feature_manager=fm, 
+            show_progress=args.show_progress, nozeros=args.nozeros, 
+            exclusions=synapse_volume, isfrozennode=is_mito, isfrozenedge=is_mito_boundary)
     else:
         g = agglo.Rag(ws, p, mpf, feature_manager=fm, 
             show_progress=args.show_progress, nozeros=args.nozeros, 
@@ -244,6 +273,10 @@ if __name__ == '__main__':
         MasterLogger.info("Finished removing inclusions with %i nodes" % 
                                                 g.number_of_nodes())
         s = g.get_segmentation()
+        if args.no_mito_merge is not None or args.mito_merge is not None:
+            if args.classifier is not None:
+                g.merge_priority_function = agglo.classifier_probability(fm, cl)
+                g.rebuild_merge_queue()
         MasterLogger.info("Exporting volume")
         imio.write_image_stack(s, (h5stacks +'.lzf.h5')%t, compression='lzf')
         if args.raveler_export:
@@ -251,6 +284,7 @@ if __name__ == '__main__':
         if args.raveler_export and args.graph_json_export:
             g.write_plaza_json(
                 os.path.join((ravelervol)%t, 'graph.json'), args.synapse_file)
+                
     MasterLogger.info("Complete RAG agglomeration")
     if not args.use_neuroproof:
         g.agglomerate(inf)
