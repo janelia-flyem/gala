@@ -14,6 +14,7 @@ from numpy import   shape, reshape, \
                     ndarray, minimum, bincount, dot, nonzero, concatenate, \
                     setdiff1d, inf, flatnonzero
 import itertools
+import logging
 import re
 from collections import defaultdict, deque as queue
 from scipy.ndimage import filters, grey_dilation, generate_binary_structure, \
