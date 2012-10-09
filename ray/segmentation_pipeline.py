@@ -62,7 +62,22 @@ def gen_supervoxels(session_location, options, prediction_file, master_logger):
         master_logger.debug("Finished removing small seeds")
 
     master_logger.info("Starting watershed")
-    supervoxels = skmorph.watershed(boundary, seeds)
+    
+    boundary_cropped = boundary
+    seeds_cropped = seeds 
+    if options.border_size > 0:
+        boundary_cropped = boundary[options.border_size:(-1*options.border_size), options.border_size:(-1*options.border_size),options.border_size:(-1*options.border_size)]
+        seeds_cropped = seeds[options.border_size:(-1*options.border_size), options.border_size:(-1*options.border_size),options.border_size:(-1*options.border_size)]
+
+    supervoxels_cropped = skmorph.watershed(boundary_cropped, seeds_cropped)
+    
+    supervoxels = supervoxels_cropped
+    if options.border_size > 0:
+        supervoxels = seeds.copy()
+        supervoxels.dtype = supervoxels_cropped.dtype
+        supervoxels[:,:,:] = 0 
+        supervoxels[options.border_size:(-1*options.border_size), options.border_size:(-1*options.border_size),options.border_size:(-1*options.border_size)] = supervoxels_cropped
+
     master_logger.info("Finished watershed")
 
     if options.synapse_file is not None:
@@ -70,6 +85,13 @@ def gen_supervoxels(session_location, options, prediction_file, master_logger):
         pre_post_pairs = syngeo.io.raveler_synapse_annotations_to_coords(
             options.synapse_file)
         synapse_volume = syngeo.io.volume_synapse_view(pre_post_pairs, boundary.shape)
+        if options.border_size > 0:
+            synvol_cropped = synapse_volume[options.border_size:(-1*options.border_size), options.border_size:(-1*options.border_size),options.border_size:(-1*options.border_size)]
+            synvol_cropped = synvol_cropped.copy()
+            synapse_volume[:,:,:] = 0
+            synapse_volume[options.border_size:(-1*options.border_size), options.border_size:(-1*options.border_size),options.border_size:(-1*options.border_size)] = synvol_cropped
+             
+        
         supervoxels = morpho.split_exclusions(boundary, supervoxels, synapse_volume, 
                                                         options.synapse_dilation)
         master_logger.info("Finished processing synapses")
@@ -353,6 +375,9 @@ def create_segmentation_pipeline_options(options_parser):
         default_val=1, required=False, dtype=int, verify_fn=None, num_args=None,
         shortcut=None, warning=False, hidden=True) 
 
+    options_parser.create_option("border-size", "Size of the border in pixels", 
+        default_val=0, required=False, dtype=int, verify_fn=None, num_args=None,
+        shortcut=None, warning=False, hidden=True) 
 
 def entrypoint(argv):
     applogger = app_logger.AppLogger(False, 'seg-pipeline')
