@@ -1,4 +1,5 @@
 import imio, option_manager, app_logger, session_manager
+import libNeuroProofPriority as neuroproof
 import os
 import sys
 import glob
@@ -35,6 +36,10 @@ def create_valprob_options(options_parser):
         default_val=None, required=True, dtype=str, verify_fn=graph_file_verify, num_args=None,
         shortcut='R', warning=False) 
 
+    options_parser.create_option("size-threshold", "Number of voxels used in threshold", 
+        default_val=25000, required=False, dtype=int, verify_fn=None, num_args=None,
+        shortcut='ST', warning=False) 
+
 def load_graph_json(json_file):
     json_file_handle = open(json_file)
     json_data = json.load(json_file_handle)
@@ -69,6 +74,81 @@ def find_gt_bodies(gt_stack, test_stack):
         body2gtbody[key] = max_id
     return body2gtbody
 
+def process_edge(body2gtbody, nomerge_hist, tot_hist, nomerge_hist2, tot_hist2, dirtybodies):
+    priority = neuroproof.get_next_edge()
+    (body1, body2) = priority.body_pair
+    weight = neuroproof.get_edge_val(priority)  
+
+    if body1 not in dirtybodies and body2 not in dirtybodies:
+        tot_hist[int(weight*100)] += 1
+    tot_hist2[int(weight*100)] += 1
+    link = True
+    if body2gtbody[body1] != body2gtbody[body2]:
+        if body1 not in dirtybodies and body2 not in dirtybodies:
+            nomerge_hist[int(weight*100)] += 1
+        nomerge_hist2[int(weight*100)] += 1
+        link = False
+    else:
+        dirtybodies.add(body1)
+    neuroproof.set_edge_result(priority.body_pair, link)
+
+
+def auto_proofread(body2gtbody, rag_file, size_threshold, master_logger):
+    nomerge_hist = []
+    tot_hist = []
+    nomerge_hist2 = []
+    tot_hist2 = []
+    dirtybodies = set()
+    for iter1 in range(0, 101):
+        nomerge_hist.append(0)
+        tot_hist.append(0)
+        nomerge_hist2.append(0)
+        tot_hist2.append(0)
+
+    neuroproof.initialize_priority_scheduler(rag_file, 0.1, 0.9, 0.1)
+
+    num_body = 0   
+    neuroproof.set_body_mode(size_threshold, 0) 
+    while neuroproof.get_estimated_num_remaining_edges() > 0:
+        process_edge(body2gtbody, nomerge_hist, tot_hist, nomerge_hist2, tot_hist2, dirtybodies)
+        num_body += 1
+
+    num_synapse = 0   
+    neuroproof.set_synapse_mode(0.1) 
+    while neuroproof.get_estimated_num_remaining_edges() > 0:
+        process_edge(body2gtbody, nomerge_hist, tot_hist, nomerge_hist2, tot_hist2, dirtybodies)
+        num_synapse += 1
+
+    num_orphan = 0   
+    neuroproof.set_orphan_mode(size_threshold, size_threshold, size_threshold) 
+    while neuroproof.get_estimated_num_remaining_edges() > 0:
+        process_edge(body2gtbody, nomerge_hist, tot_hist, nomerge_hist2, tot_hist2, dirtybodies)
+        num_orphan += 1
+
+    master_logger.info("Num body: " + str(num_body))
+    master_logger.info("Num synapse: " + str(num_synapse))
+    master_logger.info("Num orphan: " + str(num_orphan))
+    master_logger.info("Num total: " + str(num_body + num_synapse + num_orphan))
+
+    master_logger.info("Probability Actual Agreement with Groundtruth Flat")
+    for iter1 in range(0, 101):
+        if tot_hist[iter1] == 0:
+            per = 0
+        else:
+            per = (float(nomerge_hist[iter1])/float(tot_hist[iter1]) * 100)
+        print iter1, ", ", per , ", " , tot_hist[iter1] 
+
+    master_logger.info("Probability Actual Agreement with Groundtruth Est")
+    for iter1 in range(0, 101):
+        if tot_hist2[iter1] == 0:
+            per = 0
+        else:
+            per = (float(nomerge_hist2[iter1])/float(tot_hist2[iter1]) * 100)
+        print iter1, ", ", per , ", " , tot_hist2[iter1] 
+
+
+
+
 def valprob(session_location, options, master_logger):
     master_logger.info("Reading gt_stack")
     gt_stack = imio.read_image_stack(options.gt_stack)
@@ -96,6 +176,7 @@ def valprob(session_location, options, master_logger):
         if body2gtbody[node1] != body2gtbody[node2]:
             nomerge_hist[int(prob*100)] += 1
 
+    master_logger.info("Probability Agreement with Groundtruth")
     for iter1 in range(0, 101):
         if tot_hist[iter1] == 0:
             per = 0
@@ -103,6 +184,7 @@ def valprob(session_location, options, master_logger):
             per = (float(nomerge_hist[iter1])/float(tot_hist[iter1]) * 100)
         print iter1, ", ", per , ", " , tot_hist[iter1] 
     
+    auto_proofread(body2gtbody, options.ragprob_file, options.size_threshold, master_logger)
 
 
 def entrypoint(argv):
