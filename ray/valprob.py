@@ -74,7 +74,7 @@ def find_gt_bodies(gt_stack, test_stack):
         body2gtbody[key] = max_id
     return body2gtbody
 
-def process_edge(body2gtbody, nomerge_hist, tot_hist, nomerge_hist2, tot_hist2, dirtybodies):
+def process_edge(body2gtbody, nomerge_hist, tot_hist, nomerge_hist2, tot_hist2, dirtybodies, bodyremap):
     priority = neuroproof.get_next_edge()
     (body1, body2) = priority.body_pair
     weight = neuroproof.get_edge_val(priority)  
@@ -89,11 +89,20 @@ def process_edge(body2gtbody, nomerge_hist, tot_hist, nomerge_hist2, tot_hist2, 
         nomerge_hist2[int(weight*100)] += 1
         link = False
     else:
+        if body2 not in bodyremap:
+            bodyremap[body2] = [body2]
+        if body1 not in bodyremap:
+            bodyremap[body1] = [body1]
+
         dirtybodies.add(body1)
+        bodyremap[body1].extend(bodyremap[body2])
+        del bodyremap[body2]
+
+
     neuroproof.set_edge_result(priority.body_pair, link)
 
 
-def auto_proofread(body2gtbody, rag_file, size_threshold, master_logger):
+def auto_proofread(body2gtbody, rag_file, size_threshold, master_logger, test_stack, session_location):
     nomerge_hist = []
     tot_hist = []
     nomerge_hist2 = []
@@ -107,28 +116,25 @@ def auto_proofread(body2gtbody, rag_file, size_threshold, master_logger):
 
     neuroproof.initialize_priority_scheduler(rag_file, 0.1, 0.9, 0.1)
 
+    bodyremap = {}
+
     num_body = 0   
     neuroproof.set_body_mode(size_threshold, 0) 
     while neuroproof.get_estimated_num_remaining_edges() > 0:
-        process_edge(body2gtbody, nomerge_hist, tot_hist, nomerge_hist2, tot_hist2, dirtybodies)
+        process_edge(body2gtbody, nomerge_hist, tot_hist, nomerge_hist2, tot_hist2, dirtybodies, bodyremap)
         num_body += 1
 
     num_synapse = 0   
     neuroproof.set_synapse_mode(0.1) 
     while neuroproof.get_estimated_num_remaining_edges() > 0:
-        process_edge(body2gtbody, nomerge_hist, tot_hist, nomerge_hist2, tot_hist2, dirtybodies)
+        process_edge(body2gtbody, nomerge_hist, tot_hist, nomerge_hist2, tot_hist2, dirtybodies, bodyremap)
         num_synapse += 1
 
     num_orphan = 0   
     neuroproof.set_orphan_mode(size_threshold, size_threshold, size_threshold) 
     while neuroproof.get_estimated_num_remaining_edges() > 0:
-        process_edge(body2gtbody, nomerge_hist, tot_hist, nomerge_hist2, tot_hist2, dirtybodies)
+        process_edge(body2gtbody, nomerge_hist, tot_hist, nomerge_hist2, tot_hist2, dirtybodies, bodyremap)
         num_orphan += 1
-
-    master_logger.info("Num body: " + str(num_body))
-    master_logger.info("Num synapse: " + str(num_synapse))
-    master_logger.info("Num orphan: " + str(num_orphan))
-    master_logger.info("Num total: " + str(num_body + num_synapse + num_orphan))
 
     master_logger.info("Probability Actual Agreement with Groundtruth Flat")
     for iter1 in range(0, 101):
@@ -146,7 +152,31 @@ def auto_proofread(body2gtbody, rag_file, size_threshold, master_logger):
             per = (float(nomerge_hist2[iter1])/float(tot_hist2[iter1]) * 100)
         print iter1, ", ", per , ", " , tot_hist2[iter1] 
 
+    body2body = {}
+    for key, vallist in bodyremap.items():
+        for body in vallist:
+            body2body[body] = key
 
+    os.system("cp -R " + test_stack + "/superpixel_maps " + session_location + "/") 
+    os.system("cp " + test_stack + "/superpixel_to_segment_map.txt " + session_location + "/") 
+
+    mapping_file = open(test_stack + "/segment_to_body_map.txt")
+    outfile = open(session_location + "/segment_to_body_map.txt", 'w')
+
+    for line in mapping_file.readlines():
+        vals = line.split(' ')
+        
+        seg = int(vals[0])
+        body = int(vals[1])
+
+        if body in body2body:
+            body = body2body[body]
+        outfile.write(str(seg) + " " + str(body) + "\n")
+
+    master_logger.info("Num body: " + str(num_body))
+    master_logger.info("Num synapse: " + str(num_synapse))
+    master_logger.info("Num orphan: " + str(num_orphan))
+    master_logger.info("Num total: " + str(num_body + num_synapse + num_orphan))
 
 
 def valprob(session_location, options, master_logger):
@@ -184,7 +214,7 @@ def valprob(session_location, options, master_logger):
             per = (float(nomerge_hist[iter1])/float(tot_hist[iter1]) * 100)
         print iter1, ", ", per , ", " , tot_hist[iter1] 
     
-    auto_proofread(body2gtbody, options.ragprob_file, options.size_threshold, master_logger)
+    auto_proofread(body2gtbody, options.ragprob_file, options.size_threshold, master_logger, options.test_stack, session_location)
 
 
 def entrypoint(argv):
