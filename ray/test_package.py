@@ -4,6 +4,7 @@ import unittest
 import os
 import sys
 import shutil
+import json
 
 np_installed = True
 
@@ -68,8 +69,8 @@ class testModules(unittest.TestCase):
         from ray import classify
         self.datadir = os.path.abspath(os.path.dirname(sys.modules["ray"].__file__)) + "/testdata/"
 
-        cl = classify.get_classifier()
-        fm_info = cl.load_from_disk(self.datadir + "agglomclassifier_np.rf.h5")
+        cl = classify.load_classifier(self.datadir + "agglomclassifier_np.rf.h5")
+        fm_info = json.loads(str(cl.feature_description))
 
         watershed, boundary, prediction = self.gen_watershed()
         stack = stack_np.Stack(watershed, prediction, single_channel=False,
@@ -86,8 +87,8 @@ class testModules(unittest.TestCase):
         from ray import classify
         self.datadir = os.path.abspath(os.path.dirname(sys.modules["ray"].__file__)) + "/testdata/"
 
-        cl = classify.get_classifier()
-        fm_info = cl.load_from_disk(self.datadir + "agglomclassifier.rf.h5")
+        cl = classify.load_classifier(self.datadir + "agglomclassifier.rf.h5")
+        fm_info = json.loads(str(cl.feature_description))
         fm = features.io.create_fm(fm_info)
         mpf = agglo.classifier_probability(fm, cl)
 
