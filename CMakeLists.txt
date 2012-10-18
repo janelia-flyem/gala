@@ -28,7 +28,7 @@ if (NOT EXISTS ${FLYEM_BUILD_REPO_DIR}/python.cmake)
     message ("Installing flyem-build repo...")
     ExternalProject_Add(flyem-build
         PREFIX              ${FLYEM_BUILD_DIR}
-        GIT_REPOSITORY      https://github.com/janelia-flyem/flyem-build.git
+        GIT_REPOSITORY      http://github.com/janelia-flyem/flyem-build.git
         UPDATE_COMMAND      ""
         PATCH_COMMAND       ""
         CONFIGURE_COMMAND   "" 
@@ -49,17 +49,17 @@ else ()
 
     # Download and compile dependencies
     include (cython)
-    include (h5py)
     include (numpy)
     include (scipy)
-    include (vigra)
+    include (h5py)
     include (pil)
+    include (vigra)
+    include (networkx)
 
-    include (EasyInstall)
-    easy_install (networkx)
-    easy_install (progressbar)
-    easy_install (scikits-image)
-    easy_install (scikit-learn)
+    include (progressbar)
+    include (matplotlib)
+    include (scikit-image)
+    include (scikit-learn)
 
     # Install ray
     add_custom_target (ray ALL 
