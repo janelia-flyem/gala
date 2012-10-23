@@ -88,53 +88,37 @@ def main(argv):
         stackbase_int, dummy1, dummy2 = ev.relabel_from_one(stackbase_int)
     print "Imported base stack"
     
-    merge = None
-    split = None
-    stack1_bodies = None
-    stack1_vis = None
-    gt_bodies = None
-    gt_vis = None
-
     if args.synapsejson != '':
-        synaptic_vi, synaptic_comps = ev.make_synaptic_functions(args.synapsejson, [ev.split_vi, ev.sorted_vi_components])
-        merge, split = synaptic_vi(stack1_int, stackbase_int)
+        synaptic_vi, synaptic_comps = ev.make_synaptic_functions(args.synapsejson, [ev.split_vi_mem, ev.split_vi_mem])
+        merge, split, stack1_bodies2, stack1_vis2, gt_bodies2, gt_vis2 = synaptic_vi(stack1_int, stackbase_int)
         print "SynMergeSplit: " + str((merge, split))
-        stack1_bodies, stack1_vis, gt_bodies, gt_vis = synaptic_comps(stack1_int, stackbase_int)
     else:
-        merge, split = ev.split_vi(stack1_int, stackbase_int)
+        merge, split, stack1_bodies2, stack1_vis2, gt_bodies2, gt_vis2 = ev.split_vi_mem(stack1_int, stackbase_int)
         print "MergeSplit: " + str((merge, split))
-        stack1_bodies, stack1_vis, gt_bodies, gt_vis = ev.sorted_vi_components(stack1_int, stackbase_int)
-
-
+        
     data=[]
     database=[]
-
-    stack1_fp = open(args.stack1_outjson, "w")
-    stackbase_fp = open(args.stackbase_outjson, "w")
-
-    i=0
     accum = 0
-
     if merge > args.VIthres:
-        for bodyid in stack1_bodies:
+        for bodyid in stack1_bodies2:
             if accum > (merge - args.VIthres):
                 break        
-            accum += stack1_vis[i]
-            i += 1
-            data.append({'status' : 'not sure', 'body ID' : int(bodyid), 'vi contrib' : stack1_vis[i-1]})    
+            accum += stack1_vis2[bodyid]
+            data.append({'status' : 'not sure', 'body ID' : int(bodyid), 'vi contrib' : stack1_vis2[bodyid]})    
 
-    i=0
     accum = 0
     if split > args.VIthres:
-        for bodyid in gt_bodies:
+        for bodyid in gt_bodies2:
             if accum > (split - args.VIthres):
                 break        
-            accum += gt_vis[i]
-            i += 1
-            database.append({'status' : 'not sure', 'body ID' : int(bodyid), 'vi contrib' : gt_vis[i-1]})    
+            accum += gt_vis2[bodyid]
+            database.append({'status' : 'not sure', 'body ID' : int(bodyid), 'vi contrib' : gt_vis2[bodyid]})    
 
     json_out_data = {'data' : data}
     json_out_data2 = {'data' : database}
+    
+    stack1_fp = open(args.stack1_outjson, "w")
+    stackbase_fp = open(args.stackbase_outjson, "w")
 
     stack1_fp.write(json.dumps(json_out_data, sort_keys=False, indent=2)) 
     stackbase_fp.write(json.dumps(json_out_data2, sort_keys=False, indent=2)) 

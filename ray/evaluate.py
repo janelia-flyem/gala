@@ -219,6 +219,72 @@ def rand_by_threshold(ucm, gt, npoints=None):
         result[1,i] = adj_rand_index(seg, gt)
     return np.concatenate((ts[np.newaxis, :], result), axis=0)
 
+def calc_entropy(split_vals, count):
+    col_count = 0
+    for key, val in split_vals.items(): 
+        col_count += val
+    col_prob = float(col_count) / count 
+    
+    ent_val = 0
+    for key, val in split_vals.items(): 
+        val_norm = float(val)/count
+        temp = (val_norm / col_prob)
+        ent_val += temp * np.log2(temp) 
+    return -(col_prob * ent_val)
+
+
+def split_vi_mem(x, y):
+    x_labels = np.unique(x)
+    y_labels = np.unique(y)
+    x_labels0 = x_labels[x_labels != 0]
+    y_labels0 = y_labels[y_labels != 0]
+ 
+    x_map = {}
+    y_map = {}
+
+    for label in x_labels0:
+        x_map[label] = {}
+
+    for label in y_labels0:
+        y_map[label] = {}
+    
+    x_flat = x.ravel()
+    y_flat = y.ravel()
+
+    count = 0
+    print "Analyzing similarities"
+    for pos in range(0,len(x_flat)):
+        x_val = x_flat[pos]
+        y_val = y_flat[pos]
+
+        if x_val != 0 and y_val != 0:
+            x_map[x_val].setdefault(y_val, 0)
+            y_map[y_val].setdefault(x_val, 0)
+            (x_map[x_val])[y_val] += 1        
+            (y_map[y_val])[x_val] += 1        
+            count += 1
+    print "Finished analyzing similarities"
+     
+    x_ents = {}
+    y_ents = {}
+    x_sum = 0.0
+    y_sum = 0.0
+
+    for key, vals in x_map.items():
+        x_ents[key] = calc_entropy(vals, count)
+        x_sum += x_ents[key]
+
+    for key, vals in y_map.items():
+        y_ents[key] = calc_entropy(vals, count)
+        y_sum += y_ents[key]
+
+    x_s = sorted(x_ents.items(), key=lambda x: x[1], reverse=True)
+    y_s = sorted(y_ents.items(), key=lambda x: x[1], reverse=True)
+    x_sorted = [ pair[0] for pair in x_s ]
+    y_sorted = [ pair[0] for pair in y_s ]
+
+    return x_sum, y_sum, x_sorted, x_ents, y_sorted, y_ents
+
 def vi_tables(x, y=None, ignore_x=[0], ignore_y=[0]):
     """Return probability tables used for calculating VI.
     
