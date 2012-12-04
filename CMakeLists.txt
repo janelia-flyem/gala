@@ -11,24 +11,24 @@ endif ()
 
 ################################################################################
 # Check if FLYEM_BUILD_DIR has already been assigned.  If not, create a default.
-set (FLYEM_BUILD_DIR "None" CACHE TYPE STRING)
+set (BUILDEM_DIR "None" CACHE TYPE STRING)
 
-if (${FLYEM_BUILD_DIR} STREQUAL "None")
-    message (FATAL_ERROR "ERROR: FlyEM build directory (for all downloads & builds) should be specified via -DFLYEM_BUILD_DIR=<path> on cmake command line.")
+if (${BUILDEM_DIR} STREQUAL "None")
+    message (FATAL_ERROR "ERROR: Buildem directory (for all downloads & builds) should be specified via -DBUILDEM_DIR=<path> on cmake command line.")
 endif ()
 
-message ("FlyEM downloads and builds will be placed here: ${FLYEM_BUILD_DIR}")
+message ("FlyEM downloads and builds will be placed here: ${BUILDEM_DIR}")
 
 ###############################################################################
 
 ###############################################################################
 # Download and install flyem-build, if it isn't already in FLYEM_BUILD_DIR.
-set (FLYEM_BUILD_REPO_DIR ${FLYEM_BUILD_DIR}/src/flyem-build)
-if (NOT EXISTS ${FLYEM_BUILD_REPO_DIR}/python.cmake)
-    message ("Installing flyem-build repo...")
-    ExternalProject_Add(flyem-build
-        PREFIX              ${FLYEM_BUILD_DIR}
-        GIT_REPOSITORY      http://github.com/janelia-flyem/flyem-build.git
+set (BUILDEM_REPO_DIR ${BUILDEM_DIR}/src/buildem)
+if (NOT EXISTS ${BUILDEM_REPO_DIR}/python.cmake)
+    message ("Installing buildem repo...")
+    ExternalProject_Add(buildem
+        PREFIX              ${BUILDEM_DIR}
+        GIT_REPOSITORY      http://github.com/janelia-flyem/buildem.git
         UPDATE_COMMAND      ""
         PATCH_COMMAND       ""
         CONFIGURE_COMMAND   "" 
@@ -44,27 +44,30 @@ else ()
     ###############################################################################
 
     # Use modules from the downloaded flyem-build
-    set (CMAKE_MODULE_PATH ${FLYEM_BUILD_REPO_DIR})
-    message("Using cmake modules from ${FLYEM_BUILD_REPO_DIR}")
+    set (CMAKE_MODULE_PATH ${BUILDEM_REPO_DIR})
+    message("Using cmake modules from ${BUILDEM_REPO_DIR}")
+    include (BuildSupport)
 
     # Download and compile dependencies
-    include (cython)
-    include (numpy)
+    include (python)
+    include (pyopengl)
     include (scipy)
     include (h5py)
     include (pil)
-    include (vigra)
-    include (networkx)
+    include (ilastik-gui)
 
+    include (networkx)
     include (progressbar)
     include (matplotlib)
     include (scikit-image)
     include (scikit-learn)
+    include (syngeo)
 
     # Install ray
     add_custom_target (ray ALL 
         DEPENDS     ${APP_DEPENDENCIES}
-        COMMENT     "Building ray and all dependencies...")
+        COMMAND     ${BUILDEM_ENV_STRING} ${PYTHON_EXE} setup.py install
+        WORKING_DIRECTORY   ${CMAKE_CURRENT_SOURCE_DIR})
     
     ###############################################################################
 endif()

@@ -178,8 +178,8 @@ def flow_perform_agglomeration(options, supervoxels, prediction, image_stack,
             if not fm_info["neuroproof_features"]:
                 raise Exception("random forest created not using neuroproof") 
             agglom_stack = stack_np.Stack(supervoxels, prediction,
-                single_channel=False, classifier=cl, feature_info=fm_info, synapse_file=options.synapse_file,
-                master_logger=master_logger) 
+                single_channel=False, classifier=cl, feature_info=fm_info, 
+                synapse_file=options.synapse_file, master_logger=master_logger) 
         else:
             if fm_info["neuroproof_features"]:
                 master_logger.warning("random forest created using neuroproof features -- should still work") 
@@ -200,7 +200,8 @@ def flow_perform_agglomeration(options, supervoxels, prediction, image_stack,
             agglom_stack = stack_np.Stack(supervoxels, boundary, synapse_file=options.synapse_file,
                         master_logger=master_logger)
         else:
-            agglom_stack = agglo.Rag(supervoxels, boundary, merge_priority_function=agglo.boundary_median,
+            agglom_stack = agglo.Rag(supervoxels, boundary, 
+                merge_priority_function=agglo.boundary_median,
                 show_progress=True, nozeros=True, exclusions=synapse_volume)
         master_logger.info("Finished building RAG")
 
@@ -249,7 +250,8 @@ def run_segmentation_pipeline(session_location, options, master_logger):
                 session_location + "/" + options.supervoxels_name, compression='lzf')
 
         if options.raveler_output:
-            sps_out = output_raveler(supervoxels, supervoxels, image_stack, "supervoxels", session_location, master_logger)
+            sps_out = output_raveler(supervoxels, supervoxels, image_stack, 
+                "supervoxels", session_location, master_logger)
             if options.synapse_file is not None:
                 shutil.copyfile(options.synapse_file,
                         session_location + "/raveler-export/supervoxels/annotations-synapse.json") 
@@ -258,7 +260,8 @@ def run_segmentation_pipeline(session_location, options, master_logger):
     if options.gen_agglomeration:
         if prediction is None and options.pixelprob_file is not None:
             master_logger.info("Reading pixel prediction: " + options.pixelprob_file)
-            prediction = imio.read_image_stack(options.pixelprob_file, group='/volume/prediction', single_channel=False)
+            prediction = imio.read_image_stack(options.pixelprob_file, 
+                group='/volume/prediction', single_channel=False)
             master_logger.info("Finished reading pixel prediction")
         elif prediction is None:
             raise Exception("No pixel probs available for agglomeration")
@@ -384,9 +387,9 @@ def entrypoint(argv):
     master_logger = applogger.get_logger()
 
     try: 
-        session = session_manager.Session("seg-pipeline", "Segmentation pipeline (featuring boundary prediction, median agglomeration or trained agglomeration, inclusion removal, and raveler exports)", 
+        session = session_manager.Session("seg-pipeline", 
+            "Segmentation pipeline (featuring boundary prediction, median agglomeration or trained agglomeration, inclusion removal, and raveler exports)", 
             master_logger, applogger, create_segmentation_pipeline_options)    
-
         run_segmentation_pipeline(session.session_location, session.options, master_logger) 
     except Exception, e:
         master_logger.error(str(traceback.format_exc()))
