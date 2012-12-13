@@ -5,8 +5,8 @@
 import os
 import sys
 
-this_dir = os.path.realpath(sys.argv[0])
-pkg_dir = os.path.realpath(os.path.join(this_dir, '..'))
+this_dir = os.path.dirname(sys.argv[0])
+pkg_dir = os.path.abspath(os.path.join(this_dir, '..'))
 sys.path.insert(0, pkg_dir)
 
 # Python standard library
@@ -27,17 +27,10 @@ from scipy.ndimage import label
 try:
     import syngeo
 except ImportError:
-    logging.warning('Could not import syngeo. ' +
-                                        'Synapse-aware mode not available.')
+    logging.warning('Could not import syngeo. Synapse-aware mode not available.')
 
 # local modules
 from ray import imio, agglo, morpho, classify, features, evaluate
-
-
-try:
-    from ray import stack_np
-except ImportError:
-    pass
 
 
 if __name__ == '__main__':
@@ -131,21 +124,24 @@ if __name__ == '__main__':
         for training without merging the mitochondrial superpixels.')    
     args = parser.parse_args()
 
-    if args.use_neuroproof:
-        try:
-            from ray import stack_np
-        except ImportError:
-            MasterLogger.warning("NeuroProof could not be imported")
-            sys.exit(1)
-    
-    experiment_prefix = os.path.join(args.output_dir, args.experiment_name)
-
     MasterLogger = logging.getLogger('pipeline')
     MasterLogger.propagate = False
     MasterLogger.setLevel(logging.DEBUG)
     console = logging.StreamHandler(sys.stdout)
     console.setLevel(logging.INFO)
+    formatter = logging.Formatter('%(levelname)-8s %(message)s')
+    console.setFormatter(formatter)
+    MasterLogger.addHandler(console)
     
+    if args.use_neuroproof:
+        try:
+            from ray import stack_np
+        except ImportError:
+            MasterLogger.warning("NeuroProof could not be imported.  sys path: %s" % sys.path)
+            raise
+    
+    experiment_prefix = os.path.join(args.output_dir, args.experiment_name)
+
     formatter = logging.Formatter('%(levelname)-8s %(message)s')
     console.setFormatter(formatter)
     MasterLogger.addHandler(console)
@@ -167,7 +163,8 @@ if __name__ == '__main__':
     MasterLogger.info("Script called: " + ' '.join(sys.argv))
     MasterLogger.info("Script run from: " + os.path.realpath('.'))
 
-    p = imio.read_image_stack(args.fin[0], single_channel=False)
+    p = imio.read_image_stack(args.fin[0], single_channel=False,
+            group='/volume/predictions')
     p0 = p if args.no_channel_data else p[..., 0]
     if args.single_channel: p = p0
     gs = evaluate.relabel_from_one(imio.read_image_stack(args.fin[1]))[0]
@@ -204,6 +201,8 @@ if __name__ == '__main__':
         synapse_volume = np.zeros(p0.shape, np.uint8)
         
     # mito aware
+    is_mito = None
+    is_mito_boundary = None
     if args.no_mito_merge is not None:
         # In the mito-merge/ no-mito-merge optional argument list, the last (-1) arg is
         # the threshold used for detecting whether two mitos are touching; and the 

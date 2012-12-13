@@ -54,7 +54,7 @@ else ()
     include (scipy)
     include (h5py)
     include (pil)
-    include (ilastik-gui)
+    include (ilastik)
 
     include (networkx)
     include (progressbar)

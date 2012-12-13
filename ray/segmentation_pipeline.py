@@ -46,7 +46,7 @@ def gen_supervoxels(session_location, options, prediction_file, master_logger):
     if not os.path.isfile(prediction_file):
         raise Exception("Training file not found: " + prediction_file)
 
-    prediction = imio.read_image_stack(prediction_file, group='/volume/prediction', single_channel=False)
+    prediction = imio.read_image_stack(prediction_file, group='/volume/predictions', single_channel=False)
 
     if options.extract_ilp_prediction:
         prediction = prediction.transpose((2, 1, 0))
@@ -147,7 +147,7 @@ def output_raveler(segmentation, supervoxels, image_stack, name, session_locatio
     sps_out, dummy1, dummy2 = rav
     
     if os.path.exists(outdir):
-        master_logger.warning("Overwriting Raveler diretory: " + outdir)
+        master_logger.warning("Overwriting Raveler directory: " + outdir)
         shutil.rmtree(outdir)
     imio.write_to_raveler(*rav, directory=outdir, gray=image_stack)
     return sps_out
@@ -220,15 +220,13 @@ def flow_perform_agglomeration(options, supervoxels, prediction, image_stack,
 
 def run_segmentation_pipeline(session_location, options, master_logger): 
     # read grayscale
-    image_stack = None
-    if options.image_stack is not None:
-        image_stack = imio.read_image_stack(options.image_stack)
+    if options.image_stack is None:
+        raise Exception("Must specify path to grayscale in 'image-stack'")
 
-    prediction_file = None
-    # run boundary prediction -- produces a prediction file 
+    # run boundary prediction -- produces a prediction file
     if options.gen_pixel:
-        pixel.gen_pixel_probabilities(session_location, options, master_logger, image_stack)
-        prediction_file = session_location + "/" + options.pixelprob_name
+        prediction_file = pixel.gen_pixel_probabilities(session_location, options, master_logger, 
+            options.image_stack)
     else:
         prediction_file  = options.pixelprob_file
         
@@ -250,6 +248,7 @@ def run_segmentation_pipeline(session_location, options, master_logger):
                 session_location + "/" + options.supervoxels_name, compression='lzf')
 
         if options.raveler_output:
+            image_stack = imio.read_image_stack(options.image_stack)
             sps_out = output_raveler(supervoxels, supervoxels, image_stack, 
                 "supervoxels", session_location, master_logger)
             if options.synapse_file is not None:
@@ -390,6 +389,7 @@ def entrypoint(argv):
         session = session_manager.Session("seg-pipeline", 
             "Segmentation pipeline (featuring boundary prediction, median agglomeration or trained agglomeration, inclusion removal, and raveler exports)", 
             master_logger, applogger, create_segmentation_pipeline_options)    
+        master_logger.info("Session location: " + session.session_location)
         run_segmentation_pipeline(session.session_location, session.options, master_logger) 
     except Exception, e:
         master_logger.error(str(traceback.format_exc()))

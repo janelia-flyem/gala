@@ -191,8 +191,8 @@ class VigraRandomForest(object):
         labels = labels.reshape((labels.size, 1))
         return labels
 
-    def save_to_disk(self, fn, rfgroupname='rf', overwrite=True):
-        self.rf.writeHDF5(fn, rfgroupname, overwrite)
+    def save_to_disk(self, fn, rfgroupname='rf'):
+        self.rf.writeHDF5(fn, rfgroupname)
         attr_list = ['oob', 'feature_importance', 'use_feature_importance',
             'feature_description']
         f = h5py.File(fn)

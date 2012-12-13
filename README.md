@@ -15,6 +15,7 @@ volumes...) and multiple channels per image.
 * h5py (1.5.0)
 * scipy (0.7.0, 0.9.0, 0.10.0)
 
+
 All of the above are included in the Enthought Python Distribution, so I would
 recommend you just install that if you can.
 
@@ -22,22 +23,35 @@ recommend you just install that if you can.
 
 * progressbar 2.3-dev
 * [vigra/vigranumpy](hci.iwr.uni-heidelberg.de/vigra/) (1.7.1)
-* scikits.learn (0.7.1, 0.8)
-
-progressbar is in PyPi and trivial to install:
-
-```
-sudo easy_install progressbar
-```
+* vigra (1.9.0)
 
 For vigra, you are on your own. It is used for the random forest classifier,
 but if you don't install it you can still use SVM or AdaBoost classifiers.
 
 ## Installation
 
-Well, there's nothing to install per se (distutils support coming at some point
-in the far future). Download the source and add whatever path you downloaded it
-to to your Python path.
+### Installing ray
+
+Ray is a python library and can be installed in two ways:
+* Add the ray directory to your PYTHONPATH environment variable
+* Use setup.py to install it into your preferred python:
+
+    % python setup.py install
+
+### Installing requirements
+
+You may either install all requirements manually or use the 
+[buildem system](http://github.com/janelia-flyem/buildem#readme) to automatically
+download, compile, test, and install requirements into a specified buildem
+prefix directory.  
+
+```
+% cmake -D BUILDEM_DIR=/path/to/platform-specific/build/dir <ray directory>
+% make
+```
+
+You might have the run the above steps twice if this is the first time you are
+using the buildem system.
 
 ### Testing
 

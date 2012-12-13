@@ -15,7 +15,12 @@ except ImportError:
 
 class testPackages(unittest.TestCase):
     def testRaveler(self):
-        self.assertTrue(os.path.exists("/usr/local/raveler-hdf"))
+        found_exe = False
+        for dir in os.getenv("PATH").split(':'):                                           
+            if (os.path.exists(os.path.join(dir, "compilestack"))):
+                found_exe = True
+                break
+        self.assertTrue(found_exe)
     
     def testSyngeo(self):
         syngeo_installed = True
@@ -39,7 +44,7 @@ class testPackages(unittest.TestCase):
     def testIlastik(self):
         found_exe = False
         for dir in os.getenv("PATH").split(':'):                                           
-            if (os.path.exists(os.path.join(dir, "ilastik_batch_fast"))):
+            if (os.path.exists(os.path.join(dir, "ilastik_headless"))):
                 found_exe = True
                 break
         self.assertTrue(found_exe)

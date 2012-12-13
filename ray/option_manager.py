@@ -25,6 +25,16 @@ class OptionNamespace:
         return key in self.__dict__
 
 class OptionManager:
+    """
+    Handles specification (through create_option) and parsing of options (through
+    load_config).    By convention, hyphenated flags for arguments will set 
+    underscored attributes of the options property.
+
+    For example:
+        "ilp-file" option creates an --ilp-file flag and if the dtype is 'str',
+        we automatically create a property options.ilp_file
+    """
+
     def __init__(self, master_logger, arg_parser):
         self.master_logger = master_logger
         self.options_config = {}

@@ -255,6 +255,8 @@ def read_h5_stack(fn, *args, **kwargs):
         crop = [None,None,None,None,None,None]
     xmin, xmax, ymin, ymax, zmin, zmax = crop
     dset = h5py.File(fn, 'r')
+    if group not in dset:
+        raise Exception("HDF5 file (%s) doesn't have group (%s)!" % (fn, group))
     a = dset[group]
     if ndim(a) == 2:
         a = a[xmin:xmax,ymin:ymax]

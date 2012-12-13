@@ -1,11 +1,13 @@
-import imio, option_manager, app_logger, session_manager
 import os
 import sys
 import glob
 import h5py
 import numpy
 import json
+import shutil
 import traceback
+
+import imio, option_manager, app_logger, session_manager, util
 
 def image_stack_verify(options_parser, options, master_logger):
     if options.image_stack is not None:
@@ -34,6 +36,15 @@ def ilp_file_verify(options_parser, options, master_logger):
         if not os.path.exists(options.ilp_file):
             raise Exception("ILP file " + options.ilp_file + " not found")
 
+def temp_dir_verify(options_parser, options, master_logger):
+    """
+    If a base temporary directory has been specified, make sure it exists or
+    can be created.
+    """
+    if options.temp_dir is not None:
+        util.make_dir(options.temp_dir)
+
+
 def create_pixel_options(options_parser, standalone=True):
     options_parser.create_option("image-stack", "image file(s) (h5 or png format)", 
         required=standalone, verify_fn=image_stack_verify,
@@ -46,6 +57,10 @@ def create_pixel_options(options_parser, standalone=True):
     
     options_parser.create_option("ilp-file", "ILP file containing pixel classifier", 
         default_val=None, required=standalone, dtype=str, verify_fn=ilp_file_verify, num_args=None,
+        shortcut=None, warning=False, hidden=False) 
+    
+    options_parser.create_option("temp-dir", "Path to writable temporary directory", 
+        default_val=None, required=standalone, dtype=str, verify_fn=temp_dir_verify, num_args=None,
         shortcut=None, warning=False, hidden=False) 
     
     if not standalone:
@@ -62,73 +77,50 @@ def create_pixel_options(options_parser, standalone=True):
             shortcut='GP', warning=True, hidden=False) 
 
 
-def gen_pixel_probabilities(session_location, options, master_logger, image_stack=None):
+def gen_pixel_probabilities(session_location, options, master_logger, image_filename=None):
+    """
+    Generates pixel probabilities using classifier in options.ilp_file.
+
+    Returns:
+        Filename of pixel probabilities
+
+    Side-effects:
+        Generates hdf5 file of pixel probabilities in session_location directory.
+        File will be named 'STACKED_prediction.h5' and probabilities will be in
+        hdf group /volume/predictions
+
+    TODO: Modify once ilastik_headless is refactored to allow simple specification 
+          of output file.
+    """
     master_logger.info("Generating Pixel Probabilities") 
  
-    if image_stack is None:
-        image_stack = imio.read_image_stack(options.image_stack)
+    if image_filename is None:
+        image_filename = options.image_stack
 
     if "extract-ilp-prediction" in options and options.extract_ilp_prediction:
-        master_logger.info("Loading saved ilastik volume")
-        filename = session_location + "/" + options.pixelprob_name
-        os.remove(filename)
-        imio.write_ilastik_batch_volume(image_stack, filename)
-        image_stack = image_stack.transpose((0, 2, 1))
-        f1 = h5py.File(filename, 'a')
-        f2 = h5py.File(options.ilp_file, 'r')
-        f1.copy(f2['/DataSets/dataItem00/prediction'], 'volume/prediction')
-        f1.close()
-        f2.close()
+        master_logger.info("Extract .ilp prediction option has been deprecated")
+        sys.exit(2)
     else:
-        ilastik_h5 = h5py.File(options.ilp_file, 'r')
-        lset = ilastik_h5['DataSets/dataItem00/labels/data']
-        lsetrest = lset[0,:,:,:]
-
-        master_logger.debug("Extracting labels")
-        (dim1, dim2, dim3, dim4) = numpy.where(lsetrest > 0)
-        num_labels = lsetrest.max()
-        master_logger.debug(str(num_labels) + " class labels")
-        master_logger.debug(str(len(dim1)) + " total label points extracted")
-
-        for i in xrange(num_labels):
-            (dim1, dum1, dum2, dum3) = numpy.where(lsetrest == (i+1))
-            master_logger.info(str(len(dim1)) + " class " + str(i + 1) + " label points")
-        featureset = ilastik_h5['Project/FeatureSelection/UserSelection']
-        master_logger.debug("Features selected...")
-        for val in featureset:
-            master_logger.debug(str(val) + "\n")
-        ilastik_h5.close()
-
-        if os.path.exists(session_location + "/image_stack.h5"):
-            os.remove(session_location + "/image_stack.h5")
-        imio.write_ilastik_batch_volume(image_stack, session_location + "/image_stack.h5")
-
-        #create temporary json for ilastik batch
-        json_val_out = {}
-        json_val_out["output_dir"] = session_location 
-        json_val_out["session"] = options.ilp_file
-        json_val_out["memory_mode"] = False
-        image_array = [] 
-        image_array.append( { "name" : (session_location + "/image_stack.h5") } )
-        json_val_out["images"] = image_array
-        json_val_out["features"] = []
-
-        json_file_out = open(session_location + "/ilastik.json", "w")
-        json_out = json.dumps(json_val_out, indent=4)
-        master_logger.debug("ilastik batch_fast json file: " + json_out)
-        json_file_out.write(json_out)
-        json_file_out.close()
-
-        #run ilastik
-        master_logger.info("Running Ilastik batch")
-        ilastik_command = str("ilastik_batch_fast --config_file=" + session_location + "/ilastik.json")
+        master_logger.info("Running Ilastik in headless mode")
+        ilastik_command = " ".join([
+            'ilastik_headless',
+            '--project', options.ilp_file,
+            '--batch_export_dir', session_location,
+            '--batch_output_dataset_name', '/volume/predictions',
+        ])
+        if 'temp-dir' in options:
+            temp_dir = util.make_temp_dir(options.temp_dir)
+            ilastik_command += " " + " ".join([
+                '--sys_tmp_dir', options.temp_dir
+            ])
+        ilastik_command += ' "' + image_filename + '"'
+        master_logger.info("Executing ilastik headless command for pixel classification:\n%s" % ilastik_command)
         os.system(ilastik_command)
+        if 'temp-dir' in options:
+            shutil.rmtree(temp_dir)
 
-        #deleting ilastik
-        os.remove(session_location + "/image_stack.h5")
-        os.remove(session_location + "/ilastik.json")
-        os.rename(session_location + "/image_stack.h5_boundpred.h5",
-            session_location + "/" + options.pixelprob_name)
+        pixel_prob_filename = os.path.join(session_location, 'STACKED_prediction.h5')
+        return pixel_prob_filename
 
 
 def entrypoint(argv):
