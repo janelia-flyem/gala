@@ -31,10 +31,10 @@ except ImportError:
                                         'Synapse-aware mode not available.')
 
 # local modules
-from ray import imio, agglo, morpho, classify, features
+from gala import imio, agglo, morpho, classify, features
 
 try:
-    from ray import stack_np
+    from gala import stack_np
 except ImportError:
     pass
 
@@ -125,7 +125,7 @@ if __name__ == '__main__':
 
     if args.use_neuroproof:
         try:
-            from ray import stack_np
+            from gala import stack_np
         except ImportError:
             MasterLogger.warning("NeuroProof could not be imported")
             sys.exit(1)
@@ -149,7 +149,7 @@ if __name__ == '__main__':
         MasterLogger.error("Experiment name cannot be a path")
         sys.exit(1)
 
-    prim = logging.FileHandler(experiment_prefix + ".ray-segment.log", 'a')
+    prim = logging.FileHandler(experiment_prefix + ".gala-segment.log", 'a')
     prim.setLevel(logging.DEBUG)
     prim.setFormatter(logging.Formatter(
         fmt='%(asctime)s %(levelname)-8s %(message)s',

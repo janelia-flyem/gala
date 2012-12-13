@@ -1,5 +1,5 @@
 CMAKE_MINIMUM_REQUIRED(VERSION 2.8)
-project (ray)
+project (gala)
 
 include (ExternalProject)
 
@@ -63,8 +63,8 @@ else ()
     include (scikit-learn)
     include (syngeo)
 
-    # Install ray
-    add_custom_target (ray ALL 
+    # Install gala
+    add_custom_target (gala ALL 
         DEPENDS     ${APP_DEPENDENCIES}
         COMMAND     ${BUILDEM_ENV_STRING} ${PYTHON_EXE} setup.py install
         WORKING_DIRECTORY   ${CMAKE_CURRENT_SOURCE_DIR})

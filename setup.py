@@ -3,16 +3,16 @@ from setuptools import setup, find_packages
 
 
 
-setup(name = "ray",
+setup(name = "gala",
     version = "1.0",
-    url = "https://github.com/jni/ray",
-    description = "Ray is a python library for performing and evaluating image segmentation.",
-    long_description = "Ray is a python library for performing and evaluating of image segmentation. It supports n-dimensional images (images, volumes, videos, videos of volumes...) and multiple channels per image.",
+    url = "https://github.com/jni/gala",
+    description = "Gala is a python library for performing and evaluating image segmentation.",
+    long_description = "Gala is a python library for performing and evaluating of image segmentation. It supports n-dimensional images (images, volumes, videos, videos of volumes...) and multiple channels per image.",
     author = "Juan Nunez-Iglesias",
     author_email = 'jni@janelia.hhmi.org',
     license = 'LICENSE.txt',
-    packages = ['ray', 'ray.features'],
-    package_data = {'ray': ['testdata/*.*', 'testdata/original_grayscales/*'] },
+    packages = ['gala', 'gala.features'],
+    package_data = {'gala': ['testdata/*.*', 'testdata/original_grayscales/*'] },
     install_requires = [ ],
-    scripts = ["bin/ray-segmentation-pipeline", "bin/ray-train", "bin/ray-test-package", "bin/ray-pixel", "bin/comparestacks", "bin/ray-valprob"]
+    scripts = ["bin/gala-segmentation-pipeline", "bin/gala-train", "bin/gala-test-package", "bin/gala-pixel", "bin/comparestacks", "bin/gala-valprob"]
 )

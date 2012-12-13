@@ -9,7 +9,7 @@ this_dir = os.path.dirname(sys.argv[0])
 pkg_dir = os.path.abspath(os.path.join(this_dir, '..'))
 sys.path.insert(0, pkg_dir)
 
-from ray import imio, agglo
+from gala import imio, agglo
 import argparse
 import logging
 
@@ -24,7 +24,7 @@ def main(argv):
         dest='output_name', default='./raveler-export')
     args = parser.parse_args()
 
-    MasterLogger = logging.getLogger('ray-reresegment')
+    MasterLogger = logging.getLogger('gala-reresegment')
     MasterLogger.propagate = False
     MasterLogger.setLevel(logging.DEBUG)
     console = logging.StreamHandler(sys.stdout)

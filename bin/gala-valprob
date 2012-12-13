@@ -9,5 +9,5 @@ this_dir = os.path.dirname(sys.argv[0])
 pkg_dir = os.path.abspath(os.path.join(this_dir, '..'))
 sys.path.insert(0, pkg_dir)
 
-from ray import segmentation_pipeline
-sys.exit(segmentation_pipeline.entrypoint(sys.argv))
+from gala import valprob
+sys.exit(valprob.entrypoint(sys.argv))

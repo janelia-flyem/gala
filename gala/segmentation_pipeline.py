@@ -17,7 +17,7 @@ from . import imio, agglo, morpho, classify, evaluate, app_logger, \
     session_manager, pixel, features
 
 try:
-    from ray import stack_np
+    from gala import stack_np
 except ImportError:
     np_installed = False   
 else:

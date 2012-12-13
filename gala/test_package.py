@@ -52,12 +52,12 @@ class testPackages(unittest.TestCase):
         
 class testModules(unittest.TestCase):
     def gen_watershed(self):
-        from ray import imio
+        from gala import imio
         import numpy
         from skimage import morphology as skmorph
         from scipy.ndimage import label
 
-        self.datadir = os.path.abspath(os.path.dirname(sys.modules["ray"].__file__)) + "/testdata/"
+        self.datadir = os.path.abspath(os.path.dirname(sys.modules["gala"].__file__)) + "/testdata/"
 
         prediction = imio.read_image_stack(self.datadir +"pixelprobs.h5",
                 group='/volume/prediction', single_channel=False)
@@ -70,9 +70,9 @@ class testModules(unittest.TestCase):
     def testNPRFBuild(self):
         if not np_installed:
             self.assertTrue(np_installed)
-        from ray import stack_np
-        from ray import classify
-        self.datadir = os.path.abspath(os.path.dirname(sys.modules["ray"].__file__)) + "/testdata/"
+        from gala import stack_np
+        from gala import classify
+        self.datadir = os.path.abspath(os.path.dirname(sys.modules["gala"].__file__)) + "/testdata/"
 
         cl = classify.load_classifier(self.datadir + "agglomclassifier_np.rf.h5")
         fm_info = json.loads(str(cl.feature_description))
@@ -87,10 +87,10 @@ class testModules(unittest.TestCase):
         self.assertEqual(stack.number_of_nodes(), 78)
 
     def testAggloRFBuild(self):
-        from ray import agglo
-        from ray import features
-        from ray import classify
-        self.datadir = os.path.abspath(os.path.dirname(sys.modules["ray"].__file__)) + "/testdata/"
+        from gala import agglo
+        from gala import features
+        from gala import classify
+        self.datadir = os.path.abspath(os.path.dirname(sys.modules["gala"].__file__)) + "/testdata/"
 
         cl = classify.load_classifier(self.datadir + "agglomclassifier.rf.h5")
         fm_info = json.loads(str(cl.feature_description))
@@ -108,7 +108,7 @@ class testModules(unittest.TestCase):
     def testNPBuild(self):
         if not np_installed:
             self.assertTrue(np_installed)
-        from ray import stack_np
+        from gala import stack_np
         watershed, boundary, dummy = self.gen_watershed()
         stack = stack_np.Stack(watershed, boundary)
         self.assertEqual(stack.number_of_nodes(), 3629)
@@ -118,7 +118,7 @@ class testModules(unittest.TestCase):
         self.assertEqual(stack.number_of_nodes(), 82)
 
     def testAggoBuild(self):
-        from ray import agglo
+        from gala import agglo
         watershed, boundary, dummy = self.gen_watershed()
         stack = agglo.Rag(watershed, boundary, nozeros=True)
         self.assertEqual(stack.number_of_nodes(), 3630)
@@ -133,10 +133,10 @@ class testModules(unittest.TestCase):
 
 class testFlows(unittest.TestCase):
     def testNPFlow(self):
-        import ray
+        import gala
         if not np_installed:
             self.assertTrue(np_installed)
-        self.datadir = os.path.abspath(os.path.dirname(sys.modules["ray"].__file__)) + "/testdata"
+        self.datadir = os.path.abspath(os.path.dirname(sys.modules["gala"].__file__)) + "/testdata"
         writedir = "/tmp/NPregtest"
         
         if os.path.exists(writedir):
@@ -154,7 +154,7 @@ class testFlows(unittest.TestCase):
         writefile.write(configstr) 
         writefile.close()
 
-        os.system("ray-segmentation-pipeline " + writedir +  " --config-file " +
+        os.system("gala-segmentation-pipeline " + writedir +  " --config-file " +
                "/tmp/NPregtest/config.json --regression --enable-use-neuroproof >& /dev/null")
         
         log_data = open(self.datadir + "/seg-pipeline-np.log", 'r').read()
@@ -167,8 +167,8 @@ class testFlows(unittest.TestCase):
                         open("/tmp/NPregtest/.seg-pipeline.log", 'r').read())         
 
     def testRegFlow(self):
-        import ray
-        self.datadir = os.path.abspath(os.path.dirname(sys.modules["ray"].__file__)) + "/testdata"
+        import gala
+        self.datadir = os.path.abspath(os.path.dirname(sys.modules["gala"].__file__)) + "/testdata"
         writedir = "/tmp/regtest"
         
         if os.path.exists(writedir):
@@ -185,7 +185,7 @@ class testFlows(unittest.TestCase):
         writefile.write(configstr) 
         writefile.close()
 
-        os.system("ray-segmentation-pipeline " + writedir +  " --config-file " +
+        os.system("gala-segmentation-pipeline " + writedir +  " --config-file " +
                 "/tmp/regtest/config.json --regression --disable-use-neuroproof >& /dev/null")
         
         log_data = open(self.datadir + "/seg-pipeline.log", 'r').read()

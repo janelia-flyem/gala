@@ -9,5 +9,5 @@ this_dir = os.path.dirname(sys.argv[0])
 pkg_dir = os.path.abspath(os.path.join(this_dir, '..'))
 sys.path.insert(0, pkg_dir)
 
-from ray import test_package
+from gala import test_package
 sys.exit(test_package.entrypoint(sys.argv))

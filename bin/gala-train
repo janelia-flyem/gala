@@ -30,7 +30,7 @@ except ImportError:
     logging.warning('Could not import syngeo. Synapse-aware mode not available.')
 
 # local modules
-from ray import imio, agglo, morpho, classify, features, evaluate
+from gala import imio, agglo, morpho, classify, features, evaluate
 
 
 if __name__ == '__main__':
@@ -135,7 +135,7 @@ if __name__ == '__main__':
     
     if args.use_neuroproof:
         try:
-            from ray import stack_np
+            from gala import stack_np
         except ImportError:
             MasterLogger.warning("NeuroProof could not be imported.  sys path: %s" % sys.path)
             raise
@@ -153,7 +153,7 @@ if __name__ == '__main__':
         MasterLogger.error("Experiment name cannot be a path")
         sys.exit(1)
 
-    prim = logging.FileHandler(experiment_prefix + ".ray-train.log", 'a')
+    prim = logging.FileHandler(experiment_prefix + ".gala-train.log", 'a')
     prim.setLevel(logging.DEBUG)
     prim.setFormatter(logging.Formatter(
         fmt='%(asctime)s %(levelname)-8s %(message)s', 

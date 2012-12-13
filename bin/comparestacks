@@ -8,7 +8,7 @@ pkg_dir = os.path.abspath(os.path.join(this_dir, '..'))
 sys.path.insert(0, pkg_dir)
 
 from numpy import *
-from ray import imio, morpho, evaluate as ev
+from gala import imio, morpho, evaluate as ev
 from scipy.ndimage import binary_dilation, generate_binary_structure
 import getopt
 import errno

@@ -8,7 +8,7 @@ from morpho import juicy_center
 from numpy import zeros, bool, hstack, vstack, newaxis, array, savetxt
 from scipy.ndimage.filters import median_filter, gaussian_filter
 from scipy.ndimage.measurements import label
-from ray import single_arg_read_image_stack
+from gala import single_arg_read_image_stack
 
 class EvalAction(argparse.Action):
     def __call__(parser, namespace, values, option_string=None):

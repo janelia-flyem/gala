@@ -132,7 +132,7 @@ def get_classifier(name='random forest', *args, **kwargs):
         return DefaultRandomForest(*args, **kwargs)
     else:
         raise NotImplementedError('Classifier "%s" is either not installed ' +
-            'or not implemented in Ray.')
+            'or not implemented in Gala.')
 
 class DefaultRandomForest(RandomForestClassifier):
     def __init__(self, *args, **kwargs):

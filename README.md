@@ -1,9 +1,9 @@
-# ray: segmentation of nD images
+# gala: segmentation of nD images
 
-Ray is a python library for performing and evaluating image segmentation,
-distributed under the open-source 
-[MIT license](http://www.opensource.org/licenses/mit-license.php).
-It supports n-dimensional images (images, volumes, videos, videos of 
+Gala is a python library for performing and evaluating image segmentation,
+distributed under the open-source [Janelia Farm license](http://janelia-flyem.github.com/janelia_farm_license.html).
+
+Gala supports n-dimensional images (images, volumes, videos, videos of 
 volumes...) and multiple channels per image.
 
 ## Requirements (tested versions)
@@ -30,10 +30,10 @@ but if you don't install it you can still use SVM or AdaBoost classifiers.
 
 ## Installation
 
-### Installing ray
+### Installing gala
 
-Ray is a python library and can be installed in two ways:
-* Add the ray directory to your PYTHONPATH environment variable
+Gala is a python library and can be installed in two ways:
+* Add the gala directory to your PYTHONPATH environment variable
 * Use setup.py to install it into your preferred python:
 
     % python setup.py install
@@ -46,7 +46,7 @@ download, compile, test, and install requirements into a specified buildem
 prefix directory.  
 
 ```
-% cmake -D BUILDEM_DIR=/path/to/platform-specific/build/dir <ray directory>
+% cmake -D BUILDEM_DIR=/path/to/platform-specific/build/dir <gala directory>
 % make
 ```
 
@@ -56,8 +56,8 @@ using the buildem system.
 ### Testing
 
 The test coverage is rather tiny, but it is still a nice way to check you
-haven't completely screwed up your installation. From the Ray root directory,
-run `python test/test_ray.py` to run some regression tests.
+haven't completely screwed up your installation. From the Gala root directory,
+run `python test/test_gala.py` to run some regression tests.
 
 ## Usage
 
@@ -65,10 +65,10 @@ run `python test/test_ray.py` to run some regression tests.
 
 Suppose you have already trained a pixel level boundary detector, and want to
 perform mean agglomeration on it. This is the simplest form of agglomeration
-and was the initial design spec for Ray. Now:
+and was the initial design spec for Gala. Now:
 
 ```python
-from ray import imio, agglo, morpho
+from gala import imio, agglo, morpho
 # prob is a numpy ndarray
 # probabilities-* can be one file for 2D segmentation, or many files for 3D.
 prob = imio.read_image_stack('probabilities-*.png') 
@@ -111,7 +111,7 @@ These are provided by the `classify` module, and built into the `agglo.Rag`
 class.
 
 ```python
-from ray import classify
+from gala import classify
 gs = imio.read_h5_stack('gold-standard-segmentation.h5')
 fm = classify.MomentsFeatureManager()
 fh = classify.HistogramFeatureManager()
@@ -221,7 +221,7 @@ we have done?
 We can use the `evaluate` submodule to check our performance.
 
 ```python
-from ray import evaluate
+from gala import evaluate
 from scipy.ndimage.measurements import label
 t = imio.read_h5_stack('test-gold-standard.h5')
 s = label(ucm_test < 0.5)[0]
@@ -242,6 +242,6 @@ fm = evaluate.fm_index(s, t)
 pr = evaluate.pixel_wise_precision_recall(s, t)
 ```
 
-That's a quick summary of the capabilities of Ray. There are of course many
+That's a quick summary of the capabilities of Gala. There are of course many
 options under the hood, many of which are undocumented... Feel free to push me
 to update the documentation of your favorite function!

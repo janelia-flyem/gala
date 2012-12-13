@@ -24,7 +24,7 @@ except ImportError:
 from scipy.ndimage import label
 
 # local modules
-from ray import imio, agglo, morpho, evaluate as ev
+from gala import imio, agglo, morpho, evaluate as ev
 
 if __name__ == '__main__':
 

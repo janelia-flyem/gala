@@ -11,7 +11,7 @@ from scipy.ndimage.measurements import label
 rundir = os.path.dirname(__file__)
 sys.path.append(rundir)
 
-from ray import imio, morpho, agglo, classify, features
+from gala import imio, morpho, agglo, classify, features
 
 def time_me(function):
     def wrapped(*args, **kwargs):
