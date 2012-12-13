@@ -553,39 +553,3 @@ def read_prediction_from_ilastik_batch(fn, **kwargs):
     if kwargs.get('single_channel', True):
         a = a[...,0]
     return a
-
-### Shiv Vitaladevuni's binary raw array format
-
-shiv_typecode_to_numpy_type = {
-    0:np.int8, 1:np.uint8, 2:np.int16, 3:np.uint16,
-    4:np.int32, 5:np.uint32, 6:np.int64, 7:np.uint64,
-    8:np.float32, 9:np.float64
-}
-
-def read_shiv_raw_stack(ws_fn, sp2body_fn):
-    ws_fn, sp2body_fn = map(os.path.expanduser, [ws_fn, sp2body_fn])
-    ws = read_shiv_raw_array(ws_fn)
-    sp2b = read_shiv_raw_array(sp2body_fn)[1]
-    ar = sp2b[ws]
-    return remove_merged_boundaries(ar)
-
-def remove_merged_boundaries(ar, connectivity=1):
-    import morpho
-    arp = morpho.pad(ar, [0,ar.max()+1])
-    arpr = arp.ravel()
-    zero_idxs = (arpr == 0).nonzero()[0]
-    ns = arpr[morpho.get_neighbor_idxs(arp, zero_idxs, connectivity)]
-    ns_compl = ns.copy()
-    ns_compl[ns==0] = ns.max()+1
-    merged_boundaries = (ns.max(axis=1) == ns_compl.min(axis=1)).nonzero()[0]
-    arpr[zero_idxs[merged_boundaries]] = ns.max(axis=1)[merged_boundaries]
-    return morpho.juicy_center(arp, 2)
-
-def read_shiv_raw_array(fn):
-    fin = open(fn, 'rb')
-    typecode = fromstring(fin.read(4), uint8)[1]
-    ar_type = shiv_typecode_to_numpy_type[typecode]
-    ar_ndim = fromstring(fin.read(4), uint8)[0]
-    ar_shape = fromstring(fin.read(ar_ndim*4), uint32)
-    ar = fromstring(fin.read(), ar_type).reshape(ar_shape, order='F')
-    return ar
