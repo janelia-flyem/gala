@@ -64,7 +64,7 @@ else ()
     include (syngeo)
 
     # Install gala
-    add_custom_target (gala ALL 
+    add_custom_target (AppDependencies ALL 
         DEPENDS     ${APP_DEPENDENCIES}
         COMMAND     ${BUILDEM_ENV_STRING} ${PYTHON_EXE} setup.py install
         WORKING_DIRECTORY   ${CMAKE_CURRENT_SOURCE_DIR})

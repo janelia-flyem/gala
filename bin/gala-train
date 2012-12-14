@@ -97,7 +97,7 @@ if __name__ == '__main__':
         default='.trdat.h5',
         help='The filename extension for the training data.')
     parser.add_argument('-c', '--classifier-extension', metavar='EXT',
-        default='.classifier.joblib',
+        default=None,
         help='The filename extension for the saved classifier.')
     parser.add_argument('-P', '--show-progress', action='store_true', 
         default=False, help='Show a progress bar.')
@@ -267,4 +267,6 @@ if __name__ == '__main__':
     fm_description = fm.write_fm()
     fm_description["neuroproof_features"] = args.use_neuroproof
     rf.feature_description = json.dumps(fm_description)
-    classify.save_classifier(rf, experiment_prefix + args.classifier_extension)
+    classifier_ext = args.classifier_extension if args.classifier_extension is not None \
+        else classify.default_classifier_extension(rf)
+    classify.save_classifier(rf, experiment_prefix + classifier_ext)

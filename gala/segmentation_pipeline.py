@@ -285,8 +285,8 @@ def classifier_verify(options_parser, options, master_logger):
     if options.classifier is not None:
         if not os.path.exists(options.classifier):
             raise Exception("Classifier " + options.classifier + " not found")
-        if not options.classifier.endswith('.h5'):
-            raise Exception("Classifier " + options.classifier + " does not end with .h5")
+    # Note -- Classifier could be a variety of extensions (.h5, .joblib, etc) depending
+    #  on whether classifier is sklearn or vigra.
 
 def gen_supervoxels_verify(options_parser, options, master_logger):
     if options.gen_supervoxels and not options.gen_pixel and options.pixelprob_file is None:

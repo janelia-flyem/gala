@@ -45,6 +45,21 @@ def h5py_stack(fn):
         raise
     return a
 
+def default_classifier_extension(cl):
+    """
+    Return the default classifier file extension for the given classifier cl.
+
+    Returns:
+        String of file extension
+    """
+    if isinstance(cl, VigraRandomForest):
+        return ".classifier.h5"
+    elif use_joblib and sklearn_available:
+        return ".classifier.joblib"
+    else:
+        return ".classifier"
+
+
 def load_classifier(fn):
     """Load a classifier previously saved to disk, given a filename.
     
@@ -82,10 +97,10 @@ def load_classifier(fn):
         try:
             cl.load_from_disk(fn)
             return cl
-        except IOError:
-            pass
-        except RuntimeError:
-            pass
+        except IOError as e:
+            logging.error(e)
+        except RuntimeError as e:
+            logging.error(e)
     raise IOError("File '%s' does not appear to be a valid classifier file"
         % fn)
 
@@ -198,16 +213,14 @@ class VigraRandomForest(object):
         f = h5py.File(fn)
         for attr in attr_list:
             if hasattr(self, attr):
-                f[attr] = getattr(self, attr)
+                f[rfgroupname].attrs[attr] = getattr(self, attr)
 
     def load_from_disk(self, fn, rfgroupname='rf'):
         self.rf = BaseVigraRandomForest(str(fn), rfgroupname)
         f = h5py.File(fn, 'r')
-        groups = []
-        f.visit(groups.append)
-        attrs = [g for g in groups if not g.startswith(rfgroupname)]
-        for attr in attrs:
-            setattr(self, attr, np.array(f[attr]))
+        for attr in f[rfgroupname].attrs:
+            print("f[%s] = %s" % (attr, f[rfgroupname].attrs[attr]))
+            setattr(self, attr, f[rfgroupname].attrs[attr])
 
 
 def read_rf_info(fn):
