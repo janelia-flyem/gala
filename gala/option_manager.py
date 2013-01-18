@@ -42,6 +42,8 @@ class OptionManager:
         self.arg_parser = arg_parser
 
     def load_config(self, file_name, args=None):
+        """Returns an OptionNamespace"""
+        
         json_data = None
         
         if file_name is None:
@@ -51,8 +53,9 @@ class OptionManager:
                 json_file = open(file_name)
                 json_data = json.load(json_file)
                 json_file.close()        
-            except Exception:
-                self.master_logger.warning("error in opening" + file_name + " , using flags only")
+            except Exception, e:
+                self.master_logger.warning("error in opening " + file_name + \
+                    " (%s) , using flags only" % str(e))
 
         args_dict = None
         if args:

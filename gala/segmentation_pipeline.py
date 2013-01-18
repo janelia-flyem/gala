@@ -3,6 +3,7 @@
 
 import sys
 import os
+import os.path
 import argparse
 import h5py
 import numpy
@@ -29,6 +30,10 @@ except ImportError:
     logging.warning('Could not import syngeo. ' +
                                         'Synapse-aware mode not available.')
 
+# Group where we store predictions in HDF5 file
+PREDICTIONS_HDF5_GROUP = '/volume/predictions'
+
+
 def grab_boundary(prediction, channels, master_logger):
     boundary = None
     master_logger.debug("Grabbing boundary labels: " + str(channels))
@@ -41,17 +46,38 @@ def grab_boundary(prediction, channels, master_logger):
     return boundary
 
 
-def gen_supervoxels(session_location, options, prediction_file, master_logger):
+def gen_supervoxels(options, prediction_file, master_logger):
+    """Returns ndarray labeled using (optionally seeded) watershed algorithm
+
+    Args:
+        options:  OptionNamespace.
+        prediction_file:  String.  File name of prediction hdf5 file where predictions
+            are assumed to be in group PREDICTIONS_HDF5_GROUP.
+
+    Returns:
+        A 2-tuple of supervoxel and prediction ndarray.
+    """
     master_logger.debug("Generating supervoxels")
     if not os.path.isfile(prediction_file):
         raise Exception("Training file not found: " + prediction_file)
 
-    prediction = imio.read_image_stack(prediction_file, group='/volume/predictions', single_channel=False)
+    prediction = imio.read_image_stack(prediction_file, group=PREDICTIONS_HDF5_GROUP, single_channel=False)
 
-    if options.extract_ilp_prediction:
-        prediction = prediction.transpose((2, 1, 0))
+    #if options.extract_ilp_prediction:
+    #   prediction = prediction.transpose((2, 1, 0))
 
+    # TODO -- Refactor.  If 'single-channel' and hdf5 prediction file is given, it looks like
+    #   read_image_stack will return a modified volume and the bound-channels parameter must
+    #   be 0 or there'll be conflict.
     boundary = grab_boundary(prediction, options.bound_channels, master_logger) 
+    master_logger.info("Shape of boundary: %s" % str(boundary.shape))
+
+    # Prediction file is in format (t, x, y, z, c) but needs to be in format (z, x, y).
+    # Also, raveler convention is (0,0) sits in bottom left while ilastik convention is
+    # origin sits in top left.
+    # imio.read_image_stack squeezes out the first dim.
+    boundary = boundary.transpose((2, 1, 0))
+    master_logger.info("Transposed boundary prediction")
 
     master_logger.debug("watershed seed value threshold: " + str(options.seed_val))
     seeds = label(boundary<=options.seed_val)[0]
@@ -69,6 +95,7 @@ def gen_supervoxels(session_location, options, prediction_file, master_logger):
         boundary_cropped = boundary[options.border_size:(-1*options.border_size), options.border_size:(-1*options.border_size),options.border_size:(-1*options.border_size)]
         seeds_cropped = seeds[options.border_size:(-1*options.border_size), options.border_size:(-1*options.border_size),options.border_size:(-1*options.border_size)]
 
+    # Returns a matrix labeled using seeded watershed
     supervoxels_cropped = skmorph.watershed(boundary_cropped, seeds_cropped)
     
     supervoxels = supervoxels_cropped
@@ -139,7 +166,21 @@ def inclusion_removal(agglom_stack, master_logger):
     master_logger.info("Finished inclusion removal with " + str(agglom_stack.number_of_nodes()) + " nodes")
 
 
-def output_raveler(segmentation, supervoxels, image_stack, name, session_location, master_logger, sps_out=None):
+def output_raveler(segmentation, supervoxels, grayscale, name, session_location, master_logger, sps_out=None):
+    """Output segmented data to a Raveler formatted directory
+
+    Args:
+        segmentation:  ndarray.
+        prediction_file:  String.  File name of prediction hdf5 file where predictions
+            are assumed to be in group PREDICTIONS_HDF5_GROUP.
+        grayscale:  ndarray of grayscale.
+        name:  String.  Directory name within raveler-export.
+        session_location:  String.  Top-level export directory.
+
+    Returns:
+        A 2-tuple of supervoxel and prediction matrices.
+    """
+
     outdir = session_location + "/raveler-export/" + name + "/"
     master_logger.info("Exporting Raveler directory: " + outdir)
 
@@ -149,7 +190,7 @@ def output_raveler(segmentation, supervoxels, image_stack, name, session_locatio
     if os.path.exists(outdir):
         master_logger.warning("Overwriting Raveler directory: " + outdir)
         shutil.rmtree(outdir)
-    imio.write_to_raveler(*rav, directory=outdir, gray=image_stack)
+    imio.write_to_raveler(*rav, directory=outdir, gray=grayscale)
     return sps_out
 
 
@@ -219,6 +260,16 @@ def flow_perform_agglomeration(options, supervoxels, prediction, image_stack,
 
 
 def run_segmentation_pipeline(session_location, options, master_logger): 
+    """Runs segmentation pipeline given classifier and input image in options.
+
+    Args:
+        session_location:  String.  Export data location.
+        options:  OptionNamespace.  Basically a dict with keys corresponding
+            to slightly altered names ('_' instead of '-') within JSON config file.
+
+    Returns:
+        A 2-tuple of supervoxel and prediction ndarray.
+    """
     # read grayscale
     if options.image_stack is None:
         raise Exception("Must specify path to grayscale in 'image-stack'")
@@ -235,12 +286,13 @@ def run_segmentation_pipeline(session_location, options, master_logger):
     supervoxels = None
     prediction = None
     if options.gen_supervoxels:
-        supervoxels, prediction = gen_supervoxels(session_location, options, prediction_file, master_logger) 
+        supervoxels, prediction = gen_supervoxels(options, prediction_file, master_logger) 
     elif options.supervoxels_file:
         master_logger.info("Reading supervoxels: " + options.supervoxels_file)
         supervoxels = imio.read_image_stack(options.supervoxels_file) 
         master_logger.info("Finished reading supervoxels")
 
+    # write superpixels out to hdf5 and/or raveler files
     sps_out = None  
     if supervoxels is not None:
         if options.h5_output:
@@ -267,8 +319,11 @@ def run_segmentation_pipeline(session_location, options, master_logger):
 
         flow_perform_agglomeration(options, supervoxels, prediction, image_stack,
                                 session_location, sps_out, master_logger) 
-                
 
+                
+def prediction_file_verify(options_parser, options, master_logger):
+    if options.ilastik_prediction_file and not os.path.isfile(options.ilastik_prediction_file):
+        raise Exception("ilastik-prediction-file (%s) specified in parameters does not exist")
 
 def np_verify(options_parser, options, master_logger):
     if options.use_neuroproof and not np_installed:
@@ -308,6 +363,11 @@ def gen_agglomeration_verify(options_parser, options, master_logger):
 
 def create_segmentation_pipeline_options(options_parser):
     pixel.create_pixel_options(options_parser, False)
+
+    options_parser.create_option("ilastik-prediction-file", 
+        "Name of prediction file generated by ilastik headless",
+        default_val=None, required=False, dtype=str, verify_fn=prediction_file_verify,
+        num_args=None, shortcut=None, warning=False, hidden=False)
     
     options_parser.create_option("use-neuroproof", "Use NeuroProof", 
         default_val=False, required=False, dtype=bool, verify_fn=np_verify, num_args=None,

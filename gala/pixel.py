@@ -81,6 +81,12 @@ def gen_pixel_probabilities(session_location, options, master_logger, image_file
     """
     Generates pixel probabilities using classifier in options.ilp_file.
 
+    Args:
+        session_location:  String.  Where we should export generated pixel probabilities.
+        options:  OptionNamespace.
+        image_filename:  String.  Input image file name.  If given, overrides image-stack
+            key in options.
+
     Returns:
         Filename of pixel probabilities
 

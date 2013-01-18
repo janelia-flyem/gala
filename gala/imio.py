@@ -52,6 +52,11 @@ supported_image_extensions = ['png', 'tif', 'tiff', 'jpg', 'jpeg']
 def read_image_stack(fn, *args, **kwargs):
     """Read a 3D volume of images in image or .h5 format into a numpy.ndarray.
 
+    TODO: Refactor.  Rather than have implicit designation of stack format based
+    on filenames (*_boundpred.h5, etc), require explicit parameters in config JSON
+    files.
+    
+
     The format is automatically detected from the (first) filename.
 
     A 'crop' keyword argument is supported, as a list of 
@@ -299,6 +304,8 @@ def ucm_to_raveler(ucm, sp_threshold=0, body_threshold=0.1, **kwargs):
     return segs_to_raveler(sps, bodies, **kwargs)
 
 def segs_to_raveler(sps, bodies, min_size=0, do_conn_comp=False, sps_out=None):
+    """
+    """
     if sps_out is None:
         sps_out = raveler_serial_section_map(sps, min_size, do_conn_comp, False)
     segment_map = raveler_serial_section_map(bodies, min_size, do_conn_comp)

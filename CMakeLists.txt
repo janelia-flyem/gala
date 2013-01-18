@@ -64,9 +64,15 @@ else ()
     include (syngeo)
 
     # Install gala
-    add_custom_target (AppDependencies ALL 
+    add_custom_target (gala ALL
         DEPENDS     ${APP_DEPENDENCIES}
-        COMMAND     ${BUILDEM_ENV_STRING} ${PYTHON_EXE} setup.py install
+        COMMAND     ${BUILDEM_ENV_STRING} python setup.py install
+        WORKING_DIRECTORY   ${CMAKE_CURRENT_SOURCE_DIR})
+    
+    # Once all dependencies have built, calling "make gala-only" will make
+    # sure you are only running the python setup.py install.
+    add_custom_target (gala-only
+        COMMAND     ${BUILDEM_ENV_STRING} python setup.py install
         WORKING_DIRECTORY   ${CMAKE_CURRENT_SOURCE_DIR})
     
     ###############################################################################

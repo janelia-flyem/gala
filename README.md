@@ -33,7 +33,7 @@ but if you don't install it you can still use SVM or AdaBoost classifiers.
 ### Installing gala
 
 Gala is a python library and can be installed in two ways:
-* Add the gala directory to your PYTHONPATH environment variable
+* Add the gala directory to your PYTHONPATH environment variable, or
 * Use setup.py to install it into your preferred python:
 
     % python setup.py install
@@ -50,7 +50,7 @@ prefix directory.
 % make
 ```
 
-You might have the run the above steps twice if this is the first time you are
+You might have to run the above steps twice if this is the first time you are
 using the buildem system.
 
 ### Testing
