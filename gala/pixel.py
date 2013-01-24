@@ -114,7 +114,7 @@ def gen_pixel_probabilities(session_location, options, master_logger, image_file
             '--batch_export_dir', session_location,
             '--batch_output_dataset_name', '/volume/predictions',
         ])
-        if 'temp-dir' in options:
+        if options.temp_dir is not None:
             temp_dir = util.make_temp_dir(options.temp_dir)
             ilastik_command += " " + " ".join([
                 '--sys_tmp_dir', options.temp_dir
@@ -122,7 +122,7 @@ def gen_pixel_probabilities(session_location, options, master_logger, image_file
         ilastik_command += ' "' + image_filename + '"'
         master_logger.info("Executing ilastik headless command for pixel classification:\n%s" % ilastik_command)
         os.system(ilastik_command)
-        if 'temp-dir' in options:
+        if options.temp_dir is not None:
             shutil.rmtree(temp_dir)
 
         pixel_prob_filename = os.path.join(session_location, 'STACKED_prediction.h5')
