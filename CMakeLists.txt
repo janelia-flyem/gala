@@ -62,6 +62,7 @@ else ()
     include (scikit-image)
     include (scikit-learn)
     include (syngeo)
+    include (raveler-utils)
 
     # Install gala
     add_custom_target (gala ALL

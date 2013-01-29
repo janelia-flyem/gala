@@ -383,20 +383,29 @@ def write_to_raveler(sps, sp_to_segment, segment_to_body, directory, gray=None,
     """
     sp_path = os.path.join(directory, 'superpixel_maps')
     im_path = os.path.join(directory, 'grayscale_maps')
-    # write conventional Raveler stack
+    tile_path = os.path.join(directory, 'tiles')
+
     if not os.path.exists(directory):
         os.makedirs(directory)
-    if not os.path.exists(sp_path): os.mkdir(sp_path)
-    write_png_image_stack(sps, os.path.join(sp_path, 'sp_map.%05i.png'),
-                                                        bitdepth=16, axis=0)
+
+    # write superpixel->segment->body maps
     savetxt(os.path.join(directory, 'superpixel_to_segment_map.txt'),
-                                                        sp_to_segment, '%i') 
+        sp_to_segment, '%i') 
     savetxt(os.path.join(directory, 'segment_to_body_map.txt'), 
-                                                        segment_to_body, '%i')
+        segment_to_body, '%i')
+
+    # write superpixels
+    if not os.path.exists(sp_path): 
+        os.mkdir(sp_path)
+    write_png_image_stack(sps, os.path.join(sp_path, 'sp_map.%05i.png'),
+        bitdepth=16, axis=0)
+
+    # write grayscale
     if gray is not None:
-        if not os.path.exists(im_path): os.mkdir(im_path)
-        write_png_image_stack(gray, os.path.join(im_path, 'img.%05d.png'),
-                                                                         axis=0)
+        if not os.path.exists(im_path): 
+            os.mkdir(im_path)
+        write_png_image_stack(gray, os.path.join(im_path, 'img.%05d.png'), axis=0)
+
     # body annotations
     if body_annot is not None:
         if type(body_annot) == ndarray:
@@ -404,18 +413,15 @@ def write_to_raveler(sps, sp_to_segment, segment_to_body, directory, gray=None,
             non_traversing = morpho.non_traversing_segments(body_annot)
             body_annot = raveler_body_annotations(orphans, non_traversing)
         write_json(body_annot, os.path.join(directory, 'annotations-body.json'))
+
     # make tiles, bounding boxes, and contours, and compile HDF5 stack info.
     with tmp.TemporaryFile() as tmp_stdout:
         try: 
             def call(arglist):
                 return subprocess.call(arglist, stdout=tmp_stdout)
-            r1, r2, r3, r4 = [-1]*4
-            r1 = call(['python', 
-                os.path.join(raveler_dir, 'util/createtiles.py'), 
-                directory, '1024', '0'])
-            r2 = call([os.path.join(raveler_dir, 'bin/bounds'), directory])
-            r3 = call([
-                os.path.join(raveler_dir, 'bin/compilestack'), directory])
+            r1 = call(['createtiles', im_path, sp_path, tile_path])
+            r2 = call(['bounds', directory])
+            r3 = call(['compilestack', directory])
         except:
             logging.warning(
                 'Error during Raveler export post-processing step. ' +
