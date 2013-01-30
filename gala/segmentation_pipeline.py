@@ -293,7 +293,8 @@ def run_segmentation_pipeline(session_location, options, master_logger):
         master_logger.info("Finished reading supervoxels")
 
     # write superpixels out to hdf5 and/or raveler files
-    sps_out = None  
+    sps_out = None
+    image_stack = None
     if supervoxels is not None:
         if options.h5_output:
             imio.write_image_stack(supervoxels,

@@ -1,0 +1,51 @@
+01-30-13 01:19 DEBUG    gen-supervoxels was set to True
+01-30-13 01:19 DEBUG    temp-dir was not specified and set to default None
+01-30-13 01:19 DEBUG    ilastik-prediction-file was not specified and set to default None
+01-30-13 01:19 DEBUG    pixelprob-file was not specified and set to default None
+01-30-13 01:19 DEBUG    raveler-output was set to False
+01-30-13 01:19 DEBUG    synapse-file was set to ./example/annotations-synapse.json
+01-30-13 01:19 DEBUG    gen-agglomeration was set to True
+01-30-13 01:19 DEBUG    image-stack was set to ./example/original_grayscales/*.png
+01-30-13 01:19 DEBUG    pixelprob-name was set to pixel_boundpred.h5
+01-30-13 01:19 DEBUG    h5-output was set to False
+01-30-13 01:19 DEBUG    segmentation-thresholds was set to [0.1]
+01-30-13 01:19 DEBUG    use-neuroproof was set to True
+01-30-13 01:19 DEBUG    expected-vi was set to False
+01-30-13 01:19 DEBUG    extract-ilp-prediction was set to False
+01-30-13 01:19 DEBUG    bound-channels was set to [0]
+01-30-13 01:19 DEBUG    ilp-file was set to ./example/dots_ilastik06.ilp
+01-30-13 01:19 DEBUG    border-size was set to 2
+01-30-13 01:19 DEBUG    gen-pixel was set to True
+01-30-13 01:19 DEBUG    seed-val was set to 0
+01-30-13 01:19 DEBUG    inclusion-removal was set to True
+01-30-13 01:19 DEBUG    seed-size was set to 5
+01-30-13 01:19 DEBUG    vi-beta was set to 1.0
+01-30-13 01:19 DEBUG    supervoxels-file was not specified and set to default None
+01-30-13 01:19 DEBUG    synapse-dilation was set to 1
+01-30-13 01:19 DEBUG    supervoxels-name was set to supervoxels.lzf.h5
+01-30-13 01:19 DEBUG    classifier was set to ./example/test1.classifier.h5
+01-30-13 01:19 INFO     Options loaded and verified
+01-30-13 01:19 INFO     Session location: sample
+01-30-13 01:19 INFO     Generating Pixel Probabilities
+01-30-13 01:19 INFO     Running Ilastik in headless mode
+01-30-13 01:19 INFO     Executing ilastik headless command for pixel classification:
+ilastik_headless --project ./example/dots_ilastik06.ilp --batch_export_dir sample --batch_output_dataset_name /volume/predictions "./example/original_grayscales/*.png"
+01-30-13 01:19 DEBUG    Generating supervoxels
+01-30-13 01:19 DEBUG    Grabbing boundary labels: [0]
+01-30-13 01:19 INFO     Shape of boundary: (100, 200, 50)
+01-30-13 01:19 INFO     Transposed boundary prediction
+01-30-13 01:19 DEBUG    watershed seed value threshold: 0
+01-30-13 01:19 DEBUG    Removing small seeds
+01-30-13 01:19 DEBUG    Finished removing small seeds
+01-30-13 01:19 INFO     Starting watershed
+01-30-13 01:19 INFO     Finished watershed
+01-30-13 01:19 INFO     Processing synapses
+01-30-13 01:19 INFO     Finished processing synapses
+01-30-13 01:19 INFO     Building RAG
+01-30-13 01:19 INFO     Finished building RAG
+01-30-13 01:19 INFO     Starting inclusion removal with 2119 nodes
+01-30-13 01:19 INFO     Finished inclusion removal with 2119 nodes
+01-30-13 01:19 INFO     Starting agglomeration to threshold 0.1 with 2119
+01-30-13 01:19 INFO     Finished agglomeration to threshold 0.1 with 2114
+01-30-13 01:19 INFO     Starting inclusion removal with 2114 nodes
+01-30-13 01:19 INFO     Finished inclusion removal with 2114 nodes

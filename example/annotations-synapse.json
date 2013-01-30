@@ -1,0 +1,70 @@
+{
+  "data": [
+    {
+      "T-bar": {
+        "status": "working", 
+        "confidence": 1.0, 
+        "body ID": 152, 
+        "location": [
+          45, 
+          118, 
+          36
+        ]
+      }, 
+      "partners": [
+        {
+          "confidence": 1.0, 
+          "body ID": 152, 
+          "location": [
+            60, 
+            119, 
+            36
+          ]
+        }, 
+        {
+          "confidence": 1.0, 
+          "body ID": 152, 
+          "location": [
+            23, 
+            125, 
+            36
+          ]
+        }
+      ]
+    }, 
+    {
+      "T-bar": {
+        "status": "working", 
+        "confidence": 1.0, 
+        "body ID": 3458, 
+        "location": [
+          32, 
+          23, 
+          46
+        ]
+      }, 
+      "partners": [
+        {
+          "confidence": 1.0, 
+          "body ID": 2291, 
+          "location": [
+            38, 
+            26, 
+            46
+          ]
+        }
+      ]
+    }
+  ], 
+  "metadata": {
+    "username": "plazas", 
+    "software version": "1.5.3", 
+    "description": "synapse annotations", 
+    "file version": 1, 
+    "software revision": "3903:3904", 
+    "computer": "plazas-ll1", 
+    "date": "21-August-2012 14:05", 
+    "session path": "/home/plazas/tinyfib/testing_seg/raveler-export/temp", 
+    "software": "Raveler"
+  }
+}
