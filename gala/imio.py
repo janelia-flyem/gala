@@ -1,49 +1,28 @@
 # built-ins
 import os
-import sys
-import argparse
-import re
 import json
 from os.path import split as split_path, join as join_path
 from fnmatch import filter as fnfilter
 import logging
-import json
 import itertools as it
 import subprocess
 import tempfile as tmp
 
 # libraries
-import h5py, Image, numpy
+import h5py, Image
 
 from scipy.ndimage.measurements import label
 
-from numpy import array, asarray, uint8, uint16, uint32, uint64, zeros, \
+from numpy import array, uint8, uint16, uint32, zeros, \
     zeros_like, squeeze, fromstring, ndim, concatenate, newaxis, swapaxes, \
-    savetxt, unique, double, ones, ones_like, prod, cumsum, ndarray
+    savetxt, unique, double, ones, ones_like, cumsum, ndarray
 import numpy as np
+
+from skimage.io.collection import alphanumeric_key
 
 # local files
 import evaluate
 import morpho
-
-### Random utilities
-
-def tryint(s):
-    try:
-        return int(s)
-    except ValueError:
-        return s
-
-def alphanumeric_key(s):
-    """Turn a string into a list of string and number chunks.
-
-    "z23a" --> ["z", 23, "a"]
-
-    Copied from 
-    http://stackoverflow.com/questions/4623446/how-do-you-sort-files-numerically/4623518#4623518
-    on 2011-09-01
-    """
-    return [tryint(c) for c in re.split('([0-9]+)', s)]
 
 ### Auto-detect file format
 
@@ -52,20 +31,39 @@ supported_image_extensions = ['png', 'tif', 'tiff', 'jpg', 'jpeg']
 def read_image_stack(fn, *args, **kwargs):
     """Read a 3D volume of images in image or .h5 format into a numpy.ndarray.
 
-    TODO: Refactor.  Rather than have implicit designation of stack format based
-    on filenames (*_boundpred.h5, etc), require explicit parameters in config JSON
-    files.
-    
+    This function attempts to automatically determine input file types and
+    wraps specific image-reading functions.
 
-    The format is automatically detected from the (first) filename.
+    Parameters
+    ----------
+    fn : filename (string)
+        A file path or glob pattern specifying one or more valid image files.
+        The file format is automatically determined from this argument.
 
-    A 'crop' keyword argument is supported, as a list of 
-    [xmax, xmin, ymax, ymin, zmax, zmin]. Use 'None' for no crop in that 
-    coordinate.
+    *args : filenames (string, optional)
+        More than one positional argument will be interpreted as a list of
+        filenames pointing to all the 2D images in the stack.
 
-    If reading in .h5 format, keyword arguments are passed through to
-    read_h5_stack().
+    **kwargs : keyword arguments (optional)
+        Arguments to be passed to the underlying functions. A 'crop'
+        keyword argument is supported, as a list of length 6:
+        [xmin, xmax, ymin, ymax, zmin, zmax]. Use 'None' for no crop in
+        that coordinate.
+
+    Returns
+    -------
+    stack : 3-dimensional numpy ndarray
+
+    Notes
+    -----
+        If reading in .h5 format, keyword arguments are passed through to
+        read_h5_stack().
+
+        Automatic file type detection may be deprecated in the future.
     """
+    # TODO: Refactor.  Rather than have implicit designation of stack format
+    # based on filenames (*_boundpred.h5, etc), require explicit parameters
+    # in config JSON files.
     if os.path.isdir(fn):
         fn += '/'
     d, fn = split_path(os.path.expanduser(fn))
@@ -106,21 +104,41 @@ def read_image_stack(fn, *args, **kwargs):
         stack = raveler_to_labeled_volume(d, *args, **kwargs)
     return squeeze(stack)
 
-def single_arg_read_image_stack(fn):
-    """Read an image stack and print exceptions as they occur.
-    
-    argparse.ArgumentParser() subsumes exceptions when they occur in the 
-    argument type, masking lower-level errors. This function prints out the
-    error before propagating it up the stack.
-    """
-    try:
-        return read_image_stack(fn)
-    except Exception as err:
-        print err
-        raise
-
 def write_image_stack(npy_vol, fn, **kwargs):
-    """Write a numpy.ndarray 3D volume to a stack of images or an HDF5 file."""
+    """Write a numpy.ndarray 3D volume to a stack of images or an HDF5 file.
+    
+    Parameters
+    ----------
+    npy_vol : numpy ndarray
+        The volume to be written to disk.
+    
+    fn : string
+        The filename to be written, or a format string when writing a 3D
+        stack to a 2D format (e.g. a png image stack).
+    
+    **kwargs : keyword arguments
+        Keyword arguments to be passed to wrapped functions. See
+        corresponding docs for valid arguments.
+    
+    Returns
+    -------
+    out : None
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> from gala.imio import write_image_stack
+    >>> im = 255 * np.array([
+        [[0, 1, 0], [1, 0, 1], [0, 1, 0]],
+        [[1, 0, 1], [0, 1, 0], [1, 0, 1]]], dtype=uint8)
+    >>> im.shape
+    (2, 3, 3)
+    >>> write_image_stack(im, 'image-example-%02i.png', axis=0)
+    >>> import os
+    >>> os.path.listdir('.')
+    ['image-example-00.png', 'image-example-01.png']
+    >>> # two 3x3 images
+    """
     fn = os.path.expanduser(fn)
     if fn.endswith('.png'):
         write_png_image_stack(npy_vol, fn, **kwargs)
@@ -134,10 +152,37 @@ def write_image_stack(npy_vol, fn, **kwargs):
 ### Standard image formats (png, tiff, etc.)
 
 def pil_to_numpy(img):
-    return squeeze(array(img.getdata()).reshape((img.size[1], img.size[0], -1)))
+    """Convert an Image object to a numpy array.
+    
+    Parameters
+    ----------
+    img : Image object (from the Python Imaging Library)
+    
+    Returns
+    -------
+    ar : numpy ndarray
+        The corresponding numpy array (same shape as the image)
+    """
+    ar = squeeze(array(img.getdata()).reshape((img.size[1], img.size[0], -1)))
+    return ar
 
 def read_multi_page_tif(fn, crop=[None]*6):
-    """Read a multi-page tif file and return a numpy array."""
+    """Read a multi-page tif file into a numpy array.
+    
+    Parameters
+    ----------
+    fn : string
+        The filename of the image file being read.
+    
+    Returns
+    -------
+    ar : numpy ndarray
+        The image stack in array format.
+
+    Notes
+    -----
+        Currently, only grayscale images are supported.
+    """
     xmin, xmax, ymin, ymax, zmin, zmax = crop
     img = Image.open(fn)
     pages = []
@@ -152,13 +197,32 @@ def read_multi_page_tif(fn, crop=[None]*6):
             eof = True
     return concatenate(pages, axis=-1)
 
-def write_png_image_stack(npy_vol, fn, **kwargs):
+def write_png_image_stack(npy_vol, fn, axis=-1, bitdepth=None):
     """Write a numpy.ndarray 3D volume to a stack of .png images.
 
-    Only 8-bit and 16-bit single-channel images are currently supported.
+    Parameters
+    ----------
+    npy_vol : numpy ndarray, shape (M, N, P)
+        The volume to be written to disk.
+
+    fn : format string
+        The file pattern to which to write the volume.
+
+    axis : int (optional, default = -1)
+        The axis along which output the images. If the input array has shape
+        (M, N, P), and axis is 1, the function will write N images of shape
+        (M, P) to disk. In keeping with Python convention, -1 specifies the
+        last axis.
+
+    Returns
+    -------
+    None : None
+        No value is returned.
+
+    Notes
+    -----
+        Only 8-bit and 16-bit single-channel images are currently supported.
     """
-    axis = kwargs.get('axis', -1)
-    bitdepth = kwargs.get('bitdepth', None)
     npy_vol = swapaxes(npy_vol, 0, axis)
     fn = os.path.expanduser(fn)
     if 0 <= npy_vol.max() <= 1 and npy_vol.dtype == double:
@@ -169,7 +233,7 @@ def write_png_image_stack(npy_vol, fn, **kwargs):
         mode = 'L'
         mode_base = 'L'
         npy_vol = uint8(npy_vol)
-    elif 256 <= numpy.max(npy_vol) < 2**16 and bitdepth == None or \
+    elif 256 <= np.max(npy_vol) < 2**16 and bitdepth == None or \
                                                 bitdepth == 16:
         mode = 'I;16'
         mode_base = 'I'
@@ -195,10 +259,24 @@ numpy_type_to_vtk_string = {
 vtk_string_to_numpy_type = \
     dict([(v,k) for k, v in numpy_type_to_vtk_string.items()])
 
-def write_vtk(ar, fn, **kwargs):
-    """Write volume to VTK structured points format file.
+def write_vtk(ar, fn, spacing=[1.0, 1.0, 1.0]):
+    """Write 3D volume to VTK structured points format file.
 
     Code adapted from Erik Vidholm's writeVTK.m Matlab implementation.
+
+    Parameters
+    ----------
+    ar : a numpy array, shape (M, N, P)
+        The array to be written to disk.
+    fn : string
+        The desired output filename.
+    spacing : iterable of float, optional (default: [1.0, 1.0, 1.0])
+        The voxel spacing in x, y, and z.
+
+    Returns
+    -------
+    None : None
+        This function does not have a return value.
     """
     # write header
     f = open(fn, 'w')
@@ -208,8 +286,7 @@ def write_vtk(ar, fn, **kwargs):
     f.write('DATASET STRUCTURED_POINTS\n')
     f.write(' '.join(['DIMENSIONS'] + map(str, ar.shape[-1::-1])) + '\n')
     f.write(' '.join(['ORIGIN'] + map(str, zeros(3))) + '\n')
-    f.write(' '.join(['SPACING'] +
-                            map(str, kwargs.get('spacing', ones(3)))) + '\n')
+    f.write(' '.join(['SPACING'] + map(str, spacing)) + '\n')
     f.write('POINT_DATA ' + str(ar.size) + '\n')
     f.write('SCALARS image_data ' +
                             numpy_type_to_vtk_string[ar.dtype.type] + '\n')
@@ -221,10 +298,20 @@ def write_vtk(ar, fn, **kwargs):
     f.write(ar.data)
     f.close()
 
-def read_vtk(fin, **kwargs):
+def read_vtk(fin):
     """Read a numpy volume from a VTK structured points file.
 
     Code adapted from Erik Vidholm's readVTK.m Matlab implementation.
+
+    Parameters
+    ----------
+    fin : string
+        The input filename.
+
+    Returns
+    -------
+    ar : numpy ndarray
+        The array contained in the file.
     """
     f = open(fin, 'r')
     num_lines_in_header = 10
@@ -234,7 +321,6 @@ def read_vtk(fin, **kwargs):
         if line.startswith('SCALARS') or line.startswith('VECTORS')][0]
     ar_shape = map(int, shape_line.rstrip('\n').split(' ')[1:])[-1::-1]
     ar_type = vtk_string_to_numpy_type[type_line.rstrip('\n').split(' ')[2]]
-    itemsize = np.dtype(ar_type).itemsize
     ar = squeeze(fromstring(f.read(), ar_type).reshape(ar_shape+[-1]))
     return ar
 
@@ -470,9 +556,9 @@ def raveler_to_labeled_volume(rav_export_dir, get_glia=False,
     import morpho
     spmap = read_image_stack(
         os.path.join(rav_export_dir, 'superpixel_maps', '*.png'), **kwargs)
-    sp2seg_list = numpy.loadtxt(
+    sp2seg_list = np.loadtxt(
         os.path.join(rav_export_dir, 'superpixel_to_segment_map.txt'), uint32)
-    seg2bod_list = numpy.loadtxt(
+    seg2bod_list = np.loadtxt(
         os.path.join(rav_export_dir, 'segment_to_body_map.txt'), uint32)
     sp2seg = {}
     max_sp = sp2seg_list[:,1].max()
