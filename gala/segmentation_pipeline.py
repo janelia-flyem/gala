@@ -295,6 +295,8 @@ def run_segmentation_pipeline(session_location, options, master_logger):
     # write superpixels out to hdf5 and/or raveler files
     sps_out = None
     image_stack = None
+
+    """
     if supervoxels is not None:
         if options.h5_output:
             imio.write_image_stack(supervoxels,
@@ -306,7 +308,8 @@ def run_segmentation_pipeline(session_location, options, master_logger):
                 "supervoxels", session_location, master_logger)
             if options.synapse_file is not None:
                 shutil.copyfile(options.synapse_file,
-                        session_location + "/raveler-export/supervoxels/annotations-synapse.json") 
+                         session_location + "/raveler-export/supervoxels/annotations-synapse.json") 
+    """
 
     # agglomerate and generate output
     if options.gen_agglomeration:
