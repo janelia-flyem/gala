@@ -13,7 +13,7 @@ import h5py, Image
 
 from scipy.ndimage.measurements import label
 
-from numpy import array, uint8, uint16, uint32, zeros, \
+from numpy import array, uint8, uint16, uint32, uint64, zeros, \
     zeros_like, squeeze, fromstring, ndim, concatenate, newaxis, swapaxes, \
     savetxt, unique, double, ones, ones_like, cumsum, ndarray
 import numpy as np
@@ -356,6 +356,51 @@ def read_h5_stack(fn, *args, **kwargs):
     ar = array(a)
     dset.close()
     return ar
+
+def segmentation_transforms(sps, bodies):
+    sp_to_body = unique(zip(sps.ravel(), bodies.ravel()))
+    transforms = zeros((len(sp_to_body), 2), uint64) 
+    i = 0
+    for sp, body in sp_to_body:
+        transforms[i,0] = sp
+        transforms[i,1] = body
+        i += 1
+    return transforms 
+
+def write_segmentation(npy_vol, npy_transformation, fn):
+    fn = os.path.expanduser(fn)
+    group = 'stack'
+    group2 = 'transforms'
+    fout = h5py.File(fn, 'w')
+
+    fout.create_dataset(group, data=npy_vol)
+    fout.create_dataset(group2, data=npy_transformation)
+    fout.close()
+
+
+def read_segmentation(fn):
+    """Read a volume in HDF5 format into numpy.ndarray.
+
+    """
+    fn = os.path.expanduser(fn)
+    group = 'stack'
+    group2 = 'transforms'
+    dset = h5py.File(fn, 'r')
+    if group not in dset:
+        raise Exception("HDF5 file (%s) doesn't have group (%s)!" % (fn, group))
+    if group2 not in dset:
+        raise Exception("HDF5 file (%s) doesn't have group (%s)!" % (fn, group2))
+
+    ar = array(dset[group])
+    trans_temp = array(dset[group2])
+    trans = dict(list(trans_temp))
+    
+    for i, m in np.ndenumerate(ar):
+        ar[i] = trans[m]
+
+    dset.close()
+    return ar
+
 
 def write_h5_stack(npy_vol, fn, **kwargs):
     """Write a numpy.ndarray 3D volume to an HDF5 file.

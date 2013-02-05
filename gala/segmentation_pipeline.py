@@ -146,7 +146,12 @@ def agglomeration(options, agglom_stack, supervoxels, prediction,
         if options.h5_output:
             imio.write_image_stack(segmentation,
                 session_location+"/agglom-"+str(threshold)+".lzf.h5", compression='lzf')
-           
+          
+
+        transforms = imio.segmentation_transforms(supervoxels, segmentation)
+        imio.write_segmentation(supervoxels, transforms,
+                session_location+"/agglom-"+str(threshold)+".h5")
+
         if options.raveler_output:
             sps_outs = output_raveler(segmentation, supervoxels, image_stack, "agglom-" + str(threshold),
                 session_location, master_logger)   
@@ -290,6 +295,7 @@ def run_segmentation_pipeline(session_location, options, master_logger):
     elif options.supervoxels_file:
         master_logger.info("Reading supervoxels: " + options.supervoxels_file)
         supervoxels = imio.read_image_stack(options.supervoxels_file) 
+        #supervoxels = imio.read_segmentation(options.supervoxels_file) 
         master_logger.info("Finished reading supervoxels")
 
     # write superpixels out to hdf5 and/or raveler files
@@ -316,7 +322,7 @@ def run_segmentation_pipeline(session_location, options, master_logger):
         if prediction is None and options.pixelprob_file is not None:
             master_logger.info("Reading pixel prediction: " + options.pixelprob_file)
             prediction = imio.read_image_stack(options.pixelprob_file, 
-                group='/volume/prediction', single_channel=False)
+                group=PREDICTIONS_HDF5_GROUP, single_channel=False)
             master_logger.info("Finished reading pixel prediction")
         elif prediction is None:
             raise Exception("No pixel probs available for agglomeration")
