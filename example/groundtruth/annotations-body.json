@@ -1,0 +1,187 @@
+{
+  "data": [
+    {
+      "status": "corrected (irrelevant)", 
+      "body ID": 0
+    }, 
+    {
+      "status": "corrected", 
+      "body ID": 64
+    }, 
+    {
+      "status": "corrected", 
+      "body ID": 2
+    }, 
+    {
+      "status": "corrected", 
+      "body ID": 131
+    }, 
+    {
+      "status": "corrected", 
+      "body ID": 5
+    }, 
+    {
+      "status": "corrected", 
+      "body ID": 135
+    }, 
+    {
+      "status": "corrected", 
+      "body ID": 1674
+    }, 
+    {
+      "status": "corrected", 
+      "body ID": 1164
+    }, 
+    {
+      "status": "corrected", 
+      "body ID": 2050
+    }, 
+    {
+      "status": "corrected", 
+      "body ID": 15
+    }, 
+    {
+      "status": "corrected", 
+      "body ID": 3619
+    }, 
+    {
+      "status": "corrected", 
+      "body ID": 2325
+    }, 
+    {
+      "status": "corrected", 
+      "body ID": 196
+    }, 
+    {
+      "status": "corrected", 
+      "body ID": 1820
+    }, 
+    {
+      "status": "corrected", 
+      "body ID": 34
+    }, 
+    {
+      "status": "corrected", 
+      "body ID": 3363
+    }, 
+    {
+      "status": "corrected", 
+      "body ID": 2084
+    }, 
+    {
+      "status": "corrected", 
+      "body ID": 3626
+    }, 
+    {
+      "status": "corrected", 
+      "body ID": 3627
+    }, 
+    {
+      "status": "corrected", 
+      "body ID": 50
+    }, 
+    {
+      "status": "corrected", 
+      "body ID": 687
+    }, 
+    {
+      "status": "corrected", 
+      "body ID": 2610
+    }, 
+    {
+      "status": "corrected", 
+      "body ID": 51
+    }, 
+    {
+      "status": "corrected", 
+      "body ID": 182
+    }, 
+    {
+      "status": "corrected", 
+      "body ID": 3640
+    }, 
+    {
+      "status": "corrected", 
+      "body ID": 697
+    }, 
+    {
+      "status": "corrected", 
+      "body ID": 570
+    }, 
+    {
+      "status": "corrected", 
+      "body ID": 2624
+    }, 
+    {
+      "status": "corrected", 
+      "body ID": 449
+    }, 
+    {
+      "status": "corrected", 
+      "body ID": 2499
+    }, 
+    {
+      "status": "corrected", 
+      "body ID": 324
+    }, 
+    {
+      "status": "corrected", 
+      "body ID": 70
+    }, 
+    {
+      "status": "corrected", 
+      "body ID": 464
+    }, 
+    {
+      "status": "corrected", 
+      "body ID": 1235
+    }, 
+    {
+      "status": "corrected", 
+      "body ID": 729
+    }, 
+    {
+      "status": "corrected", 
+      "body ID": 3047
+    }, 
+    {
+      "status": "corrected", 
+      "body ID": 105
+    }, 
+    {
+      "status": "corrected", 
+      "body ID": 1514
+    }, 
+    {
+      "status": "corrected", 
+      "body ID": 239
+    }, 
+    {
+      "status": "corrected", 
+      "body ID": 1138
+    }, 
+    {
+      "status": "corrected", 
+      "body ID": 2686
+    }, 
+    {
+      "status": "corrected", 
+      "body ID": 2167
+    }, 
+    {
+      "status": "corrected", 
+      "body ID": 2430
+    }
+  ], 
+  "metadata": {
+    "username": "saundersm", 
+    "software version": "1.4.2", 
+    "description": "body annotations", 
+    "file version": 3, 
+    "software revision": "3568:3574", 
+    "computer": "emrecon5.janelia.priv", 
+    "date": "20-April-2012 14:15", 
+    "session path": "/groups/flyem/data/medulla-FIB-Z1211-25/mat_experiments/tiny_fib/saundersm,20120420.gt2", 
+    "software": "Raveler"
+  }
+}

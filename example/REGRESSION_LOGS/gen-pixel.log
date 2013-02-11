@@ -1,0 +1,9 @@
+02-11-13 17:09 DEBUG    ilp-file was set to ./example/boundclassifier.ilp
+02-11-13 17:09 DEBUG    temp-dir was set to /tmp
+02-11-13 17:09 DEBUG    image-stack was set to ./example/original_grayscales/*.png
+02-11-13 17:09 DEBUG    pixelprob-name was set to pixel_boundpred.h5
+02-11-13 17:09 INFO     Options loaded and verified
+02-11-13 17:09 INFO     Generating Pixel Probabilities
+02-11-13 17:09 INFO     Running Ilastik in headless mode
+02-11-13 17:09 INFO     Executing ilastik headless command for pixel classification:
+ilastik_headless --project ./example/boundclassifier.ilp --batch_export_dir pixel-sample --batch_output_dataset_name /volume/predictions --sys_tmp_dir /tmp "./example/original_grayscales/*.png"

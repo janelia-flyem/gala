@@ -1,0 +1,1 @@
+gala-train  --use-neuroproof -I --seed-cc-threshold 5 -o ./train-sample --experiment-name agglom ./example/prediction.h5 ./example/groundtruth

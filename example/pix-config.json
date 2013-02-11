@@ -1,0 +1,6 @@
+{
+    "ilp-file": "./example/boundclassifier.ilp", 
+    "temp-dir": "/tmp", 
+    "image-stack": "./example/original_grayscales/*.png", 
+    "pixelprob-name": "pixel_boundpred.h5"
+}

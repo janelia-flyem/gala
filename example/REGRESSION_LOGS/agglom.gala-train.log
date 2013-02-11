@@ -1,0 +1,10 @@
+02-11-13 17:10 INFO     Script called: /groups/scheffer/home/plazas/buildem_dir/bin/gala-train --use-neuroproof -I --seed-cc-threshold 5 -o ./train-sample --experiment-name agglom ./example/prediction.h5 ./example/groundtruth
+02-11-13 17:10 INFO     Script run from: /groups/scheffer/home/plazas/gala
+02-11-13 17:10 INFO     Performing watershed
+02-11-13 17:10 INFO     Building RAG
+02-11-13 17:11 INFO     Starting inclusion removal with 2165 nodes
+02-11-13 17:11 INFO     Finished inclusion removal with 2165 nodes
+02-11-13 17:11 INFO     Learning epochs
+02-11-13 17:25 INFO     Saving training data to disk
+02-11-13 17:25 INFO     Training classifier
+02-11-13 17:26 INFO     Saving classifier to disk
