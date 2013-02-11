@@ -165,6 +165,7 @@ if __name__ == '__main__':
 
     p = imio.read_image_stack(args.fin[0], single_channel=False,
             group='/volume/predictions')
+    p = p.transpose((2,1,0,3))
     p0 = p if args.no_channel_data else p[..., 0]
     if args.single_channel: p = p0
     gs = evaluate.relabel_from_one(imio.read_image_stack(args.fin[1]))[0]
@@ -236,6 +237,8 @@ if __name__ == '__main__':
         memory=args.memory, unique=args.unique, min_num_epochs=args.num_epochs,
         max_num_expochs=args.max_num_epochs, 
         max_num_samples=args.num_examples, active_function=active_function)
+    git_stamp = 'git commit unknown'
+    """
     current_directory = os.path.realpath('.')
     os.chdir(this_dir)
     try:
@@ -249,6 +252,7 @@ if __name__ == '__main__':
         git_stamp = 'git commit unknown'
     MasterLogger.debug(git_stamp)
     os.chdir(current_directory)
+    """
     info_string = '\n'.join(args.fin + [args.feature_manager, git_stamp])
     MasterLogger.info("Saving training data to disk")
     classify.save_training_data_to_disk(d, 
