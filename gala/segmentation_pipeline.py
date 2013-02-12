@@ -302,6 +302,9 @@ def run_segmentation_pipeline(session_location, options, master_logger):
     sps_out = None
     image_stack = None
 
+    if options.raveler_output:
+        image_stack = imio.read_image_stack(options.image_stack)
+
     """
     if supervoxels is not None:
         if options.h5_output:
