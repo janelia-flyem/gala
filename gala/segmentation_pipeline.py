@@ -62,6 +62,8 @@ def gen_supervoxels(options, prediction_file, master_logger):
         raise Exception("Training file not found: " + prediction_file)
 
     prediction = imio.read_image_stack(prediction_file, group=PREDICTIONS_HDF5_GROUP, single_channel=False)
+    master_logger.info("Transposed boundary prediction")
+    prediction = prediction.transpose((2, 1, 0, 3))
 
     #if options.extract_ilp_prediction:
     #   prediction = prediction.transpose((2, 1, 0))
@@ -76,8 +78,6 @@ def gen_supervoxels(options, prediction_file, master_logger):
     # Also, raveler convention is (0,0) sits in bottom left while ilastik convention is
     # origin sits in top left.
     # imio.read_image_stack squeezes out the first dim.
-    boundary = boundary.transpose((2, 1, 0))
-    master_logger.info("Transposed boundary prediction")
 
     master_logger.debug("watershed seed value threshold: " + str(options.seed_val))
     seeds = label(boundary<=options.seed_val)[0]
