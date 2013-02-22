@@ -15,7 +15,7 @@ from scipy.ndimage.measurements import label
 
 from numpy import array, uint8, uint16, uint32, uint64, zeros, \
     zeros_like, squeeze, fromstring, ndim, concatenate, newaxis, swapaxes, \
-    savetxt, unique, double, ones, ones_like, cumsum, ndarray
+    savetxt, unique, double, ones_like, cumsum, ndarray
 import numpy as np
 
 from skimage.io.collection import alphanumeric_key
@@ -208,7 +208,7 @@ def write_png_image_stack(npy_vol, fn, axis=-1, bitdepth=None):
     fn : format string
         The file pattern to which to write the volume.
 
-    axis : int (optional, default = -1)
+    axis : int, optional (default = -1)
         The axis along which output the images. If the input array has shape
         (M, N, P), and axis is 1, the function will write N images of shape
         (M, P) to disk. In keeping with Python convention, -1 specifies the
@@ -326,116 +326,277 @@ def read_vtk(fin):
 
 ### HDF5 format
 
-def read_h5_stack(fn, *args, **kwargs):
+def read_h5_stack(fn, group='stack', crop=[None]*6):
     """Read a volume in HDF5 format into numpy.ndarray.
 
-    Accepts keyword arguments 'group' (the group in the HDF5 file containing
-    the array information; default: 'stack') and 'crop' (format as in 
-    read_image_stack())
+    Parameters
+    ----------
+    fn : string
+        The filename of the input HDF5 file.
+    group : string, optional (default 'stack')
+        The group within the HDF5 file containing the dataset.
+    crop : list of int, optional (default '[None]*6', no crop)
+        A crop to get of the volume of interest. Only available for 2D and 3D
+        volumes.
+
+    Returns
+    -------
+    stack : numpy ndarray
+        The stack contained in fn, possibly cropped.
     """
     fn = os.path.expanduser(fn)
-    if len(args) > 0:
-        group = args[0]
-    elif kwargs.has_key('group'):
-        group = kwargs['group']
-    else:
-        group = 'stack'
-    if kwargs.has_key('crop'):
-        crop = kwargs['crop']
-    else:
-        crop = [None,None,None,None,None,None]
-    xmin, xmax, ymin, ymax, zmin, zmax = crop
     dset = h5py.File(fn, 'r')
     if group not in dset:
-        raise Exception("HDF5 file (%s) doesn't have group (%s)!" % (fn, group))
+        raise ValueError("HDF5 file (%s) doesn't have group (%s)!" % 
+                            (fn, group))
     a = dset[group]
     if ndim(a) == 2:
-        a = a[xmin:xmax,ymin:ymax]
+        xmin, xmax, ymin, ymax = crop[:4]
+        a = a[xmin:xmax, ymin:ymax]
     elif ndim(a) == 3:
-        a = a[xmin:xmax,ymin:ymax,zmin:zmax]
-    ar = array(a)
+        xmin, xmax, ymin, ymax, zmin, zmax = crop
+        a = a[xmin:xmax, ymin:ymax, zmin:zmax]
+    stack = array(a)
     dset.close()
-    return ar
+    return stack
 
-def segmentation_transforms(sps, bodies):
-    sp_to_body = unique(zip(sps.ravel(), bodies.ravel()))
-    transforms = zeros((len(sp_to_body), 2), uint64) 
-    i = 0
-    for sp, body in sp_to_body:
-        transforms[i,0] = sp
-        transforms[i,1] = body
-        i += 1
-    return transforms 
+def compute_sp_to_body_map(sps, bodies):
+    """Return unique (sp, body) pairs from a superpixel map and segmentation.
 
-def write_segmentation(npy_vol, npy_transformation, fn):
+    Parameters
+    ----------
+    sps : numpy ndarray, arbitrary shape
+        The superpixel (supervoxel) map.
+    bodies : numpy ndarray, same shape as sps
+        The corresponding segmentation.
+
+    Returns
+    -------
+    sp_to_body : numpy ndarray, shape (NUM_SPS, 2)
+
+    Notes
+    -----
+    No checks are made for sane inputs. This means that incorrect input,
+    such as non-matching shapes, or superpixels mapping to more than one
+    segment, will result in undefined behavior downstream with no warning.
+    """
+    sp_to_body = unique(zip(sps.ravel(), bodies.ravel())).astype(uint64)
+    return sp_to_body
+
+def write_mapped_segmentation(superpixel_map, sp_to_body_map, fn, 
+                              sp_group='stack', sp_to_body_group='transforms'):
+    """Write a mapped segmentation to an HDF5 file.
+
+    Parameters
+    ----------
+    superpixel_map : numpy ndarray, arbitrary shape
+    sp_to_body_map : numpy ndarray, shape (NUM_SPS, 2)
+        A many-to-one map of superpixels to bodies (segments), specified as
+        rows of (superpixel, body) pairs.
+    fn : string
+        The output filename.
+    sp_group : string, optional (default 'stack')
+        the group within the HDF5 file to store the superpixel map.
+    sp_to_body_group : string, optional (default 'transforms')
+        the group within the HDF5 file to store the superpixel to body map.
+
+    Returns
+    -------
+    None
+    """
     fn = os.path.expanduser(fn)
-    group = 'stack'
-    group2 = 'transforms'
     fout = h5py.File(fn, 'w')
-
-    fout.create_dataset(group, data=npy_vol)
-    fout.create_dataset(group2, data=npy_transformation)
+    fout.create_dataset(sp_group, data=superpixel_map)
+    fout.create_dataset(sp_to_body_group, data=sp_to_body_map)
     fout.close()
 
 
-def read_segmentation(fn):
-    """Read a volume in HDF5 format into numpy.ndarray.
+def read_mapped_segmentation(fn, 
+                             sp_group='stack', sp_to_body_group='transforms'):
+    """Read a volume in mapped HDF5 format into a numpy.ndarray pair.
 
+    Parameters
+    ----------
+    fn : string
+        The filename to open.
+    sp_group : string, optional (default 'stack')
+        The group within the HDF5 file where the superpixel map is stored.
+    sp_to_body_group : string, optional (default 'transforms')
+        The group within the HDF5 file where the superpixel to body map is
+        stored.
+
+    Returns
+    -------
+    segmentation : numpy ndarray, same shape as 'superpixels', int type
+        The segmentation induced by the superpixels and map.
+    """
+    sps, sp2body = read_mapped_segmentation_raw(fn, sp_group, sp_to_body_group)
+    segmentation = apply_segmentation_map(sps, sp2body)
+    return segmentation
+
+def apply_segmentation_map(superpixels, sp_to_body_map):
+    """Return a segmentation from superpixels and a superpixel to body map.
+
+    Parameters
+    ----------
+    superpixels : numpy ndarray, arbitrary shape, int type
+        A superpixel (or supervoxel) map (aka label field).
+    sp_to_body_map : numpy ndarray, shape (NUM_SUPERPIXELS, 2), int type
+        An array of (superpixel, body) map pairs.
+
+    Returns
+    -------
+    segmentation : numpy ndarray, same shape as 'superpixels', int type
+        The segmentation induced by the superpixels and map.
+    """
+    forward_map = np.zeros(sp_to_body_map[:, 0].max() + 1,
+                           sp_to_body_map.dtype)
+    forward_map[sp_to_body_map[:, 0]] = sp_to_body_map[:, 1]
+    segmentation = forward_map[superpixels]
+    return segmentation
+
+def read_mapped_segmentation_raw(fn, 
+                             sp_group='stack', sp_to_body_group='transforms'):
+    """Read a volume in mapped HDF5 format into a numpy.ndarray pair.
+
+    Parameters
+    ----------
+    fn : string
+        The filename to open.
+    sp_group : string, optional (default 'stack')
+        The group within the HDF5 file where the superpixel map is stored.
+    sp_to_body_group : string, optional (default 'transforms')
+        The group within the HDF5 file where the superpixel to body map is
+        stored.
+
+    Returns
+    -------
+    sp_map : numpy ndarray, arbitrary shape
+        The superpixel (or supervoxel) map.
+    sp_to_body_map : numpy ndarray, shape (NUM_SUPERPIXELS, 2)
+        The superpixel to body (segment) map, as (superpixel, body) pairs.
     """
     fn = os.path.expanduser(fn)
-    group = 'stack'
-    group2 = 'transforms'
     dset = h5py.File(fn, 'r')
-    if group not in dset:
-        raise Exception("HDF5 file (%s) doesn't have group (%s)!" % (fn, group))
-    if group2 not in dset:
-        raise Exception("HDF5 file (%s) doesn't have group (%s)!" % (fn, group2))
-
-    ar = array(dset[group])
-    trans_temp = array(dset[group2])
-    trans = dict(list(trans_temp))
-    
-    for i, m in np.ndenumerate(ar):
-        ar[i] = trans[m]
-
+    if sp_group not in dset:
+        raise ValueError(
+            "HDF5 file (%s) doesn't have group (%s)!" % (fn, sp_group))
+    if sp_to_body_group not in dset:
+        raise ValueError(
+            "HDF5 file (%s) doesn't have group (%s)!" % (fn, sp_to_body_group))
+    sp_map = array(dset[sp_group])
+    sp_to_body_map = array(dset[sp_to_body_group])
     dset.close()
-    return ar
+    return sp_map, sp_to_body_map
 
 
-def write_h5_stack(npy_vol, fn, **kwargs):
+def write_h5_stack(npy_vol, fn, group='stack', compression=None, chunks=None):
     """Write a numpy.ndarray 3D volume to an HDF5 file.
 
-    The following keyword arguments are supported:
-    - 'group': the group into which to write the array. (default: 'stack')
-    - 'compression': The type of compression. (default: None)
-    - 'chunks': Chunk size in the HDF5 file. (default: None)
+    Parameters
+    ----------
+    npy_vol : numpy ndarray
+        The array to be saved to HDF5.
+    fn : string
+        The output filename.
+    group : string, optional (default: 'stack')
+        The group within the HDF5 file to write to.
+    compression : {None, 'gzip', 'szip', 'lzf'}, optional (default: None)
+        The compression to use, if any. Note that 'lzf' is only available
+        through h5py, so implementations in other languages will not be able
+        to read files created with this compression.
+    chunks : tuple, True, or None (default: None)
+        Whether to use chunking in the HDF5 dataset. Default is None. True
+        lets h5py choose a chunk size automatically. Otherwise, use a tuple
+        of int of the same length as `npy_vol.ndim`. From the h5py
+        documentation: "In the real world, chunks of size 10kB - 300kB work
+        best, especially for compression. Very small chunks lead to lots of
+        overhead in the file, while very large chunks can result in 
+        inefficient I/O."
+
+    Returns
+    -------
+    None
     """
     fn = os.path.expanduser(fn)
-    if not kwargs.has_key('compression'):
-        kwargs['compression'] = None
-    if not kwargs.has_key('chunks'):
-        kwargs['chunks'] = None
-    try:
-        group = kwargs['group']
-        del kwargs['group']
-    except KeyError:
-        group = 'stack'
     fout = h5py.File(fn, 'a')
     if group in fout:
         del fout[group]
-    fout.create_dataset(group, data=npy_vol, **kwargs)
+    fout.create_dataset(group, data=npy_vol, 
+                        compression=compression, chunks=chunks)
     fout.close()
 
 ### Raveler format
 
-def ucm_to_raveler(ucm, sp_threshold=0, body_threshold=0.1, **kwargs):
-    """Return Raveler map from a UCM."""
-    sps = label(ucm<sp_threshold)[0]
-    bodies = label(ucm<=body_threshold)[0]
+def ucm_to_raveler(ucm, sp_threshold=0.0, body_threshold=0.1, **kwargs):
+    """Return Raveler map from a UCM.
+    
+    Parameters
+    ----------
+    ucm : numpy ndarray, shape (M, N, P)
+        An ultrametric contour map. This is a map of scored segment boundaries
+        such that if A, B, and C are segments, then 
+        score(A, B) = score(B, C) >= score(A, C), for some permutation of
+        A, B, and C.
+        A hierarchical agglomeration process produces a UCM.
+    sp_threshold : float, optional (default: 0.0)
+        The value for which to threshold the UCM to obtain the superpixels.
+    body_threshold : float, optional (default: 0.1)
+        The value for which to threshold the UCM to obtain the segments/bodies.
+        The condition `body_threshold >= sp_threshold` should hold in order
+        to obtain sensible results.
+    **kwargs : dict, optional
+        Keyword arguments to be passed through to `segs_to_raveler`.
+
+    Returns
+    -------
+    superpixels : numpy ndarray, shape (M, N, P)
+        The superpixel map. Non-zero superpixels are unique to each plane.
+        That is, `np.unique(superpixels[i])` and `np.unique(superpixels[j])` 
+        have only 0 as their intersection.
+    sp_to_segment : numpy ndarray, shape (Q, 3)
+        The superpixel to segment map. Segments are unique to each plane. The
+        first number on each line is the plane number.
+    segment_to_body : numpy ndarray, shape (R, 2)
+        The segment to body map.
+    """
+    sps = label(ucm < sp_threshold)[0]
+    bodies = label(ucm <= body_threshold)[0]
     return segs_to_raveler(sps, bodies, **kwargs)
 
 def segs_to_raveler(sps, bodies, min_size=0, do_conn_comp=False, sps_out=None):
-    """
+    """Return a Raveler tuple from 3D superpixel and body maps.
+    
+    Parameters
+    ----------
+    sps : numpy ndarray, shape (M, N, P)
+        The supervoxel map.
+    bodies : numpy ndarray, shape (M, N, P)
+        The body map. Superpixels should not map to more than one body.
+    min_size : int, optional (default: 0)
+        Superpixels smaller than this size on a particular plane are blacked
+        out.
+    do_conn_comp : bool (default: False)
+        Whether to do a connected components operation on each plane. This is
+        required if we want superpixels to be contiguous on each plane, since
+        3D-contiguous superpixels are not guaranteed to be contiguous along
+        a slice.
+    sps_out : numpy ndarray, shape (M, N, P), optional (default: None)
+        A Raveler-compatible superpixel map, meaning that superpixels are
+        unique to each plane along axis 0. (See `superpixels` in the return
+        values.) If provided, this saves significant computation time.
+
+    Returns
+    -------
+    superpixels : numpy ndarray, shape (M, N, P)
+        The superpixel map. Non-zero superpixels are unique to each plane.
+        That is, `np.unique(superpixels[i])` and `np.unique(superpixels[j])` 
+        have only 0 as their intersection.
+    sp_to_segment : numpy ndarray, shape (Q, 3)
+        The superpixel to segment map. Segments are unique to each plane. The
+        first number on each line is the plane number.
+    segment_to_body : numpy ndarray, shape (R, 2)
+        The segment to body map.
     """
     if sps_out is None:
         sps_out = raveler_serial_section_map(sps, min_size, do_conn_comp, False)
