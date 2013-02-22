@@ -65,14 +65,14 @@ def examine_boundary(axis, b1_prediction, b1_seg, b2_prediction, b2_seg,
         if b2_prediction is None: 
             b2_prediction, b2_seg = grab_pred_seg(block2["prediction-file"], block2["segmentation-file"], border_size)
 
-        prediction1 = numpy.zeros((dimmax[0] - dimmin[0] + 1, dimmax[1] - dimmin[1] + 1),
+        prediction1 = numpy.zeros((dimmax[0] - dimmin[0] + 1, dimmax[1] - dimmin[1] + 1), 1,
                 dtype=b1_prediction.dtype)
 
-        prediction2 = numpy.zeros((dimmax[0] - dimmin[0] + 1, dimmax[1] - dimmin[1] + 1),
+        prediction2 = numpy.zeros((dimmax[0] - dimmin[0] + 1, dimmax[1] - dimmin[1] + 1), 1,
                 dtype=b1_prediction.dtype)
-        supervoxels1 = numpy.zeros((dimmax[0] - dimmin[0] + 1, dimmax[1] - dimmin[1] + 1),
+        supervoxels1 = numpy.zeros((dimmax[0] - dimmin[0] + 1, dimmax[1] - dimmin[1] + 1), 1,
                 dtype=b1_seg.dtype)
-        supervoxels2 = numpy.zeros((dimmax[0] - dimmin[0] + 1, dimmax[1] - dimmin[1] + 1),
+        supervoxels2 = numpy.zeros((dimmax[0] - dimmin[0] + 1, dimmax[1] - dimmin[1] + 1), 1,
                 dtype=b1_seg.dtype)
 
         # load prediction and supervoxel slices into image
@@ -120,7 +120,7 @@ def examine_boundary(axis, b1_prediction, b1_seg, b2_prediction, b2_seg,
         prediction2[lowerb[0]:upperb[0],lowerb[1]:upperb[1]] = b2_prediction[lower[0]:upper[0],lower[1]:upper[1],lower[2]:upper[2]]
         supervoxels2[lowerb[0]:upperb[0],lowerb[1]:upperb[1]] = b2_seg[lower[0]:upper[0],lower[1]:upper[1],lower[2]:upper[2]]
 
-        # ?! special build mode -- somehow mark edges
+        # special build mode
         agglom_stack.build_border(supervoxels1, prediction1, supervoxels2, prediction2)
 
     return overlap, b1_prediction, b1_seg, b2_prediction, b2_seg
@@ -138,7 +138,6 @@ def run_stitching(session_location, options, master_logger):
     cl = classify.load_classifier(options.classifier)
     fm_info = json.loads(str(cl.feature_description))
 
-    # ?! blank init for stack
     agglom_stack = stack_np.Stack(None, None, single_channel=False, classifier=cl, feature_info=fm_info,
             synapse_file=None, master_logger=master_logger)
 
@@ -212,7 +211,6 @@ def run_stitching(session_location, options, master_logger):
         faces = subvolume["faces"]
         pred_master, seg_master = grab_pred_seg(subvolume["prediction-file"], subvolume["segmentation-file"], options.border_size)
    
-        # ?! implement agglom_stack build_partial 
         if len(faces) > 0:
             if "xy1" in faces:
                 pred = pred_master[:,:,0:options.buffer_width] 
@@ -245,25 +243,14 @@ def run_stitching(session_location, options, master_logger):
                 agglom_stack.build_partial(seg, pred)
 
 
-    # ?! special merge mode that preserves special nature of border edges and saves all tranformations
-    transactions = agglom_stack.agglomerate_border(0.1) 
+    # special merge mode that preserves special nature of border edges and returns all tranformations
+    transaction_dict = agglom_stack.agglomerate_border(0.1) 
 
     # show some stats
     master_logger.info("Number of merges: " + str(len(transactions)))
     
     master_logger.info("Writing graph.json")
     agglom_stack.write_plaza_json(session_location + "/" + graph.json, None)
-
-    # create new mappings from tranactions
-    transactions_dict = dict(transactions)
-    def map_recurs(key, trans_dict):
-        val = key
-        if key in trans_dict:
-            val = map_recurs(trans_dict[key], trans_dict)
-            trans_dict[key] = val
-        return val
-    for key, val in transactions_dict.items():
-        transaction_dict[key] = map_recurs(val, transaction_dict)
 
     # copy volumes to new version
     for subvolume in subvolumes: 

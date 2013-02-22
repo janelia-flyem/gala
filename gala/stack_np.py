@@ -17,34 +17,23 @@ class Stack:
 
     def __init__(self, watershed=numpy.array([]), probabilities=numpy.array([]),
                 single_channel=True, classifier=None, synapse_file=None, feature_info=None,
-                master_logger=None): 
+                master_logger=None, num_channels=1): 
         """Create a graph from a watershed volume and image volume.
         
         """
-
-        self.depth, self.height, self.width = watershed.shape
         self.master_logger = master_logger
-        self.all_syn_locs = None 
-
-        self.watershed = morpho.pad(watershed, 0)
-        self.watershed = self.watershed.astype(numpy.double)    
-
-        probs = probabilities.astype(numpy.double)
-
-        self.stack = neuroproof.build_stack(self.watershed)
-
+        self.single_channel = single_channel
+        
+        self.stack = neuroproof.init_stack()
+        
         self.fmgr = self.stack.get_feature_mgr()
-        num_channels = 1
+        self.synapse_file = synapse_file
 
-        if single_channel:
-            self.probabilities = morpho.pad(probs, 0)
-            neuroproof.add_prediction_channel(self.stack, self.probabilities)
-        else:
+        if not self.single_channel and probabilities is not None:
             num_channels = probabilities.shape[probabilities.ndim-1]
-            for channel in range(0,num_channels):
-                curr_prob = morpho.pad(probs[...,channel], 0)
-                neuroproof.add_prediction_channel(self.stack, curr_prob)
-                
+        
+        for i in range(0, num_channels):
+            self.stack.add_empty_channel()
 
         if classifier is not None:
             self.fmgr.set_python_rf_function(get_prob_handle(classifier))
@@ -63,10 +52,64 @@ class Stack:
             else:
                 raise Exception("No feature information for Rag")
             
+        if watershed is not None:
+            self.build_partial(watershed, probabilities)
+
+        
+    def init_build(self, watershed, probabilities):
+        watershed = morpho.pad(watershed, 0)
+        watershed = watershed.astype(numpy.double)    
+
+        neuroproof.reinit_stack(self.stack, watershed)
+
+        probabilities = probabilities.astype(numpy.double)
+        num_channels = 1
+        if self.single_channel:
+            probabilities = morpho.pad(probabilities, 0)
+            neuroproof.add_prediction_channel(self.stack, probabilities)
+        else:
+            num_channels = probabilities.shape[probabilities.ndim-1]
+            for channel in range(0,num_channels):
+                curr_prob = morpho.pad(probabilities[...,channel], 0)
+                neuroproof.add_prediction_channel(self.stack, curr_prob)
+ 
+
+    def init_build2(self, watershed, probabilities):
+        watershed = morpho.pad(watershed, 0)
+        watershed = watershed.astype(numpy.double)    
+
+        neuroproof.reinit_stack2(self.stack, watershed)
+
+        probabilities = probabilities.astype(numpy.double)
+        num_channels = 1
+        if self.single_channel:
+            probabilities = morpho.pad(probabilities, 0)
+            neuroproof.add_prediction_channel2(self.stack, probabilities)
+        else:
+            num_channels = probabilities.shape[probabilities.ndim-1]
+            for channel in range(0,num_channels):
+                curr_prob = morpho.pad(probabilities[...,channel], 0)
+                neuroproof.add_prediction_channel2(self.stack, curr_prob)
+ 
+
+    def build_partial(self, watershed, probabilities):
+        self.depth, self.height, self.width = watershed.shape
+        self.all_syn_locs = None 
+
+        self.init_build(watershed, probabilities)
+
         self.stack.build_rag()
 
-        if synapse_file is not None:
-            self.set_exclusions(synapse_file)
+        if self.synapse_file is not None:
+            self.set_exclusions(self.synapse_file)
+
+
+    def build_border(self, supervoxels1, prediction1, supervoxels2, prediction2):
+        self.init_build(supervoxels1, prediction1)
+        self.init_build2(supervoxels2, prediction2)
+
+        self.stack.build_rag_border()
+        
 
     def number_of_nodes(self):
         return self.stack.get_num_bodies()
@@ -77,8 +120,20 @@ class Stack:
     def copy(self):
         raise Exception("Not implemented yet")
 
-    def agglomerate(self, threshold=0.5):
+    def agglomerate(self, threshold=0.1):
         self.stack.agglomerate_rag(threshold) 
+
+
+    def agglomerate_border(self, threshold=0.1):
+        self.stack.disable_nonborder_edges() 
+        
+        self.stack.agglomerate_rag(threshold) 
+
+        self.stack.enable_nonborder_edges()
+
+        transactions = self.stack.get_transformations()
+
+        return dict(transactions)
 
     # already complete when the internal values are set to watershed and 1 
     def get_segmentation(self):
@@ -120,7 +175,6 @@ class Stack:
 
         if self.master_logger is not None:
             self.master_logger.info("Determining optimal edge locations")
-        # ?! need NP implementation
         self.stack.determine_edge_locations()
         if self.master_logger is not None:
             self.master_logger.info("Finished determining optimal edge locations")
@@ -143,7 +197,6 @@ class Stack:
                 edge_data["location"] = [0, 0, 0]
             else: 
                 edge_data["weight"] = self.stack.get_edge_weight(edge) 
-                # ?! need NP implementation
                 x, y, z = self.stack.get_edge_loc(edge)
                 edge_data["location"] = [x, y, z]
            
