@@ -4,8 +4,6 @@
 import sys
 import os
 import os.path
-import argparse
-import h5py
 import numpy
 import shutil
 import logging
@@ -14,7 +12,7 @@ from skimage import morphology as skmorph
 from scipy.ndimage import label
 import traceback
 
-from . import imio, agglo, morpho, classify, evaluate, app_logger, \
+from . import imio, agglo, morpho, classify, app_logger, \
     session_manager, pixel, features
 
 try:
@@ -61,7 +59,7 @@ def gen_supervoxels(options, prediction_file, master_logger):
     if not os.path.isfile(prediction_file):
         raise Exception("Training file not found: " + prediction_file)
 
-    prediction = imio.read_image_stack(prediction_file, group=PREDICTIONS_HDF5_GROUP, single_channel=False)
+    prediction = imio.read_image_stack(prediction_file, group=PREDICTIONS_HDF5_GROUP)
     master_logger.info("Transposed boundary prediction")
     prediction = prediction.transpose((2, 1, 0, 3))
 
@@ -148,8 +146,8 @@ def agglomeration(options, agglom_stack, supervoxels, prediction,
                 session_location+"/agglom-"+str(threshold)+".lzf.h5", compression='lzf')
           
 
-        transforms = imio.segmentation_transforms(supervoxels, segmentation)
-        imio.write_segmentation(supervoxels, transforms,
+        transforms = imio.compute_sp_to_body_map(supervoxels, segmentation)
+        imio.write_mapped_segmentation(supervoxels, transforms,
                 session_location+"/agglom-"+str(threshold)+".h5")
 
         if options.raveler_output:
@@ -295,7 +293,7 @@ def run_segmentation_pipeline(session_location, options, master_logger):
     elif options.supervoxels_file:
         master_logger.info("Reading supervoxels: " + options.supervoxels_file)
         supervoxels = imio.read_image_stack(options.supervoxels_file) 
-        #supervoxels = imio.read_segmentation(options.supervoxels_file) 
+        #supervoxels = imio.read_mapped_segmentation(options.supervoxels_file) 
         master_logger.info("Finished reading supervoxels")
 
     # write superpixels out to hdf5 and/or raveler files
@@ -325,7 +323,7 @@ def run_segmentation_pipeline(session_location, options, master_logger):
         if prediction is None and options.pixelprob_file is not None:
             master_logger.info("Reading pixel prediction: " + options.pixelprob_file)
             prediction = imio.read_image_stack(options.pixelprob_file, 
-                group=PREDICTIONS_HDF5_GROUP, single_channel=False)
+                group=PREDICTIONS_HDF5_GROUP)
             master_logger.info("Finished reading pixel prediction")
         elif prediction is None:
             raise Exception("No pixel probs available for agglomeration")
