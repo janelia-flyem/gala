@@ -23,6 +23,7 @@ class Stack:
         """
         self.master_logger = master_logger
         self.single_channel = single_channel
+        self.all_syn_locs = [] 
         
         self.stack = neuroproof.init_stack()
         

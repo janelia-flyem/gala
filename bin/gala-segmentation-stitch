@@ -5,5 +5,5 @@
 import os
 import sys
 
-from gala import segmentation_pipeline
-sys.exit(stitch_segmentation.entrypoint(sys.argv))
+from gala import segmentation_stitch
+sys.exit(segmentation_stitch.entrypoint(sys.argv))
