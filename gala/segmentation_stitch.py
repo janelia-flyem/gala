@@ -138,8 +138,6 @@ def run_stitching(session_location, options, master_logger):
     cl = classify.load_classifier(options.classifier)
     fm_info = json.loads(str(cl.feature_description))
 
-    agglom_stack = stack_np.Stack(None, None, single_channel=False, classifier=cl, feature_info=fm_info,
-            synapse_file=None, master_logger=master_logger)
 
 
     subvolumes1_json = json.loads(open(options.subvolumes1))
@@ -147,6 +145,18 @@ def run_stitching(session_location, options, master_logger):
     
     subvolumes2_json = json.loads(open(options.subvolumes2))
     subvolumes2 = subvolumes_json["subvolumes"]
+
+    pred_probe = subvolumes1[0]['prediction-file']
+   
+    num_channels = 1
+    if True: 
+        prediction = imio.read_image_stack(pred_probe,
+            group=PREDICTIONS_HDF5_GROUP, single_channel=False)
+        num_channels = prediction.shape[prediction.ndim-1]
+
+    agglom_stack = stack_np.Stack(None, None, single_channel=False, classifier=cl, feature_info=fm_info,
+                synapse_file=None, master_logger=master_logger, num_channels=num_channels)
+
 
     for block1 in subvolumes1:
         b1pt1 = block1["near-lower-left"]
