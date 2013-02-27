@@ -154,6 +154,10 @@ class Stack:
             for loc in self.all_syn_locs:
                 x, y, z = loc
                 bodyid = self.stack.get_body_id(x, y, z)
+                
+                if bodyid == 0:
+                    continue
+    
                 if bodyid in body_syn:
                     body_syn[bodyid] += 1
                 else:
