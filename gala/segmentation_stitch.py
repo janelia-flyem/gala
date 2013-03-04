@@ -233,7 +233,7 @@ def run_stitching(session_location, options, master_logger):
     for subvolume in subvolumes:
         faces = subvolume["faces"]
    
-        if len(faces) > 0:
+        if len(faces) > 0 and options.buffer_width > 1:
             master_logger.info("Examining buffer area: " + subvolume["segmentation-file"])
             pred_master, seg_master = grab_pred_seg(subvolume["prediction-file"], subvolume["segmentation-file"], options.border_size)
             if "xy1" in faces:
