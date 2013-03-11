@@ -14,5 +14,5 @@ setup(name = "gala",
     packages = ['gala', 'gala.features'],
     package_data = {'gala': ['testdata/*.*', 'testdata/original_grayscales/*'] },
     install_requires = [ ],
-    scripts = ["bin/gala-segmentation-stitch", "bin/gala-segmentation-pipeline", "bin/gala-train", "bin/gala-test-package", "bin/gala-pixel", "bin/comparestacks", "bin/gala-valprob"]
+    scripts = ["bin/gala-segmentation-stitch", "bin/gala-segmentation-pipeline", "bin/gala-train", "bin/gala-test-package", "bin/gala-pixel", "bin/comparestacks", "bin/gala-valprob", "bin/gala-auto"]
 )

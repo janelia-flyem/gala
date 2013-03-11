@@ -17,7 +17,7 @@ class Stack:
 
     def __init__(self, watershed=numpy.array([]), probabilities=numpy.array([]),
                 single_channel=True, classifier=None, synapse_file=None, feature_info=None,
-                master_logger=None, num_channels=1): 
+                master_logger=None, num_channels=1, overlap=False): 
         """Create a graph from a watershed volume and image volume.
         
         """
@@ -36,8 +36,12 @@ class Stack:
         for i in range(0, num_channels):
             self.stack.add_empty_channel()
 
+        if overlap:
+            self.fmgr.set_overlap_function()
+
         if classifier is not None:
-            self.fmgr.set_python_rf_function(get_prob_handle(classifier))
+            if not overlap:
+                self.fmgr.set_python_rf_function(get_prob_handle(classifier))
                     
             if feature_info is not None:
                 for feature in feature_info['feature_list']:
@@ -202,7 +206,13 @@ class Stack:
                 edge_data["location"] = [0, 0, 0]
             else: 
                 edge_data["weight"] = self.stack.get_edge_weight(edge) 
-                x, y, z = self.stack.get_edge_loc(edge)
+                
+                try:
+                    x, y, z = self.stack.get_edge_loc(edge)
+                except:
+                    x = 0
+                    y = 0
+                    z = 0
                 edge_data["location"] = [x, y, z]
            
 

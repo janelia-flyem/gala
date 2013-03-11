@@ -161,7 +161,7 @@ def run_stitching(session_location, options, master_logger):
     master_logger.info("Number of prediction channels: " + str(num_channels))
 
     agglom_stack = stack_np.Stack(None, None, single_channel=False, classifier=cl, feature_info=fm_info,
-                synapse_file=None, master_logger=master_logger, num_channels=num_channels)
+                synapse_file=None, master_logger=master_logger, num_channels=num_channels, overlap=True)
 
 
     master_logger.info("Examining sub-blocks")
