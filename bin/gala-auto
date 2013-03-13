@@ -1,0 +1,13 @@
+#!/usr/bin/env python
+
+# ensure imported package is local to this executable
+
+import os
+import sys
+
+this_dir = os.path.dirname(sys.argv[0])
+pkg_dir = os.path.abspath(os.path.join(this_dir, '..'))
+sys.path.insert(0, pkg_dir)
+
+from gala import auto
+sys.exit(auto.entrypoint(sys.argv))
