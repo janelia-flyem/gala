@@ -11,6 +11,9 @@ import json
 from skimage import morphology as skmorph
 from scipy.ndimage import label
 import traceback
+import glob
+import re
+import h5py
 
 from . import imio, agglo, morpho, classify, app_logger, \
     session_manager, pixel, features
@@ -145,22 +148,73 @@ def agglomeration(options, agglom_stack, supervoxels, prediction,
             imio.write_image_stack(segmentation,
                 session_location+"/agglom-"+str(threshold)+".lzf.h5", compression='lzf')
           
-
+        
+        file_base = os.path.abspath(session_location)+"/seg_data/agglom-"+str(threshold)
         transforms = imio.compute_sp_to_body_map(supervoxels, segmentation)
-        imio.write_mapped_segmentation(supervoxels, transforms,
-                session_location+"/agglom-"+str(threshold)+".h5")
+        seg_loc = file_base +"v1.h5"
+        if not os.path.exists(session_location+"/seg_data"):
+            os.makedirs(session_location+"/seg_data")
+        imio.write_mapped_segmentation(supervoxels, transforms, seg_loc)    
 
-        if options.raveler_output:
-            sps_outs = output_raveler(segmentation, supervoxels, image_stack, "agglom-" + str(threshold),
-                session_location, master_logger)   
-            master_logger.info("Writing graph.json")
-            agglom_stack.write_plaza_json(session_location+"/raveler-export/agglom-"+str(threshold)+"/graph.json",
-                                            options.synapse_file)
-            if options.synapse_file is not None:
-                shutil.copyfile(options.synapse_file,
-                        session_location + "/raveler-export/agglom-"+str(threshold)+"/annotations-synapse.json") 
-            master_logger.info("Finished writing graph.json")
+        if options.synapse_file is not None:
+            h5temp = h5py.File(seg_loc, 'a')
+            syn_data = json.load(open((options.synapse_file)))
+            meta = syn_data['metadata']
+            meta['username'] = "auto"
+            syn_data_str = json.dumps(syn_data, indent=4)
+            h5temp.create_dataset("synapse-annotations", data=syn_data_str)
 
+        graph_loc = file_base+"-graphv1.json"
+        agglom_stack.write_plaza_json(graph_loc, options.synapse_file)
+       
+        json_data = {}
+        json_data['graph'] = graph_loc
+        json_data['border'] = options.border_size  
+        subvolume = {}
+        subvolume['segmentation-file'] = seg_loc
+        
+        gray_file_whole = os.path.abspath(glob.glob(options.image_stack)[0])
+        gray_path = os.path.dirname(gray_file_whole)
+       
+        gray_file = os.path.basename(gray_file_whole)
+        field_width = len(re.findall(r'\d',gray_file))
+        field_rep = "%%0%dd" % field_width
+        gray_file = re.sub(r'\d+', field_rep, gray_file)
+        
+        subvolume['grayscale-files'] = gray_path + "/" + gray_file
+        
+        # get extant
+        x1 = 0
+        y1 = 0
+        z1 = 0
+        z2,y2,x2 = supervoxels.shape
+        z2 = z2 - 2*options.border_size
+        y2 = y2 - 2*options.border_size
+        x2 = x2 - 2*options.border_size
+        extant = re.findall(r'\d+-\d+_\d+-\d+_\d+-\d+', gray_path)
+        if len(extant) > 0:
+            bbox = extant[0]
+            x1,x2,y1,y2,z1,z2 = re.findall(r'\d+', bbox)
+        subvolume["far-upper-right"] = [x2,y2,z2]
+        subvolume["near-lower-left"] = [x1,y1,z1]
+
+        json_data['subvolumes'] = [subvolume]
+         
+        # write out json file 
+        json_file = session_location + "/segmentation-" + str(threshold) + "-v1.json"
+        jw = open(json_file, 'w')
+        jw.write(json.dumps(json_data, indent=4))
+
+        #if options.raveler_output:
+        #    sps_outs = output_raveler(segmentation, supervoxels, image_stack, "agglom-" + str(threshold),
+        #        session_location, master_logger)   
+        #    master_logger.info("Writing graph.json")
+        #    agglom_stack.write_plaza_json(session_location+"/raveler-export/agglom-"+str(threshold)+"/graph.json",
+        #                                    options.synapse_file)
+        #    if options.synapse_file is not None:
+        #        shutil.copyfile(options.synapse_file,
+        #                session_location + "/raveler-export/agglom-"+str(threshold)+"/annotations-synapse.json") 
+        #    master_logger.info("Finished writing graph.json")
 
 
 def inclusion_removal(agglom_stack, master_logger):
