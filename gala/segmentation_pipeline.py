@@ -195,8 +195,8 @@ def agglomeration(options, agglom_stack, supervoxels, prediction,
         if len(extant) > 0:
             bbox = extant[0]
             x1,x2,y1,y2,z1,z2 = re.findall(r'\d+', bbox)
-        subvolume["far-upper-right"] = [x2,y2,z2]
-        subvolume["near-lower-left"] = [x1,y1,z1]
+        subvolume["far-upper-right"] = [int(x2),int(y2),int(z2)]
+        subvolume["near-lower-left"] = [int(x1),int(y1),int(z1)]
 
         json_data['subvolumes'] = [subvolume]
          
