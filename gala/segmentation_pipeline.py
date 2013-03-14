@@ -162,7 +162,8 @@ def agglomeration(options, agglom_stack, supervoxels, prediction,
             meta = syn_data['metadata']
             meta['username'] = "auto"
             syn_data_str = json.dumps(syn_data, indent=4)
-            h5temp.create_dataset("synapse-annotations", data=syn_data_str)
+            str_type = h5py.new_vlen(str)
+            ds = h5temp.create_dataset("synapse-annotations", data=syn_data_str, shape=(1,), dtype=str_type)
 
         graph_loc = file_base+"-graphv1.json"
         agglom_stack.write_plaza_json(graph_loc, options.synapse_file)
