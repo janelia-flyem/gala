@@ -189,9 +189,9 @@ def agglomeration(options, agglom_stack, supervoxels, prediction,
         y1 = 0
         z1 = 0
         z2,y2,x2 = supervoxels.shape
-        z2 = z2 - 2*options.border_size
-        y2 = y2 - 2*options.border_size
-        x2 = x2 - 2*options.border_size
+        z2 = z2 - 2*options.border_size - 1
+        y2 = y2 - 2*options.border_size - 1
+        x2 = x2 - 2*options.border_size - 1
         extant = re.findall(r'\d+-\d+_\d+-\d+_\d+-\d+', gray_path)
         if len(extant) > 0:
             bbox = extant[0]
