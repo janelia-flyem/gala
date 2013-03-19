@@ -202,7 +202,7 @@ def agglomeration(options, agglom_stack, supervoxels, prediction,
 
         json_data['subvolumes'] = [subvolume]
         
-        agglom_stack.write_plaza_json(graph_loc, options.synapse_file, z1-options.border_size)
+        agglom_stack.write_plaza_json(graph_loc, options.synapse_file, ((z1)-(options.border_size)))
          
         # write out json file
         json_str = json.dumps(json_data, indent=4)
