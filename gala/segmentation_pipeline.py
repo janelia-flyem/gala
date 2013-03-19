@@ -187,13 +187,13 @@ def agglomeration(options, agglom_stack, supervoxels, prediction,
         subvolume['grayscale-files'] = gray_path + "/" + gray_file
         
         # get extant
-        x1 = 0
-        y1 = 0
-        z1 = 0
+        x1 = options.border_size
+        y1 = options.border_size
+        z1 = options.border_size
         z2,y2,x2 = supervoxels.shape
-        z2 = z2 - 2*options.border_size - 1
-        y2 = y2 - 2*options.border_size - 1
-        x2 = x2 - 2*options.border_size - 1
+        z2 = z2 - options.border_size - 1
+        y2 = y2 - options.border_size - 1
+        x2 = x2 - options.border_size - 1
         extant = re.findall(r'\d+-\d+_\d+-\d+_\d+-\d+', gray_path)
         if len(extant) > 0:
             bbox = extant[0]
