@@ -14,6 +14,7 @@ import traceback
 import glob
 import re
 import h5py
+import hashlib
 
 from . import imio, agglo, morpho, classify, app_logger, \
     session_manager, pixel, features
@@ -149,7 +150,8 @@ def agglomeration(options, agglom_stack, supervoxels, prediction,
                 session_location+"/agglom-"+str(threshold)+".lzf.h5", compression='lzf')
           
         
-        file_base = os.path.abspath(session_location)+"/seg_data/agglom-"+str(threshold)
+        md5hex = hashlib.md5(' '.join(sys.argv)).hexdigest()
+        file_base = os.path.abspath(session_location)+"/seg_data/seg-"+str(threshold) + "-" + md5hex + "-"
         transforms = imio.compute_sp_to_body_map(supervoxels, segmentation)
         seg_loc = file_base +"v1.h5"
         if not os.path.exists(session_location+"/seg_data"):
@@ -165,7 +167,7 @@ def agglomeration(options, agglom_stack, supervoxels, prediction,
             str_type = h5py.new_vlen(str)
             ds = h5temp.create_dataset("synapse-annotations", data=syn_data_str, shape=(1,), dtype=str_type)
 
-        graph_loc = file_base+"-graphv1.json"
+        graph_loc = file_base+"graphv1.json"
         agglom_stack.write_plaza_json(graph_loc, options.synapse_file)
        
         json_data = {}
@@ -201,10 +203,11 @@ def agglomeration(options, agglom_stack, supervoxels, prediction,
 
         json_data['subvolumes'] = [subvolume]
          
-        # write out json file 
-        json_file = session_location + "/segmentation-" + str(threshold) + "-v1.json"
+        # write out json file
+        json_str = json.dumps(json_data, indent=4)
+        json_file = session_location + "/seg-" + str(threshold) + "-" + md5hex + "-v1.json"
         jw = open(json_file, 'w')
-        jw.write(json.dumps(json_data, indent=4))
+        jw.write(json_str)
 
         #if options.raveler_output:
         #    sps_outs = output_raveler(segmentation, supervoxels, image_stack, "agglom-" + str(threshold),
