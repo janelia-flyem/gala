@@ -168,7 +168,6 @@ def agglomeration(options, agglom_stack, supervoxels, prediction,
             ds = h5temp.create_dataset("synapse-annotations", data=syn_data_str, shape=(1,), dtype=str_type)
 
         graph_loc = file_base+"graphv1.json"
-        agglom_stack.write_plaza_json(graph_loc, options.synapse_file)
        
         json_data = {}
         json_data['graph'] = graph_loc
@@ -202,6 +201,8 @@ def agglomeration(options, agglom_stack, supervoxels, prediction,
         subvolume["near-lower-left"] = [int(x1),int(y1),int(z1)]
 
         json_data['subvolumes'] = [subvolume]
+        
+        agglom_stack.write_plaza_json(graph_loc, options.synapse_file, z1-options.border_size)
          
         # write out json file
         json_str = json.dumps(json_data, indent=4)
