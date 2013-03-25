@@ -9,11 +9,22 @@ import json
 from skimage import morphology as skmorph
 from scipy.ndimage import label
 import traceback
+import hashlib
+
 
 from . import imio, morpho, classify, evaluate, app_logger, session_manager, pixel, features, stack_np
 
 # Group where we store predictions in HDF5 file
 PREDICTIONS_HDF5_GROUP = '/volume/predictions'
+
+def update_filename(name, md5):
+    nums = re.findall(r'\d+\.', name)
+    val = int(nums[-1].rstrip('.'))
+    temp_name = re.sub(r'v\d+\.', str("v" + str(val + 1) + "."), name)
+    hashes = re.findall(r'-[0-9a-f]+-',name)
+    match_hash = hashes[-1]
+    temp_name = re.sub(match_hash, str("-" + md5 + "-"), temp_name)
+    return temp_name
 
 
 def grab_pred_seg(pred_name, seg_name, border_size):
@@ -137,18 +148,34 @@ def run_stitching(session_location, options, master_logger):
     # 3.  segmentations are z,y,x and predictions are x,y,z (must transpose)
     # 4.  0,0 is the lower-left corner of the image
     # 5.  assume coordinates in json is x,y,z
-        
-    
+      
+    md5_str = hashlib.md5(' '.join(sys.argv)).hexdigest()
+
+
     cl = classify.load_classifier(options.classifier)
     fm_info = json.loads(str(cl.feature_description))
 
 
-
     subvolumes1_json = json.load(open(options.subvolumes1))
-    subvolumes1 = subvolumes1_json["subvolumes"]
+    subvolumes1_temp = subvolumes1_json["subvolumes"]
     
     subvolumes2_json = json.load(open(options.subvolumes2))
-    subvolumes2 = subvolumes2_json["subvolumes"]
+    subvolumes2_temp = subvolumes2_json["subvolumes"]
+
+    subvolumes1 = []
+    subvolumes2 = []
+    for seg in subvolumes1_temp:
+        if 'config-file' in seg:
+            config_file = seg['config-file']
+            config_data = json.load(open(config_file))
+            seg = config_data["subvolumes"][0]
+        subvolumes1.append(seg)
+    for seg in subvolumes2_temp:
+        if 'config-file' in seg:
+            config_file = seg['config-file']
+            config_data = json.load(open(config_file))
+            seg = config_data["subvolumes"][0]
+        subvolumes2.append(seg)
 
     pred_probe = subvolumes1[0]['prediction-file']
    
@@ -227,6 +254,10 @@ def run_stitching(session_location, options, master_logger):
 
         block1["faces"] = faces
 
+    # ?! find all synapses that conflict by mapping to a global space and returning json data
+    tbar_json = find_close_tbars(subvolumes1, subvolumes2, options.tbar_proximity)
+    
+            
     subvolumes1.extend(subvolumes2)
     subvolumes = subvolumes1
 
@@ -267,14 +298,49 @@ def run_stitching(session_location, options, master_logger):
                 agglom_stack.build_partial(seg, pred)
 
 
-    # special merge mode that preserves special nature of border edges and returns all tranformations
-    transaction_dict = agglom_stack.agglomerate_border(options.segmentation_threshold) 
 
-    # show some stats
-    master_logger.info("Number of merges: " + str(len(transaction_dict)))
-    
+
+    # special merge mode that preserves special nature of border edges and returns all tranformations
+    master_logger.info("Starting agglomeration to threshold " + str(options.segmentation_threshold)
+        + " with " + str(agglom_stack.number_of_nodes()))
+    transaction_dict = agglom_stack.agglomerate_border(options.segmentation_threshold) 
+    master_logger.info("Finished agglomeration to threshold " + str(options.segmentation_threshold)
+        + " with " + str(agglom_stack.number_of_nodes()))
+
+
+    # output stitched segmentation and update subvolumes accordingly
+
+    if not os.path.exists(session_location+"/seg_data"):
+        os.makedirs(session_location+"/seg_data")
+
+    file_base = os.path.abspath(session_location)+"/seg_data/seg-"+str(options.segmentation_threshold) + "-" + md5hex + "-"
+    # version is maintained relative to the hash    
+    graph_loc = file_base+"graphv1.json"
+    tbar_debug_loc = file_bas+"synapse-verify.json"
+
     master_logger.info("Writing graph.json")
-    agglom_stack.write_plaza_json(session_location + "/graph.json", None)
+
+    # ?! set threshold value for outputing as appropriate
+    agglom_stack.write_plaza_json(graph_loc, None)
+
+    # ?! write tbar debug file
+
+    json_data = {}
+    json_data['graph'] = graph_loc
+    json_data['tbar-debug'] = tbar_debug_loc
+    json_data['border'] = options.border_size  
+    subvolume_configs = []
+   
+    # ?! load config files into subvolumes
+
+    json_data['subvolumes'] = subvolume_configs
+    # write out json file
+    json_str = json.dumps(json_data, indent=4)
+    json_file = session_location + "/seg-" + str(threshold) + "-" + md5hex + "-v1.json"
+    jw = open(json_file, 'w')
+    jw.write(json_str)
+
+    # ?! update file names for the rest and create new h5s as appropriate
 
     # copy volumes to new version
     for subvolume in subvolumes: 
@@ -346,6 +412,9 @@ def create_stitching_options(options_parser):
         default_val=10, required=False, dtype=int, verify_fn=None, num_args=None,
         shortcut=None, warning=False, hidden=True) 
 
+    options_parser.create_option("tbar-proximity", "Minimum pixel separation between different tbars in a border region beyond which the tbars get flagged", 
+        default_val=10, required=False, dtype=int, verify_fn=None, num_args=None,
+        shortcut=None, warning=False, hidden=True) 
 
     options_parser.create_option("segmentation-threshold", "Segmentation threshold", 
         default_val=0.1, required=False, dtype=float, verify_fn=None, num_args=None,

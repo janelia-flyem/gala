@@ -153,6 +153,7 @@ class Stack:
     def write_plaza_json(self, outfile_name, synapse_file, offsetz=0):
         json_data = {}
         # write synapse
+        synapse_bodies = []
         if self.all_syn_locs is not None:
             body_syn = {}
             for loc in self.all_syn_locs:
@@ -167,10 +168,9 @@ class Stack:
                 else:
                     body_syn[bodyid] = 1
            
-            synapse_bodies = []
             for key, val in body_syn.items():
                 synapse_bodies.append([key, val])
-            json_data["synapse_bodies"] = synapse_bodies
+        json_data["synapse_bodies"] = synapse_bodies
     
         rag = self.stack.get_rag()
         
