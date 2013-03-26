@@ -152,9 +152,10 @@ def grab_pred_seg(pred_name, seg_name, border_size):
     prediction = imio.read_image_stack(pred_name,
         group=PREDICTIONS_HDF5_GROUP)
     segmentation = imio.read_mapped_segmentation(seg_name)
-    segmentation = segmentation.transpose((2,1,0)) 
-    prediction = prediction[border_size:(-1*border_size), border_size:(-1*border_size), border_size:(-1*border_size)]
-    segmentation = segmentation[border_size:(-1*border_size), border_size:(-1*border_size), border_size:(-1*border_size)]
+    segmentation = segmentation.transpose((2,1,0))
+    if border_size > 0: 
+        prediction = prediction[border_size:(-1*border_size), border_size:(-1*border_size), border_size:(-1*border_size)]
+        segmentation = segmentation[border_size:(-1*border_size), border_size:(-1*border_size), border_size:(-1*border_size)]
     return prediction, segmentation
 
 
@@ -280,6 +281,7 @@ def run_stitching(session_location, options, master_logger):
     if match_hash1 != match_hash2:
         raise Exception("Incompatible segmentations: hashes do not match")
 
+
     md5_str = hashlib.md5(' '.join(sys.argv)).hexdigest()
 
     cl = classify.load_classifier(options.classifier)
@@ -292,6 +294,15 @@ def run_stitching(session_location, options, master_logger):
     subvolumes2_json = json.load(open(options.subvolumes2))
     subvolumes2_temp = subvolumes2_json["subvolumes"]
 
+    if 'border' not in subvolumes1_json or 'border' not in subvolumes2_json:
+        raise Exception("border attribute not defined in segmentation")
+   
+    border_size = subvolumes1_json['border'] 
+    
+    if border_size != subvolumes2_json['border']:
+        raise Exception("border attrubute not the same in both segmentations") 
+
+    
     subvolumes1 = []
     subvolumes2 = []
     for seg in subvolumes1_temp:
@@ -342,42 +353,42 @@ def run_stitching(session_location, options, master_logger):
 
             overlap, b1_prediction, b1_seg, b2_prediction, b2_seg = examine_boundary(0,
                     b1_prediction, b1_seg, b2_prediction, b2_seg, b1pt1, b2pt2, b1pt2,
-                    b2pt1, block1, block2, agglom_stack, options.border_size, master_logger)
+                    b2pt1, block1, block2, agglom_stack, border_size, master_logger)
             if overlap:
                 faces.add("yz1")
                 block2["faces"].add("yz2")
 
             overlap, b1_prediction, b1_seg, b2_prediction, b2_seg = examine_boundary(1,
                     b1_prediction, b1_seg, b2_prediction, b2_seg, b1pt1, b2pt2,
-                    b1pt2, b2pt1, block1, block2, agglom_stack, options.border_size, master_logger)
+                    b1pt2, b2pt1, block1, block2, agglom_stack, border_size, master_logger)
             if overlap:
                 faces.add("xz1")
                 block2["faces"].add("xz2")
 
             overlap, b1_prediction, b1_seg, b2_prediction, b2_seg = examine_boundary(2,
                     b1_prediction, b1_seg, b2_prediction, b2_seg, b1pt1, b2pt2,
-                    b1pt2, b2pt1, block1, block2, agglom_stack, options.border_size, master_logger)
+                    b1pt2, b2pt1, block1, block2, agglom_stack, border_size, master_logger)
             if overlap:
                 faces.add("xy1")
                 block2["faces"].add("xy2")
 
             overlap, b1_prediction, b1_seg, b2_prediction, b2_seg = examine_boundary(0,
                     b1_prediction, b1_seg, b2_prediction, b2_seg, b1pt2, b2pt1,
-                    b1pt1, b2pt2, block1, block2, agglom_stack, options.border_size, master_logger)
+                    b1pt1, b2pt2, block1, block2, agglom_stack, border_size, master_logger)
             if overlap:
                 faces.add("yz2")
                 block2["faces"].add("yz1")
 
             overlap, b1_prediction, b1_seg, b2_prediction, b2_seg = examine_boundary(1,
                     b1_prediction, b1_seg, b2_prediction, b2_seg, b1pt2, b2pt1,
-                    b1pt1, b2pt2, block1, block2, agglom_stack, options.border_size, master_logger)
+                    b1pt1, b2pt2, block1, block2, agglom_stack, border_size, master_logger)
             if overlap:
                 faces.add("xz2")
                 block2["faces"].add("xz1")
 
             overlap, b1_prediction, b1_seg, b2_prediction, b2_seg = examine_boundary(2,
                     b1_prediction, b1_seg, b2_prediction, b2_seg, b1pt2, b2pt1,
-                    b1pt1, b2pt2, block1, block2, agglom_stack, options.border_size, master_logger)
+                    b1pt1, b2pt2, block1, block2, agglom_stack, border_size, master_logger)
             if overlap:
                 faces.add("xy2")
                 block2["faces"].add("xy1")
@@ -385,7 +396,7 @@ def run_stitching(session_location, options, master_logger):
         block1["faces"] = faces
 
     # find all synapses that conflict by mapping to a global space and returning json data
-    tbar_json = find_close_tbars(subvolumes1, subvolumes2, options.tbar_proximity, options.border_size)
+    tbar_json = find_close_tbars(subvolumes1, subvolumes2, options.tbar_proximity, border_size)
     
     subvolumes1.extend(subvolumes2)
     subvolumes = subvolumes1
@@ -395,7 +406,7 @@ def run_stitching(session_location, options, master_logger):
    
         if len(faces) > 0 and options.buffer_width > 1:
             master_logger.info("Examining buffer area: " + subvolume["segmentation-file"])
-            pred_master, seg_master = grab_pred_seg(subvolume["prediction-file"], subvolume["segmentation-file"], options.border_size)
+            pred_master, seg_master = grab_pred_seg(subvolume["prediction-file"], subvolume["segmentation-file"], border_size)
             if "xy1" in faces:
                 pred = pred_master[:,:,0:options.buffer_width] 
                 seg = seg_master[:,:,0:options.buffer_width]
@@ -460,7 +471,7 @@ def run_stitching(session_location, options, master_logger):
     json_data = {}
     json_data['graph'] = graph_loc
     json_data['tbar-debug'] = tbar_debug_loc
-    json_data['border'] = options.border_size  
+    json_data['border'] = border_size  
     subvolume_configs = []
     subvolume_configs_orig = []
 
@@ -496,6 +507,12 @@ def run_stitching(session_location, options, master_logger):
     # copy volumes to new version
     for subvolume_file in subvolume_configs_orig:
         config_data = json.load(open(subvolume_file))
+
+        if 'log' not in config_data:
+            config_data['log'] = []
+
+        config_data['log'].append(str(datetime.datetime.utcnow()) + " " + (' '.join(sys.argv)))
+
         subvolume = config_data["subvolumes"][0] 
 
         seg_file = subvolume["segmentation-file"]
@@ -513,6 +530,11 @@ def run_stitching(session_location, options, master_logger):
         hfile_write = h5py.File(new_seg_file, 'w')
         hfile_write.create_dataset("transforms", data=trans)
         hfile_write.create_dataset("stack", data=stack)
+        
+        if 'synapse-annotations' in hfile:
+            hfile_write.copy(hfile['synapse-annotations'], 'synapse-annotations') 
+        if 'bookmark-annotations' in hfile:
+            hfile_write.copy(hfile['bookmark-annotations'], 'bookmark-annotations') 
        
         jw = open(update_filename(subvolume_file, md5_str), 'w') 
         jw.write(json.dumps(config_data, indent=4))
@@ -556,9 +578,9 @@ def create_stitching_options(options_parser):
         shortcut=None, warning=False, hidden=True) 
 
 
-    options_parser.create_option("border-size", "Size of the border in pixels of the denormalized cubes", 
+    options_parser.create_option("border-size", "DEPRECATED: Size of the border in pixels of the denormalized cubes", 
         default_val=10, required=False, dtype=int, verify_fn=None, num_args=None,
-        shortcut=None, warning=False, hidden=False) 
+        shortcut=None, warning=False, hidden=True) 
 
     options_parser.create_option("tbar-proximity", "Minimum pixel separation between different tbars in a border region beyond which the tbars get flagged", 
         default_val=10, required=False, dtype=int, verify_fn=None, num_args=None,
