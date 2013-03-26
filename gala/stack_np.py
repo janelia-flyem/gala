@@ -152,7 +152,7 @@ class Stack:
         self.stack.remove_inclusions()    
 
     # just a simple rag export -- need feature for max size in a specified dimension
-    def write_plaza_json(self, outfile_name, synapse_file, offsetz=0):
+    def write_plaza_json(self, outfile_name, synapse_file, offsetz=0, disable_locs = False):
         json_data = {}
         # write synapse
         synapse_bodies = []
@@ -209,12 +209,13 @@ class Stack:
             else: 
                 edge_data["weight"] = self.stack.get_edge_weight(edge) 
                 
-                try:
-                    x, y, z = self.stack.get_edge_loc(edge)
-                except:
+                if disable_locs:
                     x = 0
                     y = 0
                     z = 0
+                else: 
+                    x, y, z = self.stack.get_edge_loc(edge)
+                
                 edge_data["location"] = [x, y, z+offsetz]
            
 

@@ -462,7 +462,7 @@ def run_stitching(session_location, options, master_logger):
 
     # set threshold value for outputing as appropriate
     agglom_stack.set_overlap_cutoff(5)
-    agglom_stack.write_plaza_json(graph_loc, None)
+    agglom_stack.write_plaza_json(graph_loc, None, 0, True)
 
     # write tbar debug file
     jw = open(tbar_debug_loc, 'w')
