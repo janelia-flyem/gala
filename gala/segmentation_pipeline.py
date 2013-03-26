@@ -174,6 +174,7 @@ def agglomeration(options, agglom_stack, supervoxels, prediction,
         json_data['border'] = options.border_size  
         subvolume = {}
         subvolume['segmentation-file'] = seg_loc
+        subvolume['prediction-file'] = os.path.abspath(session_location) + "/STACKED_prediction.h5"
         
         gray_file_whole = os.path.abspath(glob.glob(options.image_stack)[0])
         gray_path = os.path.dirname(gray_file_whole)

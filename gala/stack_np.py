@@ -128,6 +128,8 @@ class Stack:
     def agglomerate(self, threshold=0.1):
         self.stack.agglomerate_rag(threshold) 
 
+    def set_overlap_cutoff(self, threshold):
+        self.fmgr.set_overlap_cutoff(threshold)
 
     def agglomerate_border(self, threshold=0.1):
         self.stack.disable_nonborder_edges() 

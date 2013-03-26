@@ -10,12 +10,133 @@ from skimage import morphology as skmorph
 from scipy.ndimage import label
 import traceback
 import hashlib
-
+import math
+import re
+import datetime
 
 from . import imio, morpho, classify, evaluate, app_logger, session_manager, pixel, features, stack_np
 
 # Group where we store predictions in HDF5 file
 PREDICTIONS_HDF5_GROUP = '/volume/predictions'
+
+def grab_extant(blocks, border):
+    smallestx = 9999999
+    smallesty = 9999999
+    smallestz = 9999999
+    largestx = 0
+    largesty = 0
+    largestz = 0
+
+    for block in blocks: 
+        pt1 = block["near-lower-left"]
+        if pt1[0] < smallestx:
+            smallestx = pt1[0]
+        if pt1[1] < smallesty:
+            smallesty = pt1[1]
+        if pt1[2] < smallestz:
+            smallestz = pt1[2]
+
+        pt2 = block["far-upper-right"]
+        if pt2[0] > largestx:
+            largestx = pt2[0]
+        if pt2[1] > largesty:
+            largesty = pt2[1]
+        if pt2[2] > largestz:
+            largestz = pt2[2]
+
+    largestx += border
+    largesty += border
+    largestz += border
+    smallestx -= border
+    smallesty -= border
+    smallestz -= border
+    # determine image dimensions
+    xsize = largestx - smallestx + 1
+    ysize = largesty - smallesty + 1
+    zsize = largestz - smallestz + 1
+
+    return largestx, largesty, largestz, smallestx, smallesty, smallestz, xsize, ysize, zsize
+
+
+def find_close_tbars(subvolumes1, subvolumes2, proximity, border):
+    json_data = None
+    tbar_hash = set()
+    
+    subvolumes = list(subvolumes1)
+    subvolumes.extend(subvolumes2)
+    largestx, largesty, largestz, smallestx, smallesty, smallestz, xsize, ysize, zsize = grab_extant(subvolumes, border) 
+
+    for subvolume in subvolumes1:
+        pt1 = subvolume["near-lower-left"]
+        startx = pt1[0] - smallestx - border
+        starty = pt1[1] - smallesty - border
+        startz = pt1[2] - border
+
+        f = h5py.File(subvolume['segmentation-file'], 'r')
+        if 'synapse-annotations' in f:
+            j_str = f['synapse-annotations'][0]
+            block_synapse_data = json.loads(j_str)
+            synapse_list = block_synapse_data['data']
+            
+            if json_data is None:
+                json_data = block_synapse_data 
+                meta = json_data['metadata']
+                meta['session path'] = ''
+                meta['date'] = str(datetime.datetime.utcnow())
+                meta['computer'] = ''
+                json_data['data'] = []
+            
+            for synapse in synapse_list:
+                loc = synapse["T-bar"]["location"]
+                x = loc[0] + startx
+                y = loc[1] + starty
+                z = loc[2] + startz
+                tbar_hash.add((x,y,z))
+
+    for subvolume in subvolumes2:
+        pt1 = subvolume["near-lower-left"]
+        startx = pt1[0] - smallestx - border
+        starty = pt1[1] - smallesty - border
+        startz = pt1[2] - border
+
+        f = h5py.File(subvolume['segmentation-file'], 'r')
+        if 'synapse-annotations' in f:
+            j_str = f['synapse-annotations'][0]
+            block_synapse_data = json.loads(j_str)
+            synapse_list = block_synapse_data['data']
+            
+            if json_data is None:
+                json_data = block_synapse_data 
+                meta = json_data['metadata']
+                meta['session path'] = ''
+                meta['date'] = str(datetime.datetime.utcnow())
+                meta['computer'] = ''
+                json_data['data'] = []
+            
+            for synapse in synapse_list:
+                loc = synapse["T-bar"]["location"]
+                x = loc[0] + startx
+                y = loc[1] + starty
+                z = loc[2] + startz
+
+                for point in tbar_hash:
+                    x2, y2, z2 = point
+                    dist = math.sqrt((x2-x)**2 + (y2-y)**2 + (z2-z)**2)
+                    if dist <= proximity:
+                        synapse["T-bar"]["location"][0] = x
+                        synapse["T-bar"]["location"][1] = y
+                        synapse["T-bar"]["location"][2] = z
+
+                        for partner in synapse['partners']:
+                            loc = partner['location']
+                            partner['location'][0] = loc[0] + startx
+                            partner['location'][1] = loc[1] + starty
+                            partner['location'][2] = loc[2] + startz
+
+                        json_data['data'].append(synapse)          
+                        break
+
+    return json_data
 
 def update_filename(name, md5):
     nums = re.findall(r'\d+\.', name)
@@ -148,9 +269,18 @@ def run_stitching(session_location, options, master_logger):
     # 3.  segmentations are z,y,x and predictions are x,y,z (must transpose)
     # 4.  0,0 is the lower-left corner of the image
     # 5.  assume coordinates in json is x,y,z
-      
-    md5_str = hashlib.md5(' '.join(sys.argv)).hexdigest()
+    
+    # prevent stitch if hashes are different
+    hashes = re.findall(r'-[0-9a-f]+-',options.subvolumes1)
+    match_hash1 = hashes[-1]
 
+    hashes = re.findall(r'-[0-9a-f]+-',options.subvolumes2)
+    match_hash2 = hashes[-1]
+
+    if match_hash1 != match_hash2:
+        raise Exception("Incompatible segmentations: hashes do not match")
+
+    md5_str = hashlib.md5(' '.join(sys.argv)).hexdigest()
 
     cl = classify.load_classifier(options.classifier)
     fm_info = json.loads(str(cl.feature_description))
@@ -254,10 +384,9 @@ def run_stitching(session_location, options, master_logger):
 
         block1["faces"] = faces
 
-    # ?! find all synapses that conflict by mapping to a global space and returning json data
-    tbar_json = find_close_tbars(subvolumes1, subvolumes2, options.tbar_proximity)
+    # find all synapses that conflict by mapping to a global space and returning json data
+    tbar_json = find_close_tbars(subvolumes1, subvolumes2, options.tbar_proximity, options.border_size)
     
-            
     subvolumes1.extend(subvolumes2)
     subvolumes = subvolumes1
 
@@ -313,42 +442,65 @@ def run_stitching(session_location, options, master_logger):
     if not os.path.exists(session_location+"/seg_data"):
         os.makedirs(session_location+"/seg_data")
 
-    file_base = os.path.abspath(session_location)+"/seg_data/seg-"+str(options.segmentation_threshold) + "-" + md5hex + "-"
+    file_base = os.path.abspath(session_location)+"/seg_data/seg-"+str(options.segmentation_threshold) + "-" + md5_str + "-"
     # version is maintained relative to the hash    
     graph_loc = file_base+"graphv1.json"
-    tbar_debug_loc = file_bas+"synapse-verify.json"
+    tbar_debug_loc = file_base+"synapse-verify.json"
 
     master_logger.info("Writing graph.json")
 
-    # ?! set threshold value for outputing as appropriate
+    # set threshold value for outputing as appropriate
+    agglom_stack.set_overlap_cutoff(5)
     agglom_stack.write_plaza_json(graph_loc, None)
 
-    # ?! write tbar debug file
+    # write tbar debug file
+    jw = open(tbar_debug_loc, 'w')
+    jw.write(json.dumps(tbar_json, indent=4))
 
     json_data = {}
     json_data['graph'] = graph_loc
     json_data['tbar-debug'] = tbar_debug_loc
     json_data['border'] = options.border_size  
     subvolume_configs = []
-   
-    # ?! load config files into subvolumes
+    subvolume_configs_orig = []
 
+
+    # load config files into subvolumes
+    noconfig = True
+    for seg in subvolumes1_temp:
+        if 'config-file' in seg:
+            subvolume_configs_orig.append(seg['config-file'])
+            subvolume_configs.append({'config-file': update_filename(seg['config-file'], md5_str)}) 
+            noconfig = False
+    if noconfig:
+        subvolume_configs_orig.append(options.subvolumes1)
+        subvolume_configs.append({'config-file': update_filename(options.subvolumes1, md5_str)})
+    
+    noconfig = True
+    for seg in subvolumes2_temp:
+        if 'config-file' in seg:
+            subvolume_configs_orig.append(seg['config-file'])
+            subvolume_configs.append({'config-file': update_filename(seg['config-file'], md5_str)}) 
+            noconfig = False
+    if noconfig:
+        subvolume_configs_orig.append(options.subvolumes2)
+        subvolume_configs.append({'config-file': update_filename(options.subvolumes2, md5_str)})
     json_data['subvolumes'] = subvolume_configs
+    
     # write out json file
     json_str = json.dumps(json_data, indent=4)
-    json_file = session_location + "/seg-" + str(threshold) + "-" + md5hex + "-v1.json"
+    json_file = session_location + "/seg-" + str(options.segmentation_threshold) + "-" + md5_str + "-v1.json"
     jw = open(json_file, 'w')
     jw.write(json_str)
 
-    # ?! update file names for the rest and create new h5s as appropriate
-
     # copy volumes to new version
-    for subvolume in subvolumes: 
+    for subvolume_file in subvolume_configs_orig:
+        config_data = json.load(open(subvolume_file))
+        subvolume = config_data["subvolumes"][0] 
+
         seg_file = subvolume["segmentation-file"]
-        new_seg_file = seg_file.rstrip('.h5')
-        new_seg_file = new_seg_file + "_processed.h5"
+        new_seg_file = update_filename(seg_file, md5_str)
         subvolume["segmentation-file"] = new_seg_file
-        del subvolume["faces"]
 
         hfile = h5py.File(seg_file, 'r')
         trans = numpy.array(hfile["transforms"])
@@ -361,13 +513,9 @@ def run_stitching(session_location, options, master_logger):
         hfile_write = h5py.File(new_seg_file, 'w')
         hfile_write.create_dataset("transforms", data=trans)
         hfile_write.create_dataset("stack", data=stack)
-        
-
-    # dump json pointing to new h5's combining both partitions and a copy of everything else
-    json_data = {}
-    json_data["subvolumes"] = subvolumes
-    json_file = open(session_location + "/stitched_volume-" + str(options.segmentation_threshold) + ".json", 'w')
-    json_file.write(json.dumps(json_data, indent=4))
+       
+        jw = open(update_filename(subvolume_file, md5_str), 'w') 
+        jw.write(json.dumps(config_data, indent=4))
 
        
 def subvolumes_file1_verify(options_parser, options, master_logger):
@@ -404,13 +552,13 @@ def create_stitching_options(options_parser):
         shortcut='k', warning=False, hidden=False) 
 
     options_parser.create_option("buffer-width", "Width of the stitching region", 
-        default_val=50, required=False, dtype=int, verify_fn=None, num_args=None,
+        default_val=0, required=False, dtype=int, verify_fn=None, num_args=None,
         shortcut=None, warning=False, hidden=True) 
 
 
     options_parser.create_option("border-size", "Size of the border in pixels of the denormalized cubes", 
         default_val=10, required=False, dtype=int, verify_fn=None, num_args=None,
-        shortcut=None, warning=False, hidden=True) 
+        shortcut=None, warning=False, hidden=False) 
 
     options_parser.create_option("tbar-proximity", "Minimum pixel separation between different tbars in a border region beyond which the tbars get flagged", 
         default_val=10, required=False, dtype=int, verify_fn=None, num_args=None,
