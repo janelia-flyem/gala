@@ -380,10 +380,11 @@ def run_segmentation_pipeline(session_location, options, master_logger):
 
     # agglomerate and generate output
     if options.gen_agglomeration:
-        if prediction is None and options.pixelprob_file is not None:
-            master_logger.info("Reading pixel prediction: " + options.pixelprob_file)
-            prediction = imio.read_image_stack(options.pixelprob_file, 
+        if prediction is None and prediction_file is not None:
+            master_logger.info("Reading pixel prediction: " + prediction_file)
+            prediction = imio.read_image_stack(prediction_file, 
                 group=PREDICTIONS_HDF5_GROUP)
+            prediction = prediction.transpose((2, 1, 0, 3))
             master_logger.info("Finished reading pixel prediction")
         elif prediction is None:
             raise Exception("No pixel probs available for agglomeration")
