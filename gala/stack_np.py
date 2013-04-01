@@ -131,6 +131,12 @@ class Stack:
     def set_overlap_cutoff(self, threshold):
         self.fmgr.set_overlap_cutoff(threshold)
 
+    def set_overlap_max(self):
+        self.fmgr.set_overlap_max()
+    
+    def set_overlap_min(self):
+        self.fmgr.set_overlap_min()
+    
     def agglomerate_border(self, threshold=0.1):
         self.stack.disable_nonborder_edges() 
         

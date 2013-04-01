@@ -330,6 +330,14 @@ def run_stitching(session_location, options, master_logger):
 
     agglom_stack = stack_np.Stack(None, None, single_channel=False, classifier=cl, feature_info=fm_info,
                 synapse_file=None, master_logger=master_logger, num_channels=num_channels, overlap=True)
+    agglom_stack.set_overlap_cutoff(0)
+
+    if options.aggressive_stitch:
+        # use the maximum overlap between the two regions as the merge criterion
+        agglom_stack.set_overlap_max()
+    else:
+        # use the minimum overlap between the two regions as the merge criterion
+        agglom_stack.set_overlap_min()
 
 
     master_logger.info("Examining sub-blocks")
@@ -460,8 +468,10 @@ def run_stitching(session_location, options, master_logger):
 
     master_logger.info("Writing graph.json")
 
-    # set threshold value for outputing as appropriate
-    agglom_stack.set_overlap_cutoff(5)
+    # set threshold value for outputing as appropriate (edge size * 2)
+    agglom_stack.set_overlap_cutoff(11)
+    # use the maximum overlap between the two regions as the the split criterion (proofread 0-0.7)
+    agglom_stack.set_overlap_max()
     agglom_stack.write_plaza_json(graph_loc, None, 0, True)
 
     # write tbar debug file
@@ -570,25 +580,29 @@ def create_stitching_options(options_parser):
             default_val=None, required=True, dtype=str, verify_fn=subvolumes_file2_verify, num_args=None, shortcut='s2')
 
     options_parser.create_option("classifier", "H5 file containing RF (specific for border or just used in one of the substacks)", 
-        default_val=None, required=False, dtype=str, verify_fn=classifier_verify, num_args=None,
+        default_val=None, required=True, dtype=str, verify_fn=classifier_verify, num_args=None,
         shortcut='k', warning=False, hidden=False) 
+
+    options_parser.create_option("aggressive-stitch", "More aggressively stitch segments to reduce remaining work",
+            default_val=False, required=False, dtype=bool, num_args=None, warning=False, hidden=False)
+    
+    options_parser.create_option("segmentation-threshold", "Segmentation threshold", 
+        default_val=0.1, required=False, dtype=float, verify_fn=None, num_args=None,
+        shortcut='ST', warning=False, hidden=False) 
+
+    options_parser.create_option("tbar-proximity", "Minimum pixel separation between different tbars in a border region beyond which the tbars get flagged", 
+        default_val=10, required=False, dtype=int, verify_fn=None, num_args=None,
+        shortcut=None, warning=False, hidden=False) 
 
     options_parser.create_option("buffer-width", "Width of the stitching region", 
         default_val=0, required=False, dtype=int, verify_fn=None, num_args=None,
         shortcut=None, warning=False, hidden=True) 
-
+    
 
     options_parser.create_option("border-size", "DEPRECATED: Size of the border in pixels of the denormalized cubes", 
         default_val=10, required=False, dtype=int, verify_fn=None, num_args=None,
         shortcut=None, warning=False, hidden=True) 
 
-    options_parser.create_option("tbar-proximity", "Minimum pixel separation between different tbars in a border region beyond which the tbars get flagged", 
-        default_val=10, required=False, dtype=int, verify_fn=None, num_args=None,
-        shortcut=None, warning=False, hidden=True) 
-
-    options_parser.create_option("segmentation-threshold", "Segmentation threshold", 
-        default_val=0.1, required=False, dtype=float, verify_fn=None, num_args=None,
-        shortcut='ST', warning=False, hidden=False) 
 
 
 
