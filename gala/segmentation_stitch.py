@@ -587,7 +587,7 @@ def create_stitching_options(options_parser):
             default_val=False, required=False, dtype=bool, num_args=None, warning=False, hidden=False)
     
     options_parser.create_option("segmentation-threshold", "Segmentation threshold", 
-        default_val=0.1, required=False, dtype=float, verify_fn=None, num_args=None,
+        default_val=0.3, required=False, dtype=float, verify_fn=None, num_args=None,
         shortcut='ST', warning=False, hidden=False) 
 
     options_parser.create_option("tbar-proximity", "Minimum pixel separation between different tbars in a border region beyond which the tbars get flagged", 
