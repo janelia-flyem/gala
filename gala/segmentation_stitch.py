@@ -58,83 +58,66 @@ def grab_extant(blocks, border):
     return largestx, largesty, largestz, smallestx, smallesty, smallestz, xsize, ysize, zsize
 
 
-def find_close_tbars(subvolumes1, subvolumes2, proximity, border):
+def find_close_tbars(regions, proximity, border):
     json_data = None
     tbar_hash = set()
     
-    subvolumes = list(subvolumes1)
-    subvolumes.extend(subvolumes2)
-    largestx, largesty, largestz, smallestx, smallesty, smallestz, xsize, ysize, zsize = grab_extant(subvolumes, border) 
+    blocks = None
+    for region in regions:
+        if blocks is None:
+            blocks = list(region)
+        else:
+            blocks.extend(region)
 
-    for subvolume in subvolumes1:
-        pt1 = subvolume["near-lower-left"]
-        startx = pt1[0] - smallestx - border
-        starty = pt1[1] - smallesty - border
-        startz = pt1[2] - border
+    largestx, largesty, largestz, smallestx, smallesty, smallestz, xsize, ysize, zsize = grab_extant(blocks, border) 
 
-        f = h5py.File(subvolume['segmentation-file'], 'r')
-        if 'synapse-annotations' in f:
-            j_str = f['synapse-annotations'][0]
-            block_synapse_data = json.loads(j_str)
-            synapse_list = block_synapse_data['data']
-            
-            if json_data is None:
-                json_data = block_synapse_data 
-                meta = json_data['metadata']
-                meta['session path'] = ''
-                meta['date'] = str(datetime.datetime.utcnow())
-                meta['computer'] = ''
-                json_data['data'] = []
-            
-            for synapse in synapse_list:
-                loc = synapse["T-bar"]["location"]
-                x = loc[0] + startx
-                y = loc[1] + starty
-                z = loc[2] + startz
-                tbar_hash.add((x,y,z))
+    for region in regions:
+        tbar_hash_temp = set()
+        for block in region:
+            pt1 = block["near-lower-left"]
+            startx = pt1[0] - smallestx - border
+            starty = pt1[1] - smallesty - border
+            startz = pt1[2] - border
 
-    for subvolume in subvolumes2:
-        pt1 = subvolume["near-lower-left"]
-        startx = pt1[0] - smallestx - border
-        starty = pt1[1] - smallesty - border
-        startz = pt1[2] - border
+            f = h5py.File(block['segmentation-file'], 'r')
+            if 'synapse-annotations' in f:
+                j_str = f['synapse-annotations'][0]
+                block_synapse_data = json.loads(j_str)
+                synapse_list = block_synapse_data['data']
+                
+                if json_data is None:
+                    json_data = block_synapse_data 
+                    meta = json_data['metadata']
+                    meta['session path'] = ''
+                    meta['date'] = str(datetime.datetime.utcnow())
+                    meta['computer'] = ''
+                    json_data['data'] = []
+                
+                for synapse in synapse_list:
+                    loc = synapse["T-bar"]["location"]
+                    x = loc[0] + startx
+                    y = loc[1] + starty
+                    z = loc[2] + startz
+                    tbar_hash_temp.add((x,y,z))
 
-        f = h5py.File(subvolume['segmentation-file'], 'r')
-        if 'synapse-annotations' in f:
-            j_str = f['synapse-annotations'][0]
-            block_synapse_data = json.loads(j_str)
-            synapse_list = block_synapse_data['data']
-            
-            if json_data is None:
-                json_data = block_synapse_data 
-                meta = json_data['metadata']
-                meta['session path'] = ''
-                meta['date'] = str(datetime.datetime.utcnow())
-                meta['computer'] = ''
-                json_data['data'] = []
-            
-            for synapse in synapse_list:
-                loc = synapse["T-bar"]["location"]
-                x = loc[0] + startx
-                y = loc[1] + starty
-                z = loc[2] + startz
+                    for point in tbar_hash:
+                        x2, y2, z2 = point
+                        dist = math.sqrt((x2-x)**2 + (y2-y)**2 + (z2-z)**2)
+                        if dist <= proximity:
+                            synapse["T-bar"]["location"][0] = x
+                            synapse["T-bar"]["location"][1] = y
+                            synapse["T-bar"]["location"][2] = z
 
-                for point in tbar_hash:
-                    x2, y2, z2 = point
-                    dist = math.sqrt((x2-x)**2 + (y2-y)**2 + (z2-z)**2)
-                    if dist <= proximity:
-                        synapse["T-bar"]["location"][0] = x
-                        synapse["T-bar"]["location"][1] = y
-                        synapse["T-bar"]["location"][2] = z
+                            for partner in synapse['partners']:
+                                loc = partner['location']
+                                partner['location'][0] = loc[0] + startx
+                                partner['location'][1] = loc[1] + starty
+                                partner['location'][2] = loc[2] + startz
 
-                        for partner in synapse['partners']:
-                            loc = partner['location']
-                            partner['location'][0] = loc[0] + startx
-                            partner['location'][1] = loc[1] + starty
-                            partner['location'][2] = loc[2] + startz
+                            json_data['data'].append(synapse)          
+                            break
 
-                        json_data['data'].append(synapse)          
-                        break
+        tbar_hash = tbar_hash.union(tbar_hash_temp)
 
     return json_data
 
@@ -272,15 +255,14 @@ def run_stitching(session_location, options, master_logger):
     # 5.  assume coordinates in json is x,y,z
     
     # prevent stitch if hashes are different
-    hashes = re.findall(r'-[0-9a-f]+-',options.subvolumes1)
-    match_hash1 = hashes[-1]
 
-    hashes = re.findall(r'-[0-9a-f]+-',options.subvolumes2)
-    match_hash2 = hashes[-1]
-
-    if match_hash1 != match_hash2:
-        raise Exception("Incompatible segmentations: hashes do not match")
-
+    match_hash = None
+    for region in options.regions:
+        hashes = re.findall(r'-[0-9a-f]+-',region)
+        match_hash_temp = hashes[-1]
+        if match_hash is not None and match_hash_temp != match_hash:
+            raise Exception("Incompatible segmentations: hashes do not match")
+        match_hash = match_hash_temp
 
     md5_str = hashlib.md5(' '.join(sys.argv)).hexdigest()
 
@@ -288,37 +270,30 @@ def run_stitching(session_location, options, master_logger):
     fm_info = json.loads(str(cl.feature_description))
 
 
-    subvolumes1_json = json.load(open(options.subvolumes1))
-    subvolumes1_temp = subvolumes1_json["subvolumes"]
-    
-    subvolumes2_json = json.load(open(options.subvolumes2))
-    subvolumes2_temp = subvolumes2_json["subvolumes"]
+    border_size = None
+    regions_blocks = []
+    regions_blocks_temp = []
+    for region in options.regions:
+        blocks = []
 
-    if 'border' not in subvolumes1_json or 'border' not in subvolumes2_json:
-        raise Exception("border attribute not defined in segmentation")
-   
-    border_size = subvolumes1_json['border'] 
-    
-    if border_size != subvolumes2_json['border']:
-        raise Exception("border attrubute not the same in both segmentations") 
+        region_json = json.load(open(region))
+        blocks_temp = region_json["subvolumes"]
+        regions_blocks_temp.append(blocks_temp)
 
-    
-    subvolumes1 = []
-    subvolumes2 = []
-    for seg in subvolumes1_temp:
-        if 'config-file' in seg:
-            config_file = seg['config-file']
-            config_data = json.load(open(config_file))
-            seg = config_data["subvolumes"][0]
-        subvolumes1.append(seg)
-    for seg in subvolumes2_temp:
-        if 'config-file' in seg:
-            config_file = seg['config-file']
-            config_data = json.load(open(config_file))
-            seg = config_data["subvolumes"][0]
-        subvolumes2.append(seg)
+        border_size_temp = region_json["border"]
+        if border_size is not None and border_size != border_size_temp:
+            raise Exception("border attrubute not the same in all regions") 
+        border_size = border_size_temp
 
-    pred_probe = subvolumes1[0]['prediction-file']
+        for block in blocks_temp:
+            if 'config-file' in block:
+                config_file = block['config-file']
+                config_data = json.load(open(config_file))
+                block = config_data["subvolumes"][0]
+            blocks.append(block)
+        regions_blocks.append(blocks)
+
+    pred_probe = regions_blocks[0][0]['prediction-file']
    
     num_channels = 1
     if True: 
@@ -341,80 +316,89 @@ def run_stitching(session_location, options, master_logger):
 
 
     master_logger.info("Examining sub-blocks")
-    for block1 in subvolumes1:
-        b1pt1 = block1["near-lower-left"]
-        b1pt2 = block1["far-upper-right"]
-        b1_prediction = None
-        b1_seg = None
+    for iter1 in range(0, len(regions_blocks)):
+        region1 = regions_blocks[iter1]
+        for block1 in region1:
+            b1pt1 = block1["near-lower-left"]
+            b1pt2 = block1["far-upper-right"]
+            b1_prediction = None
+            b1_seg = None
 
-        faces = set()
+            faces = set()
 
-        for block2 in subvolumes2:
-            b2pt1 = block2["near-lower-left"]
-            b2pt2 = block2["far-upper-right"]
+            for iter2 in range(iter1+1, len(regions_blocks)):
+                region2 = regions_blocks[iter2]
 
-            b2_prediction = None
-            b2_seg = None
-           
-            if "faces" not in block2:
-                block2["faces"] = set()
+                for block2 in region2:
+                    b2pt1 = block2["near-lower-left"]
+                    b2pt2 = block2["far-upper-right"]
 
-            overlap, b1_prediction, b1_seg, b2_prediction, b2_seg = examine_boundary(0,
-                    b1_prediction, b1_seg, b2_prediction, b2_seg, b1pt1, b2pt2, b1pt2,
-                    b2pt1, block1, block2, agglom_stack, border_size, master_logger)
-            if overlap:
-                faces.add("yz1")
-                block2["faces"].add("yz2")
+                    b2_prediction = None
+                    b2_seg = None
+                   
+                    if "faces" not in block2:
+                        block2["faces"] = set()
 
-            overlap, b1_prediction, b1_seg, b2_prediction, b2_seg = examine_boundary(1,
-                    b1_prediction, b1_seg, b2_prediction, b2_seg, b1pt1, b2pt2,
-                    b1pt2, b2pt1, block1, block2, agglom_stack, border_size, master_logger)
-            if overlap:
-                faces.add("xz1")
-                block2["faces"].add("xz2")
+                    overlap, b1_prediction, b1_seg, b2_prediction, b2_seg = examine_boundary(0,
+                            b1_prediction, b1_seg, b2_prediction, b2_seg, b1pt1, b2pt2, b1pt2,
+                            b2pt1, block1, block2, agglom_stack, border_size, master_logger)
+                    if overlap:
+                        faces.add("yz1")
+                        block2["faces"].add("yz2")
 
-            overlap, b1_prediction, b1_seg, b2_prediction, b2_seg = examine_boundary(2,
-                    b1_prediction, b1_seg, b2_prediction, b2_seg, b1pt1, b2pt2,
-                    b1pt2, b2pt1, block1, block2, agglom_stack, border_size, master_logger)
-            if overlap:
-                faces.add("xy1")
-                block2["faces"].add("xy2")
+                    overlap, b1_prediction, b1_seg, b2_prediction, b2_seg = examine_boundary(1,
+                            b1_prediction, b1_seg, b2_prediction, b2_seg, b1pt1, b2pt2,
+                            b1pt2, b2pt1, block1, block2, agglom_stack, border_size, master_logger)
+                    if overlap:
+                        faces.add("xz1")
+                        block2["faces"].add("xz2")
 
-            overlap, b1_prediction, b1_seg, b2_prediction, b2_seg = examine_boundary(0,
-                    b1_prediction, b1_seg, b2_prediction, b2_seg, b1pt2, b2pt1,
-                    b1pt1, b2pt2, block1, block2, agglom_stack, border_size, master_logger)
-            if overlap:
-                faces.add("yz2")
-                block2["faces"].add("yz1")
+                    overlap, b1_prediction, b1_seg, b2_prediction, b2_seg = examine_boundary(2,
+                            b1_prediction, b1_seg, b2_prediction, b2_seg, b1pt1, b2pt2,
+                            b1pt2, b2pt1, block1, block2, agglom_stack, border_size, master_logger)
+                    if overlap:
+                        faces.add("xy1")
+                        block2["faces"].add("xy2")
 
-            overlap, b1_prediction, b1_seg, b2_prediction, b2_seg = examine_boundary(1,
-                    b1_prediction, b1_seg, b2_prediction, b2_seg, b1pt2, b2pt1,
-                    b1pt1, b2pt2, block1, block2, agglom_stack, border_size, master_logger)
-            if overlap:
-                faces.add("xz2")
-                block2["faces"].add("xz1")
+                    overlap, b1_prediction, b1_seg, b2_prediction, b2_seg = examine_boundary(0,
+                            b1_prediction, b1_seg, b2_prediction, b2_seg, b1pt2, b2pt1,
+                            b1pt1, b2pt2, block1, block2, agglom_stack, border_size, master_logger)
+                    if overlap:
+                        faces.add("yz2")
+                        block2["faces"].add("yz1")
 
-            overlap, b1_prediction, b1_seg, b2_prediction, b2_seg = examine_boundary(2,
-                    b1_prediction, b1_seg, b2_prediction, b2_seg, b1pt2, b2pt1,
-                    b1pt1, b2pt2, block1, block2, agglom_stack, border_size, master_logger)
-            if overlap:
-                faces.add("xy2")
-                block2["faces"].add("xy1")
+                    overlap, b1_prediction, b1_seg, b2_prediction, b2_seg = examine_boundary(1,
+                            b1_prediction, b1_seg, b2_prediction, b2_seg, b1pt2, b2pt1,
+                            b1pt1, b2pt2, block1, block2, agglom_stack, border_size, master_logger)
+                    if overlap:
+                        faces.add("xz2")
+                        block2["faces"].add("xz1")
 
-        block1["faces"] = faces
+                    overlap, b1_prediction, b1_seg, b2_prediction, b2_seg = examine_boundary(2,
+                            b1_prediction, b1_seg, b2_prediction, b2_seg, b1pt2, b2pt1,
+                            b1pt1, b2pt2, block1, block2, agglom_stack, border_size, master_logger)
+                    if overlap:
+                        faces.add("xy2")
+                        block2["faces"].add("xy1")
+
+            block1["faces"] = faces
 
     # find all synapses that conflict by mapping to a global space and returning json data
-    tbar_json = find_close_tbars(subvolumes1, subvolumes2, options.tbar_proximity, border_size)
-    
-    subvolumes1.extend(subvolumes2)
-    subvolumes = subvolumes1
+    tbar_json = find_close_tbars(regions_blocks, options.tbar_proximity, border_size)
+   
+    blocks = None
+    for region in regions_blocks:
+        if blocks is None:
+            blocks = list(region)
+        else:
+            blocks.extend(region)
 
-    for subvolume in subvolumes:
-        faces = subvolume["faces"]
+    for block in blocks:
+        faces = block["faces"]
    
         if len(faces) > 0 and options.buffer_width > 1:
-            master_logger.info("Examining buffer area: " + subvolume["segmentation-file"])
-            pred_master, seg_master = grab_pred_seg(subvolume["prediction-file"], subvolume["segmentation-file"], border_size)
+            master_logger.info("Examining buffer area: " + block["segmentation-file"])
+            pred_master, seg_master = grab_pred_seg(block["prediction-file"], block["segmentation-file"], border_size)
             if "xy1" in faces:
                 pred = pred_master[:,:,0:options.buffer_width] 
                 seg = seg_master[:,:,0:options.buffer_width]
@@ -446,8 +430,6 @@ def run_stitching(session_location, options, master_logger):
                 agglom_stack.build_partial(seg, pred)
 
 
-
-
     # special merge mode that preserves special nature of border edges and returns all tranformations
     master_logger.info("Starting agglomeration to threshold " + str(options.segmentation_threshold)
         + " with " + str(agglom_stack.number_of_nodes()))
@@ -456,7 +438,7 @@ def run_stitching(session_location, options, master_logger):
         + " with " + str(agglom_stack.number_of_nodes()))
 
 
-    # output stitched segmentation and update subvolumes accordingly
+    # output stitched segmentation and update blocks accordingly
 
     if not os.path.exists(session_location+"/seg_data"):
         os.makedirs(session_location+"/seg_data")
@@ -482,31 +464,24 @@ def run_stitching(session_location, options, master_logger):
     json_data['graph'] = graph_loc
     json_data['tbar-debug'] = tbar_debug_loc
     json_data['border'] = border_size  
-    subvolume_configs = []
-    subvolume_configs_orig = []
+    block_configs = []
+    block_configs_orig = []
 
 
     # load config files into subvolumes
-    noconfig = True
-    for seg in subvolumes1_temp:
-        if 'config-file' in seg:
-            subvolume_configs_orig.append(seg['config-file'])
-            subvolume_configs.append({'config-file': update_filename(seg['config-file'], md5_str)}) 
-            noconfig = False
-    if noconfig:
-        subvolume_configs_orig.append(options.subvolumes1)
-        subvolume_configs.append({'config-file': update_filename(options.subvolumes1, md5_str)})
+    for iter1 in range(0, len(regions_blocks_temp)):
+        region = regions_blocks_temp[iter1]
+        noconfig = True
+        for block in region:
+            if 'config-file' in block:
+                block_configs_orig.append(block['config-file'])
+                block_configs.append({'config-file': update_filename(block['config-file'], md5_str)}) 
+                noconfig = False
+        if noconfig:
+            block_configs_orig.append(options.regions[iter1])
+            block_configs.append({'config-file': update_filename(options.regions[iter1], md5_str)})
     
-    noconfig = True
-    for seg in subvolumes2_temp:
-        if 'config-file' in seg:
-            subvolume_configs_orig.append(seg['config-file'])
-            subvolume_configs.append({'config-file': update_filename(seg['config-file'], md5_str)}) 
-            noconfig = False
-    if noconfig:
-        subvolume_configs_orig.append(options.subvolumes2)
-        subvolume_configs.append({'config-file': update_filename(options.subvolumes2, md5_str)})
-    json_data['subvolumes'] = subvolume_configs
+    json_data['subvolumes'] = block_configs
     
     # write out json file
     json_str = json.dumps(json_data, indent=4)
@@ -515,19 +490,19 @@ def run_stitching(session_location, options, master_logger):
     jw.write(json_str)
 
     # copy volumes to new version
-    for subvolume_file in subvolume_configs_orig:
-        config_data = json.load(open(subvolume_file))
+    for block_file in block_configs_orig:
+        config_data = json.load(open(block_file))
 
         if 'log' not in config_data:
             config_data['log'] = []
 
         config_data['log'].append(str(datetime.datetime.utcnow()) + " " + (' '.join(sys.argv)))
 
-        subvolume = config_data["subvolumes"][0] 
+        block = config_data["subvolumes"][0] 
 
-        seg_file = subvolume["segmentation-file"]
+        seg_file = block["segmentation-file"]
         new_seg_file = update_filename(seg_file, md5_str)
-        subvolume["segmentation-file"] = new_seg_file
+        block["segmentation-file"] = new_seg_file
 
         hfile = h5py.File(seg_file, 'r')
         trans = numpy.array(hfile["transforms"])
@@ -546,23 +521,17 @@ def run_stitching(session_location, options, master_logger):
         if 'bookmark-annotations' in hfile:
             hfile_write.copy(hfile['bookmark-annotations'], 'bookmark-annotations') 
        
-        jw = open(update_filename(subvolume_file, md5_str), 'w') 
+        jw = open(update_filename(block_file, md5_str), 'w') 
         jw.write(json.dumps(config_data, indent=4))
 
        
-def subvolumes_file1_verify(options_parser, options, master_logger):
-    if options.subvolumes1:
-        if not os.path.exists(options.subvolumes1):
-            raise Exception("Synapse file " + options.subvolumes1 + " not found")
-        if not options.subvolumes1.endswith('.json'):
-            raise Exception("Synapse file " + options.subvolumes1 + " does not end with .json")
-
-def subvolumes_file2_verify(options_parser, options, master_logger):
-    if options.subvolumes2:
-        if not os.path.exists(options.subvolumes2):
-            raise Exception("Synapse file " + options.subvolumes2 + " not found")
-        if not options.subvolumes2.endswith('.json'):
-            raise Exception("Synapse file " + options.subvolumes2 + " does not end with .json")
+def regions_file_verify(options_parser, options, master_logger):
+    if options.regions:
+        for region in options.regions:        
+            if not os.path.exists(region):
+                raise Exception("Region file " + region + " not found")
+            if not region.endswith('.json'):
+                raise Exception("Region file " + region + " does not end with .json")
 
 def classifier_verify(options_parser, options, master_logger):
     if options.classifier is not None:
@@ -573,12 +542,9 @@ def classifier_verify(options_parser, options, master_logger):
 
 
 def create_stitching_options(options_parser):
-    options_parser.create_option("subvolumes1", "JSON file containing an array for each subvolume in the first partition providing info on segmentation, boundary prediction, x-y-z lower-left location, x-y-z upper right",
-            default_val=None, required=True, dtype=str, verify_fn=subvolumes_file1_verify, num_args=None, shortcut='s1')
+    options_parser.create_option("regions", "JSON files corresponding to disjoint region that contain an array for each block providing info on segmentation, boundary prediction, x-y-z lower-left location, x-y-z upper right",
+            default_val=None, required=True, dtype=str, verify_fn=regions_file_verify, num_args='+', shortcut='r')
     
-    options_parser.create_option("subvolumes2", "JSON file containing an array for each subvolume in the second partition providing info on segmentation, boundary prediction, x-y-z lower-left location, x-y-z upper right",
-            default_val=None, required=True, dtype=str, verify_fn=subvolumes_file2_verify, num_args=None, shortcut='s2')
-
     options_parser.create_option("classifier", "H5 file containing RF (specific for border or just used in one of the substacks)", 
         default_val=None, required=True, dtype=str, verify_fn=classifier_verify, num_args=None,
         shortcut='k', warning=False, hidden=False) 
@@ -612,7 +578,7 @@ def entrypoint(argv):
 
     try: 
         session = session_manager.Session("seg-stitch", 
-            "Stitches two subvolumes by recomputing the RAG along the border and reports changes to the RAG and mappings of each subvolume -- the subvolumes are not actually concatenated in Raveler space", 
+            "Stitches multiple regions by recomputing the RAG along the border and reports changes to the RAG and mappings of each block -- the regions are not actually concatenated in Raveler space", 
             master_logger, applogger, create_stitching_options)    
         master_logger.info("Session location: " + session.session_location)
         run_stitching(session.session_location, session.options, master_logger) 
