@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+import numpy as np
 from numpy import   reshape, \
                     array, zeros, zeros_like, ones, arange, \
                     double, \
@@ -9,7 +10,7 @@ from numpy import   reshape, \
                     newaxis, \
                     minimum, bincount, dot, nonzero, concatenate, \
                     setdiff1d, flatnonzero
-import itertools
+import itertools as it
 import logging
 from collections import defaultdict, deque as queue
 from scipy.ndimage import grey_dilation, generate_binary_structure, \
@@ -211,7 +212,7 @@ def watershed(a, seeds=None, connectivity=1, mask=None, smooth_thresh=0.0,
                                     (br[nidxs] == level)).astype(bool) ])
     return juicy_center(ws)
 
-def watershed_sequence(a, axis=0, **kwargs):
+def watershed_sequence(a, seeds=None, mask=None, axis=0, **kwargs):
     """Perform a watershed on a plane-by-plane basis.
 
     See documentation for `watershed` for available kwargs.
@@ -225,9 +226,14 @@ def watershed_sequence(a, axis=0, **kwargs):
 
     Parameters
     ----------
-    a : numpy ndarray.
+    a : numpy ndarray, arbitrary type or shape.
         The input image on which to perform the watershed transform.
-    axis : int, {1, ..., a.ndim}, optional (default: 0)
+    seeds : bool/int numpy.ndarray, same shape as a (optional, default None)
+        The seeds for the watershed.
+    mask : bool numpy.ndarray, same shape as a (optional, default None)
+        If provided, perform watershed only over voxels that are True in the
+        mask.
+    axis : int, {1, ..., a.ndim} (optional, default: 0)
         Which axis defines the plane sequence. For example, if the input image
         is 3D and axis=1, then the output will be the watershed on a[:, 0, :], 
         a[:, 1, :], a[:, 2, :], ... and so on.
@@ -243,10 +249,21 @@ def watershed_sequence(a, axis=0, **kwargs):
     """
     if axis != 0:
         a = a.swapaxes(0, axis).copy()
-    ws = map(lambda x: watershed(x, **kwargs), a)
+        if seeds is not None:
+            seeds = seeds.swapaxes(0, axis)
+        if mask is not None:
+            mask = mask.swapaxes(0, axis)
+    if seeds is None:
+        seeds = it.repeat(None)
+    if mask is None:
+        mask = it.repeat(None)
+    ws = [watershed(i, seeds=s, mask=m, **kwargs)
+                                        for i, s, m in zip(a, seeds, mask)]
     counts = map(np.max, ws[:-1])
+    counts = np.concatenate((np.array([0]), counts))
     for c, w in zip(counts, ws):
         w += c
+    ws = np.concatenate([w[np.newaxis, ...] for w in ws], axis=0)
     if axis != 0:
         ws = ws.swapaxes(0, axis).copy()
     return ws
@@ -405,8 +422,8 @@ def get_neighbor_idxs(ar, idxs, connectivity=1):
     else:
         steps = []
         for i in range(1,connectivity+1):
-            prod = array(list(itertools.product(*([[1,-1]]*i))))
-            i_strides = array(list(itertools.combinations(strides,i))).T
+            prod = array(list(it.product(*([[1,-1]]*i))))
+            i_strides = array(list(it.combinations(strides,i))).T
             steps.append(prod.dot(i_strides).ravel())
     return idxs[:,newaxis] + concatenate(steps)
 
