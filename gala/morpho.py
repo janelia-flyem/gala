@@ -241,7 +241,15 @@ def watershed_sequence(a, axis=0, **kwargs):
     ----------------
     **kwargs : keyword arguments passed through to the `watershed` function.
     """
-    raise NotImplementedError('watershed_sequence not implemented.')
+    if axis != 0:
+        a = a.swapaxes(0, axis).copy()
+    ws = map(lambda x: watershed(x, **kwargs), a)
+    counts = map(np.max, ws[:-1])
+    for c, w in zip(counts, ws):
+        w += c
+    if axis != 0:
+        ws = ws.swapaxes(0, axis).copy()
+    return ws
 
 def manual_split(probs, seg, body, seeds, connectivity=1, boundary_seeds=None):
     """Manually split a body from a segmentation using seeded watershed.
