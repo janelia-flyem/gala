@@ -211,6 +211,38 @@ def watershed(a, seeds=None, connectivity=1, mask=None, smooth_thresh=0.0,
                                     (br[nidxs] == level)).astype(bool) ])
     return juicy_center(ws)
 
+def watershed_sequence(a, axis=0, **kwargs):
+    """Perform a watershed on a plane-by-plane basis.
+
+    See documentation for `watershed` for available kwargs.
+
+    The watershed algorithm views image intensity as "height" and finds flood
+    basins within it. These basins are then viewed as the different labeled
+    regions of an image.
+
+    This function performs watershed on an ndarray on each plane separately,
+    then concatenate the results.
+
+    Parameters
+    ----------
+    a : numpy ndarray.
+        The input image on which to perform the watershed transform.
+    axis : int, {1, ..., a.ndim}, optional (default: 0)
+        Which axis defines the plane sequence. For example, if the input image
+        is 3D and axis=1, then the output will be the watershed on a[:, 0, :], 
+        a[:, 1, :], a[:, 2, :], ... and so on.
+
+    Returns
+    -------
+    ws : numpy ndarray, int type
+        The labeled watershed basins.
+
+    Other parameters
+    ----------------
+    **kwargs : keyword arguments passed through to the `watershed` function.
+    """
+    raise NotImplementedError('watershed_sequence not implemented.')
+
 def manual_split(probs, seg, body, seeds, connectivity=1, boundary_seeds=None):
     """Manually split a body from a segmentation using seeded watershed.
 
