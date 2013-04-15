@@ -21,6 +21,7 @@ from scipy.ndimage.morphology import binary_opening, binary_closing, \
     binary_dilation, grey_closing, iterate_structure
 #from scipy.spatial.distance import cityblock as manhattan_distance
 import iterprogress as ip
+from .evaluate import relabel_from_one
 
 try:
     import skimage.morphology
@@ -218,6 +219,7 @@ def watershed(a, seeds=None, connectivity=1, mask=None, smooth_thresh=0.0,
     if minimum_seed_size >= 0:
         seeds = remove_small_connected_components(seeds, minimum_seed_size,
                                                   in_place=True)
+        seeds = relabel_from_one(seeds)[0]
     if smooth_seeds:
         seeds = binary_opening(seeds, sel)
     if smooth_thresh > 0.0:
@@ -303,6 +305,7 @@ def watershed_sequence(a, seeds=None, mask=None, axis=0, **kwargs):
                                         for i, s, m in zip(a, seeds, mask)]
     counts = map(np.max, ws[:-1])
     counts = np.concatenate((np.array([0]), counts))
+    counts = np.cumsum(counts)
     for c, w in zip(counts, ws):
         w += c
     ws = np.concatenate([w[np.newaxis, ...] for w in ws], axis=0)
