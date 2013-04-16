@@ -6,14 +6,13 @@ from functools import partial
 import logging
 import h5py
 import scipy.ndimage as nd
-from scipy.sparse import coo_matrix
+import scipy.sparse as sparse
 from scipy.ndimage.measurements import label
-from scipy.spatial.distance import pdist, cdist, squareform
-from scipy.misc import comb as nchoosek
+from scipy.spatial.distance import pdist, squareform
 from sklearn.metrics import precision_recall_curve
 
 def bin_values(a, bins=255):
-    if len(unique(a)) < 2*bins:
+    if len(np.unique(a)) < 2*bins:
         return a.copy()
     b = np.zeros_like(a)
     m, M = a.min(), a.max()
@@ -62,9 +61,7 @@ def edit_distance(aseg, gt, ws=None):
 def edit_distance_to_bps(aseg, bps):
     aseg = relabel_from_one(aseg)[0]
     bps = relabel_from_one(bps)[0]
-    r = contingency_table(aseg, bps).astype(np.bool)
-    if (bps==0).any(): r[:,0] = 0
-    if (aseg==0).any(): r[0,:] = 0
+    r = contingency_table(aseg, bps, [0], [0]).astype(np.bool)
     false_splits = (r.sum(axis=0)-1)[1:].sum()
     false_merges = (r.sum(axis=1)-1)[1:].sum()
     return (false_merges, false_splits)
@@ -84,14 +81,15 @@ def relabel_from_one(a):
 
 def contingency_table(seg, gt, ignore_seg=[0], ignore_gt=[0], norm=True):
     """Return the contingency table for all regions in matched segmentations."""
-    gtr = gt.ravel()
     segr = seg.ravel() 
-    ij = np.zeros((2,len(gtr)))
-    ij[0,:] = segr
-    ij[1,:] = gtr
-    cont = coo_matrix((np.ones((len(gtr))), ij)).toarray()
-    cont[:, ignore_gt] = 0
-    cont[ignore_seg,:] = 0
+    gtr = gt.ravel()
+    ij = np.vstack((segr, gtr))
+    data = np.ones(len(gtr))
+    for i in ignore_seg:
+        data[segr == i] = 0
+    for j in ignore_gt:
+        data[gtr == j] = 0
+    cont = sparse.coo_matrix((data, ij)).tocsc()
     if norm:
         cont /= float(cont.sum())
     return cont
@@ -299,14 +297,14 @@ def vi_tables(x, y=None, ignore_x=[0], ignore_y=[0]):
         pxy = cont/float(cont.sum())
 
     # Calculate probabilities
-    px = pxy.sum(axis=1)
-    py = pxy.sum(axis=0)
+    px = np.array(pxy.sum(axis=1)).ravel()
+    py = np.array(pxy.sum(axis=0)).ravel()
     # Remove zero rows/cols
     nzx = px.nonzero()[0]
     nzy = py.nonzero()[0]
     nzpx = px[nzx]
     nzpy = py[nzy]
-    nzpxy = pxy[nzx,:][:,nzy]
+    nzpxy = pxy[nzx, :][:, nzy]
 
     # Calculate log conditional probabilities and entropies
     ax = np.newaxis
