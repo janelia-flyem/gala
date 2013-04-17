@@ -163,7 +163,7 @@ if __name__ == '__main__':
     MasterLogger.info("Script called: " + ' '.join(sys.argv))
     MasterLogger.info("Script run from: " + os.path.realpath('.'))
 
-    p = imio.read_image_stack(args.fin[0], single_channel=False,
+    p = imio.read_image_stack(args.fin[0],
             group='/volume/predictions')
     p = p.transpose((2,1,0,3))
     p0 = p if args.no_channel_data else p[..., 0]

@@ -95,7 +95,9 @@ def gen_supervoxels(options, prediction_file, master_logger):
     seeds_cropped = seeds 
     if options.border_size > 0:
         boundary_cropped = boundary[options.border_size:(-1*options.border_size), options.border_size:(-1*options.border_size),options.border_size:(-1*options.border_size)]
-        seeds_cropped = seeds[options.border_size:(-1*options.border_size), options.border_size:(-1*options.border_size),options.border_size:(-1*options.border_size)]
+        seeds_cropped = label(boundary_cropped<=options.seed_val)[0]
+        if options.seed_size > 0:
+            seeds_cropped = morpho.remove_small_connected_components(seeds_cropped, options.seed_size)
 
     # Returns a matrix labeled using seeded watershed
     supervoxels_cropped = skmorph.watershed(boundary_cropped, seeds_cropped)
