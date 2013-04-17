@@ -1,29 +1,23 @@
 #!/usr/bin/env python
 
-import sys, os, argparse
-from numpy import   shape, reshape, \
-                    array, zeros, zeros_like, ones, ones_like, arange, \
+from numpy import   reshape, \
+                    array, zeros, zeros_like, ones, arange, \
                     double, \
                     int8, int16, int32, int64, uint8, uint16, uint32, uint64, \
-                    uint, \
                     iinfo, isscalar, \
                     unique, \
-                    where, unravel_index, newaxis, \
-                    ceil, floor, prod, cumprod, \
-                    concatenate, \
-                    ndarray, minimum, bincount, dot, nonzero, concatenate, \
-                    setdiff1d, inf, flatnonzero
+                    newaxis, \
+                    minimum, bincount, dot, nonzero, concatenate, \
+                    setdiff1d, flatnonzero
 import itertools
 import logging
-import re
 from collections import defaultdict, deque as queue
-from scipy.ndimage import filters, grey_dilation, generate_binary_structure, \
+from scipy.ndimage import grey_dilation, generate_binary_structure, \
         maximum_filter, minimum_filter
 from scipy.ndimage import distance_transform_cdt
 from scipy.ndimage.measurements import label, find_objects
 from scipy.ndimage.morphology import binary_opening, binary_closing, \
-    binary_dilation, grey_opening, grey_closing, \
-    generate_binary_structure, iterate_structure
+    binary_dilation, grey_closing, iterate_structure
 #from scipy.spatial.distance import cityblock as manhattan_distance
 import iterprogress as ip
 
