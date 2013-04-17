@@ -416,7 +416,7 @@ def vi_tables(x, y=None, ignore_x=[0], ignore_y=[0]):
     lpxgy[nzy] = xlogx(divide_columns(nzpxy, nzpy)).sum(axis=0)
     hxgy = -(py*lpxgy)
 
-    return map(np.asarray, [pxy, px, py, hxgy, hygx, lpygx, lpxgy])
+    return [pxy] + map(np.asarray, [px, py, hxgy, hygx, lpygx, lpxgy])
 
 def sorted_vi_components(s1, s2, ignore1=[0], ignore2=[0], compress=True):
     """Return lists of the most entropic segments in s1|s2 and s2|s1.
