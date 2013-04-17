@@ -61,7 +61,10 @@ def edit_distance(aseg, gt, ws=None):
 def edit_distance_to_bps(aseg, bps):
     aseg = relabel_from_one(aseg)[0]
     bps = relabel_from_one(bps)[0]
-    r = contingency_table(aseg, bps, [0], [0]).astype(np.bool)
+    r = contingency_table(aseg, bps, [0], [0])
+    # make each segment overlap count for 1, since it will be one operation
+    # to fix (split or merge)
+    r.data[r.data.nonzero()] /= r.data[r.data.nonzero()]
     false_splits = (r.sum(axis=0)-1)[1:].sum()
     false_merges = (r.sum(axis=1)-1)[1:].sum()
     return (false_merges, false_splits)
