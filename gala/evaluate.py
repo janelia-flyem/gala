@@ -457,8 +457,8 @@ def split_components(idx, cont, num_elems=4, axis=0):
         cont= cont.T
     x_sizes = np.asarray(cont.sum(axis=1)).ravel()
     y_sizes = np.asarray(cont.sum(axis=0)).ravel()
-    cc = np.asarray(divide_rows(cont, x_sizes)[idx]).ravel()
-    cct = np.asarray(divide_columns(cont, y_sizes)[idx]).ravel()
+    cc = divide_rows(cont, x_sizes)[idx].toarray().ravel()
+    cct = divide_columns(cont, y_sizes)[idx].toarray().ravel()
     idxs = (-cc).argsort()[:num_elems]
     probs = cc[idxs]
     probst = cct[idxs]
@@ -467,9 +467,9 @@ def split_components(idx, cont, num_elems=4, axis=0):
 def rand_values(cont_table):
     """Calculate values for rand indices."""
     n = cont_table.sum()
-    sum1 = (cont_table*cont_table).sum()
-    sum2 = (cont_table.sum(axis=1)**2).sum()
-    sum3 = (cont_table.sum(axis=0)**2).sum()
+    sum1 = (cont_table.multiply(cont_table)).sum()
+    sum2 = (np.asarray(cont_table.sum(axis=1)) ** 2).sum()
+    sum3 = (np.asarray(cont_table.sum(axis=0)) ** 2).sum()
     a = (sum1 - n)/2.0;
     b = (sum2 - sum1)/2
     c = (sum3 - sum1)/2
