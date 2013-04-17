@@ -94,15 +94,39 @@ def contingency_table(seg, gt, ignore_seg=[0], ignore_gt=[0], norm=True):
         cont /= float(cont.sum())
     return cont
 
-def xlogx(x, out=None):
-    """Compute x * log_2(x) with 0 log(0) defined to be 0."""
-    nz = x.nonzero()
-    if out is None:
+def xlogx(x, out=None, in_place=False):
+    """Compute x * log_2(x).
+
+    We define 0 * log_2(0) = 0
+
+    Parameters
+    ----------
+    x : np.ndarray or scipy.sparse.csc_matrix or csr_matrix
+        The input array.
+    out : same type as x (optional)
+        If provided, use this array/matrix for the result.
+    in_place : bool (optional, default False)
+        Operate directly on x.
+
+    Returns
+    -------
+    y : same type as x
+        Result of x * log_2(x).
+    """
+    if in_place:
+        y = x
+    elif out is None:
         y = x.copy()
     else:
         y = out
-    y[nz] *= np.log2(y[nz])
+    if type(y) in [sparse.csc_matrix, sparse.csr_matrix]:
+        z = y.data
+    else:
+        z = y
+    nz = z.nonzero()
+    z[nz] *= np.log2(z[nz])
     return y
+
 
 def special_points_evaluate(eval_fct, coords, flatten=True, coord_format=True):
     if coord_format:
@@ -283,6 +307,82 @@ def split_vi_mem(x, y):
 
     return x_sum, y_sum, x_sorted, x_ents, y_sorted, y_ents
 
+
+def divide_rows(matrix, column, in_place=False):
+    """Divide each row of `matrix` by the corresponding element in `column`.
+
+    The result is as follows: out[i, j] = matrix[i, j] / column[i]
+
+    Parameters
+    ----------
+    matrix : np.ndarray, scipy.sparse.csc_matrix or csr_matrix, shape (M, N)
+        The input matrix.
+    column : a 1D np.ndarray, shape (M,)
+        The column dividing `matrix`.
+    in_place : bool (optional, default False)
+        Do the computation in-place.
+
+    Returns
+    -------
+    out : same type as `matrix`
+        The result of the row-wise division.
+    """
+    if in_place:
+        out = matrix
+    else:
+        out = matrix.copy()
+    if type(out) in [sparse.csc_matrix or sparse.csr_matrix]:
+        if type(out) == sparse.csr_matrix:
+            convert_to_csr = True
+            out = out.tocsc()
+        else:
+            convert_to_csr = False
+        column_repeated = np.take(column, out.indices)
+        out.data /= column_repeated
+        if convert_to_csr:
+            out = out.tocsr()
+    else:
+        out /= column[:, np.newaxis]
+    return out
+
+
+def divide_columns(matrix, row, in_place=False):
+    """Divide each column of `matrix` by the corresponding element in `row`.
+
+    The result is as follows: out[i, j] = matrix[i, j] / row[j]
+
+    Parameters
+    ----------
+    matrix : np.ndarray, scipy.sparse.csc_matrix or csr_matrix, shape (M, N)
+        The input matrix.
+    column : a 1D np.ndarray, shape (N,)
+        The row dividing `matrix`.
+    in_place : bool (optional, default False)
+        Do the computation in-place.
+
+    Returns
+    -------
+    out : same type as `matrix`
+        The result of the row-wise division.
+    """
+    if in_place:
+        out = matrix
+    else:
+        out = matrix.copy()
+    if type(out) in [sparse.csc_matrix or sparse.csr_matrix]:
+        if type(out) == sparse.csc_matrix:
+            convert_to_csc = True
+            out = out.tocsr()
+        else:
+            convert_to_csc = False
+        row_repeated = np.take(row, out.indices)
+        out.data /= row_repeated
+        if convert_to_csc:
+            out = out.tocsc()
+    else:
+        out /= row[np.newaxis, :]
+    return out
+
 def vi_tables(x, y=None, ignore_x=[0], ignore_y=[0]):
     """Return probability tables used for calculating VI.
     
@@ -307,17 +407,16 @@ def vi_tables(x, y=None, ignore_x=[0], ignore_y=[0]):
     nzpxy = pxy[nzx, :][:, nzy]
 
     # Calculate log conditional probabilities and entropies
-    ax = np.newaxis
     lpygx = np.zeros(np.shape(px))
-    lpygx[nzx] = xlogx(nzpxy / nzpx[:,ax]).sum(axis=1) 
+    lpygx[nzx] = xlogx(divide_rows(nzpxy, nzpx)).sum(axis=1) 
                         # \sum_x{p_{y|x} \log{p_{y|x}}}
     hygx = -(px*lpygx) # \sum_x{p_x H(Y|X=x)} = H(Y|X)
     
     lpxgy = np.zeros(np.shape(py))
-    lpxgy[nzy] = xlogx(nzpxy / nzpy[ax,:]).sum(axis=0)
+    lpxgy[nzy] = xlogx(divide_columns(nzpxy, nzpy)).sum(axis=0)
     hxgy = -(py*lpxgy)
 
-    return pxy, px, py, hxgy, hygx, lpygx, lpxgy
+    return map(np.asarray, [pxy, px, py, hxgy, hygx, lpygx, lpxgy])
 
 def sorted_vi_components(s1, s2, ignore1=[0], ignore2=[0], compress=True):
     """Return lists of the most entropic segments in s1|s2 and s2|s1.
