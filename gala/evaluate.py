@@ -394,9 +394,9 @@ def vi_tables(x, y=None, ignore_x=[0], ignore_y=[0]):
         pxy = contingency_table(x, y, ignore_x, ignore_y)
     else:
         cont = x
-        cont[:, ignore_y] = 0
-        cont[ignore_x, :] = 0
-        pxy = cont/float(cont.sum())
+        total = float(cont.sum())
+        # normalize, since it is an identity op if already done
+        pxy = cont / total
 
     # Calculate probabilities
     px = np.array(pxy.sum(axis=1)).ravel()
