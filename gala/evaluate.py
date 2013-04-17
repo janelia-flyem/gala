@@ -338,7 +338,8 @@ def divide_rows(matrix, column, in_place=False):
         else:
             convert_to_csr = False
         column_repeated = np.take(column, out.indices)
-        out.data /= column_repeated
+        nz = out.data.nonzero()
+        out.data[nz] /= column_repeated[nz]
         if convert_to_csr:
             out = out.tocsr()
     else:
@@ -376,7 +377,8 @@ def divide_columns(matrix, row, in_place=False):
         else:
             convert_to_csc = False
         row_repeated = np.take(row, out.indices)
-        out.data /= row_repeated
+        nz = out.data.nonzero()
+        out.data[nz] /= row_repeated[nz]
         if convert_to_csc:
             out = out.tocsc()
     else:
