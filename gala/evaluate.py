@@ -423,15 +423,14 @@ def vi_tables(x, y=None, ignore_x=[0], ignore_y=[0]):
 
     return [pxy] + map(np.asarray, [px, py, hxgy, hygx, lpygx, lpxgy])
 
-def sorted_vi_components(s1, s2, ignore1=[0], ignore2=[0], compress=True):
+def sorted_vi_components(s1, s2, ignore1=[0], ignore2=[0], compress=False):
     """Return lists of the most entropic segments in s1|s2 and s2|s1.
     
     The 'compress' flag performs a remapping of the labels before doing the
-    VI computation, resulting in massive memory savings when many labels are
+    VI computation, resulting in memory savings when many labels are
     not used in the volume. (For example, if you have just two labels, 1 and
-    1,000,000, 'compress=False' will give a VI contingency table having
-    1,000,000 entries to a side, whereas 'compress=True' will have just size
-    2.)
+    1,000,000, 'compress=False' will give a vector of length 1,000,000,
+    whereas with 'compress=True' it will have just size 2.)
     """
     if compress:
         s1, forw1, back1 = relabel_from_one(s1)
@@ -443,24 +442,26 @@ def sorted_vi_components(s1, s2, ignore1=[0], ignore2=[0], compress=True):
     ii2 = back2[i2] if compress else i2
     return ii1, h2g1[i1], ii2, h1g2[i2]
 
-def split_components(idx, contingency, num_elems=4, axis=0):
+def split_components(idx, cont, num_elems=4, axis=0):
     """Return the indices of the bodies most overlapping with body idx.
 
     Arguments:
         - idx: the body id being examined.
-        - contingency: the normalized contingency table.
+        - cont: the normalized contingency table.
         - num_elems: the number of overlapping bodies desired.
         - axis: the axis along which to perform the calculations.
     Value:
         A list of tuples of (body_idx, overlap_int, overlap_ext).
     """
     if axis == 1:
-        contingency = contingency.T
-    cc = contingency / contingency.sum(axis=1)[:,np.newaxis]
-    cct = contingency / contingency.sum(axis=0)[np.newaxis,:]
-    idxs = (-cc[idx]).argsort()[:num_elems]
-    probs = cc[idx][idxs]
-    probst = cct[idx][idxs]
+        cont= cont.T
+    x_sizes = np.asarray(cont.sum(axis=1)).ravel()
+    y_sizes = np.asarray(cont.sum(axis=0)).ravel()
+    cc = np.asarray(divide_rows(cont, x_sizes)[idx]).ravel()
+    cct = np.asarray(divide_columns(cont, y_sizes)[idx]).ravel()
+    idxs = (-cc).argsort()[:num_elems]
+    probs = cc[idxs]
+    probst = cct[idxs]
     return zip(idxs, probs, probst)
 
 def rand_values(cont_table):
