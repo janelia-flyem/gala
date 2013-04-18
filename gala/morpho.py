@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+import numpy as np
 from numpy import   reshape, \
                     array, zeros, zeros_like, ones, arange, \
                     double, \
@@ -9,7 +10,7 @@ from numpy import   reshape, \
                     newaxis, \
                     minimum, bincount, dot, nonzero, concatenate, \
                     setdiff1d, flatnonzero
-import itertools
+import itertools as it
 import logging
 from collections import defaultdict, deque as queue
 from scipy.ndimage import grey_dilation, generate_binary_structure, \
@@ -20,6 +21,7 @@ from scipy.ndimage.morphology import binary_opening, binary_closing, \
     binary_dilation, grey_closing, iterate_structure
 #from scipy.spatial.distance import cityblock as manhattan_distance
 import iterprogress as ip
+from .evaluate import relabel_from_one
 
 try:
     import skimage.morphology
@@ -166,14 +168,58 @@ def split_exclusions(image, labels, exclusions, dilation=0, connectivity=1,
 def watershed(a, seeds=None, connectivity=1, mask=None, smooth_thresh=0.0, 
         smooth_seeds=False, minimum_seed_size=0, dams=False,
         override_skimage=False, show_progress=False):
-    """Perform the watershed algorithm of Vincent & Soille (1991)."""
+    """Perform the watershed algorithm of Vincent & Soille (1991).
+    
+    Parameters
+    ----------
+    a : np.ndarray, arbitrary shape and type
+        The input image on which to perform the watershed transform.
+    seeds : np.ndarray, int or bool type, same shape as `a` (optional)
+        The seeds for the watershed. If provided, these are the only basins
+        allowed, and the algorithm proceeds by flooding from the seeds.
+        Otherwise, every local minimum is used as a seed.
+    connectivity : int, {1, ..., a.ndim} (optional, default 1)
+        The neighborhood of each pixel, defined as in `scipy.ndimage`.
+    mask : np.ndarray, type bool, same shape as `a`. (optional)
+        If provided, perform watershed only in the parts of `a` that are set
+        to `True` in `mask`.
+    smooth_thresh : float (optional, default 0.0)
+        Local minima that are less deep than this threshold are suppressed,
+        using `hminima`.
+    smooth_seeds : bool (optional, default False)
+        Perform binary opening on the seeds, using the same connectivity as
+        the watershed.
+    minimum_seed_size : int (optional, default 0)
+        Remove seed regions smaller than this size.
+    dams : bool (optional, default False)
+        Place a dam where two basins meet. Set this to True if you require
+        0-labeled boundaries between different regions.
+    override_skimage : bool (optional, default False)
+        skimage.morphology.watershed is used to implement the main part of the
+        algorithm when `dams=False`. Use this flag to use the separate pure
+        Python implementation instead.
+    show_progress : bool (optional, default False)
+        Show a cute little ASCII progress bar (using the progressbar package)
+
+    Returns
+    -------
+    ws : np.ndarray, same shape as `a`, int type.
+        The watershed transform of the input image.
+    """
     seeded = seeds is not None
     sel = generate_binary_structure(a.ndim, connectivity)
+    # various keyword arguments operate by modifying the input image `a`.
+    # However, we operate on a copy of it called `b`, so that `a` can be used
+    # to break ties.
     b = a
     if not seeded:
         seeds = regional_minima(a, connectivity)
     if seeds.dtype == bool:
         seeds = label(seeds, sel)[0]
+    if minimum_seed_size > 0:
+        seeds = remove_small_connected_components(seeds, minimum_seed_size,
+                                                  in_place=True)
+        seeds = relabel_from_one(seeds)[0]
     if smooth_seeds:
         seeds = binary_opening(seeds, sel)
     if smooth_thresh > 0.0:
@@ -189,7 +235,6 @@ def watershed(a, seeds=None, connectivity=1, mask=None, smooth_thresh=0.0,
     br = b.ravel()
     ws = pad(seeds, 0)
     wsr = ws.ravel()
-    current_label = 0
     neighbors = build_neighbors_array(a, connectivity)
     level_pixels = build_levels_dict(b)
     if show_progress: wspbar = ip.StandardProgressBar('Watershed...')
@@ -210,6 +255,63 @@ def watershed(a, seeds=None, connectivity=1, mask=None, smooth_thresh=0.0,
                 idxs_adjacent_to_labels.extend(nidxs[((wsr[nidxs] == 0) * 
                                     (br[nidxs] == level)).astype(bool) ])
     return juicy_center(ws)
+
+def watershed_sequence(a, seeds=None, mask=None, axis=0, **kwargs):
+    """Perform a watershed on a plane-by-plane basis.
+
+    See documentation for `watershed` for available kwargs.
+
+    The watershed algorithm views image intensity as "height" and finds flood
+    basins within it. These basins are then viewed as the different labeled
+    regions of an image.
+
+    This function performs watershed on an ndarray on each plane separately,
+    then concatenate the results.
+
+    Parameters
+    ----------
+    a : numpy ndarray, arbitrary type or shape.
+        The input image on which to perform the watershed transform.
+    seeds : bool/int numpy.ndarray, same shape as a (optional, default None)
+        The seeds for the watershed.
+    mask : bool numpy.ndarray, same shape as a (optional, default None)
+        If provided, perform watershed only over voxels that are True in the
+        mask.
+    axis : int, {1, ..., a.ndim} (optional, default: 0)
+        Which axis defines the plane sequence. For example, if the input image
+        is 3D and axis=1, then the output will be the watershed on a[:, 0, :], 
+        a[:, 1, :], a[:, 2, :], ... and so on.
+
+    Returns
+    -------
+    ws : numpy ndarray, int type
+        The labeled watershed basins.
+
+    Other parameters
+    ----------------
+    **kwargs : keyword arguments passed through to the `watershed` function.
+    """
+    if axis != 0:
+        a = a.swapaxes(0, axis).copy()
+        if seeds is not None:
+            seeds = seeds.swapaxes(0, axis)
+        if mask is not None:
+            mask = mask.swapaxes(0, axis)
+    if seeds is None:
+        seeds = it.repeat(None)
+    if mask is None:
+        mask = it.repeat(None)
+    ws = [watershed(i, seeds=s, mask=m, **kwargs)
+                                        for i, s, m in zip(a, seeds, mask)]
+    counts = map(np.max, ws[:-1])
+    counts = np.concatenate((np.array([0]), counts))
+    counts = np.cumsum(counts)
+    for c, w in zip(counts, ws):
+        w += c
+    ws = np.concatenate([w[np.newaxis, ...] for w in ws], axis=0)
+    if axis != 0:
+        ws = ws.swapaxes(0, axis).copy()
+    return ws
 
 def manual_split(probs, seg, body, seeds, connectivity=1, boundary_seeds=None):
     """Manually split a body from a segmentation using seeded watershed.
@@ -365,8 +467,8 @@ def get_neighbor_idxs(ar, idxs, connectivity=1):
     else:
         steps = []
         for i in range(1,connectivity+1):
-            prod = array(list(itertools.product(*([[1,-1]]*i))))
-            i_strides = array(list(itertools.combinations(strides,i))).T
+            prod = array(list(it.product(*([[1,-1]]*i))))
+            i_strides = array(list(it.combinations(strides,i))).T
             steps.append(prod.dot(i_strides).ravel())
     return idxs[:,newaxis] + concatenate(steps)
 
