@@ -6,14 +6,13 @@ from functools import partial
 import logging
 import h5py
 import scipy.ndimage as nd
-from scipy.sparse import coo_matrix
+import scipy.sparse as sparse
 from scipy.ndimage.measurements import label
-from scipy.spatial.distance import pdist, cdist, squareform
-from scipy.misc import comb as nchoosek
+from scipy.spatial.distance import pdist, squareform
 from sklearn.metrics import precision_recall_curve
 
 def bin_values(a, bins=255):
-    if len(unique(a)) < 2*bins:
+    if len(np.unique(a)) < 2*bins:
         return a.copy()
     b = np.zeros_like(a)
     m, M = a.min(), a.max()
@@ -62,9 +61,10 @@ def edit_distance(aseg, gt, ws=None):
 def edit_distance_to_bps(aseg, bps):
     aseg = relabel_from_one(aseg)[0]
     bps = relabel_from_one(bps)[0]
-    r = contingency_table(aseg, bps).astype(np.bool)
-    if (bps==0).any(): r[:,0] = 0
-    if (aseg==0).any(): r[0,:] = 0
+    r = contingency_table(aseg, bps, [0], [0])
+    # make each segment overlap count for 1, since it will be one operation
+    # to fix (split or merge)
+    r.data[r.data.nonzero()] /= r.data[r.data.nonzero()]
     false_splits = (r.sum(axis=0)-1)[1:].sum()
     false_merges = (r.sum(axis=1)-1)[1:].sum()
     return (false_merges, false_splits)
@@ -84,27 +84,52 @@ def relabel_from_one(a):
 
 def contingency_table(seg, gt, ignore_seg=[0], ignore_gt=[0], norm=True):
     """Return the contingency table for all regions in matched segmentations."""
-    gtr = gt.ravel()
     segr = seg.ravel() 
-    ij = np.zeros((2,len(gtr)))
-    ij[0,:] = segr
-    ij[1,:] = gtr
-    cont = coo_matrix((np.ones((len(gtr))), ij)).toarray()
-    cont[:, ignore_gt] = 0
-    cont[ignore_seg,:] = 0
+    gtr = gt.ravel()
+    ij = np.vstack((segr, gtr))
+    data = np.ones(len(gtr))
+    for i in ignore_seg:
+        data[segr == i] = 0
+    for j in ignore_gt:
+        data[gtr == j] = 0
+    cont = sparse.coo_matrix((data, ij)).tocsc()
     if norm:
         cont /= float(cont.sum())
     return cont
 
-def xlogx(x, out=None):
-    """Compute x * log_2(x) with 0 log(0) defined to be 0."""
-    nz = x.nonzero()
-    if out is None:
+def xlogx(x, out=None, in_place=False):
+    """Compute x * log_2(x).
+
+    We define 0 * log_2(0) = 0
+
+    Parameters
+    ----------
+    x : np.ndarray or scipy.sparse.csc_matrix or csr_matrix
+        The input array.
+    out : same type as x (optional)
+        If provided, use this array/matrix for the result.
+    in_place : bool (optional, default False)
+        Operate directly on x.
+
+    Returns
+    -------
+    y : same type as x
+        Result of x * log_2(x).
+    """
+    if in_place:
+        y = x
+    elif out is None:
         y = x.copy()
     else:
         y = out
-    y[nz] *= np.log2(y[nz])
+    if type(y) in [sparse.csc_matrix, sparse.csr_matrix]:
+        z = y.data
+    else:
+        z = y
+    nz = z.nonzero()
+    z[nz] *= np.log2(z[nz])
     return y
+
 
 def special_points_evaluate(eval_fct, coords, flatten=True, coord_format=True):
     if coord_format:
@@ -285,6 +310,84 @@ def split_vi_mem(x, y):
 
     return x_sum, y_sum, x_sorted, x_ents, y_sorted, y_ents
 
+
+def divide_rows(matrix, column, in_place=False):
+    """Divide each row of `matrix` by the corresponding element in `column`.
+
+    The result is as follows: out[i, j] = matrix[i, j] / column[i]
+
+    Parameters
+    ----------
+    matrix : np.ndarray, scipy.sparse.csc_matrix or csr_matrix, shape (M, N)
+        The input matrix.
+    column : a 1D np.ndarray, shape (M,)
+        The column dividing `matrix`.
+    in_place : bool (optional, default False)
+        Do the computation in-place.
+
+    Returns
+    -------
+    out : same type as `matrix`
+        The result of the row-wise division.
+    """
+    if in_place:
+        out = matrix
+    else:
+        out = matrix.copy()
+    if type(out) in [sparse.csc_matrix or sparse.csr_matrix]:
+        if type(out) == sparse.csr_matrix:
+            convert_to_csr = True
+            out = out.tocsc()
+        else:
+            convert_to_csr = False
+        column_repeated = np.take(column, out.indices)
+        nz = out.data.nonzero()
+        out.data[nz] /= column_repeated[nz]
+        if convert_to_csr:
+            out = out.tocsr()
+    else:
+        out /= column[:, np.newaxis]
+    return out
+
+
+def divide_columns(matrix, row, in_place=False):
+    """Divide each column of `matrix` by the corresponding element in `row`.
+
+    The result is as follows: out[i, j] = matrix[i, j] / row[j]
+
+    Parameters
+    ----------
+    matrix : np.ndarray, scipy.sparse.csc_matrix or csr_matrix, shape (M, N)
+        The input matrix.
+    column : a 1D np.ndarray, shape (N,)
+        The row dividing `matrix`.
+    in_place : bool (optional, default False)
+        Do the computation in-place.
+
+    Returns
+    -------
+    out : same type as `matrix`
+        The result of the row-wise division.
+    """
+    if in_place:
+        out = matrix
+    else:
+        out = matrix.copy()
+    if type(out) in [sparse.csc_matrix or sparse.csr_matrix]:
+        if type(out) == sparse.csc_matrix:
+            convert_to_csc = True
+            out = out.tocsr()
+        else:
+            convert_to_csc = False
+        row_repeated = np.take(row, out.indices)
+        nz = out.data.nonzero()
+        out.data[nz] /= row_repeated[nz]
+        if convert_to_csc:
+            out = out.tocsc()
+    else:
+        out /= row[np.newaxis, :]
+    return out
+
 def vi_tables(x, y=None, ignore_x=[0], ignore_y=[0]):
     """Return probability tables used for calculating VI.
     
@@ -294,42 +397,40 @@ def vi_tables(x, y=None, ignore_x=[0], ignore_y=[0]):
         pxy = contingency_table(x, y, ignore_x, ignore_y)
     else:
         cont = x
-        cont[:, ignore_y] = 0
-        cont[ignore_x, :] = 0
-        pxy = cont/float(cont.sum())
+        total = float(cont.sum())
+        # normalize, since it is an identity op if already done
+        pxy = cont / total
 
     # Calculate probabilities
-    px = pxy.sum(axis=1)
-    py = pxy.sum(axis=0)
+    px = np.array(pxy.sum(axis=1)).ravel()
+    py = np.array(pxy.sum(axis=0)).ravel()
     # Remove zero rows/cols
     nzx = px.nonzero()[0]
     nzy = py.nonzero()[0]
     nzpx = px[nzx]
     nzpy = py[nzy]
-    nzpxy = pxy[nzx,:][:,nzy]
+    nzpxy = pxy[nzx, :][:, nzy]
 
     # Calculate log conditional probabilities and entropies
-    ax = np.newaxis
     lpygx = np.zeros(np.shape(px))
-    lpygx[nzx] = xlogx(nzpxy / nzpx[:,ax]).sum(axis=1) 
+    lpygx[nzx] = xlogx(divide_rows(nzpxy, nzpx)).sum(axis=1) 
                         # \sum_x{p_{y|x} \log{p_{y|x}}}
     hygx = -(px*lpygx) # \sum_x{p_x H(Y|X=x)} = H(Y|X)
     
     lpxgy = np.zeros(np.shape(py))
-    lpxgy[nzy] = xlogx(nzpxy / nzpy[ax,:]).sum(axis=0)
+    lpxgy[nzy] = xlogx(divide_columns(nzpxy, nzpy)).sum(axis=0)
     hxgy = -(py*lpxgy)
 
-    return pxy, px, py, hxgy, hygx, lpygx, lpxgy
+    return [pxy] + map(np.asarray, [px, py, hxgy, hygx, lpygx, lpxgy])
 
-def sorted_vi_components(s1, s2, ignore1=[0], ignore2=[0], compress=True):
+def sorted_vi_components(s1, s2, ignore1=[0], ignore2=[0], compress=False):
     """Return lists of the most entropic segments in s1|s2 and s2|s1.
     
     The 'compress' flag performs a remapping of the labels before doing the
-    VI computation, resulting in massive memory savings when many labels are
+    VI computation, resulting in memory savings when many labels are
     not used in the volume. (For example, if you have just two labels, 1 and
-    1,000,000, 'compress=False' will give a VI contingency table having
-    1,000,000 entries to a side, whereas 'compress=True' will have just size
-    2.)
+    1,000,000, 'compress=False' will give a vector of length 1,000,000,
+    whereas with 'compress=True' it will have just size 2.)
     """
     if compress:
         s1, forw1, back1 = relabel_from_one(s1)
@@ -341,32 +442,34 @@ def sorted_vi_components(s1, s2, ignore1=[0], ignore2=[0], compress=True):
     ii2 = back2[i2] if compress else i2
     return ii1, h2g1[i1], ii2, h1g2[i2]
 
-def split_components(idx, contingency, num_elems=4, axis=0):
+def split_components(idx, cont, num_elems=4, axis=0):
     """Return the indices of the bodies most overlapping with body idx.
 
     Arguments:
         - idx: the body id being examined.
-        - contingency: the normalized contingency table.
+        - cont: the normalized contingency table.
         - num_elems: the number of overlapping bodies desired.
         - axis: the axis along which to perform the calculations.
     Value:
         A list of tuples of (body_idx, overlap_int, overlap_ext).
     """
     if axis == 1:
-        contingency = contingency.T
-    cc = contingency / contingency.sum(axis=1)[:,np.newaxis]
-    cct = contingency / contingency.sum(axis=0)[np.newaxis,:]
-    idxs = (-cc[idx]).argsort()[:num_elems]
-    probs = cc[idx][idxs]
-    probst = cct[idx][idxs]
+        cont= cont.T
+    x_sizes = np.asarray(cont.sum(axis=1)).ravel()
+    y_sizes = np.asarray(cont.sum(axis=0)).ravel()
+    cc = divide_rows(cont, x_sizes)[idx].toarray().ravel()
+    cct = divide_columns(cont, y_sizes)[idx].toarray().ravel()
+    idxs = (-cc).argsort()[:num_elems]
+    probs = cc[idxs]
+    probst = cct[idxs]
     return zip(idxs, probs, probst)
 
 def rand_values(cont_table):
     """Calculate values for rand indices."""
     n = cont_table.sum()
-    sum1 = (cont_table*cont_table).sum()
-    sum2 = (cont_table.sum(axis=1)**2).sum()
-    sum3 = (cont_table.sum(axis=0)**2).sum()
+    sum1 = (cont_table.multiply(cont_table)).sum()
+    sum2 = (np.asarray(cont_table.sum(axis=1)) ** 2).sum()
+    sum3 = (np.asarray(cont_table.sum(axis=0)) ** 2).sum()
     a = (sum1 - n)/2.0;
     b = (sum2 - sum1)/2
     c = (sum3 - sum1)/2
