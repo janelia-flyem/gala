@@ -213,9 +213,19 @@ def examine_boundary(axis, b1_prediction, b1_seg, b2_prediction, b2_seg,
                lowerb.append(loc1 - dimmin[pos])
                upperb.append(loc2 - dimmin[pos] + 1)
                pos += 1
-        
-        prediction1[lowerb[0]:upperb[0],lowerb[1]:upperb[1]] = b1_prediction[lower[0]:upper[0],lower[1]:upper[1],lower[2]:upper[2]]
-        supervoxels1[lowerb[0]:upperb[0],lowerb[1]:upperb[1]] = b1_seg[lower[0]:upper[0],lower[1]:upper[1],lower[2]:upper[2]]
+       
+        b1_prediction_temp = b1_prediction[lower[0]:upper[0],lower[1]:upper[1],lower[2]:upper[2]]
+        b1_seg_temp = b1_seg[lower[0]:upper[0],lower[1]:upper[1],lower[2]:upper[2]]
+
+        if axis == 0:
+            b1_prediction_temp = b1_prediction_temp.transpose((1,2,0,3))
+            b1_seg_temp = b1_seg_temp.transpose((1,2,0))
+        if axis == 1:
+            b1_prediction_temp = b1_prediction_temp.transpose((0,2,1,3))
+            b1_seg_temp = b1_seg_temp.transpose((0,2,1))
+
+        prediction1[lowerb[0]:upperb[0],lowerb[1]:upperb[1]] = b1_prediction_temp 
+        supervoxels1[lowerb[0]:upperb[0],lowerb[1]:upperb[1]] = b1_seg_temp 
 
         lower = []
         upper = []
@@ -236,8 +246,19 @@ def examine_boundary(axis, b1_prediction, b1_seg, b2_prediction, b2_seg,
                lowerb.append(loc1 - dimmin[pos])
                upperb.append(loc2 - dimmin[pos] + 1)
                pos += 1
-        prediction2[lowerb[0]:upperb[0],lowerb[1]:upperb[1]] = b2_prediction[lower[0]:upper[0],lower[1]:upper[1],lower[2]:upper[2]]
-        supervoxels2[lowerb[0]:upperb[0],lowerb[1]:upperb[1]] = b2_seg[lower[0]:upper[0],lower[1]:upper[1],lower[2]:upper[2]]
+        
+        b2_prediction_temp = b2_prediction[lower[0]:upper[0],lower[1]:upper[1],lower[2]:upper[2]]
+        b2_seg_temp = b2_seg[lower[0]:upper[0],lower[1]:upper[1],lower[2]:upper[2]]
+
+        if axis == 0:
+            b2_prediction_temp = b2_prediction_temp.transpose((1,2,0,3))
+            b2_seg_temp = b2_seg_temp.transpose((1,2,0))
+        if axis == 1:
+            b2_prediction_temp = b2_prediction_temp.transpose((0,2,1,3))
+            b2_seg_temp = b2_seg_temp.transpose((0,2,1))
+
+        prediction2[lowerb[0]:upperb[0],lowerb[1]:upperb[1]] = b2_prediction_temp 
+        supervoxels2[lowerb[0]:upperb[0],lowerb[1]:upperb[1]] = b2_seg_temp 
 
         master_logger.info("Examining border between " + block1["segmentation-file"] + " and " + block2["segmentation-file"])
         # special build mode
