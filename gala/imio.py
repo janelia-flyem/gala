@@ -620,6 +620,17 @@ def segs_to_raveler(sps, bodies, min_size=0, do_conn_comp=False, sps_out=None):
 
 def raveler_serial_section_map(nd_map, min_size=0, do_conn_comp=False, 
                                                     globally_unique_ids=True):
+    """Produce `serial_section_map` and label one corner of each plane as 0.
+
+    Raveler chokes when there are no pixels with label 0 on a plane, so this
+    function produces the serial section map as normal but then adds a 0 to
+    the [0, 0] corner of each plane, IF the volume doesn't already have 0
+    pixels.
+
+    Notes
+    -----
+        See `serial_section_map` for more info.
+    """
     nd_map = serial_section_map(nd_map, min_size, do_conn_comp, 
                                                         globally_unique_ids)
     if not (nd_map == 0).any():
@@ -628,6 +639,31 @@ def raveler_serial_section_map(nd_map, min_size=0, do_conn_comp=False,
 
 def serial_section_map(nd_map, min_size=0, do_conn_comp=False, 
                                                     globally_unique_ids=True):
+    """Produce a plane-by-plane superpixel map with unique IDs.
+
+    Raveler requires sps to be unique and different on each plane. This
+    function converts a fully 3D superpixel map to a serial-2D superpixel
+    map compatible with Raveler.
+
+    Parameters
+    ----------
+    nd_map : np.ndarray, int, shape (M, N, P)
+        The original superpixel map.
+    min_size : int (optional, default 0)
+        Remove superpixels smaller than this size (on each plane)
+    do_conn_comp : bool (optional, default False)
+        In some cases, a single supervoxel may result in two disconnected
+        superpixels in 2D. Set to True to force these to have different IDs.
+    globally_unique_ids : bool (optional, default True)
+        If True, every plane has unique IDs, with plane n having IDs {i1, i2,
+        ..., in} and plane n+1 having IDs {in+1, in+2, ..., in+ip}, and so on.
+
+    Returns
+    -------
+    relabeled_planes : np.ndarray, int, shape (M, N, P)
+        A volume equal to nd_map but with superpixels relabeled along axis 0.
+        That is, the input volume is reinterpreted as M slices of shape (N, P).
+    """
     if do_conn_comp:
         label_fct = label
     else:
@@ -649,29 +685,39 @@ def write_to_raveler(sps, sp_to_segment, segment_to_body, directory, gray=None,
                     body_annot=None):
     """Output a segmentation to Raveler format. 
 
-    Arguments:
-        - sps: the superpixel map (nplanes * nx * ny numpy ndarray).
-          Superpixels can only occur on one plane.
-        - sp_to_segment: superpixel-to-segment map as a 3 column list of
-          (plane number, superpixel id, segment id). Segments must be unique to
-          a plane.
-        - segment_to_body: the segment to body map. (nsegments * 2 numpy array)
-        - directory: the directory in which to write the stack. This directory
-          and all necessary subdirectories will be created.
-        - [gray]: The grayscale images corresponding to the superpixel maps
-          (nplanes * nx * ny numpy ndarray).
-        - [raveler dir]: where Raveler is installed.
-        - [nproc_contours]: how many processors to use when generating the 
-          Raveler contours.
-        - [body_annot]: either a dictionary to write to JSON in Raveler body
-          annotation format, or a numpy ndarray of the segmentation from which
-          to compute orphans and non traversing bodies (which then get written
-          out as body annotations).
-    Value:
-        None.
+    Parameters
+    ----------
+    sps : np.ndarray, int, shape (nplanes, nx, ny)
+        The superpixel map. Superpixels can only occur on one plane.
+    sp_to_segment : np.ndarray, int, shape (nsps + nplanes, 3)
+        Superpixel-to-segment map as a 3 column list of (plane number,
+        superpixel id, segment id). Segments must be unique to a plane, and
+        each plane must contain the map {0: 0}
+    segment_to_body: np.ndarray, int, shape (nsegments, 2)
+        The segment to body map.
+    directory: string 
+        The directory in which to write the stack. This directory and all
+        necessary subdirectories will be created.
+    gray: np.ndarray, uint8 or uint16, shape (nplanes, nx, ny) (optional)
+        The grayscale images corresponding to the superpixel maps.
+    raveler dir: string (optional, default `/usr/local/raveler-hdf`)
+        Where Raveler is installed.
+    nproc_contours: int (optional, default 16) 
+        How many processes to use when generating the Raveler contours.
+    body_annot: dict or np.ndarray (optional)
+        Either a dictionary to write to JSON in Raveler body annotation
+        format, or a numpy ndarray of the segmentation from which to compute
+        orphans and non traversing bodies (which then get written out as body
+        annotations).
 
-    Raveler is the EM segmentation proofreading tool developed in-house at
-    Janelia for the FlyEM project.
+    Returns
+    -------
+    None
+
+    Notes
+    -----
+        Raveler is the EM segmentation proofreading tool developed in-house at
+        Janelia for the FlyEM project.
     """
     sp_path = os.path.join(directory, 'superpixel_maps')
     im_path = os.path.join(directory, 'grayscale_maps')
