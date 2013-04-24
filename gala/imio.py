@@ -15,7 +15,7 @@ from scipy.ndimage.measurements import label
 
 from numpy import array, uint8, uint16, uint32, uint64, zeros, \
     zeros_like, squeeze, fromstring, ndim, concatenate, newaxis, swapaxes, \
-    savetxt, unique, double, ones_like, cumsum, ndarray
+    savetxt, unique, double, cumsum, ndarray
 import numpy as np
 
 from skimage.io.collection import alphanumeric_key
@@ -776,12 +776,62 @@ def write_to_raveler(sps, sp_to_segment, segment_to_body, directory, gray=None,
         logging.warning('Could not change Raveler export permissions.')
 
 def raveler_output_shortcut(svs, seg, gray, outdir, sps_out=None):
-    """Compute the Raveler format and write to directory, all at once."""
+    """Compute the Raveler format and write to directory, all at once.
+    
+    Parameters
+    ----------
+    svs : np.ndarray, int, shape (M, N, P)
+        The supervoxel map.
+    seg : np.ndarray, int, shape (M, N, P)
+        The segmentation map. It is assumed that no supervoxel crosses
+        any segment boundary.
+    gray : np.ndarray, uint8, shape (M, N, P)
+        The grayscale EM images corresponding to the above segmentations.
+    outdir : string
+        The export directory for the Raveler volume.
+    sps_out : np.ndarray, int, shape (M, N, P) (optional)
+        The precomputed serial section 2D superpixel map. Output will be
+        much faster if this is provided.
+
+    Returns
+    -------
+    sps_out : np.ndarray, int, shape (M, N, P)
+        The computed serial section 2D superpixel map. Keep this when
+        making multiple calls to `raveler_output_shortcut` with the
+        same supervoxel map.
+    """
     sps_out, sp2seg, seg2body = segs_to_raveler(svs, seg, sps_out=sps_out)
     write_to_raveler(sps_out, sp2seg, seg2body, outdir, gray, body_annot=seg)
     return sps_out
 
 def raveler_body_annotations(orphans, non_traversing=None):
+    """Return a Raveler body annotation dictionary of orphan segments.
+
+    Orphans are labeled as body annotations with `not sure` status and
+    a string indicating `orphan` in the comments field.
+
+    Non-traversing segments have only one contact with the surface of
+    the volume, and are labeled `does not traverse` in the comments.
+
+    Parameters
+    ----------
+    orphans : iterable of int
+        The ID numbers corresponding to orphan segments.
+    non_traversing : iterable of int (optional, default None)
+        The ID numbers of segments having only one exit point in the volume.
+
+    Returns
+    -------
+    body_annotations : dict
+        A dictionary containing entries for 'data' and 'metadata' as
+        specified in the Raveler body annotations format [1, 2].
+
+    References
+    ----------
+    [1] https://wiki.janelia.org/wiki/display/flyem/body+annotation+file+format
+    and:
+    [2] https://wiki.janelia.org/wiki/display/flyem/generic+file+format
+    """
     data = [{'status': 'not sure', 'comment': 'orphan', 'body ID': int(o)}
         for o in orphans]
     if non_traversing is not None:
