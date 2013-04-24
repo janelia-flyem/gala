@@ -742,7 +742,8 @@ def write_to_raveler(sps, sp_to_segment, segment_to_body, directory, gray=None,
     if gray is not None:
         if not os.path.exists(im_path): 
             os.mkdir(im_path)
-        write_png_image_stack(gray, os.path.join(im_path, 'img.%05d.png'), axis=0)
+        write_png_image_stack(gray, 
+                              os.path.join(im_path, 'img.%05d.png'), axis=0)
 
     # body annotations
     if body_annot is not None:
@@ -796,6 +797,19 @@ def write_json(annot, fn='annotations-body.json', directory=None):
     https://wiki.janelia.org/wiki/display/flyem/body+annotation+file+format
     and:
     https://wiki.janelia.org/wiki/display/flyem/generic+file+format
+
+    Parameters
+    ----------
+    annot : dict
+        A body annotations dictionary (described in pages above).
+    fn : string (optional, default 'annotations-body.json')
+        The filename to which to write the file.
+    directory : string (optional, default None, or '.')
+        A directory in which to write the file.
+
+    Returns
+    -------
+    None
     """
     if directory is not None:
         fn = join_path(directory, fn)
@@ -803,11 +817,33 @@ def write_json(annot, fn='annotations-body.json', directory=None):
         json.dump(annot, f, indent=2)
 
 def raveler_to_labeled_volume(rav_export_dir, get_glia=False, 
-                                            use_watershed=False, **kwargs):
-    """Import a raveler export stack into a labeled segmented volume."""
+                        use_watershed=False, probability_map=None, crop=None):
+    """Import a raveler export stack into a labeled segmented volume.
+    
+    Parameters
+    ----------
+    rav_export_dir : string
+        The directory containing the Raveler stack.
+    get_glia : bool (optional, default False)
+        Return the segment numbers corresponding to glia, if available.
+    use_watershed : bool (optional, default False)
+        Fill in 0-labeled voxels using watershed.
+    probability_map : np.ndarray, same shape as volume to be read (optional)
+        If `use_watershed` is True, use `probability_map` as the landscape. If
+        this is not provided, it uses a flat landscape.
+    crop : tuple of int (optional, default None)
+        A 6-tuple of [xmin, xmax, ymin, ymax, zmin, zmax].
+
+    Returns
+    -------
+    output_volume : np.ndarray, shape (Z, X, Y)
+        The segmentation in the Raveler volume.
+    glia : list of int (optional, only returned if `get_glia` is True)
+        The IDs in the segmentation corresponding to glial cells.
+    """
     import morpho
     spmap = read_image_stack(
-        os.path.join(rav_export_dir, 'superpixel_maps', '*.png'), **kwargs)
+        os.path.join(rav_export_dir, 'superpixel_maps', '*.png'), crop=crop)
     sp2seg_list = np.loadtxt(
         os.path.join(rav_export_dir, 'superpixel_to_segment_map.txt'), uint32)
     seg2bod_list = np.loadtxt(
@@ -826,9 +862,12 @@ def raveler_to_labeled_volume(rav_export_dir, get_glia=False,
     for i, m in enumerate(spmap):
         j = start_plane + i
         initial_output_volume[i] = seg2bod[sp2seg[j][m]]
-    probs = kwargs.get('probability_map', ones_like(spmap))
-    output_volume = morpho.watershed(probs, seeds=initial_output_volume) \
-        if use_watershed else initial_output_volume
+    if use_watershed:
+        probs = np.ones_like(spmap) if probability_map is None \
+                                    else probability_map
+        output_volume = morpho.watershed(probs, seeds=initial_output_volume)
+    else:
+        output_volume = initial_output_volume
     if (output_volume[:, 0, 0] == 0).all() and \
                         (output_volume == 0).sum() == output_volume.shape[0]:
         output_volume[:, 0, 0] = output_volume[:, 0, 1]
@@ -851,10 +890,27 @@ ilastik_label_colors = \
 def write_ilastik_project(images, labels, fn, label_names=None):
     """Write one or more image volumes and corresponding labels to Ilastik.
     
+    Parameters
+    ----------
+    images : np.ndarray or list of np.ndarray, shapes (M_i, N_i[, P_i])
+        The grayscale images to be saved.
+    labels : np.ndarray or list of np.ndarray, same shapes as `images`
+        The label maps corresponding to the images.
+    fn : string
+        The filename to save the project in.
+    label_names : list of string (optional)
+        The names corresponding to each label in `labels`. (Not implemented!)
+
+    Returns
+    -------
+    None
+
+    Notes
+    -----
     Limitations:
-    - Assumes the same labels are used for all images.
-    - Supports only grayscale images and volumes, and a maximum of 8 labels.
-    - Requires at least one unlabeled voxel in the label field.
+        Assumes the same labels are used for all images.
+        Supports only grayscale images and volumes, and a maximum of 8 labels.
+        Requires at least one unlabeled voxel in the label field.
     """
     f = h5py.File(fn, 'w')
     if type(images) != list:
@@ -887,7 +943,19 @@ def write_ilastik_project(images, labels, fn, label_names=None):
     f.close()
 
 def write_ilastik_batch_volume(im, fn):
-    """Write a volume to an HDF5 file for Ilastik batch processing."""
+    """Write a volume to an HDF5 file for Ilastik batch processing.
+    
+    Parameters
+    ----------
+    im : np.ndarray, shape (M, N[, P])
+        The image volume to be saved.
+    fn : string
+        The filename in which to save the volume.
+
+    Returns
+    -------
+    None
+    """
     if im.ndim == 2:
         im = im.reshape((1,1)+im.shape+(1,))
     elif im.ndim == 3:
@@ -897,10 +965,24 @@ def write_ilastik_batch_volume(im, fn):
     write_h5_stack(im, fn, group='/volume/data')
 
 def read_prediction_from_ilastik_batch(fn, **kwargs):
-    """Read the prediction produced by Ilastik from batch processing."""
+    """Read the prediction produced by Ilastik from batch processing.
+    
+    Parameters
+    ----------
+    fn : string
+        The filename to read from.
+    group : string (optional, default '/volume/prediction')
+        Where to read from in the HDF5 file hierarchy.
+    single_channel : bool (optional, default True)
+        Read only the 0th channel (final dimension) from the volume.
+
+    Returns
+    -------
+    None
+    """
     if not kwargs.has_key('group'):
         kwargs['group'] = '/volume/prediction'
     a = squeeze(read_h5_stack(fn, **kwargs))
     if kwargs.get('single_channel', True):
-        a = a[...,0]
+        a = a[..., 0]
     return a
