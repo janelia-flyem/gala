@@ -15,7 +15,7 @@ from scipy.ndimage.measurements import label
 
 from numpy import array, uint8, uint16, uint32, uint64, zeros, \
     zeros_like, squeeze, fromstring, ndim, concatenate, newaxis, swapaxes, \
-    savetxt, unique, double, ones_like, cumsum, ndarray
+    savetxt, unique, double, cumsum, ndarray
 import numpy as np
 
 from skimage.io.collection import alphanumeric_key
@@ -620,6 +620,17 @@ def segs_to_raveler(sps, bodies, min_size=0, do_conn_comp=False, sps_out=None):
 
 def raveler_serial_section_map(nd_map, min_size=0, do_conn_comp=False, 
                                                     globally_unique_ids=True):
+    """Produce `serial_section_map` and label one corner of each plane as 0.
+
+    Raveler chokes when there are no pixels with label 0 on a plane, so this
+    function produces the serial section map as normal but then adds a 0 to
+    the [0, 0] corner of each plane, IF the volume doesn't already have 0
+    pixels.
+
+    Notes
+    -----
+        See `serial_section_map` for more info.
+    """
     nd_map = serial_section_map(nd_map, min_size, do_conn_comp, 
                                                         globally_unique_ids)
     if not (nd_map == 0).any():
@@ -628,6 +639,31 @@ def raveler_serial_section_map(nd_map, min_size=0, do_conn_comp=False,
 
 def serial_section_map(nd_map, min_size=0, do_conn_comp=False, 
                                                     globally_unique_ids=True):
+    """Produce a plane-by-plane superpixel map with unique IDs.
+
+    Raveler requires sps to be unique and different on each plane. This
+    function converts a fully 3D superpixel map to a serial-2D superpixel
+    map compatible with Raveler.
+
+    Parameters
+    ----------
+    nd_map : np.ndarray, int, shape (M, N, P)
+        The original superpixel map.
+    min_size : int (optional, default 0)
+        Remove superpixels smaller than this size (on each plane)
+    do_conn_comp : bool (optional, default False)
+        In some cases, a single supervoxel may result in two disconnected
+        superpixels in 2D. Set to True to force these to have different IDs.
+    globally_unique_ids : bool (optional, default True)
+        If True, every plane has unique IDs, with plane n having IDs {i1, i2,
+        ..., in} and plane n+1 having IDs {in+1, in+2, ..., in+ip}, and so on.
+
+    Returns
+    -------
+    relabeled_planes : np.ndarray, int, shape (M, N, P)
+        A volume equal to nd_map but with superpixels relabeled along axis 0.
+        That is, the input volume is reinterpreted as M slices of shape (N, P).
+    """
     if do_conn_comp:
         label_fct = label
     else:
@@ -649,29 +685,39 @@ def write_to_raveler(sps, sp_to_segment, segment_to_body, directory, gray=None,
                     body_annot=None):
     """Output a segmentation to Raveler format. 
 
-    Arguments:
-        - sps: the superpixel map (nplanes * nx * ny numpy ndarray).
-          Superpixels can only occur on one plane.
-        - sp_to_segment: superpixel-to-segment map as a 3 column list of
-          (plane number, superpixel id, segment id). Segments must be unique to
-          a plane.
-        - segment_to_body: the segment to body map. (nsegments * 2 numpy array)
-        - directory: the directory in which to write the stack. This directory
-          and all necessary subdirectories will be created.
-        - [gray]: The grayscale images corresponding to the superpixel maps
-          (nplanes * nx * ny numpy ndarray).
-        - [raveler dir]: where Raveler is installed.
-        - [nproc_contours]: how many processors to use when generating the 
-          Raveler contours.
-        - [body_annot]: either a dictionary to write to JSON in Raveler body
-          annotation format, or a numpy ndarray of the segmentation from which
-          to compute orphans and non traversing bodies (which then get written
-          out as body annotations).
-    Value:
-        None.
+    Parameters
+    ----------
+    sps : np.ndarray, int, shape (nplanes, nx, ny)
+        The superpixel map. Superpixels can only occur on one plane.
+    sp_to_segment : np.ndarray, int, shape (nsps + nplanes, 3)
+        Superpixel-to-segment map as a 3 column list of (plane number,
+        superpixel id, segment id). Segments must be unique to a plane, and
+        each plane must contain the map {0: 0}
+    segment_to_body: np.ndarray, int, shape (nsegments, 2)
+        The segment to body map.
+    directory: string 
+        The directory in which to write the stack. This directory and all
+        necessary subdirectories will be created.
+    gray: np.ndarray, uint8 or uint16, shape (nplanes, nx, ny) (optional)
+        The grayscale images corresponding to the superpixel maps.
+    raveler dir: string (optional, default `/usr/local/raveler-hdf`)
+        Where Raveler is installed.
+    nproc_contours: int (optional, default 16) 
+        How many processes to use when generating the Raveler contours.
+    body_annot: dict or np.ndarray (optional)
+        Either a dictionary to write to JSON in Raveler body annotation
+        format, or a numpy ndarray of the segmentation from which to compute
+        orphans and non traversing bodies (which then get written out as body
+        annotations).
 
-    Raveler is the EM segmentation proofreading tool developed in-house at
-    Janelia for the FlyEM project.
+    Returns
+    -------
+    None
+
+    Notes
+    -----
+        Raveler is the EM segmentation proofreading tool developed in-house at
+        Janelia for the FlyEM project.
     """
     sp_path = os.path.join(directory, 'superpixel_maps')
     im_path = os.path.join(directory, 'grayscale_maps')
@@ -696,7 +742,8 @@ def write_to_raveler(sps, sp_to_segment, segment_to_body, directory, gray=None,
     if gray is not None:
         if not os.path.exists(im_path): 
             os.mkdir(im_path)
-        write_png_image_stack(gray, os.path.join(im_path, 'img.%05d.png'), axis=0)
+        write_png_image_stack(gray, 
+                              os.path.join(im_path, 'img.%05d.png'), axis=0)
 
     # body annotations
     if body_annot is not None:
@@ -729,12 +776,62 @@ def write_to_raveler(sps, sp_to_segment, segment_to_body, directory, gray=None,
         logging.warning('Could not change Raveler export permissions.')
 
 def raveler_output_shortcut(svs, seg, gray, outdir, sps_out=None):
-    """Compute the Raveler format and write to directory, all at once."""
+    """Compute the Raveler format and write to directory, all at once.
+    
+    Parameters
+    ----------
+    svs : np.ndarray, int, shape (M, N, P)
+        The supervoxel map.
+    seg : np.ndarray, int, shape (M, N, P)
+        The segmentation map. It is assumed that no supervoxel crosses
+        any segment boundary.
+    gray : np.ndarray, uint8, shape (M, N, P)
+        The grayscale EM images corresponding to the above segmentations.
+    outdir : string
+        The export directory for the Raveler volume.
+    sps_out : np.ndarray, int, shape (M, N, P) (optional)
+        The precomputed serial section 2D superpixel map. Output will be
+        much faster if this is provided.
+
+    Returns
+    -------
+    sps_out : np.ndarray, int, shape (M, N, P)
+        The computed serial section 2D superpixel map. Keep this when
+        making multiple calls to `raveler_output_shortcut` with the
+        same supervoxel map.
+    """
     sps_out, sp2seg, seg2body = segs_to_raveler(svs, seg, sps_out=sps_out)
     write_to_raveler(sps_out, sp2seg, seg2body, outdir, gray, body_annot=seg)
     return sps_out
 
 def raveler_body_annotations(orphans, non_traversing=None):
+    """Return a Raveler body annotation dictionary of orphan segments.
+
+    Orphans are labeled as body annotations with `not sure` status and
+    a string indicating `orphan` in the comments field.
+
+    Non-traversing segments have only one contact with the surface of
+    the volume, and are labeled `does not traverse` in the comments.
+
+    Parameters
+    ----------
+    orphans : iterable of int
+        The ID numbers corresponding to orphan segments.
+    non_traversing : iterable of int (optional, default None)
+        The ID numbers of segments having only one exit point in the volume.
+
+    Returns
+    -------
+    body_annotations : dict
+        A dictionary containing entries for 'data' and 'metadata' as
+        specified in the Raveler body annotations format [1, 2].
+
+    References
+    ----------
+    [1] https://wiki.janelia.org/wiki/display/flyem/body+annotation+file+format
+    and:
+    [2] https://wiki.janelia.org/wiki/display/flyem/generic+file+format
+    """
     data = [{'status': 'not sure', 'comment': 'orphan', 'body ID': int(o)}
         for o in orphans]
     if non_traversing is not None:
@@ -750,6 +847,19 @@ def write_json(annot, fn='annotations-body.json', directory=None):
     https://wiki.janelia.org/wiki/display/flyem/body+annotation+file+format
     and:
     https://wiki.janelia.org/wiki/display/flyem/generic+file+format
+
+    Parameters
+    ----------
+    annot : dict
+        A body annotations dictionary (described in pages above).
+    fn : string (optional, default 'annotations-body.json')
+        The filename to which to write the file.
+    directory : string (optional, default None, or '.')
+        A directory in which to write the file.
+
+    Returns
+    -------
+    None
     """
     if directory is not None:
         fn = join_path(directory, fn)
@@ -757,11 +867,33 @@ def write_json(annot, fn='annotations-body.json', directory=None):
         json.dump(annot, f, indent=2)
 
 def raveler_to_labeled_volume(rav_export_dir, get_glia=False, 
-                                            use_watershed=False, **kwargs):
-    """Import a raveler export stack into a labeled segmented volume."""
+                        use_watershed=False, probability_map=None, crop=None):
+    """Import a raveler export stack into a labeled segmented volume.
+    
+    Parameters
+    ----------
+    rav_export_dir : string
+        The directory containing the Raveler stack.
+    get_glia : bool (optional, default False)
+        Return the segment numbers corresponding to glia, if available.
+    use_watershed : bool (optional, default False)
+        Fill in 0-labeled voxels using watershed.
+    probability_map : np.ndarray, same shape as volume to be read (optional)
+        If `use_watershed` is True, use `probability_map` as the landscape. If
+        this is not provided, it uses a flat landscape.
+    crop : tuple of int (optional, default None)
+        A 6-tuple of [xmin, xmax, ymin, ymax, zmin, zmax].
+
+    Returns
+    -------
+    output_volume : np.ndarray, shape (Z, X, Y)
+        The segmentation in the Raveler volume.
+    glia : list of int (optional, only returned if `get_glia` is True)
+        The IDs in the segmentation corresponding to glial cells.
+    """
     import morpho
     spmap = read_image_stack(
-        os.path.join(rav_export_dir, 'superpixel_maps', '*.png'), **kwargs)
+        os.path.join(rav_export_dir, 'superpixel_maps', '*.png'), crop=crop)
     sp2seg_list = np.loadtxt(
         os.path.join(rav_export_dir, 'superpixel_to_segment_map.txt'), uint32)
     seg2bod_list = np.loadtxt(
@@ -780,9 +912,12 @@ def raveler_to_labeled_volume(rav_export_dir, get_glia=False,
     for i, m in enumerate(spmap):
         j = start_plane + i
         initial_output_volume[i] = seg2bod[sp2seg[j][m]]
-    probs = kwargs.get('probability_map', ones_like(spmap))
-    output_volume = morpho.watershed(probs, seeds=initial_output_volume) \
-        if use_watershed else initial_output_volume
+    if use_watershed:
+        probs = np.ones_like(spmap) if probability_map is None \
+                                    else probability_map
+        output_volume = morpho.watershed(probs, seeds=initial_output_volume)
+    else:
+        output_volume = initial_output_volume
     if (output_volume[:, 0, 0] == 0).all() and \
                         (output_volume == 0).sum() == output_volume.shape[0]:
         output_volume[:, 0, 0] = output_volume[:, 0, 1]
@@ -805,10 +940,27 @@ ilastik_label_colors = \
 def write_ilastik_project(images, labels, fn, label_names=None):
     """Write one or more image volumes and corresponding labels to Ilastik.
     
+    Parameters
+    ----------
+    images : np.ndarray or list of np.ndarray, shapes (M_i, N_i[, P_i])
+        The grayscale images to be saved.
+    labels : np.ndarray or list of np.ndarray, same shapes as `images`
+        The label maps corresponding to the images.
+    fn : string
+        The filename to save the project in.
+    label_names : list of string (optional)
+        The names corresponding to each label in `labels`. (Not implemented!)
+
+    Returns
+    -------
+    None
+
+    Notes
+    -----
     Limitations:
-    - Assumes the same labels are used for all images.
-    - Supports only grayscale images and volumes, and a maximum of 8 labels.
-    - Requires at least one unlabeled voxel in the label field.
+        Assumes the same labels are used for all images.
+        Supports only grayscale images and volumes, and a maximum of 8 labels.
+        Requires at least one unlabeled voxel in the label field.
     """
     f = h5py.File(fn, 'w')
     if type(images) != list:
@@ -841,7 +993,19 @@ def write_ilastik_project(images, labels, fn, label_names=None):
     f.close()
 
 def write_ilastik_batch_volume(im, fn):
-    """Write a volume to an HDF5 file for Ilastik batch processing."""
+    """Write a volume to an HDF5 file for Ilastik batch processing.
+    
+    Parameters
+    ----------
+    im : np.ndarray, shape (M, N[, P])
+        The image volume to be saved.
+    fn : string
+        The filename in which to save the volume.
+
+    Returns
+    -------
+    None
+    """
     if im.ndim == 2:
         im = im.reshape((1,1)+im.shape+(1,))
     elif im.ndim == 3:
@@ -851,10 +1015,24 @@ def write_ilastik_batch_volume(im, fn):
     write_h5_stack(im, fn, group='/volume/data')
 
 def read_prediction_from_ilastik_batch(fn, **kwargs):
-    """Read the prediction produced by Ilastik from batch processing."""
+    """Read the prediction produced by Ilastik from batch processing.
+    
+    Parameters
+    ----------
+    fn : string
+        The filename to read from.
+    group : string (optional, default '/volume/prediction')
+        Where to read from in the HDF5 file hierarchy.
+    single_channel : bool (optional, default True)
+        Read only the 0th channel (final dimension) from the volume.
+
+    Returns
+    -------
+    None
+    """
     if not kwargs.has_key('group'):
         kwargs['group'] = '/volume/prediction'
     a = squeeze(read_h5_stack(fn, **kwargs))
     if kwargs.get('single_channel', True):
-        a = a[...,0]
+        a = a[..., 0]
     return a
