@@ -75,8 +75,9 @@ def find_close_tbars(regions, proximity, border):
         tbar_hash_temp = set()
         for block in region:
             pt1 = block["near-lower-left"]
+            pt2 = block["far-upper-right"]
             startx = pt1[0] - smallestx - border
-            starty = pt1[1] - smallesty - border
+            starty = largesty - pt2[1] - border
             startz = pt1[2] - border
 
             f = h5py.File(block['segmentation-file'], 'r')
