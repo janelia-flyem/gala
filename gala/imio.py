@@ -69,6 +69,8 @@ def read_image_stack(fn, *args, **kwargs):
     d, fn = split_path(os.path.expanduser(fn))
     if len(d) == 0: d = '.'
     crop = kwargs.get('crop', [None]*6)
+    if crop is None:
+        crop = [None]*6
     if len(crop) == 4: crop.extend([None]*2)
     elif len(crop) == 2: crop = [None]*4 + crop
     kwargs['crop'] = crop

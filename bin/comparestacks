@@ -54,7 +54,10 @@ def main(argv):
     if stack1.endswith('.h5'):
         stack1_int = imio.read_image_stack(stack1)
     else: 
-        stack1_int = imio.raveler_to_labeled_volume(stack1, glia=False, use_watershed=False)
+        stack1_int = imio.raveler_to_labeled_volume(stack1)
+    if stack1_int.ndim == 4:
+        stack1_int = stack1_int[:,:,:,0] + (stack1_int[:,:,:,1] << 8) + (stack1_int[:,:,:,2] << 16)
+
     stack1_int = morpho.remove_small_connected_components(stack1_int, min_size=filtersize, in_place=True)
    
     if args.dilate1 > 0:
@@ -74,7 +77,10 @@ def main(argv):
     if stackbase.endswith('.h5'):
         stackbase_int = imio.read_image_stack(stackbase)
     else:
-        stackbase_int = imio.raveler_to_labeled_volume(stackbase, glia=False, use_watershed=False)
+        stackbase_int = imio.raveler_to_labeled_volume(stackbase)
+    if stackbase_int.ndim == 4:
+        stackbase_int = stackbase_int[:,:,:,0] + (stackbase_int[:,:,:,1] << 8) + (stackbase_int[:,:,:,2] << 16)
+ 
     stackbase_int = morpho.remove_small_connected_components(stackbase_int, min_size=filtersize, in_place=True)
 
     if args.dilatebase > 0:
