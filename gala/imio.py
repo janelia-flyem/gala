@@ -868,6 +868,37 @@ def write_json(annot, fn='annotations-body.json', directory=None):
     with open(fn, 'w') as f:
         json.dump(annot, f, indent=2)
 
+
+def raveler_rgba_to_int(im, ignore_alpha=True):
+    """Convert a volume using Raveler's RGBA encoding to int. [1]
+
+    Parameters
+    ----------
+    im : np.ndarray, shape (M, N, P, 4)
+        The image stack to be converted.
+    ignore_alpha : bool, optional
+        By default, the alpha channel does not encode anything. However, if
+        we ever need 32 bits, it would be used. This function supports that
+        with `ignore_alpha=False`. (default is True.)
+
+    Returns
+    -------
+    im_int : np.ndarray, shape (M, N, P)
+        The label volume.
+
+    References
+    ----------
+    [1] https://wiki.janelia.org/wiki/display/flyem/Proofreading+data+and+formats
+    """
+    if im.ndim == 4 and im.shape[3] == 4:
+        if ignore_alpha:
+            im = im[..., :3]
+        im_int = (im * 255 ** np.arange(im.shape[3])).sum(axis=3)
+    else:
+        im_int = im
+    return im_int
+
+
 def raveler_to_labeled_volume(rav_export_dir, get_glia=False, 
                         use_watershed=False, probability_map=None, crop=None):
     """Import a raveler export stack into a labeled segmented volume.
@@ -896,6 +927,7 @@ def raveler_to_labeled_volume(rav_export_dir, get_glia=False,
     import morpho
     spmap = read_image_stack(
         os.path.join(rav_export_dir, 'superpixel_maps', '*.png'), crop=crop)
+    spmap = raveler_rgba_to_int(spmap)
     sp2seg_list = np.loadtxt(
         os.path.join(rav_export_dir, 'superpixel_to_segment_map.txt'), uint32)
     seg2bod_list = np.loadtxt(
