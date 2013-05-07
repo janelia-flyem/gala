@@ -12,11 +12,25 @@ from scipy.spatial.distance import pdist, squareform
 from sklearn.metrics import precision_recall_curve
 
 def bin_values(a, bins=255):
+    """Return an array with its values discretised to the given number of bins.
+
+    Parameters
+    ----------
+    a : np.ndarray, arbitrary shape
+        The input array.
+    bins : int, optional
+        The number of bins in which to put the data. default: 255.
+
+    Returns
+    -------
+    b : np.ndarray, same shape as a
+        The output array, such that values in bin X are replaced by mean(X).
+    """
     if len(np.unique(a)) < 2*bins:
         return a.copy()
     b = np.zeros_like(a)
     m, M = a.min(), a.max()
-    r = M - m
+    r = M - m # the range of the data
     step = r / bins
     lows = np.arange(m, M, step)
     highs = np.arange(m+step, M+step, step)
@@ -27,13 +41,64 @@ def bin_values(a, bins=255):
             b.ravel()[locations] = values.mean()
     return b
 
-def pixel_wise_boundary_precision_recall(aseg, gt):
-    tp = float((gt * aseg).sum())
-    fp = (aseg * (1-gt)).sum()
-    fn = (gt * (1-aseg)).sum()
+def pixel_wise_boundary_precision_recall(pred, gt):
+    """Evaluate voxel prediction accuracy against a ground truth.
+
+    Parameters
+    ----------
+    pred : np.ndarray of int or bool, arbitrary shape
+        The voxel-wise discrete prediction. 1 for boundary, 0 for non-boundary.
+    gt : np.ndarray of int or bool, same shape as `pred`
+        The ground truth boundary voxels. 1 for boundary, 0 for non-boundary.
+
+    Returns
+    -------
+    pr : float
+    rec : float
+        The precision and recall values associated with the prediction.
+
+    Notes
+    -----
+    Precision is defined as "True Positives / Total Positive Calls", and
+    Recall is defined as "True Positives / Total Positives in Ground Truth".
+
+    This function only calculates this value for discretized predictions,
+    i.e. it does not work with continuous prediction confidence values.
+    """
+    tp = float((gt * pred).sum())
+    fp = (pred * (1-gt)).sum()
+    fn = (gt * (1-pred)).sum()
     return tp/(tp+fp), tp/(tp+fn)
 
 def wiggle_room_precision_recall(pred, boundary, margin=2, connectivity=1):
+    """Voxel-wise, continuous value precision recall curve allowing drift.
+
+    Voxel-wise precision recall evaluates predictions against a ground truth.
+    Wiggle-room precision recall (WRPR, "warper") allows calls from nearby
+    voxels to be counted as correct. Specifically, if a voxel is predicted to
+    be a boundary within a dilation distance of `margin` (distance defined
+    according to `connectivity`) of a true boundary voxel, it will be counted
+    as a True Positive in the Precision, and vice-versa for the Recall.
+
+    Parameters
+    ----------
+    pred : np.ndarray of float, arbitrary shape
+        The prediction values, expressed as probability of observing a boundary
+        (i.e. a voxel with label 1).
+    boundary : np.ndarray of int, same shape as pred
+        The true boundary map. 1 indicates boundary, 0 indicates non-boundary.
+    margin : int, optional
+        The number of dilations that define the margin. default: 2.
+    connectivity : {1, ..., pred.ndim}, optional
+        The morphological voxel connectivity (defined as in SciPy) for the
+        dilation step.
+
+    Returns
+    -------
+    ts, pred, rec : np.ndarray of float, shape `(len(np.unique(pred)+1),)`
+        The prediction value thresholds corresponding to each precision and
+        recall value, the precision values, and the recall values.
+    """
     struct = nd.generate_binary_structure(boundary.ndim, connectivity)
     gtd = nd.binary_dilation(boundary, struct, margin)
     struct_m = nd.iterate_structure(struct, margin)
