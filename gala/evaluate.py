@@ -110,18 +110,67 @@ def wiggle_room_precision_recall(pred, boundary, margin=2, connectivity=1):
     _, rec, _ = precision_recall_curve(boundary.ravel(), pred_dil.ravel())
     return zip(ts, prec, rec)
 
-def get_stratified_sample(a, n):
-    u = np.unique(a)
-    if len(u) <= 2*n:
+
+def get_stratified_sample(ar, n):
+    """Get a regularly-spaced sample of the unique values of an array.
+
+    Parameters
+    ----------
+    ar : np.ndarray, arbitrary shape and type
+        The input array.
+    n : int
+        The desired sample size.
+
+    Returns
+    -------
+    u : np.ndarray, shape approximately (n,)
+
+    Notes
+    -----
+    If `len(np.unique(ar)) <= 2*n`, all the values of `ar` are returned. The
+    requested sample size is taken as an approximate lower bound.
+    
+    Examples
+    --------
+    >>> ar = np.array([[0, 4, 1, 3],
+                       [4, 1, 3, 5],
+                       [3, 5, 2, 1]])
+    >>> np.unique(ar)
+    array([0, 1, 2, 3, 4, 5])
+    >>> get_stratified_sample(ar, 3)
+    array([0, 2, 4])
+    """
+    u = np.unique(ar)
+    nu = len(u)
+    if nu <= 2*n:
         return u
     else:
-        return u[0:len(u):len(u)/n]
+        step = nu / n
+        return u[0:nu:step]
 
-def edit_distance(aseg, gt, ws=None):
-    if ws is None:
+
+def edit_distance(aseg, gt, sp=None):
+    """Find the number of splits and merges needed to convert `aseg` to `gt`.
+
+    Parameters
+    ----------
+    aseg : np.ndarray, int type, arbitrary shape
+        The candidate automatic segmentation being evaluated.
+    gt : np.ndarray, int type, same shape as `aseg`.
+        The ground truth segmentation.
+    sp : np.ndarray, int type, same shape as `aseg`, optional
+        A superpixel map. If provided, compute the edit distance to the best
+        possible agglomeration of `sp` to `gt`, rather than to `gt` itself.
+
+    Returns
+    -------
+    (false_merges, false_splits) : float
+        The number of splits and merges needed to convert aseg to gt.
+    """
+    if sp is None:
         return edit_distance_to_bps(aseg, gt)
     import agglo
-    return edit_distance_to_bps(aseg, agglo.best_possible_segmentation(ws, gt))
+    return edit_distance_to_bps(aseg, agglo.best_possible_segmentation(sp, gt))
 
 def edit_distance_to_bps(aseg, bps):
     aseg = relabel_from_one(aseg)[0]
