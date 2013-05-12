@@ -197,7 +197,30 @@ def relabel_from_one(a):
     return forward_map[a], forward_map, inverse_map
 
 def contingency_table(seg, gt, ignore_seg=[0], ignore_gt=[0], norm=True):
-    """Return the contingency table for all regions in matched segmentations."""
+    """Return the contingency table for all regions in matched segmentations.
+    
+    Parameters
+    ----------
+    seg : np.ndarray, int type, arbitrary shape
+        A candidate segmentation.
+    gt : np.ndarray, int type, same shape as `seg`
+        The ground truth segmentation.
+    ignore_seg : list of int, optional
+        Values to ignore in `seg`. Voxels in `seg` having a value in this list
+        will not contribute to the contingency table. (default: [0])
+    ignore_gt : list of int, optional
+        Values to ignore in `gt`. Voxels in `gt` having a value in this list
+        will not contribute to the contingency table. (default: [0])
+    norm : bool, optional
+        Whether to normalize the table so that it sums to 1.
+
+    Returns
+    -------
+    cont : scipy.sparse.csc_matrix
+        A contingency table. `cont[i, j]` will equal the number of voxels
+        labeled `i` in `seg` and `j` in `gt`. (Or the proportion of such voxels
+        if `norm=True`.)
+    """
     segr = seg.ravel() 
     gtr = gt.ravel()
     ij = np.vstack((segr, gtr))
