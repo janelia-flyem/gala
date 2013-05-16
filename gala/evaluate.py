@@ -602,7 +602,22 @@ def split_components(idx, cont, num_elems=4, axis=0):
     return zip(idxs, probs, probst)
 
 def rand_values(cont_table):
-    """Calculate values for rand indices."""
+    """Calculate values for Rand Index and related values, e.g. Adjusted Rand.
+    
+    Parameters
+    ----------
+    cont_table : scipy.sparse.csc_matrix
+        A contingency table of the two segmentations.
+        
+    Returns
+    -------
+    a, b, c, d : float
+        The values necessary for computing Rand Index and related values. [1]
+        
+    References
+    ----------
+    [1] http://en.wikipedia.org/wiki/Rand_index#Definition on 2013-05-16.
+    """
     n = cont_table.sum()
     sum1 = (cont_table.multiply(cont_table)).sum()
     sum2 = (np.asarray(cont_table.sum(axis=1)) ** 2).sum()
