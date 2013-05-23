@@ -429,18 +429,42 @@ def vi_by_threshold(ucm, gt, ignore_seg=[], ignore_gt=[], npoints=None,
             ((ucm, gt, ignore_seg, ignore_gt, t) for t in ts))
     return np.concatenate((ts[np.newaxis, :], np.array(result).T), axis=0)
 
+
 def rand_by_threshold(ucm, gt, npoints=None):
+    """Compute Rand and Adjusted Rand indices for each threshold of a UCM
+
+    Parameters
+    ----------
+    ucm : np.ndarray, arbitrary shape
+        An Ultrametric Contour Map of region boundaries having specific
+        values. Higher values indicate higher boundary probabilities.
+    gt : np.ndarray, int type, same shape as ucm
+        The ground truth segmentation.
+    npoints : int, optional
+        If provided, only compute values at npoints thresholds, rather than
+        all thresholds. Useful when ucm has an extremely large number of
+        unique values.
+
+    Returns
+    -------
+    ris : np.ndarray of float, shape (3, len(np.unique(ucm))) or (3, npoints)
+        The rand indices of the segmentation induced by thresholding and
+        labeling `ucm` at different values. The 3 rows of `ris` are the values
+        used for thresholding, the corresponding Rand Index at that threshold,
+        and the corresponding Adjusted Rand Index at that threshold.
+    """
     ts = np.unique(ucm)[1:]
     if npoints is None:
         npoints = len(ts)
-    if len(ts) > 2*npoints:
-        ts = ts[np.arange(1, len(ts), len(ts)/npoints)]
-    result = np.zeros((2,len(ts)))
+    if len(ts) > 2 * npoints:
+        ts = ts[np.arange(1, len(ts), len(ts) / npoints)]
+    result = np.zeros((2, len(ts)))
     for i, t in enumerate(ts):
-        seg = label(ucm<t)[0]
-        result[0,i] = rand_index(seg, gt)
-        result[1,i] = adj_rand_index(seg, gt)
+        seg = label(ucm < t)[0]
+        result[0, i] = rand_index(seg, gt)
+        result[1, i] = adj_rand_index(seg, gt)
     return np.concatenate((ts[np.newaxis, :], result), axis=0)
+
 
 def calc_entropy(split_vals, count):
     col_count = 0
