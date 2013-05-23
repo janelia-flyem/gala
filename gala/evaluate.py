@@ -149,15 +149,17 @@ def get_stratified_sample(ar, n):
         return u[0:nu:step]
 
 
-def edit_distance(aseg, gt, sp=None):
+def edit_distance(aseg, gt, size_threshold=1000, sp=None):
     """Find the number of splits and merges needed to convert `aseg` to `gt`.
 
     Parameters
     ----------
     aseg : np.ndarray, int type, arbitrary shape
         The candidate automatic segmentation being evaluated.
-    gt : np.ndarray, int type, same shape as `aseg`.
+    gt : np.ndarray, int type, same shape as `aseg`
         The ground truth segmentation.
+    size_threshold : int or float, optional
+        Ignore splits or merges smaller than this number of voxels.
     sp : np.ndarray, int type, same shape as `aseg`, optional
         A superpixel map. If provided, compute the edit distance to the best
         possible agglomeration of `sp` to `gt`, rather than to `gt` itself.
@@ -168,16 +170,35 @@ def edit_distance(aseg, gt, sp=None):
         The number of splits and merges needed to convert aseg to gt.
     """
     if sp is None:
-        return edit_distance_to_bps(aseg, gt)
-    import agglo
-    return edit_distance_to_bps(aseg, agglo.best_possible_segmentation(sp, gt))
+        return raw_edit_distance(aseg, gt, size_threshold)
+    else:
+        import agglo
+        bps = agglo.best_possible_segmentation(sp, gt)
+        return raw_edit_distance(aseg, bps, size_threshold)
 
-def edit_distance_to_bps(aseg, bps):
+def raw_edit_distance(aseg, gt, size_threshold=1000):
+    """Compute the edit distance between two segmentations.
+
+    Parameters
+    ----------
+    aseg : np.ndarray, int type, arbitrary shape
+        The candidate automatic segmentation.
+    gt : np.ndarray, int type, same shape as `aseg`
+        The ground truth segmentation.
+    size_threshold : int or float, optional
+        Ignore splits or merges smaller than this number of voxels.
+
+    Returns
+    -------
+    (false_merges, false_splits) : float
+        The number of splits and merges required to convert aseg to gt.
+    """
     aseg = relabel_from_one(aseg)[0]
-    bps = relabel_from_one(bps)[0]
-    r = contingency_table(aseg, bps, [0], [0])
-    # make each segment overlap count for 1, since it will be one operation
-    # to fix (split or merge)
+    gt = relabel_from_one(gt)[0]
+    r = contingency_table(aseg, gt, [0], [0], norm=False)
+    r.data[r.data <= size_threshold] = 0
+    # make each segment overlap count for 1, since it will be one
+    # operation to fix (split or merge)
     r.data[r.data.nonzero()] /= r.data[r.data.nonzero()]
     false_splits = (r.sum(axis=0)-1)[1:].sum()
     false_merges = (r.sum(axis=1)-1)[1:].sum()
