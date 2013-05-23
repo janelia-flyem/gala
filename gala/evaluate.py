@@ -176,6 +176,7 @@ def edit_distance(aseg, gt, size_threshold=1000, sp=None):
         bps = agglo.best_possible_segmentation(sp, gt)
         return raw_edit_distance(aseg, bps, size_threshold)
 
+
 def raw_edit_distance(aseg, gt, size_threshold=1000):
     """Compute the edit distance between two segmentations.
 
@@ -204,18 +205,57 @@ def raw_edit_distance(aseg, gt, size_threshold=1000):
     false_merges = (r.sum(axis=1)-1)[1:].sum()
     return (false_merges, false_splits)
 
-def relabel_from_one(a):
-    labels = np.unique(a)
-    labels0 = labels[labels!=0]
+
+def relabel_from_one(label_field):
+    """Convert labels in an arbitrary label field to {1, ... number_of_labels}.
+
+    This function also returns the forward map (mapping the original labels to
+    the reduced labels) and the inverse map (mapping the reduced labels back
+    to the original ones).
+
+    Parameters
+    ----------
+    label_field : numpy ndarray (integer type)
+
+    Returns
+    -------
+    relabeled : numpy array of same shape as ar
+    forward_map : 1d numpy array of length np.unique(ar) + 1
+    inverse_map : 1d numpy array of length len(np.unique(ar))
+        The length is len(np.unique(ar)) + 1 if 0 is not in np.unique(ar)
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> label_field = array([1, 1, 5, 5, 8, 99, 42])
+    >>> relab, fw, inv = relabel_from_one(label_field)
+    >>> relab
+    array([1, 1, 2, 2, 3, 5, 4])
+    >>> fw
+    array([0, 1, 0, 0, 0, 2, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+           0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0,
+           0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+           0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+           0, 0, 0, 0, 0, 0, 0, 5])
+    >>> inv
+    array([ 0,  1,  5,  8, 42, 99])
+    >>> (fw[label_field] == relab).all()
+    True
+    >>> (inv[relab] == label_field).all()
+    True
+    """
+    labels = np.unique(label_field)
+    labels0 = labels[labels != 0]
     m = labels.max()
     if m == len(labels0): # nothing to do, already 1...n labels
-        return a, labels, labels
+        return label_field, labels, labels
     forward_map = np.zeros(m+1, int)
-    forward_map[labels0] = np.arange(1, len(labels0)+1)
+    forward_map[labels0] = np.arange(1, len(labels0) + 1)
     if not (labels == 0).any():
         labels = np.concatenate(([0], labels))
     inverse_map = labels
-    return forward_map[a], forward_map, inverse_map
+    return forward_map[label_field], forward_map, inverse_map
+
 
 def contingency_table(seg, gt, ignore_seg=[0], ignore_gt=[0], norm=True):
     """Return the contingency table for all regions in matched segmentations.
