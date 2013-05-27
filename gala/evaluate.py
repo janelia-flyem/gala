@@ -413,8 +413,38 @@ def make_synaptic_vi(fn):
 
 
 def vi(x, y=None, weights=np.ones(2), ignore_x=[0], ignore_y=[0]):
-    """Return the variation of information metric."""
+    """Return the variation of information metric. [1]
+
+    VI(X, Y) = H(X | Y) + H(Y | X), where H(.|.) denotes the conditional
+    entropy.
+
+    Parameters
+    ----------
+    x : np.ndarray
+        Label field (int type) or contingency table (float). `x` is
+        interpreted as a contingency table (summing to 1.0) if and only if `y`
+        is not provided.
+    y : np.ndarray of int, same shape as x, optional
+        A label field to compare to `x`.
+    weights : np.ndarray of float, shape (2,), optional
+        The weights of the conditional entropies of `x` and `y`. Equal weights
+        are the default.
+    ignore_x, ignore_y : list of int, optional
+        Any points having a label in this list are ignored in the evaluation.
+        Ignore 0-labeled points by default.
+
+    Returns
+    -------
+    v : float
+        The variation of information between `x` and `y`.
+
+    References
+    ----------
+    [1] Meila, M. (2007). Comparing clusterings—an information based 
+    distance. Journal of Multivariate Analysis 98, 873–895.
+    """
     return np.dot(weights, split_vi(x, y, ignore_x, ignore_y))
+
 
 def split_vi(x, y=None, ignore_x=[0], ignore_y=[0]):
     """Return the symmetric conditional entropies associated with the VI.
@@ -426,10 +456,32 @@ def split_vi(x, y=None, ignore_x=[0], ignore_y=[0]):
     will have H(Y|X)=0 and a perfect under-segmentation will have H(X|Y)=0.
 
     If y is None, x is assumed to be a contingency table.
+
+    Parameters
+    ----------
+    x : np.ndarray
+        Label field (int type) or contingency table (float). `x` is
+        interpreted as a contingency table (summing to 1.0) if and only if `y`
+        is not provided.
+    y : np.ndarray of int, same shape as x, optional
+        A label field to compare to `x`.
+    ignore_x, ignore_y : list of int, optional
+        Any points having a label in this list are ignored in the evaluation.
+        Ignore 0-labeled points by default.
+
+    Returns
+    -------
+    sv : np.ndarray of float, shape (2,)
+        The conditional entropies of Y|X and X|Y.
+
+    See Also
+    --------
+    `vi`
     """
     _, _, _ , hxgy, hygx, _, _ = vi_tables(x, y, ignore_x, ignore_y)
     # false merges, false splits
     return np.array([hygx.sum(), hxgy.sum()])
+
 
 def vi_pairwise_matrix(segs, split=False):
     """Compute the pairwise VI distances within a set of segmentations.
@@ -438,6 +490,22 @@ def vi_pairwise_matrix(segs, split=False):
     direction of the conditional entropy.
 
     0-labeled pixels are ignored.
+
+    Parameters
+    ----------
+    segs : iterable of np.ndarray of int
+        A list or iterable of segmentations. All arrays must have the same
+        shape.
+    split : bool, optional
+        Should the split VI be returned, or just the VI itself (default)?
+
+    Returns
+    -------
+    vi_sq : np.ndarray of float, shape (len(segs), len(segs))
+        The distances between segmentations. If `split==False`, this is a
+        symmetric square matrix of distances. Otherwise, the lower triangle
+        of the output matrix is the false split distance, while the upper
+        triangle is the false merge distance.
     """
     d = np.array([s.ravel() for s in segs])
     if split:
@@ -450,6 +518,7 @@ def vi_pairwise_matrix(segs, split=False):
     else:
         out = squareform(pdist(d, vi))
     return out
+
 
 def split_vi_threshold(tup):
     """Compute VI with tuple input (to support multiprocessing).
