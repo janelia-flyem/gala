@@ -446,8 +446,8 @@ def vi(x, y=None, weights=np.ones(2), ignore_x=[0], ignore_y=[0]):
 
     References
     ----------
-    [1] Meila, M. (2007). Comparing clusterings—an information based 
-    distance. Journal of Multivariate Analysis 98, 873–895.
+    [1] Meila, M. (2007). Comparing clusterings - an information based 
+    distance. Journal of Multivariate Analysis 98, 873-895.
     """
     return np.dot(weights, split_vi(x, y, ignore_x, ignore_y))
 
