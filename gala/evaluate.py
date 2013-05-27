@@ -11,6 +11,7 @@ from scipy.ndimage.measurements import label
 from scipy.spatial.distance import pdist, squareform
 from sklearn.metrics import precision_recall_curve
 
+
 def bin_values(a, bins=255):
     """Return an array with its values discretised to the given number of bins.
 
@@ -41,6 +42,7 @@ def bin_values(a, bins=255):
             b.ravel()[locations] = values.mean()
     return b
 
+
 def pixel_wise_boundary_precision_recall(pred, gt):
     """Evaluate voxel prediction accuracy against a ground truth.
 
@@ -69,6 +71,7 @@ def pixel_wise_boundary_precision_recall(pred, gt):
     fp = (pred * (1-gt)).sum()
     fn = (gt * (1-pred)).sum()
     return tp/(tp+fp), tp/(tp+fn)
+
 
 def wiggle_room_precision_recall(pred, boundary, margin=2, connectivity=1):
     """Voxel-wise, continuous value precision recall curve allowing drift.
@@ -295,6 +298,7 @@ def contingency_table(seg, gt, ignore_seg=[0], ignore_gt=[0], norm=True):
         cont /= float(cont.sum())
     return cont
 
+
 def xlogx(x, out=None, in_place=False):
     """Compute x * log_2(x).
 
@@ -330,8 +334,35 @@ def xlogx(x, out=None, in_place=False):
 
 
 def special_points_evaluate(eval_fct, coords, flatten=True, coord_format=True):
+    """Return an evaluation function to only evaluate at special coordinates.
+
+    Parameters
+    ----------
+    eval_fct : function taking at least two np.ndarray of equal shapes as args
+        The function to be used for evaluation.
+    coords : np.ndarray of int, shape (n_points, n_dim) or (n_points,)
+        The coordinates at which to evaluate the function. The coordinates can
+        either be subscript format (one index into each dimension of input
+        arrays) or index format (a single index into the linear array). For
+        the latter, use `flatten=False`.
+    flatten : bool, optional
+        Whether to flatten the coordinates (default) or leave them untouched
+        (if they are already in raveled format).
+    coord_format : bool, optional
+        Format the coordinates to a tuple of np.ndarray as numpy expects. Set
+        to False if coordinates are already in this format or flattened.
+
+    Returns
+    -------
+    special_eval_fct : function taking at least two np.ndarray of equal shapes
+        The returned function is the same as the above function but only
+        evaluated at the coordinates specified. This can be used, for example,
+        to subsample a volume, or to evaluate only whether synapses are
+        correctly assigned, rather than every voxel, in a neuronal image
+        volume.
+    """
     if coord_format:
-        coords = [coords[:,i] for i in range(coords.shape[1])]
+        coords = [coords[:, i] for i in range(coords.shape[1])]
     def special_eval_fct(x, y, *args, **kwargs):
         if flatten:
             for i in range(len(coords)):
@@ -345,19 +376,41 @@ def special_points_evaluate(eval_fct, coords, flatten=True, coord_format=True):
         return eval_fct(sx, sy, *args, **kwargs)
     return special_eval_fct
 
-def make_synaptic_vi(fn):
-    return make_synaptic_functions(fn, split_vi)
 
-def make_synaptic_functions(fn, fncts):
+def make_synaptic_functions(fn, fcts):
+    """Make evaluation functions that only evaluate at synaptic sites.
+
+    Parameters
+    ----------
+    fn : string
+        Filename containing synapse coordinates, in Raveler format. [1]
+    fcts : function, or iterable of functions
+        Functions to be converted to synaptic evaluation.
+
+    Returns
+    -------
+    syn_fcts : function or iterable of functions
+        Evaluation functions that will evaluate only at synaptic sites.
+
+    References
+    ----------
+    [1] https://wiki.janelia.org/wiki/display/flyem/synapse+annotation+file+format
+    """
     from syngeo import io as synio
     synapse_coords = \
         synio.raveler_synapse_annotations_to_coords(fn, 'arrays')
     synapse_coords = np.array(list(it.chain(*synapse_coords)))
     make_function = partial(special_points_evaluate, coords=synapse_coords)
-    if not isinstance(fncts, coll.Iterable):
-        return make_function(fncts)
+    if not isinstance(fcts, coll.Iterable):
+        return make_function(fcts)
     else:
-        return map(make_function, fncts)
+        return map(make_function, fcts)
+
+
+def make_synaptic_vi(fn):
+    """Shortcut for `make_synaptic_functions(fn, split_vi)`."""
+    return make_synaptic_functions(fn, split_vi)
+
 
 def vi(x, y=None, weights=np.ones(2), ignore_x=[0], ignore_y=[0]):
     """Return the variation of information metric."""
