@@ -392,9 +392,15 @@ def make_synaptic_functions(fn, fcts):
     syn_fcts : function or iterable of functions
         Evaluation functions that will evaluate only at synaptic sites.
 
+    Raises
+    ------
+    ImportError : if the `syngeo` package [2, 3] is not installed.
+
     References
     ----------
     [1] https://wiki.janelia.org/wiki/display/flyem/synapse+annotation+file+format
+    [2] https://github.com/janelia-flyem/synapse-geometry
+    [3] https://github.com/jni/synapse-geometry
     """
     from syngeo import io as synio
     synapse_coords = \
