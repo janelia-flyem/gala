@@ -777,10 +777,30 @@ def divide_columns(matrix, row, in_place=False):
         out /= row[np.newaxis, :]
     return out
 
+
 def vi_tables(x, y=None, ignore_x=[0], ignore_y=[0]):
     """Return probability tables used for calculating VI.
     
     If y is None, x is assumed to be a contingency table.
+
+    Parameters
+    ----------
+    x, y : np.ndarray
+        Either x and y are provided as equal-shaped np.ndarray label fields
+        (int type), or y is not provided and x is a contingency table
+        (sparse.csc_matrix) that may or may not sum to 1.
+    ignore_x, ignore_y : list of int, optional
+        Rows and columns (respectively) to ignore in the contingency table.
+        These are labels that are not counted when evaluating VI.
+
+    Returns
+    -------
+    pxy : sparse.csc_matrix of float
+        The normalized contingency table.
+    px, py, hxgy, hygx, lpygx, lpxgy : np.ndarray of float
+        The proportions of each label in `x` and `y` (`px`, `py`), the
+        per-segment conditional entropies of `x` given `y` and vice-versa, the
+        per-segment conditional probability p log p.
     """
     if y is not None:
         pxy = contingency_table(x, y, ignore_x, ignore_y)
