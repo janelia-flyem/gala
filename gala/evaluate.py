@@ -832,14 +832,37 @@ def vi_tables(x, y=None, ignore_x=[0], ignore_y=[0]):
 
     return [pxy] + map(np.asarray, [px, py, hxgy, hygx, lpygx, lpxgy])
 
+
 def sorted_vi_components(s1, s2, ignore1=[0], ignore2=[0], compress=False):
     """Return lists of the most entropic segments in s1|s2 and s2|s1.
-    
-    The 'compress' flag performs a remapping of the labels before doing the
-    VI computation, resulting in memory savings when many labels are
-    not used in the volume. (For example, if you have just two labels, 1 and
-    1,000,000, 'compress=False' will give a vector of length 1,000,000,
-    whereas with 'compress=True' it will have just size 2.)
+
+    Parameters
+    ----------
+    s1, s2 : np.ndarray of int
+        Segmentations to be compared. Usually, `s1` will be a candidate
+        segmentation and `s2` will be the ground truth or target segmentation.
+    ignore1, ignore2 : list of int, optional
+        Labels in these lists are ignored in computing the VI. 0-labels are
+        ignored by default; pass empty lists to use all labels.
+    compress : bool, optional
+        The 'compress' flag performs a remapping of the labels before doing 
+        the VI computation, resulting in memory savings when many labels are
+        not used in the volume. (For example, if you have just two labels, 1
+        and 1,000,000, 'compress=False' will give a vector of length 
+        1,000,000, whereas with 'compress=True' it will have just size 2.)
+
+    Returns
+    -------
+    ii1 : np.ndarray of int
+        The labels in `s1` having the most entropy. If `s1` is the automatic
+        segmentation, these are the worst false merges.
+    h2g1 : np.ndarray of float
+        The conditional entropy corresponding to the labels in `ii1`.
+    ii2 : np.ndarray of int
+        The labels in `s1` having the most entropy. These correspond to the
+        worst false splits.
+    h2g1 : np.ndarray of float
+        The conditional entropy corresponding to the labels in `ii2`.
     """
     if compress:
         s1, forw1, back1 = relabel_from_one(s1)
