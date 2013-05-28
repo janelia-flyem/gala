@@ -528,21 +528,60 @@ def vi_pairwise_matrix(segs, split=False):
 
 def split_vi_threshold(tup):
     """Compute VI with tuple input (to support multiprocessing).
-    Tuple elements:
-        - the UCM for the candidate segmentation,
-        - the gold standard,
-        - list of ignored labels in the segmentation,
-        - list of ignored labels in the gold standard,
-        - threshold to use for the UCM.
-    Value:
-        - array of length 2 containing the undersegmentation and 
-        oversegmentation parts of the VI.
+
+    Parameters
+    ----------
+    tup : a tuple, (np.ndarray, np.ndarray, [int], [int], float)
+        The tuple should consist of::
+            - the UCM for the candidate segmentation,
+            - the gold standard,
+            - list of ignored labels in the segmentation,
+            - list of ignored labels in the gold standard,
+            - threshold to use for the UCM.
+
+    Returns
+    -------
+    sv : np.ndarray of float, shape (2,)
+        The undersegmentation and oversegmentation of the comparison between
+        applying a threshold and connected components labeling of the first
+        array, and the second array.
     """
     ucm, gt, ignore_seg, ignore_gt, t = tup
     return split_vi(label(ucm<t)[0], gt, ignore_seg, ignore_gt)
 
+
 def vi_by_threshold(ucm, gt, ignore_seg=[], ignore_gt=[], npoints=None,
                                                             nprocessors=None):
+    """Compute the VI at every threshold of the provided UCM.
+
+    Parameters
+    ----------
+    ucm : np.ndarray of float, arbitrary shape
+        The Ultrametric Contour Map, where each 0.0-region is separated by a
+        boundary. Higher values of the boundary indicate more confidence in
+        its presence.
+    gt : np.ndarray of int, same shape as `ucm`
+        The ground truth segmentation.
+    ignore_seg : list of int, optional
+        The labels to ignore in the segmentation of the UCM.
+    ignore_gt : list of int, optional
+        The labels to ignore in the ground truth.
+    npoints : int, optional
+        The number of thresholds to sample. By default, all thresholds are
+        sampled.
+    nprocessors : int, optional
+        Number of processors to use for the parallel evaluation of different
+        thresholds.
+
+    Returns
+    -------
+    result : np.ndarray of float, shape (3, npoints)
+        The evaluation of segmentation at each threshold. The rows of this
+        array are:
+            - the threshold used
+            - the undersegmentation component of VI
+            - the oversegmentation component of VI
+    """
     ts = np.unique(ucm)[1:]
     if npoints is None:
         npoints = len(ts)
