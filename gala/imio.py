@@ -19,6 +19,7 @@ from numpy import array, uint8, uint16, uint32, uint64, zeros, \
 import numpy as np
 
 from skimage.io.collection import alphanumeric_key
+from skimage.io import imread
 
 # local files
 import evaluate
@@ -88,9 +89,9 @@ def read_image_stack(fn, *args, **kwargs):
         else:
             fns.sort(key=alphanumeric_key) # sort filenames numerically
             fns = fns[zmin:zmax]
-            im0 = pil_to_numpy(Image.open(join_path(d,fns[0])))
-            ars = (pil_to_numpy(Image.open(join_path(d,fn))) for fn in fns)
-            im0 = im0[xmin:xmax,ymin:ymax]
+            im0 = imread(join_path(d, fns[0]))
+            ars = (imread(join_path(d, fn)) for fn in fns)
+            im0 = im0[xmin:xmax, ymin:ymax]
             dtype = im0.dtype
             stack = zeros((len(fns),)+im0.shape, dtype)
             for i, im in enumerate(ars):
