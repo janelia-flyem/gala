@@ -192,7 +192,7 @@ class Stack:
 
         if self.master_logger is not None:
             self.master_logger.info("Determining optimal edge locations")
-        self.stack.determine_edge_locations()
+        self.stack.determine_edge_locations(False)
         if self.master_logger is not None:
             self.master_logger.info("Finished determining optimal edge locations")
 
