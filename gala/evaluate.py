@@ -874,6 +874,7 @@ def sorted_vi_components(s1, s2, ignore1=[0], ignore2=[0], compress=False):
     ii2 = back2[i2] if compress else i2
     return ii1, h2g1[i1], ii2, h1g2[i2]
 
+
 def split_components(idx, cont, num_elems=4, axis=0):
     """Return the indices of the bodies most overlapping with body idx.
 
@@ -910,6 +911,7 @@ def split_components(idx, cont, num_elems=4, axis=0):
     probst = cct[idxs]
     return zip(idxs, probs, probst)
 
+
 def rand_values(cont_table):
     """Calculate values for Rand Index and related values, e.g. Adjusted Rand.
     
@@ -921,11 +923,13 @@ def rand_values(cont_table):
     Returns
     -------
     a, b, c, d : float
-        The values necessary for computing Rand Index and related values. [1]
+        The values necessary for computing Rand Index and related values. [1, 2]
         
     References
     ----------
-    [1] http://en.wikipedia.org/wiki/Rand_index#Definition on 2013-05-16.
+    [1] Rand, W. M. (1971). Objective criteria for the evaluation of
+    clustering methods. J Am Stat Assoc.
+    [2] http://en.wikipedia.org/wiki/Rand_index#Definition on 2013-05-16.
     """
     n = cont_table.sum()
     sum1 = (cont_table.multiply(cont_table)).sum()
