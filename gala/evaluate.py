@@ -877,13 +877,27 @@ def sorted_vi_components(s1, s2, ignore1=[0], ignore2=[0], compress=False):
 def split_components(idx, cont, num_elems=4, axis=0):
     """Return the indices of the bodies most overlapping with body idx.
 
-    Arguments:
-        - idx: the body id being examined.
-        - cont: the normalized contingency table.
-        - num_elems: the number of overlapping bodies desired.
-        - axis: the axis along which to perform the calculations.
+    Parameters
+    ----------
+    idx : int
+        The segment index being examined.
+    cont : sparse.csc_matrix
+        The normalized contingency table.
+    num_elems : int, optional
+        The number of overlapping bodies desired.
+    axis : int, optional
+        The axis along which to perform the calculations. Assuming `cont` has
+        the automatic segmentation as the rows and the gold standard as the
+        columns, `axis=0` will return the segment IDs in the gold standard of
+        the worst merges comprising `idx`, while `axis=1` will return the 
+        segment IDs in the automatic segmentation of the worst splits
+        comprising `idx`.
+
     Value:
-        A list of tuples of (body_idx, overlap_int, overlap_ext).
+    comps : list of (int, float, float) tuples
+        `num_elems` indices of the biggest overlaps comprising `idx`, along
+        with the percent of `idx` that they comprise and the percent of
+        themselves that overlaps with `idx`.
     """
     if axis == 1:
         cont= cont.T
