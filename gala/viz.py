@@ -4,13 +4,12 @@ import numpy as np
 import scipy
 import evaluate
 import morpho
+from skimage import color
 import matplotlib
-from scipy.ndimage import label
 plt = matplotlib.pyplot
 cm = plt.cm
 from itertools import cycle
 
-label=scipy.ndimage.measurements.label
 center_of_mass=scipy.ndimage.measurements.center_of_mass
 
 ###########################
@@ -23,19 +22,27 @@ def imshow_grey(im):
 def imshow_jet(im):
     return plt.imshow(im, cmap=plt.cm.jet, interpolation='nearest')
 
-def imshow_rand(im):
+def imshow_rand(im, labrandom=True):
+    rand_colors = np.random.rand(ceil(im.max()), 3)
+    if labrandom:
+        rand_colors[:, 0] = rand_colors[:, 0] * 60 + 20
+        rand_colors[:, 1] = rand_colors[:, 1] * 185 - 85
+        rand_colors[:, 2] = rand_colors[:, 2] * 198 - 106
+        rand_colors = color.lab2rgb(rand_colors[np.newaxis, ...])[0]
+        rand_colors[rand_colors < 0] = 0
+        rand_colors[rand_colors > 1] = 1
     rcmap = matplotlib.colors.ListedColormap(np.concatenate(
-        (np.zeros((1,3)), np.random.rand(ceil(im.max()), 3))
+        (np.zeros((1,3)), rand_colors)
     ))
     return plt.imshow(im, cmap=rcmap, interpolation='nearest')
 
 def draw_seg(seg, im):
-    out = zeros_like(img)
-    labels = unique(seg)
+    out = np.zeros_like(im)
+    labels = np.unique(seg)
     if (seg==0).any():
         labels = labels[1:]
     for u in labels:
-        color = img[seg==u].mean(axis=0)
+        color = im[seg==u].mean(axis=0)
         out[seg==u] = color
     return out
 
