@@ -132,7 +132,7 @@ def get_stratified_sample(ar, n):
     -----
     If `len(np.unique(ar)) <= 2*n`, all the values of `ar` are returned. The
     requested sample size is taken as an approximate lower bound.
-    
+
     Examples
     --------
     >>> ar = np.array([[0, 4, 1, 3],
@@ -262,7 +262,7 @@ def relabel_from_one(label_field):
 
 def contingency_table(seg, gt, ignore_seg=[0], ignore_gt=[0], norm=True):
     """Return the contingency table for all regions in matched segmentations.
-    
+
     Parameters
     ----------
     seg : np.ndarray, int type, arbitrary shape
@@ -454,7 +454,7 @@ def vi(x, y=None, weights=np.ones(2), ignore_x=[0], ignore_y=[0]):
 
 def split_vi(x, y=None, ignore_x=[0], ignore_y=[0]):
     """Return the symmetric conditional entropies associated with the VI.
-    
+
     The variation of information is defined as VI(X,Y) = H(X|Y) + H(Y|X).
     If Y is the ground-truth segmentation, then H(Y|X) can be interpreted
     as the amount of under-segmentation of Y and H(X|Y) is then the amount
@@ -491,7 +491,7 @@ def split_vi(x, y=None, ignore_x=[0], ignore_y=[0]):
 
 def vi_pairwise_matrix(segs, split=False):
     """Compute the pairwise VI distances within a set of segmentations.
-    
+
     If 'split' is set to True, two matrices are returned, one for each 
     direction of the conditional entropy.
 
@@ -638,7 +638,7 @@ def calc_entropy(split_vals, count):
     for key, val in split_vals.items(): 
         col_count += val
     col_prob = float(col_count) / count 
-    
+
     ent_val = 0
     for key, val in split_vals.items(): 
         val_norm = float(val)/count
@@ -661,7 +661,7 @@ def split_vi_mem(x, y):
 
     for label in y_labels0:
         y_map[label] = {}
-    
+
     x_flat = x.ravel()
     y_flat = y.ravel()
 
@@ -674,11 +674,11 @@ def split_vi_mem(x, y):
         if x_val != 0 and y_val != 0:
             x_map[x_val].setdefault(y_val, 0)
             y_map[y_val].setdefault(x_val, 0)
-            (x_map[x_val])[y_val] += 1        
-            (y_map[y_val])[x_val] += 1        
+            (x_map[x_val])[y_val] += 1
+            (y_map[y_val])[x_val] += 1
             count += 1
     print "Finished analyzing similarities"
-     
+
     x_ents = {}
     y_ents = {}
     x_sum = 0.0
@@ -780,7 +780,7 @@ def divide_columns(matrix, row, in_place=False):
 
 def vi_tables(x, y=None, ignore_x=[0], ignore_y=[0]):
     """Return probability tables used for calculating VI.
-    
+
     If y is None, x is assumed to be a contingency table.
 
     Parameters
@@ -825,7 +825,7 @@ def vi_tables(x, y=None, ignore_x=[0], ignore_y=[0]):
     lpygx[nzx] = xlogx(divide_rows(nzpxy, nzpx)).sum(axis=1) 
                         # \sum_x{p_{y|x} \log{p_{y|x}}}
     hygx = -(px*lpygx) # \sum_x{p_x H(Y|X=x)} = H(Y|X)
-    
+
     lpxgy = np.zeros(np.shape(py))
     lpxgy[nzy] = xlogx(divide_columns(nzpxy, nzpy)).sum(axis=0)
     hxgy = -(py*lpxgy)
@@ -914,17 +914,17 @@ def split_components(idx, cont, num_elems=4, axis=0):
 
 def rand_values(cont_table):
     """Calculate values for Rand Index and related values, e.g. Adjusted Rand.
-    
+
     Parameters
     ----------
     cont_table : scipy.sparse.csc_matrix
         A contingency table of the two segmentations.
-        
+
     Returns
     -------
     a, b, c, d : float
         The values necessary for computing Rand Index and related values. [1, 2]
-        
+
     References
     ----------
     [1] Rand, W. M. (1971). Objective criteria for the evaluation of
@@ -941,25 +941,83 @@ def rand_values(cont_table):
     d = (sum1 + n**2 - sum2 - sum3)/2
     return a, b, c, d
 
+
 def rand_index(x, y=None):
-    """Return the unadjusted Rand index."""
+    """Return the unadjusted Rand index. [1]
+
+    Parameters
+    ----------
+    x, y : np.ndarray
+        Either x and y are provided as equal-shaped np.ndarray label fields
+        (int type), or y is not provided and x is a contingency table
+        (sparse.csc_matrix) that is *not* normalised to sum to 1.
+
+    Returns
+    -------
+    ri : float
+        The Rand index of `x` and `y`.
+
+    References
+    ----------
+    [1] WM Rand. (1971) Objective criteria for the evaluation of
+    clustering methods. J Am Stat Assoc. 66: 846–850
+    """
     cont = x if y is None else contingency_table(x, y, norm=False)
     a, b, c, d = rand_values(cont)
     return (a+d)/(a+b+c+d)
-    
+
+
 def adj_rand_index(x, y=None):
-    """Return the adjusted Rand index."""
+    """Return the adjusted Rand index.
+
+    The Adjusted Rand Index (ARI) is the deviation of the Rand Index from the
+    expected value if the marginal distributions of the contingency table were
+    independent. Its value ranges from 1 (perfectly correlated marginals) to
+    -1 (perfectly anti-correlated).
+
+    Parameters
+    ----------
+    x, y : np.ndarray
+        Either x and y are provided as equal-shaped np.ndarray label fields
+        (int type), or y is not provided and x is a contingency table
+        (sparse.csc_matrix) that is *not* normalised to sum to 1.
+
+    Returns
+    -------
+    ari : float
+        The adjusted Rand index of `x` and `y`.
+    """
     cont = x if y is None else contingency_table(x, y, norm=False)
     a, b, c, d = rand_values(cont)
     nk = a+b+c+d
     return (nk*(a+d) - ((a+b)*(a+c) + (c+d)*(b+d)))/(
         nk**2 - ((a+b)*(a+c) + (c+d)*(b+d)))
 
+
 def fm_index(x, y=None):
-    """ Return the Fowlkes-Mallows index. """
+    """Return the Fowlkes-Mallows index. [1]
+
+    Parameters
+    ----------
+    x, y : np.ndarray
+        Either x and y are provided as equal-shaped np.ndarray label fields
+        (int type), or y is not provided and x is a contingency table
+        (sparse.csc_matrix) that is *not* normalised to sum to 1.
+
+    Returns
+    -------
+    fm : float
+        The FM index of `x` and `y`. 1 is perfect agreement.
+
+    References
+    ----------
+    [1] EB Fowlkes & CL Mallows. (1983) A method for comparing two 
+    hierarchical clusterings. J Am Stat Assoc 78: 553
+    """
     cont = x if y is None else contingency_table(x, y, norm=False)
     a, b, c, d = rand_values(cont)
     return a/(np.sqrt((a+b)*(a+c)))
+
 
 def reduce_vi(fn='testing/%i/flat-single-channel-tr%i-%i-%.2f.lzf.h5',
         iterable=[(ts, tr, ts) for ts, tr in it.permutations(range(8), 2)],
