@@ -23,6 +23,20 @@ def imshow_jet(im):
     return plt.imshow(im, cmap=plt.cm.jet, interpolation='nearest')
 
 def imshow_rand(im, labrandom=True):
+    """Show a segmentation using a random colormap.
+
+    Parameters
+    ----------
+    im : np.ndarray of int, shape (M, N)
+        The segmentation to be displayed.
+    labrandom : bool, optional
+        Use random points in the Lab colorspace instead of RGB.
+
+    Returns
+    -------
+    fig : plt.Figure
+        The image shown.
+    """
     rand_colors = np.random.rand(ceil(im.max()), 3)
     if labrandom:
         rand_colors[:, 0] = rand_colors[:, 0] * 60 + 20
