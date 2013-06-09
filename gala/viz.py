@@ -17,10 +17,36 @@ center_of_mass=scipy.ndimage.measurements.center_of_mass
 ###########################
 
 def imshow_grey(im):
+    """Show a segmentation using a gray colormap.
+
+    Parameters
+    ----------
+    im : np.ndarray of int, shape (M, N)
+        The segmentation to be displayed.
+
+    Returns
+    -------
+    fig : plt.Figure
+        The image shown.
+    """
     return plt.imshow(im, cmap=plt.cm.gray, interpolation='nearest')
 
+
 def imshow_jet(im):
+    """Show a segmentation using a jet colormap.
+
+    Parameters
+    ----------
+    im : np.ndarray of int, shape (M, N)
+        The segmentation to be displayed.
+
+    Returns
+    -------
+    fig : plt.Figure
+        The image shown.
+    """
     return plt.imshow(im, cmap=plt.cm.jet, interpolation='nearest')
+
 
 def imshow_rand(im, labrandom=True):
     """Show a segmentation using a random colormap.
@@ -50,7 +76,35 @@ def imshow_rand(im, labrandom=True):
     ))
     return plt.imshow(im, cmap=rcmap, interpolation='nearest')
 
+
 def draw_seg(seg, im):
+    """Return a segmentation map matching the original image color.
+
+    Parameters
+    ----------
+    seg : np.ndarray of int, shape (M, N, ...)
+        The segmentation to be displayed
+    im : np.ndarray, shape (M, N, ..., [3])
+        The image corresponding to the segmentation.
+
+    Returns
+    -------
+    out : np.ndarray, same shape and type as `im`.
+        An image where each segment has uniform color.
+
+    Examples
+    --------
+    >>> a = np.ndarray([[1, 1, 2, 2],
+                        [1, 2, 2, 3],
+                        [2, 2, 3, 3]])
+    >>> g = np.ndarray([0.5, 0.2, 1.0, 0.9],
+                       [0.2, 0.8, 0.9, 0.6],
+                       [0.9, 0.9, 0.4, 0.5])
+    >>> draw_seg(a, g)
+    array([0.3, 0.3, 0.9, 0.9],
+          [0.3, 0.9, 0.9, 0.5],
+          [0.9, 0.9, 0.5, 0.5], dtype=float)
+    """
     out = np.zeros_like(im)
     labels = np.unique(seg)
     if (seg==0).any():
