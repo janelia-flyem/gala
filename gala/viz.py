@@ -114,48 +114,58 @@ def draw_seg(seg, im):
         out[seg==u] = color
     return out
 
-def inspect_segs_3D(*args, **kwargs):
-    """Show corresponding slices side by side in multiple segmentations."""
-    z = 0
-    if kwargs.has_key('z'):
-        z = kwargs['z']
-    axis=-1
-    if kwargs.has_key('axis'):
-        axis = kwargs['axis']
-    numplots = 0
-    im = None
-    if kwargs.has_key('image'):
-        im = kwargs['image']
+
+def display_3d_segmentations(segs, image=None, probability_map=None, axis=0,
+                             z=None, fignum=None):
+    """Show slices of multiple 3D segmentations.
+
+    Parameters
+    ----------
+    segs : list or tuple of np.ndarray of int, shape (M, N, P)
+        The segmentations to be examined.
+    image : np.ndarray, shape (M, N, P[, 3]), optional
+        The image corresponding to the segmentations.
+    probability_map : np.ndarray, shape (M, N, P), optional
+        The segment boundary probability map.
+    axis : int in {0, 1, 2}, optional
+        The axis along which to show a slice of the segmentation.
+    z : int in [0, `(M, N, P)[axis]`), optional
+        The slice to display. Defaults to the middle slice.
+    fignum : int, optional
+        Which figure number to use. Uses the default (new figure) if none is
+        provided.
+
+    Returns
+    -------
+    fig : plt.Figure
+        The figure handle.
+    """
+    numplots = len(segs)
+    if image is not None:
         numplots += 1
-    fignum = 1
-    if kwargs.has_key('fignum'):
-        fignum = kwargs['fignum']
-    prob = None
-    if kwargs.has_key('prob'):
-        prob = kwargs['prob']
+    if probability_map is not None:
         numplots += 1
-    numplots += len(args)
-    plot_arrangements = []
-    for i in range(1,4):
-        for j in range(i,4):
-            plot_arrangements.append((i*j, i,j))
-    # first plot arrangement 
-    plot_arrangement = [(i,j) for p,i,j in plot_arrangements
-                                                    if p >= numplots][0]
+    candidate_plot_arrangements = list(it.combinations_with_replacement(
+                                       range(1, 5), 2))
+    # get the smallest plot arrangement that can display the number of
+    # segmentations we want
+    plot_arrangement = [(i, j) for i, j in candidate_plot_arrangements
+                        if i * j >= numplots][0]
     fig = plt.figure(fignum)
     current_subplot = 1
-    if im is not None:
-        plt.subplot(*plot_arrangement+(current_subplot,))
-        imshow_grey(im.swapaxes(0,axis)[z])
+    if image is not None:
+        plt.subplot(*plot_arrangement + (current_subplot,))
+        imshow_grey(np.rollaxis(image, axis)[z])
         current_subplot += 1
-    if prob is not None:
-        plt.subplot(*plot_arrangement+(current_subplot,))
-        imshow_jet(prob.swapaxes(0,axis)[z])
+    if probability_map is not None:
+        plt.subplot(*plot_arrangement + (current_subplot,))
+        imshow_jet(np.rollaxis(probability_map, axis)[z])
         current_subplot += 1
-    for i, j in enumerate(range(current_subplot, numplots+1)):
-        plt.subplot(*plot_arrangement+(j,))
-        imshow_rand(args[i].swapaxes(0,axis)[z])
+    for i, j in enumerate(range(current_subplot, numplots + 1)):
+        plt.subplot(*plot_arrangement + (j,))
+        imshow_rand(np.rollaxis(segs[i], axis)[z])
     return fig
+
 
 def plot_vi(a, history, gt, fig=None):
     """Plot the VI from segmentations based on Rag and sequence of merges."""
