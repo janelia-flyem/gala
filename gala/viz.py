@@ -8,7 +8,7 @@ from skimage import color
 import matplotlib
 plt = matplotlib.pyplot
 cm = plt.cm
-from itertools import cycle
+import itertools as it
 
 center_of_mass=scipy.ndimage.measurements.center_of_mass
 
@@ -230,11 +230,11 @@ def add_opts_to_plot(ars, colors='k', markers='^', **kwargs):
     if type(colors) not in [list, tuple]:
         colors = [colors]
     if len(colors) < len(ars):
-        colors = cycle(colors)
+        colors = it.cycle(colors)
     if type(markers) not in [list, tuple]:
         markers = [markers]
     if len(markers) < len(ars):
-        markers = cycle(markers)
+        markers = it.cycle(markers)
     points = []
     for ar, c, m in zip(ars, colors, markers):
         opt = ar[:,ar.sum(axis=0).argmin()]
@@ -243,11 +243,11 @@ def add_opts_to_plot(ars, colors='k', markers='^', **kwargs):
 
 def add_nats_to_plot(ars, tss, stops=0.5, colors='k', markers='o', **kwargs):
     if type(colors) not in [list, tuple]: colors = [colors]
-    if len(colors) < len(ars): colors = cycle(colors)
+    if len(colors) < len(ars): colors = it.cycle(colors)
     if type(markers) not in [list, tuple]: markers = [markers]
-    if len(markers) < len(ars): markers = cycle(markers)
+    if len(markers) < len(ars): markers = it.cycle(markers)
     if type(stops) not in [list, tuple]: stops = [stops]
-    if len(stops) < len(ars): stops = cycle(stops)
+    if len(stops) < len(ars): stops = it.cycle(stops)
     points = []
     for ar, ts, stop, c, m in zip(ars, tss, stops, colors, markers):
         nat = ar[:,np.flatnonzero(ts<stop)[-1]]
@@ -258,9 +258,9 @@ def plot_split_vi(ars, best=None, colors='k', linespecs='-',
                                         addopt=None, addnat=None, **kwargs):
     if type(ars) not in [list, tuple]: ars = [ars]
     if type(colors) not in [list, tuple]: colors = [colors]
-    if len(colors) < len(ars): colors = cycle(colors)
+    if len(colors) < len(ars): colors = it.cycle(colors)
     if type(linespecs) not in [list, tuple]: linespecs = [linespecs]
-    if len(linespecs) < len(ars): linespecs = cycle(linespecs)
+    if len(linespecs) < len(ars): linespecs = it.cycle(linespecs)
     lines = []
     for ar, color, linespec in zip(ars, colors, linespecs):
         lines.append(plt.plot(ar[0], ar[1], c=color, ls=linespec, **kwargs))
