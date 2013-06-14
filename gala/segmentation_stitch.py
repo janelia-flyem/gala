@@ -170,7 +170,7 @@ def examine_boundary(axis, b1_prediction, b1_seg, b2_prediction, b2_seg,
                 overlap = False
             else:
                 dimmin.append(min(b1loc1, b2loc1))
-                dimmax.append(min(b1loc2, b2loc2))
+                dimmax.append(max(b1loc2, b2loc2))
                      
 
     # if face overlaps make 2 part image
