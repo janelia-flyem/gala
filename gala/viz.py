@@ -167,11 +167,30 @@ def display_3d_segmentations(segs, image=None, probability_map=None, axis=0,
     return fig
 
 
-def plot_vi(a, history, gt, fig=None):
-    """Plot the VI from segmentations based on Rag and sequence of merges."""
+def plot_vi(g, history, gt, fig=None):
+    """Plot the VI from segmentations based on Rag and sequence of merges.
+    
+    Parameters
+    ----------
+    g : agglo.Rag object
+        The region adjacency graph.
+
+    history : list of tuples
+        The merge history of the RAG.
+
+    gt : np.ndarray
+        The ground truth corresponding to the RAG.
+
+    fig : plt.Figure, optional
+        Use this figure for plotting. If not provided, a new figure is created.
+
+    Returns
+    -------
+    None
+    """
     v = []
     n = []
-    seg = a.get_segmentation()
+    seg = g.get_segmentation()
     for i in history:
         seg[seg==i[1]] = i[0]
         v.append(evaluate.vi(seg, gt))
