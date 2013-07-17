@@ -1,7 +1,9 @@
 # gala: segmentation of nD images
 
 Gala is a python library for performing and evaluating image segmentation,
-distributed under the open-source [Janelia Farm license](http://janelia-flyem.github.com/janelia_farm_license.html).
+distributed under the open-source [Janelia Farm license](http://janelia-flyem.github.com/janelia_farm_license.html). It implements the algorithm
+described in [Nunez-Iglesias *et al*.](http://arxiv.org/abs/1303.6163), PLOS
+ONE, in press.
 
 Gala supports n-dimensional images (images, volumes, videos, videos of 
 volumes...) and multiple channels per image.
@@ -76,7 +78,7 @@ label_field = morpho.watershed(prob)
 # Make the region adjacency graph (RAG)
 g = agglo.Rag(label_field, prob)
 threshold = 0.5
-# agglomerate until the given threshold
+# agglomerate until the given threshold using mean boundary
 g.agglomerate(threshold)
 # get the label field resulting from the agglomeration
 seg = g.get_segmentation() 
@@ -100,27 +102,27 @@ g = agglo.Rag(label_field, prob, merge_priority_function=agglo.boundary_median)
 ```
 
 A user can specify their own merge priority function. A valid merge priority
-function is a callable Python object that takes a graph and two nodes from that
-graph as input, and returns a real number. (Technically, any object that
+function is a callable Python object that takes as input a graph and two nodes
+from that graph, and returns a real number. (Technically, any object that
 satisfies the basic comparison operations, such as `__lt__`, will work.)
 
 ### Learning agglomeration
 
 A whole new set of tools is needed to apply machine learning to agglomeration.
-These are provided by the `classify` module, and built into the `agglo.Rag`
-class.
+These are provided by the `classify` and `features` modules, and built into
+the `agglo.Rag` class.
 
 ```python
-from gala import classify
+from gala import classify, features
 gs = imio.read_h5_stack('gold-standard-segmentation.h5')
-fm = classify.MomentsFeatureManager()
-fh = classify.HistogramFeatureManager()
-fc = classify.CompositeFeatureManager(children=[fm, fh])
+fm = features.moments.Manager()
+fh = features.histogram.Manager()
+fc = features.base.Composite(children=[fm, fh])
 ```
 
 A _feature manager_ is a callable object that computes feature vectors from
 graph edges. The object has the following responsibilities, which it can inherit
-from `classify.NullFeatureManager`:
+from `classify.base.Null`:
 
 * create a (possibly empty) _feature cache_ on each edge and node, precomputing
   some of the calculations needed for feature computation;
@@ -128,8 +130,7 @@ from `classify.NullFeatureManager`:
 * compute the feature vector from the feature caches when called with the
   inputs of a graph and two nodes.
 
-Feature managers can be chained through the `classify.CompositeFeatureManager`
-class.
+Feature managers can be chained through the `features.Composite` class.
 
 We can then extract feature vectors from the graph as follows:
 
@@ -169,7 +170,7 @@ the samples encountered in each epoch (including repeats).
 
 Now that we have a training sample, we can train a classifier, such as
 `classify.RandomForest`, which is a wrapper of `vigra.learning.RandomForest`
-to match the classifier interface in `scikits.learn`:
+to match the classifier interface in `scikit-learn`:
 
 ```python
 features, labels, weights, history = training_data
@@ -221,25 +222,25 @@ we have done?
 We can use the `evaluate` submodule to check our performance.
 
 ```python
-from gala import evaluate
+from gala import evaluate as ev
 from scipy.ndimage.measurements import label
 t = imio.read_h5_stack('test-gold-standard.h5')
 s = label(ucm_test < 0.5)[0]
 # variation of information, including decomposition, and multiple thresholds
-vi = evaluate.vi(s, t)
-svi = evaluate.split_vi(s, t)
-vit = evaluate.vi_by_threshold(test_ucm, t)
+vi = ev.vi(s, t)
+svi = ev.split_vi(s, t)
+vit = ev.vi_by_threshold(test_ucm, t)
 # draw the split-vi plot
 from matplotlib import pyplot as plt
 plt.plot(vit[1], vit[2])
 plt.show()
 # rand index and adjusted rand index
-ri = evaluate.rand_index(s, t)
-ari = evaluate.adj_rand_index(s, t)
+ri = ev.rand_index(s, t)
+ari = ev.adj_rand_index(s, t)
 # Fowlkes-Mallows index
-fm = evaluate.fm_index(s, t)
+fm = ev.fm_index(s, t)
 # pixel-wise precision-recall
-pr = evaluate.pixel_wise_precision_recall(s, t)
+pr = ev.pixel_wise_precision_recall(s, t)
 ```
 
 That's a quick summary of the capabilities of Gala. There are of course many
