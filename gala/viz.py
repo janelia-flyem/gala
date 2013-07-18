@@ -211,13 +211,13 @@ def plot_vi_breakdown_panel(px, h, title, xlab, ylab, hlines, **kwargs):
         The probability (size) of each segment.
     h : np.ndarray of float, shape (N,)
         The conditional entropy of that segment.
-    
     title, xlab, ylab : string
         Parameters for `matplotlib.plt.plot`.
-
     hlines : iterable of float
         Plot hyperbolic lines of same VI contribution. For each value `v` in
         `hlines`, draw the line `h = v/px`.
+    **kwargs : dict
+        Additional keyword arguments for `matplotlib.pyplot.plot`.
 
     Returns
     -------
@@ -238,9 +238,36 @@ def plot_vi_breakdown_panel(px, h, title, xlab, ylab, hlines, **kwargs):
     plt.ylabel(ylab)
     plt.title(title)
 
+
 def plot_vi_breakdown(seg, gt, ignore_seg=[], ignore_gt=[], 
-                                        hlines=None, subplot=False, **kwargs):
-    """Plot conditional entropy H(Y|X) vs P(X) for both seg|gt and gt|seg."""
+                      hlines=None, subplot=False, **kwargs):
+    """Plot conditional entropy H(Y|X) vs P(X) for both seg|gt and gt|seg.
+    
+    Parameters
+    ----------
+    seg : np.ndarray of int, shape (M, [N, ..., P])
+        The automatic (candidate) segmentation.
+    gt : np.ndarray of int, shape (M, [N, ..., P]) (same as `seg`)
+        The gold standard/ground truth segmentation.
+    ignore_seg : list of int, optional
+        Ignore segments in this list from the automatic segmentation during
+        evaluation and plotting.
+    ignore_gt : list of int, optional
+        Ignore segments in this list from the ground truth segmentation during
+        evaluation and plotting.
+    hlines : int, optional
+        Plot this many isoclines between the minimum and maximum VI
+        contributions.
+    subplot : bool, optional
+        If True, plot oversegmentation and undersegmentation in separate
+        subplots.
+    **kwargs : dict
+        Additional keyword arguments for `matplotlib.pyplot.plot`.
+
+    Returns
+    -------
+    None
+    """
     plt.ion()
     pxy,px,py,hxgy,hygx,lpygx,lpxgy = evaluate.vi_tables(seg,gt,
             ignore_seg=ignore_seg, ignore_gt=ignore_gt)
@@ -251,7 +278,6 @@ def plot_vi_breakdown(seg, gt, ignore_seg=[], ignore_gt=[],
     elif hlines == True:
         hlines = 10
     if type(hlines) == int:
-        minc = min(cu[cu!=0].min(), co[co!=0].min())
         maxc = max(cu[cu!=0].max(), co[co!=0].max())
         hlines = np.arange(maxc/hlines, maxc, maxc/hlines)
     plt.figure()
@@ -273,9 +299,6 @@ def plot_vi_breakdown(seg, gt, ignore_seg=[], ignore_gt=[],
         ymax = max(-lpygx.min(), -lpxgy.min())
         plt.ylim(-0.05*ymax, 1.05*ymax)
 
-def plot_vi_parts(*args, **kwargs):
-    kwargs['subplot'] = True
-    plot_vi_breakdown(*args, **kwargs)
 
 def add_opts_to_plot(ars, colors='k', markers='^', **kwargs):
     if type(colors) not in [list, tuple]:
