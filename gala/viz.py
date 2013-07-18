@@ -201,11 +201,33 @@ def plot_vi(g, history, gt, fig=None):
     plt.xlabel('Number of segments', figure = fig)
     plt.ylabel('vi', figure = fig)
 
+
 def plot_vi_breakdown_panel(px, h, title, xlab, ylab, hlines, **kwargs):
+    """Plot a single panel (over or undersegmentation) of VI breakdown plot.
+
+    Parameters
+    ----------
+    px : np.ndarray of float, shape (N,)
+        The probability (size) of each segment.
+    h : np.ndarray of float, shape (N,)
+        The conditional entropy of that segment.
+    
+    title, xlab, ylab : string
+        Parameters for `matplotlib.plt.plot`.
+
+    hlines : iterable of float
+        Plot hyperbolic lines of same VI contribution. For each value `v` in
+        `hlines`, draw the line `h = v/px`.
+
+    Returns
+    -------
+    None
+    """
     x = scipy.arange(max(min(px),1e-10), max(px), (max(px)-min(px))/100.0)
     for val in hlines:
         plt.plot(x, val/x, c='gray', ls=':') 
     plt.scatter(px, h, label=title, **kwargs)
+    # Make points clickable to identify ID. This section needs work.
     af = AnnoteFinder(px, h, [str(i) for i in range(len(px))], 
         xtol=0.005, ytol=0.005, xmin=-0.05*max(px), ymin=-0.05*max(px), 
         xmax = 1.05*max(px), ymax=1.05*max(h))
