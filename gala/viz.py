@@ -361,6 +361,8 @@ def show_merge(im, bdr, z, ax=0, alpha=0.5, **kwargs):
     plt.yticks([])
 
 def show_merge_3D(g, n1, n2, **kwargs):
+    """Display orthogonal cuts across a merge site.
+    """
     im = kwargs.get('image', None)
     alpha = kwargs.get('alpha', 0.5)
     fignum = kwargs.get('fignum', 10)
