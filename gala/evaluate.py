@@ -1019,15 +1019,35 @@ def fm_index(x, y=None):
     return a/(np.sqrt((a+b)*(a+c)))
 
 
-def reduce_vi(fn='testing/%i/flat-single-channel-tr%i-%i-%.2f.lzf.h5',
+def reduce_vi(fn_pattern='testing/%i/flat-single-channel-tr%i-%i-%.2f.lzf.h5',
         iterable=[(ts, tr, ts) for ts, tr in it.permutations(range(8), 2)],
         thresholds=np.arange(0, 1.01, 0.01)):
+    """Compile evaluation results embedded in many .h5 files under "vi".
+
+    Parameters
+    ----------
+    fn_pattern : string, optional
+        A format string defining the files to be examined.
+    iterable : iterable of tuples, optional
+        The (partial) tuples to apply to the format string to obtain
+        individual files.
+    thresholds : iterable of float, optional
+        The final tuple elements to apply to the format string. The final
+        tuples are the product of `iterable` and `thresholds`.
+
+    Returns
+    -------
+    vi : np.ndarray of float, shape (3, len(thresholds))
+        The under and over segmentation components of VI at each threshold.
+        `vi[0, :]` is the threshold, `vi[1, :]` the undersegmentation and
+        `vi[2, :]` is the oversegmentation.
+    """
     iterable = list(iterable)
     vi = np.zeros((3, len(thresholds), len(iterable)), np.double)
     current_vi = np.zeros(3)
     for i, t in enumerate(thresholds):
         for j, v in enumerate(iterable):
-            current_fn = fn % (tuple(v) + (t,))
+            current_fn = fn_pattern % (tuple(v) + (t,))
             try:
                 f = h5py.File(current_fn, 'r')
             except IOError:
