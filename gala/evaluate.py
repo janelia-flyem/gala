@@ -1090,5 +1090,18 @@ def sem(ar, axis=None):
 
 
 def vi_statistics(vi_table):
+    """Descriptive statistics from a block of related VI evaluations.
+
+    Parameters
+    ----------
+    vi_table : np.ndarray of float
+        An array containing VI evaluations of various samples. The last axis
+        represents the samples.
+
+    Returns
+    -------
+    means, sems, medians : np.ndarrays of float
+        The statistics of the given array along the samples axis.
+    """
     return np.mean(vi_table, axis=-1), sem(vi_table, axis=-1), \
         np.median(vi_table, axis=-1)
