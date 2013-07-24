@@ -1,3 +1,5 @@
+# coding=utf-8
+
 import numpy as np
 import multiprocessing
 import itertools as it
@@ -11,12 +13,27 @@ from scipy.ndimage.measurements import label
 from scipy.spatial.distance import pdist, squareform
 from sklearn.metrics import precision_recall_curve
 
+
 def bin_values(a, bins=255):
+    """Return an array with its values discretised to the given number of bins.
+
+    Parameters
+    ----------
+    a : np.ndarray, arbitrary shape
+        The input array.
+    bins : int, optional
+        The number of bins in which to put the data. default: 255.
+
+    Returns
+    -------
+    b : np.ndarray, same shape as a
+        The output array, such that values in bin X are replaced by mean(X).
+    """
     if len(np.unique(a)) < 2*bins:
         return a.copy()
     b = np.zeros_like(a)
     m, M = a.min(), a.max()
-    r = M - m
+    r = M - m # the range of the data
     step = r / bins
     lows = np.arange(m, M, step)
     highs = np.arange(m+step, M+step, step)
@@ -27,13 +44,66 @@ def bin_values(a, bins=255):
             b.ravel()[locations] = values.mean()
     return b
 
-def pixel_wise_boundary_precision_recall(aseg, gt):
-    tp = float((gt * aseg).sum())
-    fp = (aseg * (1-gt)).sum()
-    fn = (gt * (1-aseg)).sum()
+
+def pixel_wise_boundary_precision_recall(pred, gt):
+    """Evaluate voxel prediction accuracy against a ground truth.
+
+    Parameters
+    ----------
+    pred : np.ndarray of int or bool, arbitrary shape
+        The voxel-wise discrete prediction. 1 for boundary, 0 for non-boundary.
+    gt : np.ndarray of int or bool, same shape as `pred`
+        The ground truth boundary voxels. 1 for boundary, 0 for non-boundary.
+
+    Returns
+    -------
+    pr : float
+    rec : float
+        The precision and recall values associated with the prediction.
+
+    Notes
+    -----
+    Precision is defined as "True Positives / Total Positive Calls", and
+    Recall is defined as "True Positives / Total Positives in Ground Truth".
+
+    This function only calculates this value for discretized predictions,
+    i.e. it does not work with continuous prediction confidence values.
+    """
+    tp = float((gt * pred).sum())
+    fp = (pred * (1-gt)).sum()
+    fn = (gt * (1-pred)).sum()
     return tp/(tp+fp), tp/(tp+fn)
 
+
 def wiggle_room_precision_recall(pred, boundary, margin=2, connectivity=1):
+    """Voxel-wise, continuous value precision recall curve allowing drift.
+
+    Voxel-wise precision recall evaluates predictions against a ground truth.
+    Wiggle-room precision recall (WRPR, "warper") allows calls from nearby
+    voxels to be counted as correct. Specifically, if a voxel is predicted to
+    be a boundary within a dilation distance of `margin` (distance defined
+    according to `connectivity`) of a true boundary voxel, it will be counted
+    as a True Positive in the Precision, and vice-versa for the Recall.
+
+    Parameters
+    ----------
+    pred : np.ndarray of float, arbitrary shape
+        The prediction values, expressed as probability of observing a boundary
+        (i.e. a voxel with label 1).
+    boundary : np.ndarray of int, same shape as pred
+        The true boundary map. 1 indicates boundary, 0 indicates non-boundary.
+    margin : int, optional
+        The number of dilations that define the margin. default: 2.
+    connectivity : {1, ..., pred.ndim}, optional
+        The morphological voxel connectivity (defined as in SciPy) for the
+        dilation step.
+
+    Returns
+    -------
+    ts, pred, rec : np.ndarray of float, shape `(len(np.unique(pred)+1),)`
+        The prediction value thresholds corresponding to each precision and
+        recall value, the precision values, and the recall values.
+    """
     struct = nd.generate_binary_structure(boundary.ndim, connectivity)
     gtd = nd.binary_dilation(boundary, struct, margin)
     struct_m = nd.iterate_structure(struct, margin)
@@ -45,45 +115,178 @@ def wiggle_room_precision_recall(pred, boundary, margin=2, connectivity=1):
     _, rec, _ = precision_recall_curve(boundary.ravel(), pred_dil.ravel())
     return zip(ts, prec, rec)
 
-def get_stratified_sample(a, n):
-    u = np.unique(a)
-    if len(u) <= 2*n:
+
+def get_stratified_sample(ar, n):
+    """Get a regularly-spaced sample of the unique values of an array.
+
+    Parameters
+    ----------
+    ar : np.ndarray, arbitrary shape and type
+        The input array.
+    n : int
+        The desired sample size.
+
+    Returns
+    -------
+    u : np.ndarray, shape approximately (n,)
+
+    Notes
+    -----
+    If `len(np.unique(ar)) <= 2*n`, all the values of `ar` are returned. The
+    requested sample size is taken as an approximate lower bound.
+
+    Examples
+    --------
+    >>> ar = np.array([[0, 4, 1, 3],
+                       [4, 1, 3, 5],
+                       [3, 5, 2, 1]])
+    >>> np.unique(ar)
+    array([0, 1, 2, 3, 4, 5])
+    >>> get_stratified_sample(ar, 3)
+    array([0, 2, 4])
+    """
+    u = np.unique(ar)
+    nu = len(u)
+    if nu <= 2*n:
         return u
     else:
-        return u[0:len(u):len(u)/n]
+        step = nu / n
+        return u[0:nu:step]
 
-def edit_distance(aseg, gt, ws=None):
-    if ws is None:
-        return edit_distance_to_bps(aseg, gt)
-    import agglo
-    return edit_distance_to_bps(aseg, agglo.best_possible_segmentation(ws, gt))
 
-def edit_distance_to_bps(aseg, bps):
+def edit_distance(aseg, gt, size_threshold=1000, sp=None):
+    """Find the number of splits and merges needed to convert `aseg` to `gt`.
+
+    Parameters
+    ----------
+    aseg : np.ndarray, int type, arbitrary shape
+        The candidate automatic segmentation being evaluated.
+    gt : np.ndarray, int type, same shape as `aseg`
+        The ground truth segmentation.
+    size_threshold : int or float, optional
+        Ignore splits or merges smaller than this number of voxels.
+    sp : np.ndarray, int type, same shape as `aseg`, optional
+        A superpixel map. If provided, compute the edit distance to the best
+        possible agglomeration of `sp` to `gt`, rather than to `gt` itself.
+
+    Returns
+    -------
+    (false_merges, false_splits) : float
+        The number of splits and merges needed to convert aseg to gt.
+    """
+    if sp is None:
+        return raw_edit_distance(aseg, gt, size_threshold)
+    else:
+        import agglo
+        bps = agglo.best_possible_segmentation(sp, gt)
+        return raw_edit_distance(aseg, bps, size_threshold)
+
+
+def raw_edit_distance(aseg, gt, size_threshold=1000):
+    """Compute the edit distance between two segmentations.
+
+    Parameters
+    ----------
+    aseg : np.ndarray, int type, arbitrary shape
+        The candidate automatic segmentation.
+    gt : np.ndarray, int type, same shape as `aseg`
+        The ground truth segmentation.
+    size_threshold : int or float, optional
+        Ignore splits or merges smaller than this number of voxels.
+
+    Returns
+    -------
+    (false_merges, false_splits) : float
+        The number of splits and merges required to convert aseg to gt.
+    """
     aseg = relabel_from_one(aseg)[0]
-    bps = relabel_from_one(bps)[0]
-    r = contingency_table(aseg, bps, [0], [0])
-    # make each segment overlap count for 1, since it will be one operation
-    # to fix (split or merge)
+    gt = relabel_from_one(gt)[0]
+    r = contingency_table(aseg, gt, [0], [0], norm=False)
+    r.data[r.data <= size_threshold] = 0
+    # make each segment overlap count for 1, since it will be one
+    # operation to fix (split or merge)
     r.data[r.data.nonzero()] /= r.data[r.data.nonzero()]
     false_splits = (r.sum(axis=0)-1)[1:].sum()
     false_merges = (r.sum(axis=1)-1)[1:].sum()
     return (false_merges, false_splits)
 
-def relabel_from_one(a):
-    labels = np.unique(a)
-    labels0 = labels[labels!=0]
+
+def relabel_from_one(label_field):
+    """Convert labels in an arbitrary label field to {1, ... number_of_labels}.
+
+    This function also returns the forward map (mapping the original labels to
+    the reduced labels) and the inverse map (mapping the reduced labels back
+    to the original ones).
+
+    Parameters
+    ----------
+    label_field : numpy ndarray (integer type)
+
+    Returns
+    -------
+    relabeled : numpy array of same shape as ar
+    forward_map : 1d numpy array of length np.unique(ar) + 1
+    inverse_map : 1d numpy array of length len(np.unique(ar))
+        The length is len(np.unique(ar)) + 1 if 0 is not in np.unique(ar)
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> label_field = array([1, 1, 5, 5, 8, 99, 42])
+    >>> relab, fw, inv = relabel_from_one(label_field)
+    >>> relab
+    array([1, 1, 2, 2, 3, 5, 4])
+    >>> fw
+    array([0, 1, 0, 0, 0, 2, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+           0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0,
+           0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+           0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+           0, 0, 0, 0, 0, 0, 0, 5])
+    >>> inv
+    array([ 0,  1,  5,  8, 42, 99])
+    >>> (fw[label_field] == relab).all()
+    True
+    >>> (inv[relab] == label_field).all()
+    True
+    """
+    labels = np.unique(label_field)
+    labels0 = labels[labels != 0]
     m = labels.max()
     if m == len(labels0): # nothing to do, already 1...n labels
-        return a, labels, labels
+        return label_field, labels, labels
     forward_map = np.zeros(m+1, int)
-    forward_map[labels0] = np.arange(1, len(labels0)+1)
+    forward_map[labels0] = np.arange(1, len(labels0) + 1)
     if not (labels == 0).any():
         labels = np.concatenate(([0], labels))
     inverse_map = labels
-    return forward_map[a], forward_map, inverse_map
+    return forward_map[label_field], forward_map, inverse_map
+
 
 def contingency_table(seg, gt, ignore_seg=[0], ignore_gt=[0], norm=True):
-    """Return the contingency table for all regions in matched segmentations."""
+    """Return the contingency table for all regions in matched segmentations.
+
+    Parameters
+    ----------
+    seg : np.ndarray, int type, arbitrary shape
+        A candidate segmentation.
+    gt : np.ndarray, int type, same shape as `seg`
+        The ground truth segmentation.
+    ignore_seg : list of int, optional
+        Values to ignore in `seg`. Voxels in `seg` having a value in this list
+        will not contribute to the contingency table. (default: [0])
+    ignore_gt : list of int, optional
+        Values to ignore in `gt`. Voxels in `gt` having a value in this list
+        will not contribute to the contingency table. (default: [0])
+    norm : bool, optional
+        Whether to normalize the table so that it sums to 1.
+
+    Returns
+    -------
+    cont : scipy.sparse.csc_matrix
+        A contingency table. `cont[i, j]` will equal the number of voxels
+        labeled `i` in `seg` and `j` in `gt`. (Or the proportion of such voxels
+        if `norm=True`.)
+    """
     segr = seg.ravel() 
     gtr = gt.ravel()
     ij = np.vstack((segr, gtr))
@@ -96,6 +299,7 @@ def contingency_table(seg, gt, ignore_seg=[0], ignore_gt=[0], norm=True):
     if norm:
         cont /= float(cont.sum())
     return cont
+
 
 def xlogx(x, out=None, in_place=False):
     """Compute x * log_2(x).
@@ -132,8 +336,35 @@ def xlogx(x, out=None, in_place=False):
 
 
 def special_points_evaluate(eval_fct, coords, flatten=True, coord_format=True):
+    """Return an evaluation function to only evaluate at special coordinates.
+
+    Parameters
+    ----------
+    eval_fct : function taking at least two np.ndarray of equal shapes as args
+        The function to be used for evaluation.
+    coords : np.ndarray of int, shape (n_points, n_dim) or (n_points,)
+        The coordinates at which to evaluate the function. The coordinates can
+        either be subscript format (one index into each dimension of input
+        arrays) or index format (a single index into the linear array). For
+        the latter, use `flatten=False`.
+    flatten : bool, optional
+        Whether to flatten the coordinates (default) or leave them untouched
+        (if they are already in raveled format).
+    coord_format : bool, optional
+        Format the coordinates to a tuple of np.ndarray as numpy expects. Set
+        to False if coordinates are already in this format or flattened.
+
+    Returns
+    -------
+    special_eval_fct : function taking at least two np.ndarray of equal shapes
+        The returned function is the same as the above function but only
+        evaluated at the coordinates specified. This can be used, for example,
+        to subsample a volume, or to evaluate only whether synapses are
+        correctly assigned, rather than every voxel, in a neuronal image
+        volume.
+    """
     if coord_format:
-        coords = [coords[:,i] for i in range(coords.shape[1])]
+        coords = [coords[:, i] for i in range(coords.shape[1])]
     def special_eval_fct(x, y, *args, **kwargs):
         if flatten:
             for i in range(len(coords)):
@@ -147,27 +378,85 @@ def special_points_evaluate(eval_fct, coords, flatten=True, coord_format=True):
         return eval_fct(sx, sy, *args, **kwargs)
     return special_eval_fct
 
-def make_synaptic_vi(fn):
-    return make_synaptic_functions(fn, split_vi)
 
-def make_synaptic_functions(fn, fncts):
+def make_synaptic_functions(fn, fcts):
+    """Make evaluation functions that only evaluate at synaptic sites.
+
+    Parameters
+    ----------
+    fn : string
+        Filename containing synapse coordinates, in Raveler format. [1]
+    fcts : function, or iterable of functions
+        Functions to be converted to synaptic evaluation.
+
+    Returns
+    -------
+    syn_fcts : function or iterable of functions
+        Evaluation functions that will evaluate only at synaptic sites.
+
+    Raises
+    ------
+    ImportError : if the `syngeo` package [2, 3] is not installed.
+
+    References
+    ----------
+    [1] https://wiki.janelia.org/wiki/display/flyem/synapse+annotation+file+format
+    [2] https://github.com/janelia-flyem/synapse-geometry
+    [3] https://github.com/jni/synapse-geometry
+    """
     from syngeo import io as synio
     synapse_coords = \
         synio.raveler_synapse_annotations_to_coords(fn, 'arrays')
     synapse_coords = np.array(list(it.chain(*synapse_coords)))
     make_function = partial(special_points_evaluate, coords=synapse_coords)
-    if not isinstance(fncts, coll.Iterable):
-        return make_function(fncts)
+    if not isinstance(fcts, coll.Iterable):
+        return make_function(fcts)
     else:
-        return map(make_function, fncts)
+        return map(make_function, fcts)
+
+
+def make_synaptic_vi(fn):
+    """Shortcut for `make_synaptic_functions(fn, split_vi)`."""
+    return make_synaptic_functions(fn, split_vi)
+
 
 def vi(x, y=None, weights=np.ones(2), ignore_x=[0], ignore_y=[0]):
-    """Return the variation of information metric."""
+    """Return the variation of information metric. [1]
+
+    VI(X, Y) = H(X | Y) + H(Y | X), where H(.|.) denotes the conditional
+    entropy.
+
+    Parameters
+    ----------
+    x : np.ndarray
+        Label field (int type) or contingency table (float). `x` is
+        interpreted as a contingency table (summing to 1.0) if and only if `y`
+        is not provided.
+    y : np.ndarray of int, same shape as x, optional
+        A label field to compare to `x`.
+    weights : np.ndarray of float, shape (2,), optional
+        The weights of the conditional entropies of `x` and `y`. Equal weights
+        are the default.
+    ignore_x, ignore_y : list of int, optional
+        Any points having a label in this list are ignored in the evaluation.
+        Ignore 0-labeled points by default.
+
+    Returns
+    -------
+    v : float
+        The variation of information between `x` and `y`.
+
+    References
+    ----------
+    [1] Meila, M. (2007). Comparing clusterings - an information based 
+    distance. Journal of Multivariate Analysis 98, 873-895.
+    """
     return np.dot(weights, split_vi(x, y, ignore_x, ignore_y))
+
 
 def split_vi(x, y=None, ignore_x=[0], ignore_y=[0]):
     """Return the symmetric conditional entropies associated with the VI.
-    
+
     The variation of information is defined as VI(X,Y) = H(X|Y) + H(Y|X).
     If Y is the ground-truth segmentation, then H(Y|X) can be interpreted
     as the amount of under-segmentation of Y and H(X|Y) is then the amount
@@ -175,18 +464,56 @@ def split_vi(x, y=None, ignore_x=[0], ignore_y=[0]):
     will have H(Y|X)=0 and a perfect under-segmentation will have H(X|Y)=0.
 
     If y is None, x is assumed to be a contingency table.
+
+    Parameters
+    ----------
+    x : np.ndarray
+        Label field (int type) or contingency table (float). `x` is
+        interpreted as a contingency table (summing to 1.0) if and only if `y`
+        is not provided.
+    y : np.ndarray of int, same shape as x, optional
+        A label field to compare to `x`.
+    ignore_x, ignore_y : list of int, optional
+        Any points having a label in this list are ignored in the evaluation.
+        Ignore 0-labeled points by default.
+
+    Returns
+    -------
+    sv : np.ndarray of float, shape (2,)
+        The conditional entropies of Y|X and X|Y.
+
+    See Also
+    --------
+    `vi`
     """
     _, _, _ , hxgy, hygx, _, _ = vi_tables(x, y, ignore_x, ignore_y)
     # false merges, false splits
     return np.array([hygx.sum(), hxgy.sum()])
 
+
 def vi_pairwise_matrix(segs, split=False):
     """Compute the pairwise VI distances within a set of segmentations.
-    
+
     If 'split' is set to True, two matrices are returned, one for each 
     direction of the conditional entropy.
 
     0-labeled pixels are ignored.
+
+    Parameters
+    ----------
+    segs : iterable of np.ndarray of int
+        A list or iterable of segmentations. All arrays must have the same
+        shape.
+    split : bool, optional
+        Should the split VI be returned, or just the VI itself (default)?
+
+    Returns
+    -------
+    vi_sq : np.ndarray of float, shape (len(segs), len(segs))
+        The distances between segmentations. If `split==False`, this is a
+        symmetric square matrix of distances. Otherwise, the lower triangle
+        of the output matrix is the false split distance, while the upper
+        triangle is the false merge distance.
     """
     d = np.array([s.ravel() for s in segs])
     if split:
@@ -200,23 +527,63 @@ def vi_pairwise_matrix(segs, split=False):
         out = squareform(pdist(d, vi))
     return out
 
+
 def split_vi_threshold(tup):
     """Compute VI with tuple input (to support multiprocessing).
-    Tuple elements:
-        - the UCM for the candidate segmentation,
-        - the gold standard,
-        - list of ignored labels in the segmentation,
-        - list of ignored labels in the gold standard,
-        - threshold to use for the UCM.
-    Value:
-        - array of length 2 containing the undersegmentation and 
-        oversegmentation parts of the VI.
+
+    Parameters
+    ----------
+    tup : a tuple, (np.ndarray, np.ndarray, [int], [int], float)
+        The tuple should consist of::
+            - the UCM for the candidate segmentation,
+            - the gold standard,
+            - list of ignored labels in the segmentation,
+            - list of ignored labels in the gold standard,
+            - threshold to use for the UCM.
+
+    Returns
+    -------
+    sv : np.ndarray of float, shape (2,)
+        The undersegmentation and oversegmentation of the comparison between
+        applying a threshold and connected components labeling of the first
+        array, and the second array.
     """
     ucm, gt, ignore_seg, ignore_gt, t = tup
     return split_vi(label(ucm<t)[0], gt, ignore_seg, ignore_gt)
 
+
 def vi_by_threshold(ucm, gt, ignore_seg=[], ignore_gt=[], npoints=None,
                                                             nprocessors=None):
+    """Compute the VI at every threshold of the provided UCM.
+
+    Parameters
+    ----------
+    ucm : np.ndarray of float, arbitrary shape
+        The Ultrametric Contour Map, where each 0.0-region is separated by a
+        boundary. Higher values of the boundary indicate more confidence in
+        its presence.
+    gt : np.ndarray of int, same shape as `ucm`
+        The ground truth segmentation.
+    ignore_seg : list of int, optional
+        The labels to ignore in the segmentation of the UCM.
+    ignore_gt : list of int, optional
+        The labels to ignore in the ground truth.
+    npoints : int, optional
+        The number of thresholds to sample. By default, all thresholds are
+        sampled.
+    nprocessors : int, optional
+        Number of processors to use for the parallel evaluation of different
+        thresholds.
+
+    Returns
+    -------
+    result : np.ndarray of float, shape (3, npoints)
+        The evaluation of segmentation at each threshold. The rows of this
+        array are:
+            - the threshold used
+            - the undersegmentation component of VI
+            - the oversegmentation component of VI
+    """
     ts = np.unique(ucm)[1:]
     if npoints is None:
         npoints = len(ts)
@@ -231,25 +598,49 @@ def vi_by_threshold(ucm, gt, ignore_seg=[], ignore_gt=[], npoints=None,
             ((ucm, gt, ignore_seg, ignore_gt, t) for t in ts))
     return np.concatenate((ts[np.newaxis, :], np.array(result).T), axis=0)
 
+
 def rand_by_threshold(ucm, gt, npoints=None):
+    """Compute Rand and Adjusted Rand indices for each threshold of a UCM
+
+    Parameters
+    ----------
+    ucm : np.ndarray, arbitrary shape
+        An Ultrametric Contour Map of region boundaries having specific
+        values. Higher values indicate higher boundary probabilities.
+    gt : np.ndarray, int type, same shape as ucm
+        The ground truth segmentation.
+    npoints : int, optional
+        If provided, only compute values at npoints thresholds, rather than
+        all thresholds. Useful when ucm has an extremely large number of
+        unique values.
+
+    Returns
+    -------
+    ris : np.ndarray of float, shape (3, len(np.unique(ucm))) or (3, npoints)
+        The rand indices of the segmentation induced by thresholding and
+        labeling `ucm` at different values. The 3 rows of `ris` are the values
+        used for thresholding, the corresponding Rand Index at that threshold,
+        and the corresponding Adjusted Rand Index at that threshold.
+    """
     ts = np.unique(ucm)[1:]
     if npoints is None:
         npoints = len(ts)
-    if len(ts) > 2*npoints:
-        ts = ts[np.arange(1, len(ts), len(ts)/npoints)]
-    result = np.zeros((2,len(ts)))
+    if len(ts) > 2 * npoints:
+        ts = ts[np.arange(1, len(ts), len(ts) / npoints)]
+    result = np.zeros((2, len(ts)))
     for i, t in enumerate(ts):
-        seg = label(ucm<t)[0]
-        result[0,i] = rand_index(seg, gt)
-        result[1,i] = adj_rand_index(seg, gt)
+        seg = label(ucm < t)[0]
+        result[0, i] = rand_index(seg, gt)
+        result[1, i] = adj_rand_index(seg, gt)
     return np.concatenate((ts[np.newaxis, :], result), axis=0)
+
 
 def calc_entropy(split_vals, count):
     col_count = 0
     for key, val in split_vals.items(): 
         col_count += val
     col_prob = float(col_count) / count 
-    
+
     ent_val = 0
     for key, val in split_vals.items(): 
         val_norm = float(val)/count
@@ -272,7 +663,7 @@ def split_vi_mem(x, y):
 
     for label in y_labels0:
         y_map[label] = {}
-    
+
     x_flat = x.ravel()
     y_flat = y.ravel()
 
@@ -285,11 +676,11 @@ def split_vi_mem(x, y):
         if x_val != 0 and y_val != 0:
             x_map[x_val].setdefault(y_val, 0)
             y_map[y_val].setdefault(x_val, 0)
-            (x_map[x_val])[y_val] += 1        
-            (y_map[y_val])[x_val] += 1        
+            (x_map[x_val])[y_val] += 1
+            (y_map[y_val])[x_val] += 1
             count += 1
     print "Finished analyzing similarities"
-     
+
     x_ents = {}
     y_ents = {}
     x_sum = 0.0
@@ -388,10 +779,30 @@ def divide_columns(matrix, row, in_place=False):
         out /= row[np.newaxis, :]
     return out
 
+
 def vi_tables(x, y=None, ignore_x=[0], ignore_y=[0]):
     """Return probability tables used for calculating VI.
-    
+
     If y is None, x is assumed to be a contingency table.
+
+    Parameters
+    ----------
+    x, y : np.ndarray
+        Either x and y are provided as equal-shaped np.ndarray label fields
+        (int type), or y is not provided and x is a contingency table
+        (sparse.csc_matrix) that may or may not sum to 1.
+    ignore_x, ignore_y : list of int, optional
+        Rows and columns (respectively) to ignore in the contingency table.
+        These are labels that are not counted when evaluating VI.
+
+    Returns
+    -------
+    pxy : sparse.csc_matrix of float
+        The normalized contingency table.
+    px, py, hxgy, hygx, lpygx, lpxgy : np.ndarray of float
+        The proportions of each label in `x` and `y` (`px`, `py`), the
+        per-segment conditional entropies of `x` given `y` and vice-versa, the
+        per-segment conditional probability p log p.
     """
     if y is not None:
         pxy = contingency_table(x, y, ignore_x, ignore_y)
@@ -416,21 +827,44 @@ def vi_tables(x, y=None, ignore_x=[0], ignore_y=[0]):
     lpygx[nzx] = xlogx(divide_rows(nzpxy, nzpx)).sum(axis=1) 
                         # \sum_x{p_{y|x} \log{p_{y|x}}}
     hygx = -(px*lpygx) # \sum_x{p_x H(Y|X=x)} = H(Y|X)
-    
+
     lpxgy = np.zeros(np.shape(py))
     lpxgy[nzy] = xlogx(divide_columns(nzpxy, nzpy)).sum(axis=0)
     hxgy = -(py*lpxgy)
 
     return [pxy] + map(np.asarray, [px, py, hxgy, hygx, lpygx, lpxgy])
 
+
 def sorted_vi_components(s1, s2, ignore1=[0], ignore2=[0], compress=False):
     """Return lists of the most entropic segments in s1|s2 and s2|s1.
-    
-    The 'compress' flag performs a remapping of the labels before doing the
-    VI computation, resulting in memory savings when many labels are
-    not used in the volume. (For example, if you have just two labels, 1 and
-    1,000,000, 'compress=False' will give a vector of length 1,000,000,
-    whereas with 'compress=True' it will have just size 2.)
+
+    Parameters
+    ----------
+    s1, s2 : np.ndarray of int
+        Segmentations to be compared. Usually, `s1` will be a candidate
+        segmentation and `s2` will be the ground truth or target segmentation.
+    ignore1, ignore2 : list of int, optional
+        Labels in these lists are ignored in computing the VI. 0-labels are
+        ignored by default; pass empty lists to use all labels.
+    compress : bool, optional
+        The 'compress' flag performs a remapping of the labels before doing 
+        the VI computation, resulting in memory savings when many labels are
+        not used in the volume. (For example, if you have just two labels, 1
+        and 1,000,000, 'compress=False' will give a vector of length 
+        1,000,000, whereas with 'compress=True' it will have just size 2.)
+
+    Returns
+    -------
+    ii1 : np.ndarray of int
+        The labels in `s1` having the most entropy. If `s1` is the automatic
+        segmentation, these are the worst false merges.
+    h2g1 : np.ndarray of float
+        The conditional entropy corresponding to the labels in `ii1`.
+    ii2 : np.ndarray of int
+        The labels in `s1` having the most entropy. These correspond to the
+        worst false splits.
+    h2g1 : np.ndarray of float
+        The conditional entropy corresponding to the labels in `ii2`.
     """
     if compress:
         s1, forw1, back1 = relabel_from_one(s1)
@@ -442,16 +876,31 @@ def sorted_vi_components(s1, s2, ignore1=[0], ignore2=[0], compress=False):
     ii2 = back2[i2] if compress else i2
     return ii1, h2g1[i1], ii2, h1g2[i2]
 
+
 def split_components(idx, cont, num_elems=4, axis=0):
     """Return the indices of the bodies most overlapping with body idx.
 
-    Arguments:
-        - idx: the body id being examined.
-        - cont: the normalized contingency table.
-        - num_elems: the number of overlapping bodies desired.
-        - axis: the axis along which to perform the calculations.
+    Parameters
+    ----------
+    idx : int
+        The segment index being examined.
+    cont : sparse.csc_matrix
+        The normalized contingency table.
+    num_elems : int, optional
+        The number of overlapping bodies desired.
+    axis : int, optional
+        The axis along which to perform the calculations. Assuming `cont` has
+        the automatic segmentation as the rows and the gold standard as the
+        columns, `axis=0` will return the segment IDs in the gold standard of
+        the worst merges comprising `idx`, while `axis=1` will return the 
+        segment IDs in the automatic segmentation of the worst splits
+        comprising `idx`.
+
     Value:
-        A list of tuples of (body_idx, overlap_int, overlap_ext).
+    comps : list of (int, float, float) tuples
+        `num_elems` indices of the biggest overlaps comprising `idx`, along
+        with the percent of `idx` that they comprise and the percent of
+        themselves that overlaps with `idx`.
     """
     if axis == 1:
         cont= cont.T
@@ -464,8 +913,26 @@ def split_components(idx, cont, num_elems=4, axis=0):
     probst = cct[idxs]
     return zip(idxs, probs, probst)
 
+
 def rand_values(cont_table):
-    """Calculate values for rand indices."""
+    """Calculate values for Rand Index and related values, e.g. Adjusted Rand.
+
+    Parameters
+    ----------
+    cont_table : scipy.sparse.csc_matrix
+        A contingency table of the two segmentations.
+
+    Returns
+    -------
+    a, b, c, d : float
+        The values necessary for computing Rand Index and related values. [1, 2]
+
+    References
+    ----------
+    [1] Rand, W. M. (1971). Objective criteria for the evaluation of
+    clustering methods. J Am Stat Assoc.
+    [2] http://en.wikipedia.org/wiki/Rand_index#Definition on 2013-05-16.
+    """
     n = cont_table.sum()
     sum1 = (cont_table.multiply(cont_table)).sum()
     sum2 = (np.asarray(cont_table.sum(axis=1)) ** 2).sum()
@@ -476,35 +943,113 @@ def rand_values(cont_table):
     d = (sum1 + n**2 - sum2 - sum3)/2
     return a, b, c, d
 
+
 def rand_index(x, y=None):
-    """Return the unadjusted Rand index."""
+    """Return the unadjusted Rand index. [1]
+
+    Parameters
+    ----------
+    x, y : np.ndarray
+        Either x and y are provided as equal-shaped np.ndarray label fields
+        (int type), or y is not provided and x is a contingency table
+        (sparse.csc_matrix) that is *not* normalised to sum to 1.
+
+    Returns
+    -------
+    ri : float
+        The Rand index of `x` and `y`.
+
+    References
+    ----------
+    [1] WM Rand. (1971) Objective criteria for the evaluation of
+    clustering methods. J Am Stat Assoc. 66: 846–850
+    """
     cont = x if y is None else contingency_table(x, y, norm=False)
     a, b, c, d = rand_values(cont)
     return (a+d)/(a+b+c+d)
-    
+
+
 def adj_rand_index(x, y=None):
-    """Return the adjusted Rand index."""
+    """Return the adjusted Rand index.
+
+    The Adjusted Rand Index (ARI) is the deviation of the Rand Index from the
+    expected value if the marginal distributions of the contingency table were
+    independent. Its value ranges from 1 (perfectly correlated marginals) to
+    -1 (perfectly anti-correlated).
+
+    Parameters
+    ----------
+    x, y : np.ndarray
+        Either x and y are provided as equal-shaped np.ndarray label fields
+        (int type), or y is not provided and x is a contingency table
+        (sparse.csc_matrix) that is *not* normalised to sum to 1.
+
+    Returns
+    -------
+    ari : float
+        The adjusted Rand index of `x` and `y`.
+    """
     cont = x if y is None else contingency_table(x, y, norm=False)
     a, b, c, d = rand_values(cont)
     nk = a+b+c+d
     return (nk*(a+d) - ((a+b)*(a+c) + (c+d)*(b+d)))/(
         nk**2 - ((a+b)*(a+c) + (c+d)*(b+d)))
 
+
 def fm_index(x, y=None):
-    """ Return the Fowlkes-Mallows index. """
+    """Return the Fowlkes-Mallows index. [1]
+
+    Parameters
+    ----------
+    x, y : np.ndarray
+        Either x and y are provided as equal-shaped np.ndarray label fields
+        (int type), or y is not provided and x is a contingency table
+        (sparse.csc_matrix) that is *not* normalised to sum to 1.
+
+    Returns
+    -------
+    fm : float
+        The FM index of `x` and `y`. 1 is perfect agreement.
+
+    References
+    ----------
+    [1] EB Fowlkes & CL Mallows. (1983) A method for comparing two 
+    hierarchical clusterings. J Am Stat Assoc 78: 553
+    """
     cont = x if y is None else contingency_table(x, y, norm=False)
     a, b, c, d = rand_values(cont)
     return a/(np.sqrt((a+b)*(a+c)))
 
-def reduce_vi(fn='testing/%i/flat-single-channel-tr%i-%i-%.2f.lzf.h5',
+
+def reduce_vi(fn_pattern='testing/%i/flat-single-channel-tr%i-%i-%.2f.lzf.h5',
         iterable=[(ts, tr, ts) for ts, tr in it.permutations(range(8), 2)],
         thresholds=np.arange(0, 1.01, 0.01)):
+    """Compile evaluation results embedded in many .h5 files under "vi".
+
+    Parameters
+    ----------
+    fn_pattern : string, optional
+        A format string defining the files to be examined.
+    iterable : iterable of tuples, optional
+        The (partial) tuples to apply to the format string to obtain
+        individual files.
+    thresholds : iterable of float, optional
+        The final tuple elements to apply to the format string. The final
+        tuples are the product of `iterable` and `thresholds`.
+
+    Returns
+    -------
+    vi : np.ndarray of float, shape (3, len(thresholds))
+        The under and over segmentation components of VI at each threshold.
+        `vi[0, :]` is the threshold, `vi[1, :]` the undersegmentation and
+        `vi[2, :]` is the oversegmentation.
+    """
     iterable = list(iterable)
     vi = np.zeros((3, len(thresholds), len(iterable)), np.double)
     current_vi = np.zeros(3)
     for i, t in enumerate(thresholds):
         for j, v in enumerate(iterable):
-            current_fn = fn % (tuple(v) + (t,))
+            current_fn = fn_pattern % (tuple(v) + (t,))
             try:
                 f = h5py.File(current_fn, 'r')
             except IOError:
@@ -523,12 +1068,42 @@ def reduce_vi(fn='testing/%i/flat-single-channel-tr%i-%i-%.2f.lzf.h5',
             vi[:, i, j] += current_vi
     return vi
 
-def sem(a, axis=None):
+
+def sem(ar, axis=None):
+    """Calculate the standard error of the mean (SEM) along an axis.
+
+    Parameters
+    ----------
+    ar : np.ndarray
+        The input array of values.
+    axis : int, optional
+        Calculate SEM along the given axis. If omitted, calculate along the
+        raveled array.
+
+    Returns
+    -------
+    sem : float or np.ndarray of float
+        The SEM over the whole array (if `axis=None`) or over the chosen axis.
+    """
     if axis is None:
-        a = a.ravel()
+        ar = ar.ravel()
         axis = 0
-    return np.std(a, axis=axis) / np.sqrt(a.shape[axis])
+    return np.std(ar, axis=axis) / np.sqrt(ar.shape[axis])
+
 
 def vi_statistics(vi_table):
+    """Descriptive statistics from a block of related VI evaluations.
+
+    Parameters
+    ----------
+    vi_table : np.ndarray of float
+        An array containing VI evaluations of various samples. The last axis
+        represents the samples.
+
+    Returns
+    -------
+    means, sems, medians : np.ndarrays of float
+        The statistics of the given array along the samples axis.
+    """
     return np.mean(vi_table, axis=-1), sem(vi_table, axis=-1), \
         np.median(vi_table, axis=-1)
