@@ -1066,11 +1066,28 @@ def reduce_vi(fn_pattern='testing/%i/flat-single-channel-tr%i-%i-%.2f.lzf.h5',
             vi[:, i, j] += current_vi
     return vi
 
-def sem(a, axis=None):
+
+def sem(ar, axis=None):
+    """Calculate the standard error of the mean (SEM) along an axis.
+
+    Parameters
+    ----------
+    ar : np.ndarray
+        The input array of values.
+    axis : int, optional
+        Calculate SEM along the given axis. If omitted, calculate along the
+        raveled array.
+
+    Returns
+    -------
+    sem : float or np.ndarray of float
+        The SEM over the whole array (if `axis=None`) or over the chosen axis.
+    """
     if axis is None:
-        a = a.ravel()
+        ar = ar.ravel()
         axis = 0
-    return np.std(a, axis=axis) / np.sqrt(a.shape[axis])
+    return np.std(ar, axis=axis) / np.sqrt(ar.shape[axis])
+
 
 def vi_statistics(vi_table):
     return np.mean(vi_table, axis=-1), sem(vi_table, axis=-1), \
