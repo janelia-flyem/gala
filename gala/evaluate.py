@@ -14,8 +14,32 @@ from scipy.spatial.distance import pdist, squareform
 from sklearn.metrics import precision_recall_curve
 
 
+def sparse_min(mat, axis=None):
+    """Compute the minimum value in a sparse matrix (optionally over an axis).
+
+    This function mimics the numpy.min() API for sparse.CSC or CSR matrices.
+
+    Parameters
+    ----------
+    mat : a scipy.sparse csc or csr matrix
+        The matrix for which to compute the min.
+    axis : int in {0, 1}, optional
+        Compute the minimum over each column (`axis=0`) or over each row
+        (`axis=1`). By default, compute over entire matrix.
+
+    Returns
+    -------
+    mn : mat.dtype (if `axis=None`) or np.ndarray of shape (mat.shape[1-axis],)
+        The minimum value in the array or along an axis.
+    """
+    mn = - sparse_max(-mat, axis)
+    return mn
+
+
 def sparse_max(mat, axis=None):
     """Compute the maximum value in a sparse matrix (optionally over an axis).
+
+    This function mimics the numpy.max() API for sparse.CSC or CSR matrices.
 
     Parameters
     ----------
@@ -61,7 +85,6 @@ def sparse_csr_row_max(csr_mat):
     ret[row_diff != 0] = np.maximum.reduceat(csr_mat.data,
                                              csr_mat.indptr[:-1][row_diff > 0])
     return ret
-
 
 
 def bin_values(a, bins=255):
