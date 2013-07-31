@@ -14,6 +14,56 @@ from scipy.spatial.distance import pdist, squareform
 from sklearn.metrics import precision_recall_curve
 
 
+def sparse_max(mat, axis=None):
+    """Compute the maximum value in a sparse matrix (optionally over an axis).
+
+    Parameters
+    ----------
+    mat : a scipy.sparse csc or csr matrix
+        The matrix for which to compute the max.
+    axis : int in {0, 1}, optional
+        Compute the maximum over each column (`axis=0`) or over each row
+        (`axis=1`). By default, compute over entire matrix.
+
+    Returns
+    -------
+    mx : mat.dtype (if `axis=None`) or np.ndarray of shape (mat.shape[1-axis],)
+        The maximum value in the array or along an axis.
+    """
+    if type(mat) == sparse.csr_matrix:
+        mat = mat.tocsc()
+    if axis is None:
+        mx = np.max(mat.data)
+    elif axis == 0:
+        mx = sparse_csr_row_max(mat.T)
+    elif axis == 1:
+        mx = sparse_csr_row_max(mat.tocsr())
+    else:
+        raise ValueError("Invalid axis %i for matrix (2 dimensional)." % axis)
+    return mx
+
+
+def sparse_csr_row_max(csr_mat):
+    """Compute maximum over each row of a CSR format sparse matrix.
+
+    Parameters
+    ----------
+    csr_mat : scipy.sparse.csr_matrix
+        The input matrix.
+
+    Returns
+    -------
+    mx : np.ndarray of shape `(mat.shape[0],)`
+        The maximum along every row.
+    """
+    ret = np.zeros(csr_mat.shape[0])
+    row_diff = np.diff(csr_mat.indptr)
+    ret[row_diff != 0] = np.maximum.reduceat(csr_mat.data,
+                                             csr_mat.indptr[:-1][row_diff > 0])
+    return ret
+
+
+
 def bin_values(a, bins=255):
     """Return an array with its values discretised to the given number of bins.
 
