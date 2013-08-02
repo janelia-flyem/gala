@@ -28,11 +28,16 @@ import morpho
 import iterprogress as ip
 from ncut import ncutW
 from mergequeue import MergeQueue
-from evaluate import contingency_table, split_vi, xlogx
+from evaluate import contingency_table as ev_contingency_table, split_vi, xlogx
 import features
 import classify
 from classify import DefaultRandomForest, get_classifier, \
     unique_learning_data_elements, concatenate_data_elements
+
+
+def contingency_table(a, b):
+    return ev_contingency_table(a, b).todense()
+
 
 arguments = argparse.ArgumentParser(add_help=False)
 arggroup = arguments.add_argument_group('Agglomeration options')
