@@ -473,7 +473,7 @@ def run_stitching(session_location, options, master_logger):
     master_logger.info("Writing graph.json")
 
     # set threshold value for outputing as appropriate (edge size * 2)
-    agglom_stack.set_overlap_cutoff(11)
+    agglom_stack.set_overlap_cutoff(0)
     # use the maximum overlap between the two regions as the the split criterion (proofread 0-0.7)
     agglom_stack.set_overlap_max()
     agglom_stack.write_plaza_json(graph_loc, None, 0, True)
@@ -531,8 +531,8 @@ def run_stitching(session_location, options, master_logger):
         stack = numpy.array(hfile["stack"])
 
         for mapping in trans:
-            if mapping[0] in transaction_dict:
-                mapping[1] = transaction_dict[mapping[0]]
+            if mapping[1] in transaction_dict:
+                mapping[1] = transaction_dict[mapping[1]]
 
         hfile_write = h5py.File(new_seg_file, 'w')
         hfile_write.create_dataset("transforms", data=trans)
