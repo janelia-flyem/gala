@@ -202,8 +202,7 @@ def read_multi_page_tif(fn, crop=[None]*6):
             eof = True
     return concatenate(pages, axis=-1)
 
-
-def read_multi_page_tif_libtiff(fn, crop=[None]*6):
+def read_multi_page_tif_libtiff(fn):
     """Read a multi-page tif file into a numpy array.
     
     Parameters
@@ -223,7 +222,7 @@ def read_multi_page_tif_libtiff(fn, crop=[None]*6):
     pages = []
     tif = TIFF.open(fn)
     for img in tif.iter_images():
-        pages.append(img[...,newaxis])
+        pages.append(img[..., newaxis])
     return concatenate(pages, axis=-1)
 
 def write_png_image_stack(npy_vol, fn, axis=-1, bitdepth=None):
