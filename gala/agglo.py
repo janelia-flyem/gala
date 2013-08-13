@@ -36,7 +36,7 @@ from classify import DefaultRandomForest, get_classifier, \
 
 
 def contingency_table(a, b):
-    return ev_contingency_table(a, b).todense()
+    return np.array(ev_contingency_table(a, b).todense())
 
 
 arguments = argparse.ArgumentParser(add_help=False)
