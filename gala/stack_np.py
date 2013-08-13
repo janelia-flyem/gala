@@ -108,13 +108,26 @@ class Stack:
         if self.synapse_file is not None:
             self.set_exclusions(self.synapse_file)
 
+    def dilate_edges(self, supervoxels):
+        # create temporary stack and write supervoxels like get segmentation
+        supervoxels = supervoxels.astype(numpy.double)
+        neuroproof.dilate_supervoxels(supervoxels)
+        return supervoxels
 
-    def build_border(self, supervoxels1, prediction1, supervoxels2, prediction2):
+    def build_border(self, supervoxels1, prediction1, supervoxels2,
+            prediction2, mask1, mask2, ignore_zeros):
         self.init_build(supervoxels1, prediction1)
         self.init_build2(supervoxels2, prediction2)
 
-        self.stack.build_rag_border()
+        if mask1 is not None and mask2 is not None:
+            mask1 = morpho.pad(mask1, 0)
+            mask1 = mask1.astype(numpy.double)    
+            mask2 = morpho.pad(mask2, 0)
+            mask2 = mask2.astype(numpy.double)    
+            # use masks to handle 0 cases 
+            neuroproof.init_masks(self.stack, mask1, mask2)
         
+        self.stack.build_rag_border(ignore_zeros)
 
     def number_of_nodes(self):
         return self.stack.get_num_bodies()

@@ -145,7 +145,7 @@ def grab_pred_seg(pred_name, seg_name, border_size):
 
 
 def examine_boundary(axis, b1_prediction, b1_seg, b2_prediction, b2_seg,
-        b1pt, b2pt, b1pt2, b2pt2, block1, block2, agglom_stack, border_size, master_logger):
+        b1pt, b2pt, b1pt2, b2pt2, block1, block2, agglom_stack, border_size, master_logger, options):
     overlap = False
 
     dimmin = []
@@ -187,6 +187,9 @@ def examine_boundary(axis, b1_prediction, b1_seg, b2_prediction, b2_seg,
         prediction1 = numpy.zeros((dimmax[0] - dimmin[0] + 1, dimmax[1] - dimmin[1] + 1, 1, ch),
                 dtype=b1_prediction.dtype)
 
+        prediction_vol = numpy.zeros((dimmax[0] - dimmin[0] + 1,
+                dimmax[1] - dimmin[1] + 1, 50+50, ch), dtype=b1_prediction.dtype)
+
         prediction2 = numpy.zeros((dimmax[0] - dimmin[0] + 1, dimmax[1] - dimmin[1] + 1, 1, ch),
                 dtype=b1_prediction.dtype)
         supervoxels1 = numpy.zeros((dimmax[0] - dimmin[0] + 1, dimmax[1] - dimmin[1] + 1, 1),
@@ -200,10 +203,12 @@ def examine_boundary(axis, b1_prediction, b1_seg, b2_prediction, b2_seg,
         lowerb = []
         upperb = []
         pos = 0
+        firstblock_first = False
         for axis2 in range(0,3):
             loc1 = b1pt[axis2]
             loc2 = b1pt2[axis2]
             if loc1 > loc2:
+                firstblock_first = True
                 loc1, loc2 = loc2, loc1
             if axis == axis2:
                lower.append(b1pt[axis] - loc1)
@@ -218,12 +223,34 @@ def examine_boundary(axis, b1_prediction, b1_seg, b2_prediction, b2_seg,
         b1_prediction_temp = b1_prediction[lower[0]:upper[0],lower[1]:upper[1],lower[2]:upper[2]]
         b1_seg_temp = b1_seg[lower[0]:upper[0],lower[1]:upper[1],lower[2]:upper[2]]
 
+        prediction_vol_temp = None
+
         if axis == 0:
             b1_prediction_temp = b1_prediction_temp.transpose((1,2,0,3))
             b1_seg_temp = b1_seg_temp.transpose((1,2,0))
+            if lower[0] == 0:
+                prediction_vol_temp = b1_prediction[lower[0]:50,lower[1]:upper[1],lower[2]:upper[2]]
+            else:
+                prediction_vol_temp = b1_prediction[upper[0]-50:upper[0],lower[1]:upper[1],lower[2]:upper[2]]
+            prediction_vol_temp = prediction_vol_temp.transpose((1,2,0,3))
         if axis == 1:
             b1_prediction_temp = b1_prediction_temp.transpose((0,2,1,3))
             b1_seg_temp = b1_seg_temp.transpose((0,2,1))
+            if lower[1] == 0:
+                prediction_vol_temp = b1_prediction[lower[0]:upper[0],lower[1]:50,lower[2]:upper[2]]
+            else:
+                prediction_vol_temp = b1_prediction[lower[0]:upper[0],upper[1]-50:upper[1],lower[2]:upper[2]]
+            prediction_vol_temp = prediction_vol_temp.transpose((0,2,1,3))
+        if axis == 2:
+            if lower[2] == 0:
+                prediction_vol_temp = b1_prediction[lower[0]:upper[0],lower[1]:upper[1],lower[2]:50]
+            else:
+                prediction_vol_temp = b1_prediction[lower[0]:upper[0],lower[1]:upper[1],upper[2]-50:upper[2]]
+
+        if firstblock_first:
+            prediction_vol[lowerb[0]:upperb[0],lowerb[1]:upperb[1],0:50] = prediction_vol_temp
+        else:
+            prediction_vol[lowerb[0]:upperb[0],lowerb[1]:upperb[1],50:100] = prediction_vol_temp
 
         prediction1[lowerb[0]:upperb[0],lowerb[1]:upperb[1]] = b1_prediction_temp 
         supervoxels1[lowerb[0]:upperb[0],lowerb[1]:upperb[1]] = b1_seg_temp 
@@ -254,16 +281,62 @@ def examine_boundary(axis, b1_prediction, b1_seg, b2_prediction, b2_seg,
         if axis == 0:
             b2_prediction_temp = b2_prediction_temp.transpose((1,2,0,3))
             b2_seg_temp = b2_seg_temp.transpose((1,2,0))
+            if lower[0] == 0:
+                prediction_vol_temp = b2_prediction[lower[0]:50,lower[1]:upper[1],lower[2]:upper[2]]
+            else:
+                prediction_vol_temp = b2_prediction[upper[0]-50:upper[0],lower[1]:upper[1],lower[2]:upper[2]]
+            prediction_vol_temp = prediction_vol_temp.transpose((1,2,0,3))
         if axis == 1:
             b2_prediction_temp = b2_prediction_temp.transpose((0,2,1,3))
             b2_seg_temp = b2_seg_temp.transpose((0,2,1))
-
+            if lower[1] == 0:
+                prediction_vol_temp = b2_prediction[lower[0]:upper[0],lower[1]:50,lower[2]:upper[2]]
+            else:
+                prediction_vol_temp = b2_prediction[lower[0]:upper[0],upper[1]-50:upper[1],lower[2]:upper[2]]
+            prediction_vol_temp = prediction_vol_temp.transpose((0,2,1,3))
+        if axis == 2:
+            if lower[2] == 0:
+                prediction_vol_temp = b2_prediction[lower[0]:upper[0],lower[1]:upper[1],lower[2]:50]
+            else:
+                prediction_vol_temp = b2_prediction[lower[0]:upper[0],lower[1]:upper[1],upper[2]-50:upper[2]]
+        
+        if not firstblock_first:
+            prediction_vol[lowerb[0]:upperb[0],lowerb[1]:upperb[1],0:50] = prediction_vol_temp
+        else:
+            prediction_vol[lowerb[0]:upperb[0],lowerb[1]:upperb[1],50:100] = prediction_vol_temp
+        
         prediction2[lowerb[0]:upperb[0],lowerb[1]:upperb[1]] = b2_prediction_temp 
         supervoxels2[lowerb[0]:upperb[0],lowerb[1]:upperb[1]] = b2_seg_temp 
 
         master_logger.info("Examining border between " + block1["segmentation-file"] + " and " + block2["segmentation-file"])
+       
+        mask1 = None
+        mask2 = None
+
+        if options.run_watershed:
+            # generate watershed as in gala main flow over thick boundary stuff
+            master_logger.info("Generating watershed in boundary region")
+            boundary_vol = prediction_vol[...,0]
+            seeds = label(boundary_vol==0)[0]
+            seeds = morpho.remove_small_connected_components(seeds, 5)
+            supervoxels = skmorph.watershed(boundary_vol, seeds)
+            master_logger.info("Finished generating watershed in boundary region")
+            
+            # generate thick boundary in neuroproof and return volume
+            supervoxels = agglom_stack.dilate_edges(supervoxels) 
+
+            # grab inner 2 slices and mask supervoxels (ignore if one 0) 
+            # OR increase edge size to 0 when one is 0
+            mask1 = supervoxels[:,:,49:50]
+            mask2 = supervoxels[:,:,50:51]
+
+            if not firstblock_first:
+                mask2 = supervoxels[:,:,49:50]
+                mask1 = supervoxels[:,:,50:51]
+
         # special build mode
-        agglom_stack.build_border(supervoxels1, prediction1, supervoxels2, prediction2)
+        agglom_stack.build_border(supervoxels1, prediction1, supervoxels2,
+                prediction2, mask1, mask2, options.ignore_zeros)
 
     return overlap, b1_prediction, b1_seg, b2_prediction, b2_seg
 
@@ -363,42 +436,42 @@ def run_stitching(session_location, options, master_logger):
 
                     overlap, b1_prediction, b1_seg, b2_prediction, b2_seg = examine_boundary(0,
                             b1_prediction, b1_seg, b2_prediction, b2_seg, b1pt1, b2pt2, b1pt2,
-                            b2pt1, block1, block2, agglom_stack, border_size, master_logger)
+                            b2pt1, block1, block2, agglom_stack, border_size, master_logger, options)
                     if overlap:
                         faces.add("yz1")
                         block2["faces"].add("yz2")
 
                     overlap, b1_prediction, b1_seg, b2_prediction, b2_seg = examine_boundary(1,
                             b1_prediction, b1_seg, b2_prediction, b2_seg, b1pt1, b2pt2,
-                            b1pt2, b2pt1, block1, block2, agglom_stack, border_size, master_logger)
+                            b1pt2, b2pt1, block1, block2, agglom_stack, border_size, master_logger, options)
                     if overlap:
                         faces.add("xz1")
                         block2["faces"].add("xz2")
 
                     overlap, b1_prediction, b1_seg, b2_prediction, b2_seg = examine_boundary(2,
                             b1_prediction, b1_seg, b2_prediction, b2_seg, b1pt1, b2pt2,
-                            b1pt2, b2pt1, block1, block2, agglom_stack, border_size, master_logger)
+                            b1pt2, b2pt1, block1, block2, agglom_stack, border_size, master_logger, options)
                     if overlap:
                         faces.add("xy1")
                         block2["faces"].add("xy2")
 
                     overlap, b1_prediction, b1_seg, b2_prediction, b2_seg = examine_boundary(0,
                             b1_prediction, b1_seg, b2_prediction, b2_seg, b1pt2, b2pt1,
-                            b1pt1, b2pt2, block1, block2, agglom_stack, border_size, master_logger)
+                            b1pt1, b2pt2, block1, block2, agglom_stack, border_size, master_logger, options)
                     if overlap:
                         faces.add("yz2")
                         block2["faces"].add("yz1")
 
                     overlap, b1_prediction, b1_seg, b2_prediction, b2_seg = examine_boundary(1,
                             b1_prediction, b1_seg, b2_prediction, b2_seg, b1pt2, b2pt1,
-                            b1pt1, b2pt2, block1, block2, agglom_stack, border_size, master_logger)
+                            b1pt1, b2pt2, block1, block2, agglom_stack, border_size, master_logger, options)
                     if overlap:
                         faces.add("xz2")
                         block2["faces"].add("xz1")
 
                     overlap, b1_prediction, b1_seg, b2_prediction, b2_seg = examine_boundary(2,
                             b1_prediction, b1_seg, b2_prediction, b2_seg, b1pt2, b2pt1,
-                            b1pt1, b2pt2, block1, block2, agglom_stack, border_size, master_logger)
+                            b1pt1, b2pt2, block1, block2, agglom_stack, border_size, master_logger, options)
                     if overlap:
                         faces.add("xy2")
                         block2["faces"].add("xy1")
@@ -574,6 +647,12 @@ def create_stitching_options(options_parser):
     options_parser.create_option("aggressive-stitch", "More aggressively stitch segments to reduce remaining work",
             default_val=False, required=False, dtype=bool, num_args=None, warning=False, hidden=False)
     
+    options_parser.create_option("ignore-zeros", "Ignore stitch boundary between bodies that are on a superpixel boundary (might lead to aggressive merging a pruning) ",
+            default_val=False, required=False, dtype=bool, num_args=None, warning=False, hidden=False)
+
+    options_parser.create_option("run-watershed", "Generate a watershed to estimate potential edges",
+            default_val=False, required=False, dtype=bool, num_args=None, warning=False, hidden=False)
+
     options_parser.create_option("segmentation-threshold", "Segmentation threshold", 
         default_val=0.3, required=False, dtype=float, verify_fn=None, num_args=None,
         shortcut='ST', warning=False, hidden=False) 
