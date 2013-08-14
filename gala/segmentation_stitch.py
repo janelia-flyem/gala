@@ -336,7 +336,7 @@ def examine_boundary(axis, b1_prediction, b1_seg, b2_prediction, b2_seg,
 
         # special build mode
         agglom_stack.build_border(supervoxels1, prediction1, supervoxels2,
-                prediction2, mask1, mask2, options.ignore_zeros)
+                prediction2, mask1, mask2)
 
     return overlap, b1_prediction, b1_seg, b2_prediction, b2_seg
 
@@ -549,6 +549,7 @@ def run_stitching(session_location, options, master_logger):
     agglom_stack.set_overlap_cutoff(0)
     # use the maximum overlap between the two regions as the the split criterion (proofread 0-0.7)
     agglom_stack.set_overlap_max()
+    agglom_stack.set_saved_probs()
     agglom_stack.write_plaza_json(graph_loc, None, 0, True)
 
     # write tbar debug file
@@ -647,9 +648,6 @@ def create_stitching_options(options_parser):
     options_parser.create_option("aggressive-stitch", "More aggressively stitch segments to reduce remaining work",
             default_val=False, required=False, dtype=bool, num_args=None, warning=False, hidden=False)
     
-    options_parser.create_option("ignore-zeros", "Ignore stitch boundary between bodies that are on a superpixel boundary (might lead to aggressive merging a pruning) ",
-            default_val=False, required=False, dtype=bool, num_args=None, warning=False, hidden=False)
-
     options_parser.create_option("run-watershed", "Generate a watershed to estimate potential edges",
             default_val=False, required=False, dtype=bool, num_args=None, warning=False, hidden=False)
 
