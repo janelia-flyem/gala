@@ -144,6 +144,9 @@ class Stack:
     def set_overlap_cutoff(self, threshold):
         self.fmgr.set_overlap_cutoff(threshold)
 
+    def set_border_weight(self, weight):
+        self.fmgr.set_border_weight(weight)
+
     def set_overlap_max(self):
         self.fmgr.set_overlap_max()
    

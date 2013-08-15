@@ -445,6 +445,7 @@ def run_stitching(session_location, options, master_logger):
     agglom_stack = stack_np.Stack(None, None, single_channel=False, classifier=cl, feature_info=fm_info,
                 synapse_file=None, master_logger=master_logger, num_channels=num_channels, overlap=True)
     agglom_stack.set_overlap_cutoff(options.overlap_threshold)
+    agglom_stack.set_border_weight(options.border_weight_factor)
 
     if options.aggressive_stitch:
         # use the maximum overlap between the two regions as the merge criterion
@@ -734,6 +735,10 @@ def create_stitching_options(options_parser):
     options_parser.create_option("segmentation-threshold", "Segmentation threshold", 
         default_val=0.3, required=False, dtype=float, verify_fn=None, num_args=None,
         shortcut='ST', warning=False, hidden=False) 
+
+    options_parser.create_option("border-weight-factor", "Weight to give pixels likely on a boundary -- 0 is no weight", 
+        default_val=1.0, required=False, dtype=float, verify_fn=None, num_args=None,
+        shortcut=None, warning=False, hidden=False) 
 
     options_parser.create_option("overlap-threshold", "Minimum size of overlap considered for stitching", 
         default_val=0, required=False, dtype=int, verify_fn=None, num_args=None,
