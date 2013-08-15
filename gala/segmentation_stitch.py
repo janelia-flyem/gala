@@ -3,6 +3,9 @@ import os
 import argparse
 import h5py
 import numpy
+from numpy import array, uint8, uint16, uint32, uint64, zeros, \
+    zeros_like, squeeze, fromstring, ndim, concatenate, newaxis, swapaxes, \
+    savetxt, unique, double, cumsum, ndarray
 import shutil
 import logging
 import json
@@ -145,7 +148,8 @@ def grab_pred_seg(pred_name, seg_name, border_size):
 
 
 def examine_boundary(axis, b1_prediction, b1_seg, b2_prediction, b2_seg,
-        b1pt, b2pt, b1pt2, b2pt2, block1, block2, agglom_stack, border_size, master_logger, options):
+        b1pt, b2pt, b1pt2, b2pt2, block1, block2, agglom_stack, border_size, master_logger, options,
+        all_bodies, disjoint_face_bodies):
     overlap = False
 
     dimmin = []
@@ -338,6 +342,46 @@ def examine_boundary(axis, b1_prediction, b1_seg, b2_prediction, b2_seg,
         agglom_stack.build_border(supervoxels1, prediction1, supervoxels2,
                 prediction2, mask1, mask2)
 
+        # load disjoint block face and disjoint bodies
+        body_list1 = unique(supervoxels1)
+        body_list2 = unique(supervoxels2)
+        body_list = numpy.append(body_list1, body_list2) 
+
+        master_logger.info("Finding disjoint bodies on one face")
+        supervoxels1 = agglom_stack.dilate_edges(supervoxels1) 
+        supervoxels2 = agglom_stack.dilate_edges(supervoxels2) 
+
+        # run cc on supervoxels
+        def load_disjoint_bodies(supervoxels0s, disjoint_bodies):
+            supervoxels_sep, num_ccs = label(supervoxels0s)
+            bodies_found = set()
+
+            # find one location for each cc and add to bodies found
+            for cc_id in range(1,num_ccs+1):
+                loc1, loc2, dummy = numpy.where(supervoxels_sep == cc_id)
+                # hack to deal with small disjoint bodies created
+                # by inadvertently pinching off small non-disjoint pieces
+                if len(loc1) < 5:
+                    continue
+                loc1 = loc1[0]
+                loc2 = loc2[0]
+                corresponding_body = supervoxels0s[loc1, loc2, 0]
+                if corresponding_body in bodies_found:
+                    disjoint_bodies.add(corresponding_body)
+                else:
+                    bodies_found.add(corresponding_body)
+
+        load_disjoint_bodies(supervoxels1, disjoint_face_bodies)
+        load_disjoint_bodies(supervoxels2, disjoint_face_bodies)
+
+        master_logger.info("Finding bodies on multiple faces")
+        # see if body has already been added
+        for body in body_list:
+            if body in all_bodies:
+                disjoint_face_bodies.add(body)
+            else:
+                all_bodies.add(body)
+
     return overlap, b1_prediction, b1_seg, b2_prediction, b2_seg
 
 
@@ -409,6 +453,8 @@ def run_stitching(session_location, options, master_logger):
         # use the minimum overlap between the two regions as the merge criterion
         agglom_stack.set_overlap_min()
 
+    all_bodies = set()
+    disjoint_face_bodies = set()
 
     master_logger.info("Examining sub-blocks")
     for iter1 in range(0, len(regions_blocks)):
@@ -436,42 +482,48 @@ def run_stitching(session_location, options, master_logger):
 
                     overlap, b1_prediction, b1_seg, b2_prediction, b2_seg = examine_boundary(0,
                             b1_prediction, b1_seg, b2_prediction, b2_seg, b1pt1, b2pt2, b1pt2,
-                            b2pt1, block1, block2, agglom_stack, border_size, master_logger, options)
+                            b2pt1, block1, block2, agglom_stack, border_size, master_logger, options,
+                            all_bodies, disjoint_face_bodies)
                     if overlap:
                         faces.add("yz1")
                         block2["faces"].add("yz2")
 
                     overlap, b1_prediction, b1_seg, b2_prediction, b2_seg = examine_boundary(1,
                             b1_prediction, b1_seg, b2_prediction, b2_seg, b1pt1, b2pt2,
-                            b1pt2, b2pt1, block1, block2, agglom_stack, border_size, master_logger, options)
+                            b1pt2, b2pt1, block1, block2, agglom_stack, border_size, master_logger, options,
+                            all_bodies, disjoint_face_bodies)
                     if overlap:
                         faces.add("xz1")
                         block2["faces"].add("xz2")
 
                     overlap, b1_prediction, b1_seg, b2_prediction, b2_seg = examine_boundary(2,
                             b1_prediction, b1_seg, b2_prediction, b2_seg, b1pt1, b2pt2,
-                            b1pt2, b2pt1, block1, block2, agglom_stack, border_size, master_logger, options)
+                            b1pt2, b2pt1, block1, block2, agglom_stack, border_size, master_logger, options,
+                            all_bodies, disjoint_face_bodies)
                     if overlap:
                         faces.add("xy1")
                         block2["faces"].add("xy2")
 
                     overlap, b1_prediction, b1_seg, b2_prediction, b2_seg = examine_boundary(0,
                             b1_prediction, b1_seg, b2_prediction, b2_seg, b1pt2, b2pt1,
-                            b1pt1, b2pt2, block1, block2, agglom_stack, border_size, master_logger, options)
+                            b1pt1, b2pt2, block1, block2, agglom_stack, border_size, master_logger, options,
+                            all_bodies, disjoint_face_bodies)
                     if overlap:
                         faces.add("yz2")
                         block2["faces"].add("yz1")
 
                     overlap, b1_prediction, b1_seg, b2_prediction, b2_seg = examine_boundary(1,
                             b1_prediction, b1_seg, b2_prediction, b2_seg, b1pt2, b2pt1,
-                            b1pt1, b2pt2, block1, block2, agglom_stack, border_size, master_logger, options)
+                            b1pt1, b2pt2, block1, block2, agglom_stack, border_size, master_logger, options,
+                            all_bodies, disjoint_face_bodies)
                     if overlap:
                         faces.add("xz2")
                         block2["faces"].add("xz1")
 
                     overlap, b1_prediction, b1_seg, b2_prediction, b2_seg = examine_boundary(2,
                             b1_prediction, b1_seg, b2_prediction, b2_seg, b1pt2, b2pt1,
-                            b1pt1, b2pt2, block1, block2, agglom_stack, border_size, master_logger, options)
+                            b1pt1, b2pt2, block1, block2, agglom_stack, border_size, master_logger, options,
+                            all_bodies, disjoint_face_bodies)
                     if overlap:
                         faces.add("xy2")
                         block2["faces"].add("xy1")
@@ -542,6 +594,29 @@ def run_stitching(session_location, options, master_logger):
     # version is maintained relative to the hash    
     graph_loc = file_base+"graphv1.json"
     tbar_debug_loc = file_base+"synapse-verify.json"
+    body_annotations_fn = file_base+"annotations-body.json"
+   
+    disjoint_face_bodies_mapped = set()
+    for bodyid in disjoint_face_bodies:
+        if bodyid in transaction_dict:
+            disjoint_face_bodies_mapped.add(transaction_dict[bodyid])
+        else:
+            disjoint_face_bodies_mapped.add(bodyid)
+    
+    body_list = []
+    for bodyid in disjoint_face_bodies_mapped:
+         body_list.append({"status" : "uncorrected",
+                          "body ID" : int(bodyid),
+                          "anchor" : "anchor"})
+    
+    body_data = {}
+    body_data["data"] = body_list
+    body_data["metadata"] = {
+                        "username" : "auto",
+                        "description" : "anchor annotations",
+                        "file version" : 3,
+                        "software" : "Raveler"
+                        }
 
     master_logger.info("Writing graph.json")
 
@@ -556,9 +631,14 @@ def run_stitching(session_location, options, master_logger):
     jw = open(tbar_debug_loc, 'w')
     jw.write(json.dumps(tbar_json, indent=4))
 
+    # write body annotation file
+    jw = open(body_annotations_fn, 'w')
+    jw.write(json.dumps(body_data, indent=4))
+
     json_data = {}
     json_data['graph'] = graph_loc
     json_data['tbar-debug'] = tbar_debug_loc
+    json_data['annotations-body'] = body_annotations_fn
     json_data['border'] = border_size  
     block_configs = []
     block_configs_orig = []
