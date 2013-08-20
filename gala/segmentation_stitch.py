@@ -149,7 +149,7 @@ def grab_pred_seg(pred_name, seg_name, border_size):
 
 def examine_boundary(axis, b1_prediction, b1_seg, b2_prediction, b2_seg,
         b1pt, b2pt, b1pt2, b2pt2, block1, block2, agglom_stack, border_size, master_logger, options,
-        all_bodies, disjoint_face_bodies):
+        all_bodies, disjoint_face_bodies, already_examined1, already_examined2):
     overlap = False
 
     dimmin = []
@@ -343,13 +343,20 @@ def examine_boundary(axis, b1_prediction, b1_seg, b2_prediction, b2_seg,
                 prediction2, mask1, mask2)
 
         # load disjoint block face and disjoint bodies
-        body_list1 = unique(supervoxels1)
-        body_list2 = unique(supervoxels2)
+        body_list1 = []
+        body_list2 = []
+   
+        if not already_examined1: 
+            body_list1 = unique(supervoxels1)
+        if not already_examined2: 
+            body_list2 = unique(supervoxels2)
         body_list = numpy.append(body_list1, body_list2) 
 
         master_logger.info("Finding disjoint bodies on one face")
-        supervoxels1 = agglom_stack.dilate_edges(supervoxels1) 
-        supervoxels2 = agglom_stack.dilate_edges(supervoxels2) 
+        if not already_examined1: 
+            supervoxels1 = agglom_stack.dilate_edges(supervoxels1) 
+        if not already_examined2: 
+            supervoxels2 = agglom_stack.dilate_edges(supervoxels2) 
 
         # run cc on supervoxels
         def load_disjoint_bodies(supervoxels0s, disjoint_bodies):
@@ -371,8 +378,10 @@ def examine_boundary(axis, b1_prediction, b1_seg, b2_prediction, b2_seg,
                 else:
                     bodies_found.add(corresponding_body)
 
-        load_disjoint_bodies(supervoxels1, disjoint_face_bodies)
-        load_disjoint_bodies(supervoxels2, disjoint_face_bodies)
+        if not already_examined1: 
+            load_disjoint_bodies(supervoxels1, disjoint_face_bodies)
+        if not already_examined2: 
+            load_disjoint_bodies(supervoxels2, disjoint_face_bodies)
 
         master_logger.info("Finding bodies on multiple faces")
         # see if body has already been added
@@ -457,6 +466,12 @@ def run_stitching(session_location, options, master_logger):
     all_bodies = set()
     disjoint_face_bodies = set()
 
+    def already_examined(faces, face_name):
+        if face_name in faces:
+            return True
+        else:
+            return False
+
     master_logger.info("Examining sub-blocks")
     for iter1 in range(0, len(regions_blocks)):
         region1 = regions_blocks[iter1]
@@ -481,50 +496,62 @@ def run_stitching(session_location, options, master_logger):
                     if "faces" not in block2:
                         block2["faces"] = set()
 
+                    already_examined1 = already_examined(faces, "yz1")
+                    already_examined2 = already_examined(block2["faces"], "yz2")
                     overlap, b1_prediction, b1_seg, b2_prediction, b2_seg = examine_boundary(0,
                             b1_prediction, b1_seg, b2_prediction, b2_seg, b1pt1, b2pt2, b1pt2,
                             b2pt1, block1, block2, agglom_stack, border_size, master_logger, options,
-                            all_bodies, disjoint_face_bodies)
+                            all_bodies, disjoint_face_bodies, already_examined1, already_examined2)
                     if overlap:
                         faces.add("yz1")
                         block2["faces"].add("yz2")
 
+                    already_examined1 = already_examined(faces, "xz1")
+                    already_examined2 = already_examined(block2["faces"], "xz2")
                     overlap, b1_prediction, b1_seg, b2_prediction, b2_seg = examine_boundary(1,
                             b1_prediction, b1_seg, b2_prediction, b2_seg, b1pt1, b2pt2,
                             b1pt2, b2pt1, block1, block2, agglom_stack, border_size, master_logger, options,
-                            all_bodies, disjoint_face_bodies)
+                            all_bodies, disjoint_face_bodies, already_examined1, already_examined2)
                     if overlap:
                         faces.add("xz1")
                         block2["faces"].add("xz2")
 
+                    already_examined1 = already_examined(faces, "xy1")
+                    already_examined2 = already_examined(block2["faces"], "xy2")
                     overlap, b1_prediction, b1_seg, b2_prediction, b2_seg = examine_boundary(2,
                             b1_prediction, b1_seg, b2_prediction, b2_seg, b1pt1, b2pt2,
                             b1pt2, b2pt1, block1, block2, agglom_stack, border_size, master_logger, options,
-                            all_bodies, disjoint_face_bodies)
+                            all_bodies, disjoint_face_bodies, already_examined1, already_examined2)
                     if overlap:
                         faces.add("xy1")
                         block2["faces"].add("xy2")
 
+                    already_examined1 = already_examined(faces, "yz2")
+                    already_examined2 = already_examined(block2["faces"], "yz1")
                     overlap, b1_prediction, b1_seg, b2_prediction, b2_seg = examine_boundary(0,
                             b1_prediction, b1_seg, b2_prediction, b2_seg, b1pt2, b2pt1,
                             b1pt1, b2pt2, block1, block2, agglom_stack, border_size, master_logger, options,
-                            all_bodies, disjoint_face_bodies)
+                            all_bodies, disjoint_face_bodies, already_examined1, already_examined2)
                     if overlap:
                         faces.add("yz2")
                         block2["faces"].add("yz1")
 
+                    already_examined1 = already_examined(faces, "xz2")
+                    already_examined2 = already_examined(block2["faces"], "xz1")
                     overlap, b1_prediction, b1_seg, b2_prediction, b2_seg = examine_boundary(1,
                             b1_prediction, b1_seg, b2_prediction, b2_seg, b1pt2, b2pt1,
                             b1pt1, b2pt2, block1, block2, agglom_stack, border_size, master_logger, options,
-                            all_bodies, disjoint_face_bodies)
+                            all_bodies, disjoint_face_bodies, already_examined1, already_examined2)
                     if overlap:
                         faces.add("xz2")
                         block2["faces"].add("xz1")
 
+                    already_examined1 = already_examined(faces, "xy2")
+                    already_examined2 = already_examined(block2["faces"], "xy1")
                     overlap, b1_prediction, b1_seg, b2_prediction, b2_seg = examine_boundary(2,
                             b1_prediction, b1_seg, b2_prediction, b2_seg, b1pt2, b2pt1,
                             b1pt1, b2pt2, block1, block2, agglom_stack, border_size, master_logger, options,
-                            all_bodies, disjoint_face_bodies)
+                            all_bodies, disjoint_face_bodies, already_examined1, already_examined2)
                     if overlap:
                         faces.add("xy2")
                         block2["faces"].add("xy1")
