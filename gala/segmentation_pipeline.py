@@ -100,7 +100,17 @@ def gen_supervoxels(options, prediction_file, master_logger):
             seeds_cropped = morpho.remove_small_connected_components(seeds_cropped, options.seed_size)
 
     # Returns a matrix labeled using seeded watershed
-    supervoxels_cropped = skmorph.watershed(boundary_cropped, seeds_cropped)
+    watershed_mask = numpy.ones(boundary_cropped.shape).astype(numpy.uint8)
+    if options.mask_file is not None:
+        mask_file = open(options.mask_file)
+        for line in mask_file:
+            br = line.split()
+            if len(br) == 6:
+                watershed_mask[int(br[2]):(int(br[5])+1),
+                            int(br[1]):(int(br[4])+1),int(br[0]):(int(br[3])+1)] = 0
+        mask_file.close()
+
+    supervoxels_cropped = skmorph.watershed(boundary_cropped, seeds_cropped, None, None, watershed_mask)
     
     supervoxels = supervoxels_cropped
     if options.border_size > 0:
@@ -474,6 +484,10 @@ def create_segmentation_pipeline_options(options_parser):
     options_parser.create_option("synapse-file", "Json file containing synapse information", 
         default_val=None, required=False, dtype=str, verify_fn=synapse_file_verify, num_args=None,
         shortcut='SJ', warning=False, hidden=False) 
+
+    options_parser.create_option("mask-file", "Text file specifying a region with no segmentation (left-hand coordinates and should be offset from border", 
+        default_val=None, required=False, dtype=str, verify_fn=None, num_args=None,
+        shortcut=None, warning=False, hidden=True) 
 
     options_parser.create_option("segmentation-thresholds", "Segmentation thresholds", 
         default_val=[], required=False, dtype=float, verify_fn=None, num_args='+',
