@@ -801,7 +801,7 @@ def divide_rows(matrix, column, in_place=False):
         out = matrix
     else:
         out = matrix.copy()
-    if type(out) in [sparse.csc_matrix or sparse.csr_matrix]:
+    if type(out) in [sparse.csc_matrix, sparse.csr_matrix]:
         if type(out) == sparse.csr_matrix:
             convert_to_csr = True
             out = out.tocsc()
@@ -840,7 +840,7 @@ def divide_columns(matrix, row, in_place=False):
         out = matrix
     else:
         out = matrix.copy()
-    if type(out) in [sparse.csc_matrix or sparse.csr_matrix]:
+    if type(out) in [sparse.csc_matrix, sparse.csr_matrix]:
         if type(out) == sparse.csc_matrix:
             convert_to_csc = True
             out = out.tocsr()
