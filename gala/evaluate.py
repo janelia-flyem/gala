@@ -363,11 +363,14 @@ def contingency_table(seg, gt, ignore_seg=[0], ignore_gt=[0], norm=True):
     segr = seg.ravel() 
     gtr = gt.ravel()
     ij = np.vstack((segr, gtr))
+    selector = np.ones(segr.shape, np.bool)
     data = np.ones(len(gtr))
     for i in ignore_seg:
-        data[segr == i] = 0
+        selector[segr == i] = 0
     for j in ignore_gt:
-        data[gtr == j] = 0
+        selector[gtr == j] = 0
+    ij = ij[:, selector]
+    data = data[selector]
     cont = sparse.coo_matrix((data, ij)).tocsc()
     if norm:
         cont /= float(cont.sum())
