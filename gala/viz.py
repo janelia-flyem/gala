@@ -202,7 +202,8 @@ def plot_vi(g, history, gt, fig=None):
     plt.ylabel('vi', figure = fig)
 
 
-def plot_vi_breakdown_panel(px, h, title, xlab, ylab, hlines, **kwargs):
+def plot_vi_breakdown_panel(px, h, title, xlab, ylab, hlines, scatter_size,
+                            **kwargs):
     """Plot a single panel (over or undersegmentation) of VI breakdown plot.
 
     Parameters
@@ -216,6 +217,7 @@ def plot_vi_breakdown_panel(px, h, title, xlab, ylab, hlines, **kwargs):
     hlines : iterable of float
         Plot hyperbolic lines of same VI contribution. For each value `v` in
         `hlines`, draw the line `h = v/px`.
+    scatter_size : int, optional
     **kwargs : dict
         Additional keyword arguments for `matplotlib.pyplot.plot`.
 
@@ -225,8 +227,8 @@ def plot_vi_breakdown_panel(px, h, title, xlab, ylab, hlines, **kwargs):
     """
     x = scipy.arange(max(min(px),1e-10), max(px), (max(px)-min(px))/100.0)
     for val in hlines:
-        plt.plot(x, val/x, c='gray', ls=':') 
-    plt.scatter(px, h, label=title, **kwargs)
+        plt.plot(x, val/x, color='gray', ls=':', **kwargs) 
+    plt.scatter(px, h, label=title, s=scatter_size, **kwargs)
     # Make points clickable to identify ID. This section needs work.
     af = AnnoteFinder(px, h, [str(i) for i in range(len(px))], 
         xtol=0.005, ytol=0.005, xmin=-0.05*max(px), ymin=-0.05*max(px), 
@@ -240,7 +242,7 @@ def plot_vi_breakdown_panel(px, h, title, xlab, ylab, hlines, **kwargs):
 
 
 def plot_vi_breakdown(seg, gt, ignore_seg=[], ignore_gt=[], 
-                      hlines=None, subplot=False, **kwargs):
+                      hlines=None, subplot=False, figsize=None, **kwargs):
     """Plot conditional entropy H(Y|X) vs P(X) for both seg|gt and gt|seg.
     
     Parameters
@@ -261,6 +263,8 @@ def plot_vi_breakdown(seg, gt, ignore_seg=[], ignore_gt=[],
     subplot : bool, optional
         If True, plot oversegmentation and undersegmentation in separate
         subplots.
+    figsize : tuple of float, optional
+        The figure width and height, in inches.
     **kwargs : dict
         Additional keyword arguments for `matplotlib.pyplot.plot`.
 
@@ -269,8 +273,8 @@ def plot_vi_breakdown(seg, gt, ignore_seg=[], ignore_gt=[],
     None
     """
     plt.ion()
-    pxy,px,py,hxgy,hygx,lpygx,lpxgy = evaluate.vi_tables(seg,gt,
-            ignore_seg=ignore_seg, ignore_gt=ignore_gt)
+    pxy,px,py,hxgy,hygx,lpygx,lpxgy = evaluate.vi_tables(seg, gt,
+                                                         ignore_seg, ignore_gt)
     cu = -px*lpygx
     co = -py*lpxgy
     if hlines is None:
@@ -280,7 +284,7 @@ def plot_vi_breakdown(seg, gt, ignore_seg=[], ignore_gt=[],
     if type(hlines) == int:
         maxc = max(cu[cu!=0].max(), co[co!=0].max())
         hlines = np.arange(maxc/hlines, maxc, maxc/hlines)
-    plt.figure()
+    plt.figure(figsize=figsize)
     if subplot: plt.subplot(1,2,1)
     plot_vi_breakdown_panel(px, -lpygx, 
         'False merges', 'p(S=seg)', 'H(G|S=seg)', 
