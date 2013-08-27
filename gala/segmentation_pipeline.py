@@ -101,6 +101,10 @@ def gen_supervoxels(options, prediction_file, master_logger):
 
     # Returns a matrix labeled using seeded watershed
     watershed_mask = numpy.ones(boundary_cropped.shape).astype(numpy.uint8)
+    
+    # Used to specify region to ignore
+    masked_bboxes = []
+
     if options.mask_file is not None:
         mask_file = open(options.mask_file)
         for line in mask_file:
@@ -108,6 +112,7 @@ def gen_supervoxels(options, prediction_file, master_logger):
             if len(br) == 6:
                 watershed_mask[int(br[2]):(int(br[5])+1),
                             int(br[1]):(int(br[4])+1),int(br[0]):(int(br[3])+1)] = 0
+                masked_bboxes.append(br)
         mask_file.close()
 
     supervoxels_cropped = skmorph.watershed(boundary_cropped, seeds_cropped, None, None, watershed_mask)
@@ -117,7 +122,8 @@ def gen_supervoxels(options, prediction_file, master_logger):
         supervoxels = seeds.copy()
         supervoxels.dtype = supervoxels_cropped.dtype
         supervoxels[:,:,:] = 0 
-        supervoxels[options.border_size:(-1*options.border_size), options.border_size:(-1*options.border_size),options.border_size:(-1*options.border_size)] = supervoxels_cropped
+        supervoxels[options.border_size:(-1*options.border_size), 
+                options.border_size:(-1*options.border_size),options.border_size:(-1*options.border_size)] = supervoxels_cropped
 
     master_logger.info("Finished watershed")
 
@@ -127,11 +133,15 @@ def gen_supervoxels(options, prediction_file, master_logger):
             options.synapse_file)
         synapse_volume = syngeo.io.volume_synapse_view(pre_post_pairs, boundary.shape)
         if options.border_size > 0:
-            synvol_cropped = synapse_volume[options.border_size:(-1*options.border_size), options.border_size:(-1*options.border_size),options.border_size:(-1*options.border_size)]
+            synvol_cropped = synapse_volume[options.border_size:(-1*options.border_size),
+                    options.border_size:(-1*options.border_size),options.border_size:(-1*options.border_size)]
             synvol_cropped = synvol_cropped.copy()
             synapse_volume[:,:,:] = 0
-            synapse_volume[options.border_size:(-1*options.border_size), options.border_size:(-1*options.border_size),options.border_size:(-1*options.border_size)] = synvol_cropped
-             
+            synapse_volume[options.border_size:(-1*options.border_size),
+                    options.border_size:(-1*options.border_size),options.border_size:(-1*options.border_size)] = synvol_cropped
+            for br in masked_bboxes:    
+                synapse_volume[int(br[2]):(int(br[5])+1),
+                            int(br[1]):(int(br[4])+1),int(br[0]):(int(br[3])+1)] = 0
         
         supervoxels = morpho.split_exclusions(boundary, supervoxels, synapse_volume, 
                                                         options.synapse_dilation)
