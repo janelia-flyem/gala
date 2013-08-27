@@ -115,7 +115,7 @@ class Stack:
         return supervoxels
 
     def build_border(self, supervoxels1, prediction1, supervoxels2,
-            prediction2, mask1, mask2):
+            prediction2, mask1, mask2, reset_edges):
         self.init_build(supervoxels1, prediction1)
         self.init_build2(supervoxels2, prediction2)
 
@@ -127,7 +127,7 @@ class Stack:
             # use masks to handle 0 cases 
             neuroproof.init_masks(self.stack, mask1, mask2)
         
-        self.stack.build_rag_border()
+        self.stack.build_rag_border(reset_edges)
 
     def number_of_nodes(self):
         return self.stack.get_num_bodies()

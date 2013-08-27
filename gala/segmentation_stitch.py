@@ -340,7 +340,7 @@ def examine_boundary(axis, b1_prediction, b1_seg, b2_prediction, b2_seg,
 
         # special build mode
         agglom_stack.build_border(supervoxels1, prediction1, supervoxels2,
-                prediction2, mask1, mask2)
+                prediction2, mask1, mask2, not options.vertical_mode)
 
         # load disjoint block face and disjoint bodies
         body_list1 = []
@@ -754,6 +754,9 @@ def create_stitching_options(options_parser):
         shortcut='k', warning=False, hidden=False) 
 
     options_parser.create_option("aggressive-stitch", "More aggressively stitch segments to reduce remaining work",
+            default_val=False, required=False, dtype=bool, num_args=None, warning=False, hidden=False)
+    
+    options_parser.create_option("vertical-mode", "Enables special handling of bodies across horizontally stitched substacks when vertically stitching",
             default_val=False, required=False, dtype=bool, num_args=None, warning=False, hidden=False)
     
     options_parser.create_option("run-watershed", "Generate a watershed to estimate potential edges",
