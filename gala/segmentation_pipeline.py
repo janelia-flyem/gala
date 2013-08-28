@@ -139,9 +139,10 @@ def gen_supervoxels(options, prediction_file, master_logger):
             synapse_volume[:,:,:] = 0
             synapse_volume[options.border_size:(-1*options.border_size),
                     options.border_size:(-1*options.border_size),options.border_size:(-1*options.border_size)] = synvol_cropped
-            for br in masked_bboxes:    
-                synapse_volume[int(br[2]):(int(br[5])+1),
-                            int(br[1]):(int(br[4])+1),int(br[0]):(int(br[3])+1)] = 0
+        for br in masked_bboxes:    
+            synapse_volume[(int(br[2])+options.border_size):(int(br[5])+1+options.border_size),
+                        (int(br[1])+options.border_size):(int(br[4])+1+options.border_size),
+                        (int(br[0])+options.border_size):(int(br[3])+1+options.border_size)] = 0
         
         supervoxels = morpho.split_exclusions(boundary, supervoxels, synapse_volume, 
                                                         options.synapse_dilation)
