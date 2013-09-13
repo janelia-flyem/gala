@@ -305,6 +305,32 @@ def plot_vi_breakdown(seg, gt, ignore_seg=[], ignore_gt=[],
 
 
 def add_opts_to_plot(ars, colors='k', markers='^', **kwargs):
+    """In an existing active split-vi plot, add the point of optimal VI.
+
+    By default, a star marker is used.
+
+    Parameters
+    ----------
+    ars : list of numpy arrays
+        Each array has shape (2, N) and represents a split-VI curve,
+        with `ars[i][0]` holding the undersegmentation and `ars[i][1]`
+        holding the oversegmentation for each `i`.
+    colors : string, list of string, or list of float tuple, optional
+        A color specification or list of color specifications. If there
+        are fewer colors than split-VI arrays, the colors are cycled.
+    markers : string, or list of string, optional
+        Point marker specification (as defined in matplotlib) or list
+        thereof. As with colors, if there are fewer markers than VI
+        arrays, the markers are cycled.
+    **kwargs : dict (string keys), optional
+        Keyword arguments to be passed through to
+        `matplotlib.pyplot.scatter`.
+
+    Returns
+    -------
+    points : list of `matplotlib.collections.PathCollection`
+        The points returned by each of the calls to `scatter`.
+    """
     if type(colors) not in [list, tuple]:
         colors = [colors]
     if len(colors) < len(ars):
@@ -320,6 +346,40 @@ def add_opts_to_plot(ars, colors='k', markers='^', **kwargs):
     return points
 
 def add_nats_to_plot(ars, tss, stops=0.5, colors='k', markers='o', **kwargs):
+    """In an existing active split-vi plot, add the natural stopping point.
+
+    By default, a circle marker is used.
+
+    Parameters
+    ----------
+    ars : list of numpy arrays
+        Each array has shape (2, N) and represents a split-VI curve,
+        with `ars[i][0]` holding the undersegmentation and `ars[i][1]`
+        holding the oversegmentation for each `i`.
+    tss : list of numpy arrays
+        Each array has shape (N,) and represents the algorithm
+        threshold that gave rise to the VI measurements in `ars`.
+    stops : float, optional
+        The natural stopping point for the algorithm. For example, if
+        an algorithm merges segments according to a merge probability,
+        the natural stopping point is at $p=0.5$, when there are even
+        odds of the merge being a true merge.
+    colors : string, list of string, or list of float tuple, optional
+        A color specification or list of color specifications. If there
+        are fewer colors than split-VI arrays, the colors are cycled.
+    markers : string, or list of string, optional
+        Point marker specification (as defined in matplotlib) or list
+        thereof. As with colors, if there are fewer markers than VI
+        arrays, the markers are cycled.
+    **kwargs : dict (string keys), optional
+        Keyword arguments to be passed through to
+        `matplotlib.pyplot.scatter`.
+
+    Returns
+    -------
+    points : list of `matplotlib.collections.PathCollection`
+        The points returned by each of the calls to `scatter`.
+    """
     if type(colors) not in [list, tuple]: colors = [colors]
     if len(colors) < len(ars): colors = it.cycle(colors)
     if type(markers) not in [list, tuple]: markers = [markers]
@@ -332,8 +392,35 @@ def add_nats_to_plot(ars, tss, stops=0.5, colors='k', markers='o', **kwargs):
         points.append(plt.scatter(nat[0], nat[1], c=c, marker=m, **kwargs))
     return points
 
-def plot_split_vi(ars, best=None, colors='k', linespecs='-', 
-                                        addopt=None, addnat=None, **kwargs):
+def plot_split_vi(ars, best=None, colors='k', linespecs='-', **kwargs):
+    """Make a split-VI plot.
+
+    The split-VI plot was introduced in Nunez-Iglesias et al, 2013 [1]
+
+    Parameters
+    ----------
+    ars : array or list of arrays of float, shape (2, N)
+        The input VI arrays. `ars[i][0]` should contain the
+        undersegmentation and `ars[i][1]` the oversegmentation.
+    best : array-like of float, len=2, optional
+        Agglomerative segmentations can't get to (0, 0) VI if the
+        starting superpixels are not perfectly aligned with the gold
+        standard segmentation. Therefore, there is a point of best
+        achievable VI. `best` should contain the coordinates of this
+        point.
+    colors : matplotlib color specification or list thereof, optional
+        The color of each line being plotted. If there are fewer colors
+        than arrays, they are cycled.
+    linespecs : matplotlib line type spec, or list thereof, optional
+        The line type to plot with ('-', '--', '-.', etc).
+    kwargs : dict, string keys, optional
+        Additional keyword arguments to pass through to plt.plot.
+
+    Returns
+    -------
+    lines : matplotlib Lines2D object(s)
+        The lines plotted.
+    """
     if type(ars) not in [list, tuple]: ars = [ars]
     if type(colors) not in [list, tuple]: colors = [colors]
     if len(colors) < len(ars): colors = it.cycle(colors)
