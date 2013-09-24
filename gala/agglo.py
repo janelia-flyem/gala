@@ -209,7 +209,10 @@ class Rag(Graph):
                 if isfrozenedge(self, n1, n2):
                     self.frozen_edges.add((n1,n2))
 
+
     def __copy__(self):
+        """Return a copy of the object and attributes.
+        """
         if sys.version_info[:2] < (2,7):
             # Python versions prior to 2.7 don't handle deepcopy of function
             # objects well. Thus, keep a reference and remove from Rag object
@@ -228,20 +231,77 @@ class Rag(Graph):
             self.feature_manager = F
         return g
 
+
     def copy(self):
+        """Return a copy of the object and attributes.
+        """
         return self.__copy__()
 
+
     def real_edges(self, *args, **kwargs):
+        """Return edges internal to the volume.
+
+        The RAG actually includes edges to a "virtual" region that
+        envelops the entire volume. This function returns the list of
+        edges that are internal to the volume.
+
+        Parameters
+        ----------
+        *args, **kwargs : arbitrary types
+            Arguments and keyword arguments are passed through to the
+            ``edges()`` function of the ``networkx.Graph`` class.
+
+        Returns
+        -------
+        edge_list : list of tuples
+            A list of pairs of node IDs, which are typically integers.
+
+        See Also
+        --------
+        ``real_edges_iter``, ``networkx.Graph.edges``.
+        """
         return [e for e in super(Rag, self).edges(*args, **kwargs) if
                                             self.boundary_body not in e[:2]]
 
     def real_edges_iter(self, *args, **kwargs):
+        """Return iterator of edges internal to the volume.
+
+        The RAG actually includes edges to a "virtual" region that
+        envelops the entire volume. This function returns the list of
+        edges that are internal to the volume.
+
+        Parameters
+        ----------
+        *args, **kwargs : arbitrary types
+            Arguments and keyword arguments are passed through to the
+            ``edges()`` function of the ``networkx.Graph`` class.
+
+        Returns
+        -------
+        edges_iter : iterator of tuples
+            An iterator over pairs of node IDs, which are typically
+            integers.
+        """
         return (e for e in super(Rag, self).edges_iter(*args, **kwargs) if
                                             self.boundary_body not in e[:2])
 
 
     def build_graph_from_watershed_nozerosfast(self, idxs):
-        """ Always allow shared boundaries in this code
+        """Build the graph object from the region labels.
+
+        Parameters
+        ----------
+        idxs : array-like of int
+            Build the graph considering only these indices (linear into
+            the raveled array).
+
+        Returns
+        -------
+        None
+
+        Notes
+        -----
+        Always allow shared boundaries in this code.
         """
         if self.watershed.size == 0: return # stop processing for empty graphs
         if idxs is None:
@@ -274,10 +334,31 @@ class Rag(Graph):
 
 
     def build_graph_from_watershed(self, allow_shared_boundaries=True,
-                                idxs=None, nozerosfast=False):
+                                   idxs=None, nozerosfast=False):
+        """Build the graph object from the region labels.
+
+        The region labels should have been set ahead of time using
+        ``set_watershed()``.
+
+        Parameters
+        ----------
+        allow_shared_boundaries : bool, optional
+            Allow voxels that have three or more distinct neighboring
+            labels to be included in all boundaries.
+        idxs : array-like of int, optional
+            Linear indices into raveled volume array. If provided, the
+            graph is built only for these indices.
+        nozerosfast : bool, optional
+            Assume that there are no zero (boundary) labels in the
+            volume. By removing this check, graph build time is
+            reduced.
+
+        Returns
+        -------
+        None
+        """
         if nozerosfast:
             return self.build_graph_from_watershed_nozerosfast(idxs)
-
 
         if self.watershed.size == 0: return # stop processing for empty graphs
         if not allow_shared_boundaries:
