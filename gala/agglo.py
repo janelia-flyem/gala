@@ -398,11 +398,34 @@ class Rag(Graph):
             elif len(edges) > 1:
                 self.ignored_boundary.ravel()[idx] = True
 
+
     def set_feature_manager(self, feature_manager):
+        """Set the feature manager and ensure feature caches are computed.
+
+        Parameters
+        ----------
+        feature_manager : ``features.base.Null`` object
+            The feature manager to be used by this RAG.
+
+        Returns
+        -------
+        None
+        """
         self.feature_manager = feature_manager
         self.compute_feature_caches()
 
+
     def compute_feature_caches(self):
+        """Use the feature manager to compute node and edge feature caches.
+
+        Parameters
+        ----------
+        None
+
+        Returns
+        -------
+        None
+        """
         for n in ip.with_progress(
                     self.nodes(), title='Node caches ', pbar=self.pbar):
             self.node[n]['feature-cache'] = \
@@ -412,11 +435,56 @@ class Rag(Graph):
             self[n1][n2]['feature-cache'] = \
                             self.feature_manager.create_edge_cache(self, n1, n2)
 
+
     def get_neighbor_idxs_fast(self, idxs):
+        """Retrieve a previously computed set of neighbors from an array.
+
+        Parameters
+        ----------
+        idxs : int or iterable of int
+            A linear index or set of indices into the padded array.
+
+        Returns
+        -------
+        neighbors : array of int, shape `(len(idxs), N_neighbors)`
+            An array of linear indices to the neighbors of each input
+            index.
+
+        Raises
+        ------
+        AttributeError
+            If ``self.pixel_neighbors`` does not exist. It must be
+            previously computed by
+            ``self.set_watershed(..., lowmem=False)``.
+
+        See Also
+        --------
+        ``self.set_watershed``
+        """
         return self.pixel_neighbors[idxs]
 
+
     def get_neighbor_idxs_lean(self, idxs, connectivity=1):
+        """Compute neighbor indices from input indices.
+
+        Parameters
+        ----------
+        idxs : int or iterable of int
+            A linear index or set of indices into the padded array.
+        connectivity : int in {1, ..., ``self.watershed.ndim``}, optional
+            The neighbor connectivity, defining which voxels are
+            considered adjacent to the center. A connectivity of 1
+            means voxels whose coordinates differ by 1 along only a
+            single dimension, 2 along up to 2 dimensions, and so on.
+
+        Returns
+        -------
+        neighbors : array of int, shape `(len(idxs), N_neighbors)`
+            An array of linear indices to the neighbors of each input
+            index.
+        """
         return morpho.get_neighbor_idxs(self.watershed, idxs, connectivity)
+
 
     def set_probabilities(self, probs=array([]), normalize=False):
         if len(probs) == 0:
