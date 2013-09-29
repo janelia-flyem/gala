@@ -487,6 +487,27 @@ class Rag(Graph):
 
 
     def set_probabilities(self, probs=array([]), normalize=False):
+        """Set the `probabilities` attributes of the RAG.
+
+        For various reasons, including removing the need for bounds
+        checking when looking for neighboring pixels, the volume of
+        pixel-level probabilities is padded on all faces. In addition,
+        this function adds an attribute `probabilities_r`, a raveled
+        view of the padded probabilities array for quick access to
+        individual voxels using linear indices.
+
+        Parameters
+        ----------
+        probs : array
+            The input probabilities array.
+        normalize : bool, optional
+            If ``True``, the values in the array are scaled to be in
+            [0, 1].
+
+        Returns
+        -------
+        None
+        """
         if len(probs) == 0:
             self.probabilities = zeros_like(self.watershed)
             self.probabilities_r = self.probabilities.ravel()
