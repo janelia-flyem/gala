@@ -531,7 +531,22 @@ class Rag(Graph):
             self.probabilities_r = self.probabilities.reshape(
                                                 (self.watershed.size, -1))
 
+
     def set_orientations(self, orientation_map, channel_is_oriented):
+        """Set the orientation map of the probability image.
+
+        Parameters
+        ----------
+        orientation_map : array of float
+            A map of angles of the same shape as the superpixel map.
+        channel_is_oriented : 1D array-like of bool
+            A vector having length the number of channels in the
+            probability map.
+
+        Returns
+        -------
+        None
+        """
         if len(orientation_map) == 0:
             self.orientation_map = zeros_like(self.watershed)
             self.orientation_map_r = self.orientation_map.ravel()
