@@ -9,11 +9,9 @@ import json
 from copy import deepcopy
 from math import isnan
 # libraries
-from numpy import array, mean, zeros, zeros_like, uint8, int8, where, unique, \
-    ones_like, finfo, size, double, transpose, newaxis, uint32, nonzero, \
-    median, exp, ceil, dot, log2, float, ones, arange, inf, flatnonzero, \
-    intersect1d, dtype, squeeze, sqrt, reshape, setdiff1d, argmin, sign, \
-    concatenate, nan, __version__ as numpyversion, unravel_index, bincount
+from numpy import (array, mean, zeros, zeros_like, uint8, where, unique,
+    double, newaxis, nonzero, median, exp, log2, float, ones, arange, inf,
+    flatnonzero, sign, unravel_index, bincount)
 import numpy as np
 from scipy.stats import sem
 from scipy.sparse import lil_matrix
@@ -31,7 +29,7 @@ from mergequeue import MergeQueue
 from evaluate import contingency_table as ev_contingency_table, split_vi, xlogx
 import features
 import classify
-from classify import DefaultRandomForest, get_classifier, \
+from classify import get_classifier, \
     unique_learning_data_elements, concatenate_data_elements
 
 
