@@ -619,6 +619,20 @@ class Rag(Graph):
 
 
     def set_ground_truth(self, gt=None):
+        """Set the ground truth volume.
+
+        This is useful for tracking segmentation accuracy over time.
+
+        Parameters
+        ----------
+        gt : array of int
+            A ground truth segmentation of the same volume passed to
+            ``set_watershed``.
+
+        Returns
+        -------
+        None
+        """
         if gt is not None:
             gtm = gt.max()+1
             gt_ignore = [0, gtm] if (gt==0).any() else [gtm]
@@ -636,6 +650,7 @@ class Rag(Graph):
                 self.rig = ones(self.watershed.max()+1)
             except ValueError:
                 self.rig = ones(self.number_of_nodes()+1)
+
 
     def set_exclusions(self, excl):
         if excl.size != 0:
