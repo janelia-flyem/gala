@@ -653,6 +653,25 @@ class Rag(Graph):
 
 
     def set_exclusions(self, excl):
+        """Set an exclusion volume, forbidding certain merges.
+
+        Parameters
+        ----------
+        excl : array of int
+            Exclusions work as follows: the volume `excl` is the same
+            shape as the initial segmentation (see ``set_watershed``),
+            and consists of mostly 0s. Any voxels with *the same*
+            non-zero label will not be allowed to merge during
+            agglomeration (provided they were not merged in the initial
+            segmentation).
+
+            This allows manual separation *a priori* of difficult-to-
+            -segment regions.
+
+        Returns
+        -------
+        None
+        """
         if excl.size != 0:
             excl = morpho.pad(excl, [0]*self.pad_thickness)
         for n in self.nodes():
@@ -662,6 +681,7 @@ class Rag(Graph):
                 self.node[n]['exclusions'] = set(list(eids))
             else:
                 self.node[n]['exclusions'] = set()
+
 
     def build_merge_queue(self):
         """Build a queue of node pairs to be merged in a specific priority.
