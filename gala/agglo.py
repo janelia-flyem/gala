@@ -686,19 +686,27 @@ class Rag(Graph):
     def build_merge_queue(self):
         """Build a queue of node pairs to be merged in a specific priority.
         
-        The queue elements have a specific format in order to allow 'removing'
-        of specific elements inside the priority queue. Each element is a list
-        of length 4 containing:
-            - the merge priority (any ordered type)
-            - a 'valid' flag
-            - and the two nodes in arbitrary order
-        The valid flag allows one to "remove" elements by setting the flag to
-        False. Then one checks the flag when popping elements and ignores those
-        marked as invalid.
+        Parameters
+        ----------
+        None
 
-        One other specific feature is that there are back-links from edges to
-        their corresponding queue items so that when nodes are merged,
-        affected edges can be invalidated and reinserted in the queue.
+        Returns
+        -------
+        mq : MergeQueue object
+            A MergeQueue is a Python ``deque`` with a specific element
+            structure: a list of length 4 containing:
+                 - the merge priority (any ordered type)
+                 - a 'valid' flag
+                 - and the two nodes in arbitrary order
+            The valid flag allows one to "remove" elements from the
+            queue in O(1) time by setting the flag to ``False``. Then,
+            one checks the flag when popping elements and ignores those
+            marked as invalid.
+
+            One other specific feature is that there are back-links from
+            edges to their corresponding queue items so that when nodes
+            are merged, affected edges can be invalidated and reinserted
+            in the queue with a new priority.
         """
         queue_items = []
         for l1, l2 in self.real_edges_iter():
@@ -709,9 +717,16 @@ class Rag(Graph):
             self[l1][l2]['weight'] = w
         return MergeQueue(queue_items, with_progress=self.show_progress)
 
+
     def rebuild_merge_queue(self):
-        """Build a merge queue from scratch and assign to self.merge_queue."""
+        """Build a merge queue from scratch and assign to self.merge_queue.
+        
+        See Also
+        --------
+        ``self.build_merge_queue``
+        """
         self.merge_queue = self.build_merge_queue()
+
 
     def agglomerate(self, threshold=0.5, save_history=False):
         """Merge nodes sequentially until given edge confidence threshold."""
