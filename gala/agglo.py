@@ -729,7 +729,32 @@ class Rag(Graph):
 
 
     def agglomerate(self, threshold=0.5, save_history=False):
-        """Merge nodes sequentially until given edge confidence threshold."""
+        """Merge nodes hierarchically until given edge confidence threshold.
+
+        This is the main workhorse of the ``agglo`` module!
+
+        Parameters
+        ----------
+        threshold : float, optional
+            The edge priority at which to stop merging.
+        save_history : bool, optional
+            Whether to save and return a history of all the merges made.
+
+        Returns
+        -------
+        history : list of tuple of int, optional
+            The ordered history of node pairs merged.
+        scores : list of float, optional
+            The list of merge scores corresponding to the `history`.
+        evaluation : list of tuple, optional
+            The split VI after each merge. This is only meaningful if
+            a ground truth volume was provided at build time.
+
+        Notes
+        -----
+            This function returns ``None`` when `save_history` is
+            ``False``.
+        """
         if self.merge_queue.is_empty():
             self.merge_queue = self.build_merge_queue()
         history, scores, evaluation = [], [], []
