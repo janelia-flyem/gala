@@ -575,6 +575,25 @@ class Rag(Graph):
 
 
     def set_watershed(self, ws=array([]), lowmem=False, connectivity=1):
+        """Set the initial segmentation volume (watershed).
+
+        The initial segmentation is called `watershed` for historical
+        reasons only.
+
+        Parameters
+        ----------
+        ws : array of int
+            The initial segmentation.
+        lowmem : bool, optional
+            Whether to use a low memory/high time mode. This usually
+            results in about 10% less memory usage and 10% more time.
+        connectivity : int in {1, ..., `ws.ndim`}, optional
+            The pixel neighborhood.
+
+        Returns
+        -------
+        None
+        """
         try:
             self.boundary_body = ws.max()+1
         except ValueError: # empty watershed given
@@ -597,6 +616,7 @@ class Rag(Graph):
             self.pixel_neighbors = \
                 morpho.build_neighbors_array(self.watershed, connectivity)
             self.neighbor_idxs = self.get_neighbor_idxs_fast
+
 
     def set_ground_truth(self, gt=None):
         if gt is not None:
