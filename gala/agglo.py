@@ -833,14 +833,16 @@ class Rag(Graph):
     def remove_inclusions(self):
         """Merge any segments fully contained within other segments."""
         bcc = list(biconnected_components(self))
-        container = [i for i, s in enumerate(bcc) if self.boundary_body in s][0]
-        del bcc[container] # remove the main graph
-        bcc = map(list, bcc)
-        for cc in bcc:
-            cc.sort(key=lambda x: len(self.node[x]['extent']), reverse=True)
-        bcc.sort(key=lambda x: len(self.node[x[0]]['extent']))
-        for cc in bcc:
-            self.merge_subgraph(cc, cc[0])
+        if len(bcc) > 1:
+            container = [i for i, s in enumerate(bcc) if
+                         self.boundary_body in s][0]
+            del bcc[container] # remove the main graph
+            bcc = map(list, bcc)
+            for cc in bcc:
+                cc.sort(key=lambda x: len(self.node[x]['extent']), reverse=True)
+            bcc.sort(key=lambda x: len(self.node[x[0]]['extent']))
+            for cc in bcc:
+                self.merge_subgraph(cc, cc[0])
 
     def orphans(self):
         """List of all the nodes that do not touch the volume boundary."""
