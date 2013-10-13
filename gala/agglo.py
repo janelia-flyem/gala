@@ -823,57 +823,158 @@ class Rag(Graph):
                 )
         if save_history:
             return history, evaluation
+
+
+    def agglomerate_ladder(self, min_size=1000, strictness=2):
+        """Merge sequentially all nodes smaller than `min_size`.
         
-    def agglomerate_ladder(self, threshold=1000, strictness=1):
-        """Merge sequentially all nodes smaller than threshold.
-        
-        strictness = 1 only considers size of nodes
-        strictness = 2 adds additional constraint: small nodes can only be 
-        merged to large neighbors
-        strictness = 3 additionally requires that the boundary between nodes
-        be larger than 2 pixels
-        Note: nodes that are on the volume boundary are not agglomerated.
+        Parameters
+        ----------
+        min_size : int, optional
+            The smallest allowable segment after ladder completion.
+        strictness : {1, 2, 3}, optional
+            `strictness == 1`: all nodes smaller than `min_size` are
+            merged according to the merge priority function.
+            `strictness == 2`: in addition to `1`, small nodes can only
+            be merged to big nodes.
+            `strictness == 3`: in addition to `2`, nodes sharing less
+            than one pixel of boundary are not agglomerated.
+
+        Returns
+        -------
+        None
+
+        Notes
+        -----
+        Nodes that are on the volume boundary are not agglomerated.
         """
         original_merge_priority_function = self.merge_priority_function
         self.merge_priority_function = make_ladder(
-            self.merge_priority_function, threshold, strictness
+            self.merge_priority_function, min_size, strictness
         )
         self.rebuild_merge_queue()
         self.agglomerate(inf)
         self.merge_priority_function = original_merge_priority_function
         self.merge_queue.finish()
         self.rebuild_merge_queue()
+
+
+    def learn_agglomerate(self, gts, feature_map,
+                          min_num_samples=1,
+                          learn_flat=True,
+                          learning_mode='strict',
+                          labeling_mode='assignment',
+                          priority_mode='active',
+                          memory=True,
+                          unique=True,
+                          max_num_epochs=10,
+                          min_num_epochs=2,
+                          max_num_samples=np.inf,
+                          classifier='random forest',
+                          active_function=classifier_probability,
+                          mpf=boundary_mean):
+        """Agglomerate while comparing to ground truth & classifying merges.
         
-    def one_shot_agglomeration(self, threshold=0.5):
-        g = self.copy()
-        if len(g.merge_queue) == 0:
-            g.rebuild_merge_queue()
-        for u, v, d in g.edges(data=True):
-            if g.boundary_body in [u,v] or d['weight'] > threshold:
-                g.remove_edge(u, v)
-        ccs = connected_components(g)
-        for cc in ccs:
-            g.merge_subgraph(cc)
-        return g.get_segmentation()
-        
-    def learn_agglomerate(self, gts, feature_map, min_num_samples=1,
-                                                            *args, **kwargs):
-        """Agglomerate while comparing to ground truth & classifying merges."""
-        learn_flat = kwargs.get('learn_flat', True)
-        learning_mode = kwargs.get('learning_mode', 'strict').lower()
-        labeling_mode = kwargs.get('labeling_mode', 'assignment').lower()
-        priority_mode = kwargs.get('priority_mode', 'random').lower()
-        memory = kwargs.get('memory', True)
-        unique = kwargs.get('unique', True)
-        active_function = kwargs.get('active_function', classifier_probability)
-        max_num_epochs = kwargs.get('max_num_epochs', 10)
-        min_num_epochs = kwargs.get('min_num_epochs', 1)
-        max_num_samples = kwargs.get('max_num_samples', np.inf)
+        Parameters
+        ----------
+        gts : array of int or list thereof
+            The ground truth volume(s) corresponding to the current
+            probability map.
+        feature_map : function (Rag, node, node) -> array of float
+            The map from node pairs to a feature vector. This must
+            consist either of uncached features or of the cache used
+            when building the graph.
+        min_num_samples : int, optional
+            Continue training until this many training examples have
+            been collected.
+        learn_flat : bool, optional
+            Do a flat learning on the static graph with no
+            agglomeration.
+        learning_mode : {'strict', 'loose'}, optional
+            In 'strict' mode, if a "don't merge" edge is encountered,
+            it is added to the training set but the merge is not
+            executed. In 'loose' mode, the merge is allowed to proceed.
+        labeling_mode : {'assignment', 'vi-sign', 'rand-sign'}, optional
+            How to decide whether two nodes should be merged based on
+            the ground truth segmentations. ``'assignment'`` means the
+            nodes are assigned to the ground truth node with which they
+            share the highest overlap. ``'vi-sign'`` means the the VI
+            change of the switch is used (negative is better).
+            ``'rand-sign'`` means the change in Rand index is used
+            (positive is better).
+        priority_mode : string, optional
+            One of:
+                ``'active'``: Train a priority function with the data
+                              from previous epochs to obtain the next.
+                ``'random'``: Merge edges at random.
+                ``'mixed'``: Alternate between epochs of ``'active'``
+                             and ``'random'``.
+                ``'mean'``: Use the mean boundary value. (In this case,
+                            training is limited to 1 or 2 epochs.)
+                ``'custom'``: Use the function provided by `mpf`.
+        memory : bool, optional
+            Keep the training data from all epochs (rather than just
+            the most recent one).
+        unique : bool, optional
+            Remove duplicate feature vectors.
+        max_num_epochs : int, optional
+            Do not train for longer than this (this argument *may*
+            override the `min_num_samples` argument).
+        min_num_epochs : int, optional
+            Train for no fewer than this number of epochs.
+        max_num_samples : int, optional
+            Train for no more than this number of samples.
+        classifier : string, optional
+            Any valid classifier descriptor. See
+            ``gala.classify.get_classifier()``
+        active_function : function (feat. map, classifier) -> function, optional
+            Use this to create the next priority function after an
+            epoch.
+        mpf : function (Rag, node, node) -> float
+            A merge priority function to use when ``priority_mode`` is
+            ``'custom'``.
+
+        Returns
+        -------
+        data : list of array
+            Four arrays containing:
+                - the feature vectors, shape ``(n_samples, n_features)``.
+                - the labels, shape ``(n_samples, 3)``. A value of `-1`
+                  means "should merge", while `1` means "should
+                  not merge". The columns correspond to the three
+                  labeling methods: assignment, VI sign, or RI sign.
+                - the list of merged edges ``(n_edges, 2)``.
+                - the VI and RI change of each merge, ``(n_edges, 2)``.
+        alldata : list of list of array
+            A list of lists like `data` above: one list for each epoch.
+
+        Notes
+        -----
+        The gala algorithm [1] uses the default parameters. For the
+        LASH algorithm [2], use:
+            - `learning_mode`: ``'loose'``
+            - `labeling_mode`: ``'rand-sign'``
+            - `memory`: ``False``
+
+        References
+        ----------
+        .. [1] Nunez-Iglesias et al, Machine learning of hierarchical
+               clustering to segment 2D and 3D images, PLOS ONE, 2013.
+        .. [2] Jain et al, Learning to agglomerate superpixel
+               hierarchies, NIPS, 2011.
+
+        See Also
+        --------
+        ``Rag.__init__``
+        """
+        learning_mode = learning_mode.lower()
+        labeling_mode = labeling_mode.lower()
+        priority_mode = priority_mode.lower()
         if priority_mode == 'mean' and unique: 
             max_num_epochs = 2 if learn_flat else 1
         if priority_mode in ['random', 'mean'] and not memory:
             max_num_epochs = 1
-        label_type_keys = {'assignment':0, 'voi-sign':1, 'rand-sign':2}
+        label_type_keys = {'assignment':0, 'vi-sign':1, 'rand-sign':2}
         if type(gts) != list:
             gts = [gts] # allow using single ground truth as input
         master_ctables = \
@@ -894,7 +995,7 @@ class Rag(Graph):
                 g.merge_priority_function = boundary_mean
             elif num_epochs > 0 and priority_mode == 'active' or \
                 num_epochs % 2 == 1 and priority_mode == 'mixed':
-                cl = get_classifier(kwargs.get('classifier', 'random forest'))
+                cl = get_classifier(classifier)
                 feat, lab = classify.sample_training_data(
                     data[0], data[1][:, label_type_keys[labeling_mode]],
                     max_num_samples)
@@ -904,7 +1005,7 @@ class Rag(Graph):
                 (priority_mode == 'active' and num_epochs == 0):
                 g.merge_priority_function = random_priority
             elif priority_mode == 'custom':
-                g.merge_priority_function = kwargs.get('mpf', boundary_mean)
+                g.merge_priority_function = mpf
             g.show_progress = False # bug in MergeQueue usage causes
                                     # progressbar crash.
             g.rebuild_merge_queue()
@@ -983,7 +1084,7 @@ class Rag(Graph):
             candidate regions. Use the sign of the change as the training
             label.
         """
-        label_type_keys = {'assignment':0, 'voi-sign':1, 'rand-sign':2}
+        label_type_keys = {'assignment':0, 'vi-sign':1, 'rand-sign':2}
         assignments = [(ct == ct.max(axis=1)[:,newaxis]) for ct in ctables]
         g = self
         data = []
