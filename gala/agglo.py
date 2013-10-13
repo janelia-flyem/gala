@@ -772,8 +772,40 @@ class Rag(Graph):
         if save_history:
             return history, scores, evaluation
 
+
     def agglomerate_count(self, stepsize=100, save_history=False):
-        """Agglomerate until 'stepsize' merges have been made."""
+        """Agglomerate until 'stepsize' merges have been made.
+        
+        This function is like ``agglomerate``, but rather than to a
+        certain threshold, a certain number of merges are made,
+        regardless of threshold.
+
+        Parameters
+        ----------
+        stepsize : int, optional
+            The number of merges to make.
+        save_history : bool, optional
+            Whether to save and return a history of all the merges made.
+
+        Returns
+        -------
+        history : list of tuple of int, optional
+            The ordered history of node pairs merged.
+        scores : list of float, optional
+            The list of merge scores corresponding to the `history`.
+        evaluation : list of tuple, optional
+            The split VI after each merge. This is only meaningful if
+            a ground truth volume was provided at build time.
+
+        Notes
+        -----
+            This function returns ``None`` when `save_history` is
+            ``False``.
+
+        See Also
+        --------
+        ``Rag.agglomerate``.
+        """
         if self.merge_queue.is_empty():
             self.merge_queue = self.build_merge_queue()
         history, evaluation = [], []
