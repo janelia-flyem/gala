@@ -1021,7 +1021,36 @@ class Rag(Graph):
             logging.debug('data size %d at epoch %d'%(len(data[0]), num_epochs))
         return data, alldata
 
-    def learn_flat(self, gts, feature_map, *args, **kwargs):
+
+    def learn_flat(self, gts, feature_map):
+        """Learn all edges on the graph, but don't agglomerate.
+
+        Parameters
+        ----------
+        gts : array of int or list thereof
+            The ground truth volume(s) corresponding to the current
+            probability map.
+        feature_map : function (Rag, node, node) -> array of float
+            The map from node pairs to a feature vector. This must
+            consist either of uncached features or of the cache used
+            when building the graph.
+
+        Returns
+        -------
+        data : list of array
+            Four arrays containing:
+                - the feature vectors, shape ``(n_samples, n_features)``.
+                - the labels, shape ``(n_samples, 3)``. A value of `-1`
+                  means "should merge", while `1` means "should
+                  not merge". The columns correspond to the three
+                  labeling methods: assignment, VI sign, or RI sign.
+                - the list of merged edges ``(n_edges, 2)``.
+                - the VI and RI change of each merge, ``(n_edges, 2)``.
+
+        See Also
+        --------
+        ``learn_agglomerate``.
+        """
         if type(gts) != list:
             gts = [gts] # allow using single ground truth as input
         ctables = [contingency_table(self.get_segmentation(), gt) for gt in gts]
@@ -1029,6 +1058,7 @@ class Rag(Graph):
         return map(array, zip(*[
                 self.learn_edge(e, ctables, assignments, feature_map)
                 for e in self.real_edges()]))
+
 
     def learn_edge(self, edge, ctables, assignments, feature_map):
         n1, n2 = edge
