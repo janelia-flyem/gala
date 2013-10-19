@@ -943,8 +943,8 @@ class Rag(Graph):
                   means "should merge", while `1` means "should
                   not merge". The columns correspond to the three
                   labeling methods: assignment, VI sign, or RI sign.
-                - the list of merged edges ``(n_edges, 2)``.
                 - the VI and RI change of each merge, ``(n_edges, 2)``.
+                - the list of merged edges ``(n_edges, 2)``.
         alldata : list of list of array
             A list of lists like `data` above: one list for each epoch.
 
@@ -1044,8 +1044,8 @@ class Rag(Graph):
                   means "should merge", while `1` means "should
                   not merge". The columns correspond to the three
                   labeling methods: assignment, VI sign, or RI sign.
-                - the list of merged edges ``(n_edges, 2)``.
                 - the VI and RI change of each merge, ``(n_edges, 2)``.
+                - the list of merged edges ``(n_edges, 2)``.
 
         See Also
         --------
