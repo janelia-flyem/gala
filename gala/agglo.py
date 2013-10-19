@@ -1213,7 +1213,25 @@ class Rag(Graph):
 
 
     def update_ucm(self, n1, n2):
-        """Update ultrametric contour map."""
+        """Update ultrametric contour map with the current max boundary value.
+
+        Parameters
+        ----------
+        n1, n2 : int
+            Nodes determining the edge for which to update the UCM.
+
+        Returns
+        -------
+        None
+
+        Notes
+        -----
+        Presently, the gala UCM is an approximation. A true UCM is a
+        subpixel property of the edges *between* pixels (unless using
+        pixel-thick boundaries). Gala, instead, uses the edges of
+        segments. If using a boundary-less segmentation, it is best to
+        avoid the UCM.
+        """
         try:
             edge = self[n1][n2]
         except KeyError:
@@ -1224,8 +1242,19 @@ class Rag(Graph):
             idxs = list(edge['boundary'])
             self.ucm_r[idxs] = self.max_merge_score
 
+
     def update_max_ucm(self, n1, n2):
-        """Update the UCM locally with an infinite value."""
+        """Update the UCM locally with an infinite value.
+
+        Parameters
+        ----------
+        n1, n2 : int
+            Nodes determining the edge for which to update the UCM.
+
+        Returns
+        -------
+        None
+        """
         edge = self[n1][n2]
         if self.ucm is not None:
             self.ucm_r[list(edge['boundary'])] = inf
