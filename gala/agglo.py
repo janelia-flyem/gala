@@ -1061,6 +1061,36 @@ class Rag(Graph):
 
 
     def learn_edge(self, edge, ctables, assignments, feature_map):
+        """Determine whether an edge should be merged based on ground truth.
+
+        Parameters
+        ----------
+        edge : (int, int) tuple
+            An edge in the graph.
+        ctables : list of array
+            A list of contingency tables determining overlap between the
+            current segmentation and the ground truth.
+        assignments : list of array
+            Similar to the contingency tables, but each row is thresholded
+            so each segment corresponds to exactly one ground truth segment.
+        feature_map : function (Rag, node, node) -> array of float
+            The map from node pairs to a feature vector.
+
+
+        Returns
+        -------
+        features : 1D array of float
+            The feature vector for that edge.
+        labels : 1D array of float, length 3
+            The labels determining whether the edge should be merged.
+            A value of `-1` means "should merge", while `1` means "should
+            not merge". The columns correspond to the three labeling
+            methods: assignment, VI sign, or RI sign.
+        weights : 1D array of float, length 2
+            The VI and RI change of the merge.
+        nodes : tuple of int
+            The given edge.
+        """
         n1, n2 = edge
         features = feature_map(self, n1, n2).ravel()
         # Calculate weights for weighting data points
@@ -1085,34 +1115,38 @@ class Rag(Graph):
             i for i in labels]
         return features, labels, weights, (n1, n2)
 
+
     def _learn_agglomerate(self, ctables, feature_map, gt_dts, 
-                        learning_mode='forbidden', labeling_mode='assignment'):
+                        learning_mode='strict', labeling_mode='assignment'):
         """Learn the agglomeration process using various strategies.
 
-        Arguments:
-            - one or more contingency tables between own segments and gold
+        Parameters
+        ----------
+        ctables : array of float or list thereof
+            One or more contingency tables between own segments and gold
             standard segmentations
-            - a feature map function {Graph, node1, node2} |--> array([float])
-            [- a learning mode]
+        feature_map : function (Rag, node, node) -> array of float
+            The map from node pairs to a feature vector. This must
+            consist either of uncached features or of the cache used
+            when building the graph.
+        learning_mode : {'strict', 'loose'}
+            If ``'strict'``, don't proceed with a merge when it goes against
+            the ground truth.
+        labeling_mode : {'assignment', 'vi-sign', 'rand-sign'}
+            Which label to use for `learning_mode`. Note that all labels
+            are saved in the end.
 
-        Value:
-            A learning data matrix of shape 
-            [n_training_examples x (n_features + 5)]. The elements after the
-            features are the label, the approximate magnitude of the variation
-            of information (VI) change, the approximate magnitude of the Rand
-            index (RI) change, and the two nodes that were sampled.
-
-        Learning modes:
-            - strict: use positive-boundary examples to learn but never
-            merge
-            - loose: merge regardless of label
-        Labeling modes:
-            - assignment: assign each node to a gold standard node and 
-            - vi-sign: compute the vi change resulting from merging candidate
-            regions. Use the sign of the change as the training label.
-            - rand-sign: compute the rand change resulting from merging the
-            candidate regions. Use the sign of the change as the training
-            label.
+        Returns
+        -------
+        data : list of array
+            Four arrays containing:
+                - the feature vectors, shape ``(n_samples, n_features)``.
+                - the labels, shape ``(n_samples, 3)``. A value of `-1`
+                  means "should merge", while `1` means "should
+                  not merge". The columns correspond to the three
+                  labeling methods: assignment, VI sign, or RI sign.
+                - the VI and RI change of each merge, ``(n_edges, 2)``.
+                - the list of merged edges ``(n_edges, 2)``.
         """
         label_type_keys = {'assignment':0, 'vi-sign':1, 'rand-sign':2}
         assignments = [(ct == ct.max(axis=1)[:,newaxis]) for ct in ctables]
