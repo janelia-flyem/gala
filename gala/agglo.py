@@ -1166,18 +1166,32 @@ class Rag(Graph):
                 g.merge_nodes(n1, n2)
         return map(array, zip(*data))
 
+
     def replay_merge_history(self, merge_seq, labels=None, num_errors=1):
         """Agglomerate according to a merge sequence, optionally labeled.
-        
-        The merge sequence and labels _must_ be generators if you don't want
+
+        Parameters
+        ----------
+        merge_seq : iterable of pair of int
+            The sequence of node IDs to be merged.
+        labels : iterable of int in {-1, 0, 1}, optional
+            A sequence matching `merge_seq` specifying whether a merge
+            should take place or not. -1 or 0 mean "should merge", 1
+            otherwise.
+
+        Returns
+        -------
+        n : int
+            Number of elements consumed from `merge_seq`
+        e : (int, int)
+            Last merge pair observed.
+
+        Notes
+        -----
+        The merge sequence and labels *must* be generators if you don't want
         to manually keep track of how much has been consumed. The merging
-        continues until num_errors false merges have been encountered, or 
+        continues until `num_errors` false merges have been encountered, or 
         until the sequence is fully consumed.
-        
-        labels are -1 or 0 for 'should merge', 1 for 'should not merge'.
-        
-        Return value: number of elements consumed from merge_seq, and last
-        merge pair observed.
         """
         if labels is None:
             labels1 = it.repeat(False)
@@ -1196,6 +1210,7 @@ class Rag(Graph):
             elif errs == 0:
                 break
         return count, nodes
+
 
     def update_ucm(self, n1, n2):
         """Update ultrametric contour map."""
