@@ -1260,7 +1260,26 @@ class Rag(Graph):
             self.ucm_r[list(edge['boundary'])] = inf
         
     def merge_nodes(self, n1, n2):
-        """Merge two nodes, while updating the necessary edges."""
+        """Merge two nodes, while updating the necessary edges.
+
+        Parameters
+        ----------
+        n1, n2 : int
+            Nodes determining the edge for which to update the UCM.
+
+        Returns
+        -------
+        None
+
+        Notes
+        -----
+        This updates the UCM with the maximum merge priority value
+        encountered so far.
+
+        Additionally, the RIG (region intersection graph), the
+        contingency matrix to the ground truth (if provided) is
+        updated.
+        """
         if len(self.node[n1]['exclusions'] & self.node[n2]['exclusions']) > 0:
             self.update_max_ucm(n1, n2)
             return
@@ -1286,7 +1305,19 @@ class Rag(Graph):
             pass
         self.remove_node(n2)
 
+
     def refine_post_merge_boundaries(self, n1, n2):
+        """Ensure boundary pixels are only counted once after a merge.
+
+        Parameters
+        ----------
+        n1, n2 : int
+            Nodes determining the edge for which to update the UCM.
+
+        Returns
+        -------
+        None
+        """
         boundary = array(list(self[n1][n2]['boundary']))
         boundary_neighbor_pixels = self.segmentation_r[
             self.neighbor_idxs(boundary)
@@ -1323,6 +1354,7 @@ class Rag(Graph):
         for n in self.neighbors(n2):
             if not boundaries_to_edit.has_key((n1,n)) and n != n1:
                 self.update_merge_queue(n1, n)
+
 
     def merge_subgraph(self, subgraph=None, source=None):
         if type(subgraph) not in [Rag, Graph]: # input is node list
