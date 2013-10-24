@@ -1379,7 +1379,26 @@ class Rag(Graph):
             for current_node in other_nodes:
                 self.merge_nodes(source_node, current_node)
 
+
     def split_node(self, u, n=2, **kwargs):
+        """Use normalized cuts [1] to split a node/segment.
+
+        Parameters
+        ----------
+        u : int (node id)
+            Which node to split.
+        n : int, optional
+            How many segments to split it into.
+
+        Returns
+        -------
+        None
+
+        References
+        ----------
+        .. [1] Shi, J., and Malik, J. (2000). Normalized cuts and image
+               segmentation. Pattern Analysis and Machine Intelligence.
+        """
         node_extent = list(self.node[u]['extent'])
         node_borders = set().union(
                         *[self[u][v]['boundary'] for v in self.neighbors(u)])
