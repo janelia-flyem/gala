@@ -1357,6 +1357,19 @@ class Rag(Graph):
 
 
     def merge_subgraph(self, subgraph=None, source=None):
+        """Merge a (typically) connected set of nodes together.
+
+        Parameters
+        ----------
+        subgraph : agglo.Rag, networkx.Graph, or list of int (node id)
+            A subgraph to merge.
+        source : int (node id), optional
+            Merge the subgraph to this node.
+
+        Returns
+        -------
+        None
+        """
         if type(subgraph) not in [Rag, Graph]: # input is node list
             subgraph = self.subgraph(subgraph)
         if len(subgraph) > 0:
@@ -1379,8 +1392,19 @@ class Rag(Graph):
         )
         self.ncut(num_clusters=n, nodes=labels, **kwargs)
 
+
     def merge_edge_properties(self, src, dst):
-        """Merge the properties of edge src into edge dst."""
+        """Merge the properties of edge src into edge dst.
+
+        Parameters
+        ----------
+        src, dst : (int, int)
+            Edges being merged.
+
+        Returns
+        -------
+        None
+        """
         u, v = dst
         w, x = src
         if not self.has_edge(u,v):
@@ -1395,8 +1419,19 @@ class Rag(Graph):
             pass
         self.update_merge_queue(u, v)
 
+
     def update_merge_queue(self, u, v):
-        """Update the merge queue item for edge (u,v). Add new by default."""
+        """Update the merge queue item for edge (u, v). Add new by default.
+
+        Parameters
+        ----------
+        u, v : int (node id)
+            Edge being updated.
+
+        Returns
+        -------
+        None
+        """
         if self.boundary_body in [u, v]:
             return
         if self[u][v].has_key('qlink'):
