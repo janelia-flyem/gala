@@ -1462,10 +1462,53 @@ class Rag(Graph):
             self[u][v]['weight'] = w
             self.merge_queue.push(new_qitem)
 
+
     def get_segmentation(self):
+        """Return the unpadded segmentation represented by the graph.
+
+        Remember that the segmentation volume is padded with an
+        "artificial" segment that envelops the volume. This function
+        simply removes the wrapping and returns a segmented volume.
+
+        Parameters
+        ----------
+        None
+
+        Returns
+        -------
+        seg : array of int
+            The segmentation of the volume presently represented by the
+            graph.
+
+        See Also
+        --------
+        ``agglo.Rag.get_ucm``
+        """
         return morpho.juicy_center(self.segmentation, self.pad_thickness)
 
+
     def get_ucm(self):
+        """Return the current, unpadded ultrametric contour map.
+
+        The contour map is an approximation, because in the absence of
+        boundaries, the true UCM is a subpixel property of the faces
+        between pixels. However, in this case, we return all those
+        pixels that touch a face, which can result in segments being
+        disconnected in the UCM.
+
+        In the case of "thick" boundaries where segments don't have
+        very thin regions, this is a valid approximation.
+
+        Parameters
+        ----------
+        None
+
+        Returns
+        -------
+        ucm : array of float
+            The map of boundary values between segments implied by the
+            hierarchical agglomeration process.
+        """
         if hasattr(self, 'ignored_boundary'):
             self.ucm[self.ignored_boundary] = self.max_merge_score
         ucm = morpho.juicy_center(self.ucm, self.pad_thickness)    
@@ -1474,8 +1517,27 @@ class Rag(Graph):
         ucm[ucm==inf] = umax+1
         return ucm
 
+
     def build_volume(self, nbunch=None):
-        """Return the segmentation (numpy.ndarray) induced by the graph."""
+        """Return the segmentation induced by the graph.
+
+        Parameters
+        ----------
+        nbunch : iterable of int (node id), optional
+            A list of nodes for which to build the volume. All nodes
+            are used if this is not provided.
+
+        Returns
+        -------
+        seg : array of int
+            The segmentation implied by the graph.
+
+        Notes
+        -----
+        This function is very similar to ``get_segmentation``, but it
+        builds the segmentation from the bottom up, rather than using
+        the currently-stored segmentation.
+        """
         v = zeros_like(self.watershed)
         vr = v.ravel()
         if nbunch is None:
@@ -1484,7 +1546,21 @@ class Rag(Graph):
             vr[list(self.node[n]['extent'])] = n
         return morpho.juicy_center(v,self.pad_thickness)
 
+
     def build_boundary_map(self, ebunch=None):
+        """Return a map of the current merge priority.
+
+        Parameters
+        ----------
+        ebunch : iterable of (int, int), optional
+            The list of edges for which to build a map. Use all edges
+            if not provided.
+
+        Returns
+        -------
+        bm : array of float
+            The image of the edge weights.
+        """
         if len(self.merge_queue) == 0:
             self.rebuild_merge_queue()
         m = zeros(self.watershed.shape, double)
