@@ -1575,14 +1575,28 @@ class Rag(Graph):
             m[self.ignored_boundary] = inf
         return morpho.juicy_center(m, self.pad_thickness)
 
+
     def remove_obvious_inclusions(self):
         """Merge any nodes with only one edge to their neighbors."""
         for n in self.nodes():
             if self.degree(n) == 1:
                 self.merge_nodes(self.neighbors(n)[0], n)
 
+
     def remove_inclusions(self):
-        """Merge any segments fully contained within other segments."""
+        """Merge any segments fully contained within other segments.
+
+        In 3D EM images, inclusions are not biologically plausible, so
+        this function can be used to remove them.
+
+        Parameters
+        ----------
+        None
+
+        Returns
+        -------
+        None
+        """
         bcc = list(biconnected_components(self))
         container = [i for i, s in enumerate(bcc) if self.boundary_body in s][0]
         del bcc[container] # remove the main graph
@@ -1593,23 +1607,63 @@ class Rag(Graph):
         for cc in bcc:
             self.merge_subgraph(cc, cc[0])
 
+
     def orphans(self):
-        """List of all the nodes that do not touch the volume boundary."""
+        """List all the nodes that do not touch the volume boundary.
+
+        Parameters
+        ----------
+        None
+
+        Returns
+        -------
+        orphans : list of int (node id)
+            A list of node ids.
+
+        Notes
+        -----
+        "Orphans" are not biologically plausible in EM data, so we can
+        flag them with this function for further scrutiny.
+        """
         return [n for n in self.nodes() if not self.at_volume_boundary(n)]
+
 
     def compute_orphans(self):
         """Find all the segments that do not touch the volume boundary.
-        
-        This function differs from 'orphans' in that it does not use the graph,
-        but rather computes orphans directly from the segmentation.
+
+        Parameters
+        ----------
+        None
+
+        Returns
+        -------
+        orphans : list of int (node id)
+            A list of node ids.
+
+        Notes
+        -----
+        This function differs from ``orphans`` in that it does not use
+        the graph, but rather computes orphans directly from the
+        segmentation.
         """
         return morpho.orphans(self.get_segmentation())
 
+
     def is_traversed_by_node(self, n):
         """Determine whether a body traverses the volume.
-        
-        This is defined as touching the volume boundary at two distinct 
+
+        This is defined as touching the volume boundary at two distinct
         locations.
+
+        Parameters
+        ----------
+        n : int (node id)
+            The node being inspected.
+
+        Returns
+        -------
+        tr : bool
+            Whether the segment "traverses" the volume being segmented.
         """
         if not self.at_volume_boundary(n) or n == self.boundary_body:
             return False
@@ -1618,18 +1672,22 @@ class Rag(Graph):
         _, n = label(v, ones([3]*v.ndim))
         return n > 1
 
+
     def traversing_bodies(self):
         """List all bodies that traverse the volume."""
         return [n for n in self.nodes() if self.is_traversed_by_node(n)]
+
 
     def non_traversing_bodies(self):
         """List bodies that are not orphans and do not traverse the volume."""
         return [n for n in self.nodes() if self.at_volume_boundary(n) and
             not self.is_traversed_by_node(n)]
 
+
     def compute_non_traversing_bodies(self):
         """Same as agglo.Rag.non_traversing_bodies, but doesn't use graph."""
         return morpho.non_traversing_bodies(self.get_segmentation())
+
 
     def raveler_body_annotations(self, traverse=False):
         """Return JSON-compatible dict formatted for Raveler annotations."""
