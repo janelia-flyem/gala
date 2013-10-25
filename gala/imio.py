@@ -10,6 +10,11 @@ import tempfile as tmp
 
 # libraries
 import h5py, Image
+try:
+    from pylibtiff import TIFF
+except:
+    print "pylibtiff not available: http://www.lfd.uci.edu/~gohlke/pythonlibs/#pylibtiff"
+
 
 from scipy.ndimage.measurements import label
 
@@ -198,6 +203,29 @@ def read_multi_page_tif(fn, crop=[None]*6):
             img.seek(img.tell()+1)
         except EOFError:
             eof = True
+    return concatenate(pages, axis=-1)
+
+def read_multi_page_tif_libtiff(fn):
+    """Read a multi-page tif file into a numpy array.
+    
+    Parameters
+    ----------
+    fn : string
+        The filename of the image file being read.
+    
+    Returns
+    -------
+    ar : numpy ndarray
+        The image stack in array format.
+
+    Notes
+    -----
+        Currently, only grayscale images are supported.
+    """
+    pages = []
+    tif = TIFF.open(fn)
+    for img in tif.iter_images():
+        pages.append(img[..., newaxis])
     return concatenate(pages, axis=-1)
 
 def write_png_image_stack(npy_vol, fn, axis=-1, bitdepth=None):
