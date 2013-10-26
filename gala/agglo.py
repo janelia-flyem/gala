@@ -87,6 +87,182 @@ def conditional_countdown(seq, start=1, pred=bool):
         yield remaining
 
 
+############################
+# Merge priority functions #
+############################
+
+def oriented_boundary_mean(g, n1, n2):
+    return mean(g.oriented_probabilities_r[list(g[n1][n2]['boundary'])])
+
+
+def boundary_mean(g, n1, n2):
+    return mean(g.probabilities_r[list(g[n1][n2]['boundary'])])
+
+
+def boundary_median(g, n1, n2):
+    return median(g.probabilities_r[list(g[n1][n2]['boundary'])])
+
+
+def approximate_boundary_mean(g, n1, n2):
+    """Return the boundary mean as computed by a MomentsFeatureManager.
+
+    The feature manager is assumed to have been set up for g at construction.
+    """
+    return g.feature_manager.compute_edge_features(g, n1, n2)[1]
+
+
+def make_ladder(priority_function, threshold, strictness=1):
+    def ladder_function(g, n1, n2):
+        s1 = len(g.node[n1]['extent'])
+        s2 = len(g.node[n2]['extent'])
+        ladder_condition = \
+                (s1 < threshold and not g.at_volume_boundary(n1)) or \
+                (s2 < threshold and not g.at_volume_boundary(n2))
+        if strictness >= 2:
+            ladder_condition &= ((s1 < threshold) != (s2 < threshold))
+        if strictness >= 3:
+            ladder_condition &= len(g[n1][n2]['boundary']) > 2
+
+        if ladder_condition:
+            return priority_function(g, n1, n2)
+        else:
+            return inf
+    return ladder_function
+
+
+def no_mito_merge(priority_function):
+    def predict(g, n1, n2):
+        if n1 in g.frozen_nodes or n2 in g.frozen_nodes \
+        or (n1, n2) in g.frozen_edges:
+            return np.inf
+        else:
+            return priority_function(g, n1, n2)
+    return predict
+
+
+def mito_merge():
+    def predict(g, n1, n2):
+        if n1 in g.frozen_nodes and n2 in g.frozen_nodes:
+            return np.inf
+        elif (n1, n2) in g.frozen_edges:
+            return np.inf
+        elif n1 not in g.frozen_nodes and n2 not in g.frozen_nodes:
+            return np.inf
+        else:
+            if n1 in g.frozen_nodes:
+                mito = n1
+                cyto = n2
+            else:
+                mito = n2
+                cyto = n1
+            if len(g.node[mito]["extent"])>len(g.node[cyto]["extent"]):
+                return np.inf
+            else:
+                return 1.0 - (float(len(g[mito][cyto]["boundary"]))/
+                sum([len(g[mito][x]["boundary"]) for x in g.neighbors(mito)]))
+    return predict
+
+
+def classifier_probability(feature_extractor, classifier):
+    def predict(g, n1, n2):
+        if n1 == g.boundary_body or n2 == g.boundary_body:
+            return inf
+        features = feature_extractor(g, n1, n2)
+        try:
+            prediction = classifier.predict_proba(features)[0,1]
+        except AttributeError:
+            prediction = classifier.predict(features)[0]
+        return prediction
+    return predict
+
+
+def ordered_priority(edges):
+    d = {}
+    n = len(edges)
+    for i, (n1, n2) in enumerate(edges):
+        score = float(i)/n
+        d[(n1,n2)] = score
+        d[(n2,n1)] = score
+    def ord(g, n1, n2):
+        return d.get((n1,n2), inf)
+    return ord
+
+
+def expected_change_vi(feature_extractor, classifier, alpha=1.0, beta=1.0):
+    prob_func = classifier_probability(feature_extractor, classifier)
+    def predict(g, n1, n2):
+        p = prob_func(g, n1, n2) # Prediction from the classifier
+        # Calculate change in VI if n1 and n2 should not be merged
+        v = compute_local_vi_change(
+            len(g.node[n1]['extent']), len(g.node[n2]['extent']), g.volume_size
+        )
+        # Return expected change
+        return  (p*alpha*v + (1.0-p)*(-beta*v))
+    return predict
+
+
+def compute_local_vi_change(s1, s2, n):
+    """Compute change in VI if we merge disjoint sizes s1,s2 in a volume n."""
+    py1 = float(s1)/n
+    py2 = float(s2)/n
+    py = py1+py2
+    return -(py1*log2(py1) + py2*log2(py2) - py*log2(py))
+
+
+def compute_true_delta_vi(ctable, n1, n2):
+    p1 = ctable[n1].sum()
+    p2 = ctable[n2].sum()
+    p3 = p1+p2
+    p1g_log_p1g = xlogx(ctable[n1]).sum()
+    p2g_log_p2g = xlogx(ctable[n2]).sum()
+    p3g_log_p3g = xlogx(ctable[n1]+ctable[n2]).sum()
+    return p3*log2(p3) - p1*log2(p1) - p2*log2(p2) - \
+                                2*(p3g_log_p3g - p1g_log_p1g - p2g_log_p2g)
+
+
+def expected_change_rand(feature_extractor, classifier, alpha=1.0, beta=1.0):
+    prob_func = classifier_probability(feature_extractor, classifier)
+    def predict(g, n1, n2):
+        p = float(prob_func(g, n1, n2)) # Prediction from the classifier
+        v = compute_local_rand_change(
+            len(g.node[n1]['extent']), len(g.node[n2]['extent']), g.volume_size
+        )
+        return p*v*alpha + (1.0-p)*(-beta*v)
+    return predict
+
+
+def compute_local_rand_change(s1, s2, n):
+    """Compute change in rand if we merge disjoint sizes s1,s2 in volume n."""
+    return float(s1*s2)/nchoosek(n,2)
+
+
+def compute_true_delta_rand(ctable, n1, n2, n):
+    """Compute change in RI obtained by merging rows n1 and n2.
+
+    This function assumes ctable is normalized to sum to 1.
+    """
+    localct = n*ctable[(n1,n2),]
+    delta_sxy = 1.0/2*((localct.sum(axis=0)**2).sum()-(localct**2).sum())
+    delta_sx = 1.0/2*(localct.sum()**2 - (localct.sum(axis=1)**2).sum())
+    return (2*delta_sxy - delta_sx) / nchoosek(n,2)
+
+
+def boundary_mean_ladder(g, n1, n2, threshold, strictness=1):
+    f = make_ladder(boundary_mean, threshold, strictness)
+    return f(g, n1, n2)
+
+
+def boundary_mean_plus_sem(g, n1, n2, alpha=-6):
+    bvals = g.probabilities_r[list(g[n1][n2]['boundary'])]
+    return mean(bvals) + alpha*sem(bvals)
+
+
+def random_priority(g, n1, n2):
+    if n1 == g.boundary_body or n2 == g.boundary_body:
+        return inf
+    return random.random()
+
+
 class Rag(Graph):
     """Region adjacency graph for segmentation of nD volumes."""
 
@@ -190,6 +366,7 @@ class Rag(Graph):
             self.ucm = -inf*ones(self.watershed.shape, dtype=float)
             self.ucm[self.watershed==0] = inf
             self.ucm_r = self.ucm.ravel()
+        self.merge_priority_function = merge_priority_function
         self.max_merge_score = -inf
         self.build_graph_from_watershed(allow_shared_boundaries, nozerosfast=self.nozeros)
         self.set_feature_manager(feature_manager)
@@ -1885,182 +2062,6 @@ def is_mito_boundary(g, n1, n2, channel=2, threshold=0.5):
 def is_mito(g, n, channel=2, threshold=0.5):
         return max(np.mean(g.probabilities_r[list(g.node[n]["extent"]), c]) \
         for c in channel) > threshold
-
-
-############################
-# Merge priority functions #
-############################
-
-def oriented_boundary_mean(g, n1, n2):
-    return mean(g.oriented_probabilities_r[list(g[n1][n2]['boundary'])])
-
-
-def boundary_mean(g, n1, n2):
-    return mean(g.probabilities_r[list(g[n1][n2]['boundary'])])
-
-
-def boundary_median(g, n1, n2):
-    return median(g.probabilities_r[list(g[n1][n2]['boundary'])])
-
-
-def approximate_boundary_mean(g, n1, n2):
-    """Return the boundary mean as computed by a MomentsFeatureManager.
-
-    The feature manager is assumed to have been set up for g at construction.
-    """
-    return g.feature_manager.compute_edge_features(g, n1, n2)[1]
-
-
-def make_ladder(priority_function, threshold, strictness=1):
-    def ladder_function(g, n1, n2):
-        s1 = len(g.node[n1]['extent'])
-        s2 = len(g.node[n2]['extent'])
-        ladder_condition = \
-                (s1 < threshold and not g.at_volume_boundary(n1)) or \
-                (s2 < threshold and not g.at_volume_boundary(n2))
-        if strictness >= 2:
-            ladder_condition &= ((s1 < threshold) != (s2 < threshold))
-        if strictness >= 3:
-            ladder_condition &= len(g[n1][n2]['boundary']) > 2
-
-        if ladder_condition:
-            return priority_function(g, n1, n2)
-        else:
-            return inf
-    return ladder_function
-
-
-def no_mito_merge(priority_function):
-    def predict(g, n1, n2):
-        if n1 in g.frozen_nodes or n2 in g.frozen_nodes \
-        or (n1, n2) in g.frozen_edges:
-            return np.inf
-        else:
-            return priority_function(g, n1, n2)
-    return predict
-
-
-def mito_merge():
-    def predict(g, n1, n2):
-        if n1 in g.frozen_nodes and n2 in g.frozen_nodes:
-            return np.inf
-        elif (n1, n2) in g.frozen_edges:
-            return np.inf
-        elif n1 not in g.frozen_nodes and n2 not in g.frozen_nodes:
-            return np.inf
-        else:
-            if n1 in g.frozen_nodes:
-                mito = n1
-                cyto = n2
-            else:
-                mito = n2
-                cyto = n1
-            if len(g.node[mito]["extent"])>len(g.node[cyto]["extent"]):
-                return np.inf
-            else:
-                return 1.0 - (float(len(g[mito][cyto]["boundary"]))/
-                sum([len(g[mito][x]["boundary"]) for x in g.neighbors(mito)]))
-    return predict
-
-
-def classifier_probability(feature_extractor, classifier):
-    def predict(g, n1, n2):
-        if n1 == g.boundary_body or n2 == g.boundary_body:
-            return inf
-        features = feature_extractor(g, n1, n2)
-        try:
-            prediction = classifier.predict_proba(features)[0,1]
-        except AttributeError:
-            prediction = classifier.predict(features)[0]
-        return prediction
-    return predict
-
-
-def ordered_priority(edges):
-    d = {}
-    n = len(edges)
-    for i, (n1, n2) in enumerate(edges):
-        score = float(i)/n
-        d[(n1,n2)] = score
-        d[(n2,n1)] = score
-    def ord(g, n1, n2):
-        return d.get((n1,n2), inf)
-    return ord
-
-
-def expected_change_vi(feature_extractor, classifier, alpha=1.0, beta=1.0):
-    prob_func = classifier_probability(feature_extractor, classifier)
-    def predict(g, n1, n2):
-        p = prob_func(g, n1, n2) # Prediction from the classifier
-        # Calculate change in VI if n1 and n2 should not be merged
-        v = compute_local_vi_change(
-            len(g.node[n1]['extent']), len(g.node[n2]['extent']), g.volume_size
-        )
-        # Return expected change
-        return  (p*alpha*v + (1.0-p)*(-beta*v))
-    return predict
-
-
-def compute_local_vi_change(s1, s2, n):
-    """Compute change in VI if we merge disjoint sizes s1,s2 in a volume n."""
-    py1 = float(s1)/n
-    py2 = float(s2)/n
-    py = py1+py2
-    return -(py1*log2(py1) + py2*log2(py2) - py*log2(py))
-
-
-def compute_true_delta_vi(ctable, n1, n2):
-    p1 = ctable[n1].sum()
-    p2 = ctable[n2].sum()
-    p3 = p1+p2
-    p1g_log_p1g = xlogx(ctable[n1]).sum()
-    p2g_log_p2g = xlogx(ctable[n2]).sum()
-    p3g_log_p3g = xlogx(ctable[n1]+ctable[n2]).sum()
-    return p3*log2(p3) - p1*log2(p1) - p2*log2(p2) - \
-                                2*(p3g_log_p3g - p1g_log_p1g - p2g_log_p2g)
-
-
-def expected_change_rand(feature_extractor, classifier, alpha=1.0, beta=1.0):
-    prob_func = classifier_probability(feature_extractor, classifier)
-    def predict(g, n1, n2):
-        p = float(prob_func(g, n1, n2)) # Prediction from the classifier
-        v = compute_local_rand_change(
-            len(g.node[n1]['extent']), len(g.node[n2]['extent']), g.volume_size
-        )
-        return p*v*alpha + (1.0-p)*(-beta*v)
-    return predict
-
-
-def compute_local_rand_change(s1, s2, n):
-    """Compute change in rand if we merge disjoint sizes s1,s2 in volume n."""
-    return float(s1*s2)/nchoosek(n,2)
-
-
-def compute_true_delta_rand(ctable, n1, n2, n):
-    """Compute change in RI obtained by merging rows n1 and n2.
-
-    This function assumes ctable is normalized to sum to 1.
-    """
-    localct = n*ctable[(n1,n2),]
-    delta_sxy = 1.0/2*((localct.sum(axis=0)**2).sum()-(localct**2).sum())
-    delta_sx = 1.0/2*(localct.sum()**2 - (localct.sum(axis=1)**2).sum())
-    return (2*delta_sxy - delta_sx) / nchoosek(n,2)
-
-
-def boundary_mean_ladder(g, n1, n2, threshold, strictness=1):
-    f = make_ladder(boundary_mean, threshold, strictness)
-    return f(g, n1, n2)
-
-
-def boundary_mean_plus_sem(g, n1, n2, alpha=-6):
-    bvals = g.probabilities_r[list(g[n1][n2]['boundary'])]
-    return mean(bvals) + alpha*sem(bvals)
-
-
-def random_priority(g, n1, n2):
-    if n1 == g.boundary_body or n2 == g.boundary_body:
-        return inf
-    return random.random()
 
 
 def best_possible_segmentation(ws, gt):
