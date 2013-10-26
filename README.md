@@ -16,7 +16,7 @@ volumes...) and multiple channels per image.
 * networkx (1.4, 1.5, 1.6)
 * h5py (1.5.0)
 * scipy (0.7.0, 0.9.0, 0.10.0)
-
+* nose (1.3.0)
 
 All of the above are included in the Enthought Python Distribution, so I would
 recommend you just install that if you can.
