@@ -8,7 +8,8 @@ virtualenv:
 before_install:
   # Current TravisCI VM is Ubuntu 12.04 which has Python 2.7 and 3.2.
   # So apt-get will only apply to those virtualenvs.
-  - if [[ $TRAVIS_PYTHON_VERSION == '2.7' ]]; then sudo apt-get install -qq python-numpy python-scipy python-matplotlib python-pydot python-gdal; fi
+  - sudo apt-get install -qq python-numpy python-scipy python-matplotlib python-pydot python-gdal
+  - sudo apt-get install -qq libhdf5-serial-dev
 
   # Additionally, the TravisCI VM has numpy preinstalled on 2.6, 2.7 and 3.2.
   # So for 3.3 and pypy, numpy is not preinstalled and must be pip-installed.
@@ -25,6 +26,7 @@ before_install:
   - pip install pyparsing --use-mirrors
   #- pip install coveralls --use-mirrors
   - pip install networkx --use-mirrors
+  - pip install cython
   - pip install h5py
   - pip install nose
 
