@@ -28,6 +28,7 @@ before_install:
   - pip install networkx --use-mirrors
   - pip install cython
   - pip install h5py
+  - pip install PIL
   - pip install nose
 
 script:

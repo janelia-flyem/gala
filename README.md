@@ -8,6 +8,8 @@ ONE, in press.
 Gala supports n-dimensional images (images, volumes, videos, videos of 
 volumes...) and multiple channels per image.
 
+[![Continuous Integration status](https://travis-ci.org/DocSavage/gala.png)](http://travis-ci.org/DocSavage/gala)
+
 ## Requirements (tested versions)
 
 * Python 2.x (2.6, 2.7)
@@ -54,6 +56,9 @@ prefix directory.
 
 You might have to run the above steps twice if this is the first time you are
 using the buildem system.
+
+On Mac, you might have to install compilers (e.g., the fortran compiler).
+
 
 ### Testing
 
