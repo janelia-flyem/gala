@@ -214,8 +214,6 @@ def watershed(a, seeds=None, connectivity=1, mask=None, smooth_thresh=0.0,
     b = a
     if not seeded:
         seeds = regional_minima(a, connectivity)
-    if seeds.dtype == bool:
-        seeds = label(seeds, sel)[0]
     if minimum_seed_size > 0:
         seeds = remove_small_connected_components(seeds, minimum_seed_size,
                                                   in_place=True)
@@ -224,6 +222,8 @@ def watershed(a, seeds=None, connectivity=1, mask=None, smooth_thresh=0.0,
         seeds = binary_opening(seeds, sel)
     if smooth_thresh > 0.0:
         b = hminima(a, smooth_thresh)
+    if seeds.dtype == bool:
+        seeds = label(seeds, sel)[0]
     if skimage_available and not override_skimage and not dams:
         return skimage.morphology.watershed(b, seeds, sel, None, mask)
     elif seeded:
