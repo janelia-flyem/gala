@@ -39,7 +39,6 @@ script:
   - python setup.py install
 
   # Run tests
-  - nosetests --verbosity=2
   - cd tests
   - python test_agglo.py
   - python test_features.py
