@@ -40,9 +40,10 @@ script:
 
   # Run tests
   - nosetests --verbosity=2
-  - python tests/test_agglo.py
-  - python tests/test_features.py
-  - python tests/test_watershed.py
+  - cd tests
+  - python test_agglo.py
+  - python test_features.py
+  - python test_watershed.py
 
 after_success:
   # We must run coveralls from the git repo.
