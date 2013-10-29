@@ -30,6 +30,8 @@ before_install:
   - pip install h5py
   - pip install PIL
   - pip install nose
+  - pip install scikit-learn
+  - pip install scikit-image
 
 script:
   # Install gala
