@@ -24,7 +24,7 @@ def load_training_data(fn):
 # this training set should be created by the below command, but setting
 # np.random.RandomState() and before saving it does not remove all
 # differences from the training data set at create and test time.
-@skipif(not os.isfile('example-data/train-set.npz'))
+@skipif(not os.path.isfile('example-data/train-set.npz'))
 def test_training_1channel():
     g_train = agglo.Rag(ws_train, pr_train, feature_manager=fc)
     np.random.RandomState(0)
@@ -47,7 +47,7 @@ def test_learned_agglo_1channel():
 # this training set should be created by the below command, but setting
 # np.random.RandomState() and before saving it does not remove all
 # differences from the training data set at create and test time.
-@skipif(not os.isfile('example-data/train-set4.npz'))
+@skipif(not os.path.isfile('example-data/train-set4.npz'))
 def test_training_4channel():
     g_train4 = agglo.Rag(ws_train, p4_train, feature_manager=fc)
     np.random.RandomState(0)
