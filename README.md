@@ -8,7 +8,7 @@ ONE, in press.
 Gala supports n-dimensional images (images, volumes, videos, videos of 
 volumes...) and multiple channels per image.
 
-[![Continuous Integration status](https://travis-ci.org/DocSavage/gala.png)](http://travis-ci.org/DocSavage/gala)
+[![Continuous Integration status](https://travis-ci.org/janelia-flyem/gala.png)](http://travis-ci.org/janelia-flyem/gala)
 
 ## Requirements (tested versions)
 
