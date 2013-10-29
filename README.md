@@ -14,11 +14,12 @@ volumes...) and multiple channels per image.
 
 * Python 2.x (2.6, 2.7)
 * numpy (1.5.1, 1.6.0)
-* Image (a.k.a. Python Imaging Library or PIL) (1.3.1)
+* Image (a.k.a. Python Imaging Library or PIL) (1.1.7)
 * networkx (1.4, 1.5, 1.6)
 * h5py (1.5.0)
 * scipy (0.7.0, 0.9.0, 0.10.0)
 * nose (1.3.0)
+* scikit-learn
 
 All of the above are included in the Enthought Python Distribution, so I would
 recommend you just install that if you can.
@@ -63,8 +64,12 @@ On Mac, you might have to install compilers (e.g., the fortran compiler).
 ### Testing
 
 The test coverage is rather tiny, but it is still a nice way to check you
-haven't completely screwed up your installation. From the Gala root directory,
-run `python test/test_gala.py` to run some regression tests.
+haven't completely screwed up your installation.
+
+    % cd tests
+    % python test_agglo.py
+    % python test_features.py
+    % python test_watershed.py
 
 ## Usage
 
