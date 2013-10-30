@@ -12,17 +12,6 @@ volumes...) and multiple channels per image.
 
 ## Requirements
 
-script:
-  # Install gala
-  - printenv PWD
-  - python setup.py install
-
-  # Run tests
-  - cd tests
-  - python test_agglo.py
-  - python test_features.py
-  - python test_watershed.py
-  - python test_gala.py
 * Python 2.7
 * numpy 1.7+
 * scipy 0.10+
@@ -34,7 +23,6 @@ script:
 * scikit-learn 0.10+, preferably 0.14+
 * matplotlib 1.2+
 * scikit-image 0.9+
-
 
 ### Optional dependencies
 
@@ -77,8 +65,8 @@ automatically download, compile, test, and install requirements into a
 specified buildem prefix directory. (You will need CMake.) 
 
 ```
-% cmake -D BUILDEM_DIR=/path/to/platform-specific/build/dir <gala directory>
-% make
+$ cmake -D BUILDEM_DIR=/path/to/platform-specific/build/dir <gala directory>
+$ make
 ```
 
 You might have to run the above steps twice if this is the first time you are
