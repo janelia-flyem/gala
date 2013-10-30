@@ -72,7 +72,7 @@ $ make
 You might have to run the above steps twice if this is the first time you are
 using the buildem system.
 
-On Mac, you might have to install compilers (e.g., the fortran compiler).
+On Mac, you might have to install compilers (such as gcc, g++, and gfortran).
 
 
 ### Testing
