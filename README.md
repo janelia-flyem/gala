@@ -30,7 +30,7 @@ volumes...) and multiple channels per image.
 * [vigra/vigranumpy](hci.iwr.uni-heidelberg.de/vigra/) (1.9.0)
 
 For vigra, you are on your own. It is used for the random forest classifier,
-but if you don't install it you can use any of the `scikit-learn` classifiers,
+but if you don't install it you can use any of the scikit-learn classifiers,
 including their newly-excellent random forest.
 
 ## Installation
@@ -136,10 +136,10 @@ g_train = agglo.Rag(ws_train, pr_train, feature_manager=fc)
 y = y[:, 0] # gala has 3 truth labeling schemes, pick the first one
 ```
 
-`X` and `y` above have the now-standard `scikit-learn` [supervised dataset
+`X` and `y` above have the now-standard scikit-learn [supervised dataset
 format](http://scikit-learn.org/stable/tutorial/statistical_inference/settings.html#datasets).
-This means we can use any classifier that satisfies the `scikit-learn` API.
-Below, we use a simple wrapper around the `scikit-learn`
+This means we can use any classifier that satisfies the scikit-learn API.
+Below, we use a simple wrapper around the scikit-learn
 `RandomForestClassifier`.
 
 ```python
@@ -233,8 +233,14 @@ This should print something like:
  [ 0.39504714  0.2341758 ]]
 ```
 
+Each row is an evaluation, with the first number representing the
+undersegmentation error or false merges, and the second representing the
+oversegmentation error or false splits, both measured in bits.
+
 (Results may vary since there is some randomness involved in training a random
 forest, and the datasets are small.)
+
+### Threshold-dependent evaluation
 
 An ultrametric contour map (UCM) can be thresholded to provide the segmentation
 at any threshold of agglomeration. (It may, however, result in a split when a
@@ -259,6 +265,12 @@ plt.figure(figsize=(5,5))
 from gala import viz
 viz.plot_split_vi(vis, colors=colors)
 plt.xlim(0, 1); plt.ylim(0, 1)
+```
+
+And, as mentioned earlier, many other evaluation functions are available. See
+the documentation for the `evaluate` package for more information.
+
+```python
 # rand index and adjusted rand index
 ri = ev.rand_index(seg_test1, gt_test)
 ari = ev.adj_rand_index(seg_test1, gt_test)
