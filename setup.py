@@ -4,7 +4,7 @@ from setuptools import setup, find_packages
 
 
 setup(name = "gala",
-    version = "0.1-dev",
+    version = "0.1",
     url = "https://github.com/jni/gala",
     description = "Gala is a python library for performing and evaluating image segmentation.",
     long_description = "Gala is a python library for performing and evaluating of image segmentation. It supports n-dimensional images (images, volumes, videos, videos of volumes...) and multiple channels per image.",
