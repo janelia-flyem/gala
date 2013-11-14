@@ -67,12 +67,18 @@ from matplotlib import pyplot as plt
 g_test.agglomerate(np.inf)
 g_test4.agglomerate(np.inf)
 g_testm.agglomerate(np.inf)
-ucms = [g.get_ucm() for g in [g_test, g_test4, g_testm]]
+ucms = [g.get_ucm() for g in [g_testm, g_test, g_test4]]
 vis = [ev.vi_by_threshold(u, gt_test, [0], [0])[1:] for u in ucms]
-colors = ['deepskyblue', 'orange', 'black']
-plt.figure(figsize=(5,5))
+colors = ['black', 'deepskyblue', 'orange']
+plt.figure(figsize=(3.3, 3.3))
 from gala import viz
 viz.plot_split_vi(vis, colors=colors)
 plt.xlim(0, 1); plt.ylim(0, 1)
-plt.savefig('split-vi.png')
+plt.legend(['mean agglomeration', 'gala 1-channel', 'gala 4-channel'],
+           loc=1, fontsize=8)
+plt.xticks(np.arange(0, 1.01, 0.2), fontsize=10)
+plt.yticks(np.arange(0, 1.01, 0.2), fontsize=10)
+plt.xlabel('false merges (bits)', fontsize=10)
+plt.ylabel('false splits (bits)', fontsize=10)
+plt.savefig('split-vi.png', dpi=300, bbox_inches='tight')
 
