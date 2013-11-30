@@ -3,7 +3,6 @@ from math import ceil
 import numpy as np
 import scipy
 import evaluate
-import morpho
 from skimage import color
 import matplotlib
 plt = matplotlib.pyplot
@@ -84,7 +83,7 @@ def draw_seg(seg, im):
     ----------
     seg : np.ndarray of int, shape (M, N, ...)
         The segmentation to be displayed
-    im : np.ndarray, shape (M, N, ..., [3])
+    im : np.ndarray, shape (M, N, ..., C)
         The image corresponding to the segmentation.
 
     Returns
@@ -110,8 +109,9 @@ def draw_seg(seg, im):
     if (seg==0).any():
         labels = labels[1:]
     for u in labels:
-        color = im[seg==u].mean(axis=0)
-        out[seg==u] = color
+        mask = (seg == u).nonzero()
+        color = im[mask].mean(axis=0)
+        out[mask] = color
     return out
 
 
