@@ -94,9 +94,6 @@ def gen_pixel_probabilities(session_location, options, master_logger, image_file
         Generates hdf5 file of pixel probabilities in session_location directory.
         File will be named 'STACKED_prediction.h5' and probabilities will be in
         hdf group /volume/predictions
-
-    TODO: Modify once ilastik_headless is refactored to allow simple specification 
-          of output file.
     """
     master_logger.info("Generating Pixel Probabilities") 
  
@@ -108,24 +105,29 @@ def gen_pixel_probabilities(session_location, options, master_logger, image_file
         sys.exit(2)
     else:
         master_logger.info("Running Ilastik in headless mode")
-        ilastik_command = " ".join([
-            'ilastik_headless',
-            '--project', options.ilp_file,
-            '--batch_export_dir', session_location,
-            '--batch_output_dataset_name', '/volume/predictions',
-        ])
+
+        pixel_prob_filename = os.path.join(session_location, 'STACKED_prediction.h5')
+        ilastik_command = ( "ilastik_headless"
+                           #" --headless"
+                           " --preconvert_stacks"
+                           " --project={project_file}"
+                           " --output_axis_order=txyzc" # gala assumes ilastik output is always txyzc
+                           " --output_format=hdf5"
+                           " --output_filename_format={pixel_prob_filename}"
+                           " --output_internal_path=/volume/predictions"
+                           "".format( project_file=options.ilp_file,
+                                      pixel_prob_filename=pixel_prob_filename ) )
         if options.temp_dir is not None:
             temp_dir = util.make_temp_dir(options.temp_dir)
-            ilastik_command += " " + " ".join([
-                '--sys_tmp_dir', options.temp_dir
-            ])
+            ilastik_command += " --sys_tmp_dir={}".format( options.temp_dir )
+
+        # Add the input file as the last arg
         ilastik_command += ' "' + image_filename + '"'
         master_logger.info("Executing ilastik headless command for pixel classification:\n%s" % ilastik_command)
         os.system(ilastik_command)
         if options.temp_dir is not None:
             shutil.rmtree(temp_dir)
 
-        pixel_prob_filename = os.path.join(session_location, 'STACKED_prediction.h5')
         return pixel_prob_filename
 
 
