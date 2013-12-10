@@ -1,53 +1,54 @@
-04-17-13 15:29 DEBUG    gen-supervoxels was set to True
-04-17-13 15:29 DEBUG    temp-dir was not specified and set to default None
-04-17-13 15:29 DEBUG    ilastik-prediction-file was not specified and set to default None
-04-17-13 15:29 DEBUG    pixelprob-file was not specified and set to default None
-04-17-13 15:29 DEBUG    raveler-output was set to False
-04-17-13 15:29 DEBUG    synapse-file was set to ./example/annotations-synapse.json
-04-17-13 15:29 DEBUG    gen-agglomeration was set to True
-04-17-13 15:29 DEBUG    image-stack was set to ./example/original_grayscales/*.png
-04-17-13 15:29 DEBUG    pixelprob-name was set to pixel_boundpred.h5
-04-17-13 15:29 DEBUG    h5-output was set to False
-04-17-13 15:29 DEBUG    segmentation-thresholds was set to [0.1]
-04-17-13 15:29 DEBUG    use-neuroproof was set to True
-04-17-13 15:29 DEBUG    expected-vi was set to False
-04-17-13 15:29 DEBUG    extract-ilp-prediction was set to False
-04-17-13 15:29 DEBUG    bound-channels was set to [0]
-04-17-13 15:29 DEBUG    ilp-file was set to ./example/boundclassifier.ilp
-04-17-13 15:29 DEBUG    border-size was set to 2
-04-17-13 15:29 DEBUG    gen-pixel was set to True
-04-17-13 15:29 DEBUG    seed-val was set to 0
-04-17-13 15:29 DEBUG    inclusion-removal was set to True
-04-17-13 15:29 DEBUG    seed-size was set to 5
-04-17-13 15:29 DEBUG    vi-beta was set to 1.0
-04-17-13 15:29 DEBUG    supervoxels-file was not specified and set to default None
-04-17-13 15:29 DEBUG    synapse-dilation was set to 1
-04-17-13 15:29 DEBUG    supervoxels-name was set to supervoxels.lzf.h5
-04-17-13 15:29 DEBUG    classifier was set to ./example/agglom.classifier.h5
-04-17-13 15:29 INFO     Options loaded and verified
-04-17-13 15:29 INFO     Session location: sample_seg
-04-17-13 15:29 INFO     Generating Pixel Probabilities
-04-17-13 15:29 INFO     Running Ilastik in headless mode
-04-17-13 15:29 INFO     Executing ilastik headless command for pixel classification:
-ilastik_headless --project ./example/boundclassifier.ilp --batch_export_dir sample_seg --batch_output_dataset_name /volume/predictions "./example/original_grayscales/*.png"
-04-17-13 15:29 DEBUG    Generating supervoxels
-04-17-13 15:29 INFO     Transposed boundary prediction
-04-17-13 15:29 DEBUG    Grabbing boundary labels: [0]
-04-17-13 15:29 INFO     Shape of boundary: (50, 200, 100)
-04-17-13 15:29 DEBUG    watershed seed value threshold: 0
-04-17-13 15:29 DEBUG    Removing small seeds
-04-17-13 15:29 DEBUG    Finished removing small seeds
-04-17-13 15:29 INFO     Starting watershed
-04-17-13 15:29 INFO     Finished watershed
-04-17-13 15:29 INFO     Processing synapses
-04-17-13 15:29 INFO     Finished processing synapses
-04-17-13 15:29 INFO     Building RAG
-04-17-13 15:29 INFO     Finished building RAG
-04-17-13 15:29 INFO     Starting inclusion removal with 1903 nodes
-04-17-13 15:29 INFO     Finished inclusion removal with 1903 nodes
-04-17-13 15:29 INFO     Starting agglomeration to threshold 0.1 with 1903
-04-17-13 15:29 INFO     Finished agglomeration to threshold 0.1 with 61
-04-17-13 15:29 INFO     Starting inclusion removal with 61 nodes
-04-17-13 15:29 INFO     Finished inclusion removal with 61 nodes
-04-17-13 15:29 INFO     Determining optimal edge locations
-04-17-13 15:29 INFO     Finished determining optimal edge locations
+12-10-13 08:55 DEBUG    gen-supervoxels was set to True
+12-10-13 08:55 DEBUG    temp-dir was not specified and set to default None
+12-10-13 08:55 DEBUG    pixelprob-file was not specified and set to default None
+12-10-13 08:55 DEBUG    raveler-output was set to False
+12-10-13 08:55 DEBUG    synapse-file was set to ./example/annotations-synapse.json
+12-10-13 08:55 DEBUG    gen-agglomeration was set to True
+12-10-13 08:55 DEBUG    image-stack was set to ./example/original_grayscales/*.png
+12-10-13 08:55 DEBUG    pixelprob-name was set to pixel_boundpred.h5
+12-10-13 08:55 DEBUG    h5-output was set to False
+12-10-13 08:55 DEBUG    segmentation-thresholds was set to [0.1]
+12-10-13 08:55 DEBUG    use-neuroproof was set to True
+12-10-13 08:55 DEBUG    expected-vi was set to False
+12-10-13 08:55 DEBUG    extract-ilp-prediction was set to False
+12-10-13 08:55 DEBUG    mask-file was not specified and set to default None
+12-10-13 08:55 DEBUG    ilastik-prediction-file was not specified and set to default None
+12-10-13 08:55 DEBUG    ilp-file was set to ./example/boundclassifier.ilp
+12-10-13 08:55 DEBUG    border-size was set to 2
+12-10-13 08:55 DEBUG    gen-pixel was set to True
+12-10-13 08:55 DEBUG    seed-val was set to 0
+12-10-13 08:55 DEBUG    inclusion-removal was set to True
+12-10-13 08:55 DEBUG    seed-size was set to 5
+12-10-13 08:55 DEBUG    vi-beta was set to 1.0
+12-10-13 08:55 DEBUG    bound-channels was set to [0]
+12-10-13 08:55 DEBUG    supervoxels-file was not specified and set to default None
+12-10-13 08:55 DEBUG    synapse-dilation was set to 1
+12-10-13 08:55 DEBUG    supervoxels-name was set to supervoxels.lzf.h5
+12-10-13 08:55 DEBUG    classifier was set to ./example/agglom.classifier.h5
+12-10-13 08:55 INFO     Options loaded and verified
+12-10-13 08:55 INFO     Session location: blah_seg2
+12-10-13 08:55 INFO     Generating Pixel Probabilities
+12-10-13 08:55 INFO     Running Ilastik in headless mode
+12-10-13 08:55 INFO     Executing ilastik headless command for pixel classification:
+ilastik_headless --preconvert_stacks --project=./example/boundclassifier.ilp --output_axis_order=txyzc --output_format=hdf5 --output_filename_format=blah_seg2/STACKED_prediction.h5 --output_internal_path=/volume/predictions "./example/original_grayscales/*.png"
+12-10-13 08:55 DEBUG    Generating supervoxels
+12-10-13 08:55 INFO     Transposed boundary prediction
+12-10-13 08:55 DEBUG    Grabbing boundary labels: [0]
+12-10-13 08:55 INFO     Shape of boundary: (50, 200, 100)
+12-10-13 08:55 DEBUG    watershed seed value threshold: 0
+12-10-13 08:55 DEBUG    Removing small seeds
+12-10-13 08:55 DEBUG    Finished removing small seeds
+12-10-13 08:55 INFO     Starting watershed
+12-10-13 08:55 INFO     Finished watershed
+12-10-13 08:55 INFO     Processing synapses
+12-10-13 08:55 INFO     Finished processing synapses
+12-10-13 08:55 INFO     Building RAG
+12-10-13 08:55 INFO     Finished building RAG
+12-10-13 08:55 INFO     Starting inclusion removal with 1901 nodes
+12-10-13 08:55 INFO     Finished inclusion removal with 1901 nodes
+12-10-13 08:55 INFO     Starting agglomeration to threshold 0.1 with 1901
+12-10-13 08:55 INFO     Finished agglomeration to threshold 0.1 with 60
+12-10-13 08:55 INFO     Starting inclusion removal with 60 nodes
+12-10-13 08:55 INFO     Finished inclusion removal with 59 nodes
+12-10-13 08:55 INFO     Determining optimal edge locations
+12-10-13 08:55 INFO     Finished determining optimal edge locations
