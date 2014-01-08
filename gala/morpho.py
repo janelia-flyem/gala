@@ -383,7 +383,7 @@ def relabel_connected(im, connectivity=1):
         segment = (im == label)
         contiguous_segments, n_segments = nd.label(segment)
         contiguous_segments[segment] += curr_label
-        im_out += contiguous_segments
+        im_out[segment] += contiguous_segments[segment].astype(im_out.dtype)
         curr_label += n_segments
     return im_out
 
