@@ -24,5 +24,6 @@ def nd_sobel_magnitude(image, spacing=None):
     for ax, sp in enumerate(spacing):
         axsobel = nd.sobel(image, axis=ax) / sp
         filtered += axsobel * axsobel
+    filtered = np.sqrt(filtered)
     return filtered
 
