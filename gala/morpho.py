@@ -15,6 +15,7 @@ import logging
 from collections import defaultdict, deque as queue
 from scipy.ndimage import grey_dilation, generate_binary_structure, \
         maximum_filter, minimum_filter
+from scipy import ndimage as nd
 from scipy.ndimage import distance_transform_cdt
 from scipy.ndimage.measurements import label, find_objects
 from scipy.ndimage.morphology import binary_opening, binary_closing, \
@@ -347,6 +348,44 @@ def manual_split(probs, seg, body, seeds, connectivity=1, boundary_seeds=None):
     for new_seed, new_label in zip(new_seeds, [0, body, seg.max()+1]):
         seg[bbox][seg_new == new_seed] = new_label
     return seg
+
+
+def relabel_connected(im, connectivity=1):
+    """Ensure all labels in `im` are connected.
+
+    Parameters
+    ----------
+    im : array of int
+        The input label image.
+    connectivity : int in {1, ..., `im.ndim`}, optional
+        The connectivity used to determine if two voxels are neighbors.
+
+    Returns
+    -------
+    im_out : array of int
+        The relabeled image.
+
+    Examples
+    --------
+    >>> image = np.array([[1, 1, 2],
+                          [2, 1, 1]])
+    >>> im_out = relabel_connected(image)
+    >>> im_out
+    array([[1, 1, 2],
+           [3, 1, 1]])
+    """
+    im_out = np.zeros_like(im)
+    curr_label = 0
+    labels = np.unique(im)
+    if labels[0] == 0:
+        labels = labels[1:]
+    for label in labels:
+        segment = (im == label)
+        contiguous_segments, n_segments = nd.label(segment)
+        contiguous_segments[segment] += curr_label
+        im_out += contiguous_segments
+        curr_label += n_segments
+    return im_out
 
 
 def smallest_int_dtype(number, signed=False, mindtype=None):
