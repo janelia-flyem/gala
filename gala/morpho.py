@@ -375,13 +375,14 @@ def relabel_connected(im, connectivity=1):
            [3, 1, 1]])
     """
     im_out = np.zeros_like(im)
+    structure = generate_binary_structure(im.ndim, connectivity)
     curr_label = 0
     labels = np.unique(im)
     if labels[0] == 0:
         labels = labels[1:]
     for label in labels:
         segment = (im == label)
-        contiguous_segments, n_segments = nd.label(segment)
+        contiguous_segments, n_segments = nd.label(segment, structure)
         contiguous_segments[segment] += curr_label
         im_out[segment] += contiguous_segments[segment].astype(im_out.dtype)
         curr_label += n_segments
