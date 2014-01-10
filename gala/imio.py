@@ -521,7 +521,8 @@ def read_mapped_segmentation_raw(fn,
     return sp_map, sp_to_body_map
 
 
-def write_h5_stack(npy_vol, fn, group='stack', compression=None, chunks=None):
+def write_h5_stack(npy_vol, fn, group='stack', compression=None, chunks=None,
+                   shuffle=None):
     """Write a numpy.ndarray 3D volume to an HDF5 file.
 
     Parameters
@@ -544,6 +545,8 @@ def write_h5_stack(npy_vol, fn, group='stack', compression=None, chunks=None):
         best, especially for compression. Very small chunks lead to lots of
         overhead in the file, while very large chunks can result in 
         inefficient I/O."
+    shuffle : bool, optional
+        Shuffle the bytes on disk to improve compression efficiency.
 
     Returns
     -------
@@ -553,8 +556,8 @@ def write_h5_stack(npy_vol, fn, group='stack', compression=None, chunks=None):
     fout = h5py.File(fn, 'a')
     if group in fout:
         del fout[group]
-    fout.create_dataset(group, data=npy_vol, 
-                        compression=compression, chunks=chunks)
+    fout.create_dataset(group, data=npy_vol, compression=compression,
+                        chunks=chunks, shuffle=shuffle)
     fout.close()
 
 ### Raveler format
