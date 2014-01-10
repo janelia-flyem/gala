@@ -300,6 +300,14 @@ def extract_segments(seg, ids):
     -----
     This function is designed to output volumes to VTK format for
     viewing in ITK-SNAP
+
+    Examples
+    --------
+    >>> segments = array([[45, 45, 51, 51],
+                          [45, 83, 83, 51]])
+    >>> extract_segments(segments, [83, 45])
+    array([[2, 2, 0, 0],
+           [2, 1, 1, 0]], dtype=uint8)
     """
     segs = np.zeros(seg.shape, dtype=np.uint8)
     for i, s in enumerate(ids):
