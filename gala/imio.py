@@ -280,12 +280,48 @@ def write_png_image_stack(npy_vol, fn, axis=-1, bitdepth=None):
 
 ### VTK structured points array format
 
+def extract_segments(seg, ids):
+    """Get a uint8 volume containing only the specified segment ids.
+
+    Parameters
+    ----------
+    seg : array of int
+        The input segmentation.
+    ids : list of int, maximum length 255
+        A list of segments to extract from `seg`.
+
+    Returns
+    -------
+    segs : array of uint8
+        A volume with 1, 2, ..., ``len(ids)`` labels where the required
+        segments were, and 0 elsewhere.
+
+    Notes
+    -----
+    This function is designed to output volumes to VTK format for
+    viewing in ITK-SNAP
+
+    Examples
+    --------
+    >>> segments = array([[45, 45, 51, 51],
+                          [45, 83, 83, 51]])
+    >>> extract_segments(segments, [83, 45])
+    array([[2, 2, 0, 0],
+           [2, 1, 1, 0]], dtype=uint8)
+    """
+    segs = np.zeros(seg.shape, dtype=np.uint8)
+    for i, s in enumerate(ids):
+        segs[seg == s] = i + 1
+    return segs
+
+
 numpy_type_to_vtk_string = {
     np.uint8:'unsigned_char', np.int8:'char', np.uint16:'unsigned_short',
     np.int16:'short', np.uint32:'unsigned_int', np.int32:'int',
     np.uint64:'unsigned_long', np.int64:'long', np.float32:'float',
     np.float64:'double'
 }
+
 
 vtk_string_to_numpy_type = \
     dict([(v,k) for k, v in numpy_type_to_vtk_string.items()])
