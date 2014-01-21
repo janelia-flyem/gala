@@ -40,10 +40,10 @@ script:
 
   # Run tests
   - cd tests
-  - python test_agglo.py
-  - python test_features.py
-  - python test_watershed.py
-  - python test_gala.py
+  - python -m nose test_agglo.py
+  - python -m nose test_features.py
+  - python -m nose test_watershed.py
+  - python -m nose test_gala.py
 
 after_success:
   # We must run coveralls from the git repo.
