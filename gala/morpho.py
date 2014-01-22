@@ -43,6 +43,45 @@ def diamond_se(radius, dimension):
 def complement(a):
     return a.max()-a
 
+
+def remove_merged_boundaries(labels, connectivity=1):
+    """Remove boundaries in a label field when they separate the same region.
+
+    By convention, the boundary label is 0, and labels are positive.
+
+    Parameters
+    ----------
+    labels : array of int
+        The label field to be processed.
+    connectivity : int in {1, ..., labels.ndim}, optional
+        The morphological connectivity for considering neighboring voxels.
+
+    Returns
+    -------
+    labels_out : array of int
+        The same label field, with unnecessary boundaries removed.
+
+    Examples
+    --------
+    >>> labels = np.array([[1, 0, 1], [0, 1, 0], [2, 0, 3]], np.int)
+    >>> remove_merged_boundaries(labels)
+    array([[1, 1, 1],
+           [0, 1, 0],
+           [2, 0, 3]])
+    """
+    boundary = 0
+    labels_out = labels.copy()
+    is_boundary = (labels == boundary)
+    labels_complement = labels.copy()
+    labels_complement[is_boundary] = labels.max() + 1
+    se = nd.generate_binary_structure(labels.ndim, connectivity)
+    smaller_labels = nd.grey_erosion(labels_complement, footprint=se)
+    bigger_labels = nd.grey_dilation(labels, footprint=se)
+    merged = is_boundary & (smaller_labels == bigger_labels)
+    labels_out[merged] = smaller_labels[merged]
+    return labels_out
+
+
 def morphological_reconstruction(marker, mask, connectivity=1):
     """Perform morphological reconstruction of the marker into the mask.
     
