@@ -1426,6 +1426,29 @@ class Rag(Graph):
             self.ucm_r[list(edge['boundary'])] = inf
 
 
+    def rename_node(self, old, new):
+        """Rename node `old` to `new`, updating edges and weights.
+
+        Parameters
+        ----------
+        old : int
+            The node being renamed.
+        new : int
+            The new node id.
+        """
+        self.add_node(new, attr_dict=self.node[old])
+        self.add_edges_from(
+            [(new, v, self[old][v]) for v in self.neighbors(old)])
+        for v in self.neighbors(new):
+            qitem = self[new][v].get('qitem', None)
+            if qitem is not None:
+                if qitem[2] == old:
+                    qitem[2] = new
+                else:
+                    qitem[3] = new
+        self.remove_node(old)
+
+
     def merge_nodes(self, n1, n2, merge_priority=0.0):
         """Merge two nodes, while updating the necessary edges.
 
