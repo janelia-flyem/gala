@@ -1440,7 +1440,7 @@ class Rag(Graph):
         self.add_edges_from(
             [(new, v, self[old][v]) for v in self.neighbors(old)])
         for v in self.neighbors(new):
-            qitem = self[new][v].get('qitem', None)
+            qitem = self[new][v].get('qlink', None)
             if qitem is not None:
                 if qitem[2] == old:
                     qitem[2] = new
