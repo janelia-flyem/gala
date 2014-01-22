@@ -234,7 +234,7 @@ if __name__ == '__main__':
         learn_flat=args.learn_flat, learning_mode=args.learning_mode,
         labeling_mode=args.labeling_mode, priority_mode=args.priority_mode,
         memory=args.memory, unique=args.unique, min_num_epochs=args.num_epochs,
-        max_num_expochs=args.max_num_epochs, 
+        max_num_epochs=args.max_num_epochs,
         max_num_samples=args.num_examples, active_function=active_function)
     git_stamp = 'git commit unknown'
     """
