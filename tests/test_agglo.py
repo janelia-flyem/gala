@@ -1,7 +1,8 @@
 import numpy as np
-from numpy.testing import assert_equal, assert_array_equal
+from numpy.testing import assert_equal, assert_allclose
 
 from gala import agglo
+from gala import evaluate as ev
 
 
 test_idxs = range(4)
@@ -9,7 +10,7 @@ num_tests = len(test_idxs)
 fns = ['toy-data/test-%02i-probabilities.txt' % i for i in test_idxs]
 probs = map(np.loadtxt, fns)
 fns = ['toy-data/test-%02i-watershed.txt' % i for i in test_idxs]
-wss = map(np.loadtxt, fns)
+wss = [np.loadtxt(fn, dtype=np.uint32) for fn in fns]
 fns = ['toy-data/test-%02i-groundtruth.txt' % i for i in test_idxs]
 results = map(np.loadtxt, fns)
 
@@ -32,8 +33,8 @@ def test_agglomeration():
     g = agglo.Rag(wss[i], probs[i], agglo.boundary_mean, 
         normalize_probabilities=True)
     g.agglomerate(0.51)
-    assert_array_equal(g.get_segmentation(), results[i],
-                       'Mean agglomeration failed.')
+    assert_allclose(ev.vi(g.get_segmentation(), results[i]), 0.0,
+                    err_msg='Mean agglomeration failed.')
 
 def test_ladder_agglomeration():
     i = 2
@@ -41,16 +42,16 @@ def test_ladder_agglomeration():
         normalize_probabilities=True)
     g.agglomerate_ladder(2)
     g.agglomerate(0.5)
-    assert_array_equal(g.get_segmentation(), results[i],
-                       'Ladder agglomeration failed.')
+    assert_allclose(ev.vi(g.get_segmentation(), results[i]), 0.0,
+                    err_msg='Ladder agglomeration failed.')
 
 def test_no_dam_agglomeration():
     i = 3
     g = agglo.Rag(wss[i], probs[i], agglo.boundary_mean, 
         normalize_probabilities=True)
     g.agglomerate(0.75)
-    assert_array_equal(g.get_segmentation(), results[i],
-                       'No dam agglomeration failed.')
+    assert_allclose(ev.vi(g.get_segmentation(), results[i]), 0.0,
+                    err_msg='No dam agglomeration failed.')
 
 if __name__ == '__main__':
     from numpy import testing
