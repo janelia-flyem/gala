@@ -32,6 +32,7 @@ before_install:
   - pip install nose
   - pip install scikit-learn
   - pip install scikit-image
+  - pip install viridis
 
 script:
   # Install gala

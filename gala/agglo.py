@@ -3,7 +3,6 @@ from itertools import combinations, izip, repeat, product
 import itertools as it
 import argparse
 import random
-import sys
 import logging
 import json
 from copy import deepcopy
@@ -19,7 +18,6 @@ from scipy.misc import comb as nchoosek
 from scipy.ndimage.measurements import label
 from networkx import Graph, biconnected_components
 from networkx.algorithms.traversal.depth_first_search import dfs_preorder_nodes
-from networkx.algorithms.components.connected import connected_components
 
 # local modules
 import morpho
@@ -31,6 +29,7 @@ import features
 import classify
 from classify import get_classifier, \
     unique_learning_data_elements, concatenate_data_elements
+from viridis import tree
 
 
 def contingency_table(a, b):
@@ -368,11 +367,13 @@ class Rag(Graph):
             self.ucm_r = self.ucm.ravel()
         self.merge_priority_function = merge_priority_function
         self.max_merge_score = -inf
-        self.build_graph_from_watershed(allow_shared_boundaries, nozerosfast=self.nozeros)
+        self.build_graph_from_watershed(allow_shared_boundaries,
+                                        nozerosfast=self.nozeros)
         self.set_feature_manager(feature_manager)
         self.set_ground_truth(gt_vol)
         self.set_exclusions(exclusions)
         self.merge_queue = MergeQueue()
+        self.tree = tree.Ultrametric(self.nodes())
         self.frozen_nodes = set()
         if isfrozennode is not None:
             for node in self.nodes():
@@ -388,22 +389,11 @@ class Rag(Graph):
     def __copy__(self):
         """Return a copy of the object and attributes.
         """
-        if sys.version_info[:2] < (2,7):
-            # Python versions prior to 2.7 don't handle deepcopy of function
-            # objects well. Thus, keep a reference and remove from Rag object
-            f = self.neighbor_idxs; del self.neighbor_idxs
-            F = self.feature_manager; del self.feature_manager
         pr_shape = self.probabilities_r.shape
         g = super(Rag, self).copy()
         g.watershed_r = g.watershed.ravel()
-        g.segmentation_r = g.segmentation.ravel()
         g.ucm_r = g.ucm.ravel()
         g.probabilities_r = g.probabilities.reshape(pr_shape)
-        if sys.version_info[:2] < (2,7):
-            g.neighbor_idxs = f
-            self.neighbor_idxs = f
-            g.feature_manager = F
-            self.feature_manager = F
         return g
 
 
@@ -533,7 +523,8 @@ class Rag(Graph):
         None
         """
         if nozerosfast:
-            return self.build_graph_from_watershed_nozerosfast(idxs)
+            self.build_graph_from_watershed_nozerosfast(idxs)
+            return
 
         if self.watershed.size == 0: return # stop processing for empty graphs
         if not allow_shared_boundaries:
@@ -781,10 +772,8 @@ class Rag(Graph):
             self.watershed = morpho.pad(ws, [0, self.boundary_body])
         else:
             self.watershed = morpho.pad(ws, self.boundary_body)
-        self.segmentation = self.watershed.copy()
         self.watershed_r = self.watershed.ravel()
-        self.segmentation_r = self.segmentation.ravel() # reduce fct calls
-        self.pad_thickness = 2 if (self.segmentation==0).any() else 1
+        self.pad_thickness = 2 if (self.watershed == 0).any() else 1
         if lowmem:
             def neighbor_idxs(x):
                 return self.get_neighbor_idxs_lean(x, connectivity)
@@ -939,7 +928,7 @@ class Rag(Graph):
                                         self.merge_queue.peek()[0] < threshold:
             merge_priority, _, n1, n2 = self.merge_queue.pop()
             self.update_frozen_sets(n1, n2)
-            self.merge_nodes(n1,n2)
+            self.merge_nodes(n1, n2, merge_priority)
             if save_history:
                 history.append((n1,n2))
                 scores.append(merge_priority)
@@ -992,7 +981,7 @@ class Rag(Graph):
                 break
             merge_priority, _, n1, n2 = self.merge_queue.pop()
             i += 1
-            self.merge_nodes(n1, n2)
+            self.merge_nodes(n1, n2, merge_priority)
             if save_history:
                 history.append((n1, n2))
                 evaluation.append(
@@ -1437,13 +1426,15 @@ class Rag(Graph):
             self.ucm_r[list(edge['boundary'])] = inf
 
 
-    def merge_nodes(self, n1, n2):
+    def merge_nodes(self, n1, n2, merge_priority=0.0):
         """Merge two nodes, while updating the necessary edges.
 
         Parameters
         ----------
         n1, n2 : int
             Nodes determining the edge for which to update the UCM.
+        merge_priority : float, optional
+            The merge priority of the merge.
 
         Returns
         -------
@@ -1464,24 +1455,24 @@ class Rag(Graph):
         else:
             self.node[n1]['exclusions'].update(self.node[n2]['exclusions'])
         self.update_ucm(n1, n2)
+        w = self[n1][n2].get('weight', merge_priority)
+        node_id = self.tree.merge(n1, n2, w)
         self.node[n1]['extent'].update(self.node[n2]['extent'])
         self.feature_manager.update_node_cache(self, n1, n2,
                 self.node[n1]['feature-cache'], self.node[n2]['feature-cache'])
-        self.segmentation_r[list(self.node[n2]['extent'])] = n1
         new_neighbors = [n for n in self.neighbors(n2)
-                                        if n not in [n1, self.boundary_body]]
+                         if n not in [n1, self.boundary_body]]
         for n in new_neighbors:
-            self.merge_edge_properties((n2,n), (n1,n))
+            self.merge_edge_properties((n2, n), (n1, n))
         # this if statement enables merging of non-adjacent nodes
         if self.has_edge(n1,n2) and self.has_zero_boundaries:
             self.refine_post_merge_boundaries(n1, n2)
-        self.rig[n1] += self.rig[n2]
-        self.rig[n2] = 0
         try:
             self.merge_queue.invalidate(self[n1][n2]['qlink'])
         except KeyError:
             pass
         self.remove_node(n2)
+        self.rename_node(n1, node_id)
 
 
     def refine_post_merge_boundaries(self, n1, n2):
@@ -1491,10 +1482,6 @@ class Rag(Graph):
         ----------
         n1, n2 : int
             Nodes determining the edge for which to update the UCM.
-
-        Returns
-        -------
-        None
         """
         boundary = array(list(self[n1][n2]['boundary']))
         boundary_neighbor_pixels = self.segmentation_r[
@@ -1662,7 +1649,9 @@ class Rag(Graph):
         --------
         ``agglo.Rag.get_ucm``
         """
-        return morpho.juicy_center(self.segmentation, self.pad_thickness)
+        m = self.tree.get_map()
+        seg = m[self.watershed]
+        return morpho.juicy_center(seg, self.pad_thickness)
 
 
     def get_ucm(self):
@@ -1847,7 +1836,7 @@ class Rag(Graph):
         """
         if not self.at_volume_boundary(n) or n == self.boundary_body:
             return False
-        v = zeros(self.segmentation.shape, uint8)
+        v = zeros(self.watershed.shape, uint8)
         v.ravel()[list(self[n][self.boundary_body]['boundary'])] = 1
         _, n = label(v, ones([3]*v.ndim))
         return n > 1
@@ -2009,7 +1998,7 @@ class Rag(Graph):
             nodes_to_merge = nodes[inds]
             node1 = nodes_to_merge[0]
             for node in nodes_to_merge[1:]:
-                self.merge_nodes(node1,node)
+                self.merge_nodes(node1, node)
 
 
     def compute_W(self, merge_priority_function, sigma=255.0*20, nodes=None):
