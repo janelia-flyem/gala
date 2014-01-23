@@ -50,7 +50,7 @@ def assert_equal_lists_or_arrays(a1, a2, eps=1e-3):
 
 probs2 = np.load('toy-data/test-04-probabilities.npy')
 probs1 = probs2[..., 0]
-wss1 = np.loadtxt('toy-data/test-04-watershed.txt')
+wss1 = np.loadtxt('toy-data/test-04-watershed.txt', np.uint32)
 f1, f2, f3 = (features.moments.Manager(2, False),
               features.histogram.Manager(3, compute_percentiles=[0.5]),
               features.squiggliness.Manager(ndim=2))
@@ -58,7 +58,8 @@ f4 = features.base.Composite(children=[f1, f2, f3])
 
 
 def run_matched(f, fn, c=1,
-                edges=[(1,2),(1,3),(1,4)], merges=[(1,2),(1,3)]):
+                edges=[(1, 2), (6, 3), (7, 4)],
+                merges=[(1, 2), (6, 3)]):
     p = probs1 if c == 1 else probs2
     g = agglo.Rag(wss1, p, feature_manager=f)
     o = list_of_feature_arrays(g, f, edges, merges)
