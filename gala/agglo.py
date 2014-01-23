@@ -354,6 +354,7 @@ class Rag(Graph):
         super(Rag, self).__init__(weighted=False)
         self.show_progress = show_progress
         self.nozeros = nozeros
+        self.connectivity = connectivity
         self.pbar = (ip.StandardProgressBar() if self.show_progress
                      else ip.NoProgressBar())
         self.set_watershed(watershed, lowmem, connectivity)
@@ -1674,6 +1675,8 @@ class Rag(Graph):
         """
         m = self.tree.get_map()
         seg = m[self.watershed]
+        if self.pad_thickness > 1: # volume has zero-boundaries
+            seg = morpho.remove_merged_boundaries(seg, self.connectivity)
         return morpho.juicy_center(seg, self.pad_thickness)
 
 
