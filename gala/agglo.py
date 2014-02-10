@@ -1024,6 +1024,10 @@ class Rag(Graph):
         self.merge_priority_function = original_merge_priority_function
         self.merge_queue.finish()
         self.rebuild_merge_queue()
+        max_score = max([qitem[0] for qitem in self.merge_queue.q])
+        self.ucm -= max_score
+        for n in self.tree.nodes():
+            self.tree.node[n]['w'] -= max_score
 
 
     def learn_agglomerate(self, gts, feature_map,
