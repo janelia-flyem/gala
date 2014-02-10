@@ -804,9 +804,9 @@ class Rag(Graph):
             gtm = gt.max()+1
             gt_ignore = [0, gtm] if (gt==0).any() else [gtm]
             seg_ignore = [0, self.boundary_body] if \
-                        (self.segmentation==0).any() else [self.boundary_body]
+                        (self.watershed==0).any() else [self.boundary_body]
             self.gt = morpho.pad(gt, gt_ignore)
-            self.rig = contingency_table(self.segmentation, self.gt)
+            self.rig = contingency_table(self.watershed, self.gt)
             self.rig[:, gt_ignore] = 0
             self.rig[seg_ignore, :] = 0
         else:
