@@ -1490,7 +1490,8 @@ class Rag(Graph):
             self.merge_edge_properties((n2, n), (n1, n))
         # this if statement enables merging of non-adjacent nodes
         if self.has_edge(n1,n2) and self.has_zero_boundaries:
-            self.refine_post_merge_boundaries(n1, n2)
+            sp2segment = self.tree.get_map(w)
+            self.refine_post_merge_boundaries(n1, n2, sp2segment)
         try:
             self.merge_queue.invalidate(self[n1][n2]['qlink'])
         except KeyError:
@@ -1499,30 +1500,31 @@ class Rag(Graph):
         self.rename_node(n1, node_id)
 
 
-    def refine_post_merge_boundaries(self, n1, n2):
+    def refine_post_merge_boundaries(self, n1, n2, sp2segment):
         """Ensure boundary pixels are only counted once after a merge.
 
         Parameters
         ----------
         n1, n2 : int
             Nodes determining the edge for which to update the UCM.
+        sp2segment : array of int
+            The most recent map from superpixels to segments.
         """
         boundary = array(list(self[n1][n2]['boundary']))
-        boundary_neighbor_pixels = self.segmentation_r[
-            self.neighbor_idxs(boundary)
-        ]
-        add = ( (boundary_neighbor_pixels == 0) +
-            (boundary_neighbor_pixels == n1) +
-            (boundary_neighbor_pixels == n2) ).all(axis=1)
-        check = True-add
+        boundary_neighbor_pixels = sp2segment[self.watershed_r[
+                                              self.neighbor_idxs(boundary)]]
+        add = ((boundary_neighbor_pixels == 0) +
+               (boundary_neighbor_pixels == n1) +
+               (boundary_neighbor_pixels == n2)).all(axis=1)
+        check = True - add
         self.node[n1]['extent'].update(boundary[add])
         self.feature_manager.pixelwise_update_node_cache(self, n1,
                         self.node[n1]['feature-cache'], boundary[add])
-        self.segmentation_r[boundary[add]] = n1
         boundaries_to_edit = {}
         for px in boundary[check]:
-            for lb in unique(
-                        self.segmentation_r[self.neighbor_idxs(px)]):
+            px_neighbors = self.neighbor_idxs(px)
+            labels = np.unique(sp2segment[self.watershed_r[px_neighbors]])
+            for lb in labels:
                 if lb not in [0, n1, self.boundary_body]:
                     try:
                         boundaries_to_edit[(n1,lb)].append(px)
