@@ -1484,7 +1484,6 @@ class Rag(Graph):
             self.node[n1]['exclusions'].update(self.node[n2]['exclusions'])
         self.update_ucm(n1, n2)
         w = self[n1][n2].get('weight', merge_priority)
-        node_id = self.tree.merge(n1, n2, w)
         self.node[n1]['extent'].update(self.node[n2]['extent'])
         self.feature_manager.update_node_cache(self, n1, n2,
                 self.node[n1]['feature-cache'], self.node[n2]['feature-cache'])
@@ -1500,6 +1499,7 @@ class Rag(Graph):
             self.merge_queue.invalidate(self[n1][n2]['qlink'])
         except KeyError:
             pass
+        node_id = self.tree.merge(n1, n2, w)
         self.remove_node(n2)
         self.rename_node(n1, node_id)
 
