@@ -33,7 +33,11 @@ from viridis import tree
 
 
 def contingency_table(a, b):
-    return np.array(ev_contingency_table(a, b).todense())
+    ct = ev_contingency_table(a, b)
+    nx, ny = ct.shape
+    ctout = np.zeros((2 * nx, ny), ct.dtype)
+    ct.todense(out=ctout[:nx, :])
+    return ctout
 
 
 arguments = argparse.ArgumentParser(add_help=False)
@@ -1329,12 +1333,15 @@ class Rag(Graph):
             data.append(dat)
             label = dat[1][label_type_keys[labeling_mode]]
             if learning_mode != 'strict' or label < 0:
+                node_id = g.merge_nodes(n1, n2, merge_priority)
                 for ctable, assignment in zip(ctables, assignments):
-                    ctable[n1] += ctable[n2]
+                    ctable[node_id] = ctable[n1] + ctable[n2]
+                    ctable[n1] = 0
                     ctable[n2] = 0
-                    assignment[n1] = ctable[n1] == ctable[n1].max()
+                    assignment[node_id] = (ctable[node_id] ==
+                                           ctable[node_id].max())
+                    assignment[n1] = 0
                     assignment[n2] = 0
-                g.merge_nodes(n1, n2)
         return map(array, zip(*data))
 
 
@@ -1466,7 +1473,8 @@ class Rag(Graph):
 
         Returns
         -------
-        None
+        node_id : int
+            The id of the node resulting from the merge.
 
         Notes
         -----
@@ -1502,6 +1510,7 @@ class Rag(Graph):
         node_id = self.tree.merge(n1, n2, w)
         self.remove_node(n2)
         self.rename_node(n1, node_id)
+        return node_id
 
 
     def refine_post_merge_boundaries(self, n1, n2, sp2segment):
