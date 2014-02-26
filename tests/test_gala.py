@@ -41,7 +41,7 @@ def test_learned_agglo_1channel():
     g_test.agglomerate(0.5)
     seg_test1 = g_test.get_segmentation()
     seg_test1_result = imio.read_h5_stack('example-data/test-seg1.lzf.h5')
-    assert_array_equal(seg_test1, seg_test1_result)
+    assert_allclose(ev.vi(seg_test1, seg_test1_result), 0.0)
 
 
 # this training set should be created by the below command, but setting
@@ -64,7 +64,7 @@ def test_learned_agglo_4channel():
     g_test4.agglomerate(0.5)
     seg_test4 = g_test4.get_segmentation()
     seg_test4_result = imio.read_h5_stack('example-data/test-seg4.lzf.h5')
-    assert_array_equal(seg_test4, seg_test4_result)
+    assert_allclose(ev.vi(seg_test4, seg_test4_result), 0.0)
 
 
 def test_split_vi():
