@@ -810,9 +810,9 @@ class Rag(Graph):
             seg_ignore = [0, self.boundary_body] if \
                         (self.watershed==0).any() else [self.boundary_body]
             self.gt = morpho.pad(gt, gt_ignore)
-            self.rig = contingency_table(self.watershed, self.gt)
-            self.rig[:, gt_ignore] = 0
-            self.rig[seg_ignore, :] = 0
+            self.rig = contingency_table(self.watershed, self.gt,
+                                         ignore_seg=seg_ignore,
+                                         ignore_gt=gt_ignore)
         else:
             self.gt = None
             # null pattern to transparently allow merging of nodes.
@@ -1510,6 +1510,9 @@ class Rag(Graph):
         node_id = self.tree.merge(n1, n2, w)
         self.remove_node(n2)
         self.rename_node(n1, node_id)
+        self.rig[node_id] = self.rig[n1] + self.rig[n2]
+        self.rig[n1] = 0
+        self.rig[n2] = 0
         return node_id
 
 
