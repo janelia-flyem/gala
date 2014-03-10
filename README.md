@@ -1,4 +1,4 @@
-# gala: segmentation of nD images
+# gala: segmentation of nD images [![Picture](https://raw.github.com/janelia-flyem/janelia-flyem.github.com/master/images/gray_janelia_logo.png)](http://janelia.org/)
 
 Gala is a python library for performing and evaluating image segmentation,
 distributed under the open-source [Janelia Farm license](http://janelia-flyem.github.com/janelia_farm_license.html). It implements the algorithm
