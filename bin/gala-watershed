@@ -10,4 +10,4 @@ pkg_dir = os.path.abspath(os.path.join(this_dir, '..'))
 sys.path.insert(0, pkg_dir)
 
 from gala import watershed 
-sys.exit(pixel.entrypoint(sys.argv))
+sys.exit(watershed.entrypoint(sys.argv))

@@ -6,13 +6,18 @@ import numpy
 import json
 import shutil
 import traceback
+from skimage import morphology as skmorph
+from scipy.ndimage import label
 
-import imio, option_manager, app_logger, session_manager, util
+import imio, morpho, option_manager, app_logger, session_manager, util
+
+# Group where we store predictions in HDF5 file
+PREDICTIONS_HDF5_GROUP = '/volume/predictions'
 
 def ilp_file_verify(options_parser, options, master_logger):
-    if options.ilp_file is not None:
-        if not os.path.exists(options.ilp_file):
-            raise Exception("ILP file " + options.ilp_file + " not found")
+    if options.classifier is not None:
+        if not os.path.exists(options.classifier):
+            raise Exception("ILP file " + options.classifier + " not found")
 
 def temp_dir_verify(options_parser, options, master_logger):
     """
@@ -23,10 +28,6 @@ def temp_dir_verify(options_parser, options, master_logger):
         util.make_dir(options.temp_dir)
 
 def create_watershed_options(options_parser):
-    options_parser.create_option("pixelprob-name", "Name for pixel classification", 
-        default_val="pixel_boundpred.h5", required=False, dtype=str, verify_fn=None, num_args=None,
-        shortcut=None, warning=False, hidden=False) 
-
     options_parser.create_option("datasrc", "location of datatype on DVID", 
         default_val=None, required=True, dtype=str, verify_fn=None, num_args=None,
         shortcut=None, warning=False, hidden=False) 
@@ -40,19 +41,26 @@ def create_watershed_options(options_parser):
         shortcut=None, warning=False, hidden=False) 
  
     options_parser.create_option("bbox1", "Bounding box first coordinate", 
-        default_val=None, required=True, dtype=[], verify_fn=None, num_args=None,
+        default_val=None, required=True, dtype=int, verify_fn=None, num_args='+',
         shortcut=None, warning=False, hidden=False) 
     
     options_parser.create_option("bbox2", "Bounding box second coordinate", 
-        default_val=None, required=True, dtype=[], verify_fn=None, num_args=None,
+        default_val=None, required=True, dtype=int, verify_fn=None, num_args='+',
         shortcut=None, warning=False, hidden=False) 
 
     options_parser.create_option("temp-dir", "Path to writable temporary directory", 
-        default_val=None, required=True, dtype=str, verify_fn=temp_dir_verify, num_args=None,
+        default_val=None, required=False, dtype=str, verify_fn=temp_dir_verify, num_args=None,
         shortcut=None, warning=False, hidden=False) 
-   
-# ?! why seed crop like this, pass in border, bound channel option, seed option 
-def create_labels(options, master_logger):
+
+    options_parser.create_option("seed-size", "Minimum size of seeded region", 
+        default_val=5, required=False, dtype=int, verify_fn=None, num_args=None,
+        shortcut=None, warning=False, hidden=False) 
+
+    options_parser.create_option("pixelprob-name", "Name for pixel classification", 
+        default_val="pixel_boundpred.h5", required=False, dtype=str, verify_fn=None, num_args=None,
+        shortcut=None, warning=False, hidden=False) 
+
+def create_labels(border_size, prediction_file, options, master_logger):
     """Returns ndarray labeled using watershed algorithm
 
     Args:
@@ -77,7 +85,10 @@ def create_labels(options, master_logger):
     # TODO -- Refactor.  If 'single-channel' and hdf5 prediction file is given, it looks like
     #   read_image_stack will return a modified volume and the bound-channels parameter must
     #   be 0 or there'll be conflict.
-    boundary = grab_boundary(prediction, options.bound_channels, master_logger) 
+
+    master_logger.debug("Grabbing boundary labels: " + str([0]))
+    boundary = prediction[...,0] 
+
     master_logger.info("Shape of boundary: %s" % str(boundary.shape))
 
     # Prediction file is in format (t, x, y, z, c) but needs to be in format (z, x, y).
@@ -85,9 +96,7 @@ def create_labels(options, master_logger):
     # origin sits in top left.
     # imio.read_image_stack squeezes out the first dim.
 
-
-    master_logger.debug("watershed seed value threshold: " + str(options.seed_val))
-    seeds = label(boundary<=options.seed_val)[0]
+    seeds = label(boundary==0)[0]
 
     if options.seed_size > 0:
         master_logger.debug("Removing small seeds")
@@ -98,32 +107,30 @@ def create_labels(options, master_logger):
     
     boundary_cropped = boundary
     seeds_cropped = seeds 
-    if options.border_size > 0:
-        boundary_cropped = boundary[options.border_size:(-1*options.border_size), options.border_size:(-1*options.border_size),options.border_size:(-1*options.border_size)]
-        seeds_cropped = label(boundary_cropped<=options.seed_val)[0]
+    if border_size > 0:
+        boundary_cropped = boundary[border_size:(-1*border_size), border_size:(-1*border_size),border_size:(-1*border_size)]
+        seeds_cropped = label(boundary_cropped==0)[0]
         if options.seed_size > 0:
             seeds_cropped = morpho.remove_small_connected_components(seeds_cropped, options.seed_size)
 
     supervoxels_cropped = skmorph.watershed(boundary_cropped, seeds_cropped)
     
     supervoxels = supervoxels_cropped
-    if options.border_size > 0:
+    if border_size > 0:
         supervoxels = seeds.copy()
         supervoxels.dtype = supervoxels_cropped.dtype
         supervoxels[:,:,:] = 0 
-        supervoxels[options.border_size:(-1*options.border_size), 
-                options.border_size:(-1*options.border_size),options.border_size:(-1*options.border_size)] = supervoxels_cropped
+        supervoxels[border_size:(-1*border_size), 
+                border_size:(-1*border_size),border_size:(-1*border_size)] = supervoxels_cropped
 
     master_logger.info("Finished watershed")
    
-    return supervoxels, prediction
-
-
+    return supervoxels
 
 
 def gen_watershed(session_location, options, master_logger, image_filename=None):
     """
-    Generates pixel probabilities using classifier in options.ilp_file.
+    Generates pixel probabilities using classifier in options.clasifier.
 
     Args:
         session_location:  String.  Where we should export generated pixel probabilities.
@@ -152,14 +159,14 @@ def gen_watershed(session_location, options, master_logger, image_filename=None)
     pixel_prob_filename = os.path.join(session_location, 'STACKED_prediction.h5')
     ilastik_command = ( "ilastik_headless"
                        #" --headless"
-                       " --cutout_subregion={coords}"
+                       ' --cutout_subregion="{coords}"'
                        " --preconvert_stacks"
                        " --project={project_file}"
                        " --output_axis_order=txyzc" # gala assumes ilastik output is always txyzc
                        " --output_format=hdf5"
                        " --output_filename_format={pixel_prob_filename}"
                        " --output_internal_path=/volume/predictions"
-                       "".format( project_file=options.classifier,
+                       "".format( coords=coords, project_file=options.classifier,
                                   pixel_prob_filename=pixel_prob_filename ) )
     if options.temp_dir is not None:
         temp_dir = util.make_temp_dir(options.temp_dir)
@@ -172,22 +179,20 @@ def gen_watershed(session_location, options, master_logger, image_filename=None)
     if options.temp_dir is not None:
         shutil.rmtree(temp_dir)
 
-    labels = create_labels(options, master_logger)
+    labels = create_labels(border2, pixel_prob_filename, options, master_logger)
    
-    imio.write_image_stack(supervoxels,
+    imio.write_image_stack(labels,
         session_location + "/" + "supervoxels.h5")
 
-    return pixel_prob_filename
-
 def entrypoint(argv):
-    applogger = app_logger.AppLogger(False, 'gen-pixel')
+    applogger = app_logger.AppLogger(False, 'gen-watershed')
     master_logger = applogger.get_logger()
    
     try:
-        session = session_manager.Session("gen-pixel", "Pixel classification wrapper for Ilastik", 
-            master_logger, applogger, create_pixel_options)    
+        session = session_manager.Session("gen-watershed", "Pixel classification wrapper for Ilastik", 
+            master_logger, applogger, create_watershed_options)    
 
-        gen_watershed_options(session.session_location, session.options, master_logger)
+        gen_watershed(session.session_location, session.options, master_logger)
     except Exception, e:
         master_logger.error(str(traceback.format_exc()))
     except KeyboardInterrupt, err:

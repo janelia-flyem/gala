@@ -39,7 +39,7 @@ if __name__ == '__main__':
                       ['testdata/*.*', 'testdata/original_grayscales/*']},
         install_requires=INST_DEPENDENCIES,
         scripts=["bin/gala-segmentation-stitch",
-                 "bin/gala-segmentation-pipeline",
+                 "bin/gala-segmentation-pipeline", "bin/gala-watershed",
                  "bin/gala-train", "bin/gala-test-package",
                  "bin/gala-pixel", "bin/comparestacks",
                  "bin/gala-valprob", "bin/gala-auto"]
