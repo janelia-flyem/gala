@@ -149,10 +149,11 @@ def gen_watershed(session_location, options, master_logger, image_filename=None)
 
     master_logger.info("Generating Pixel Probabilities") 
 
-    # add border to the border (inclusive or exclusive??)
-    border2 = options.border + 10
+    # do not add to the border size
+    border2 = options.border
     coord0 = options.bbox1[2] - border2, options.bbox1[1] - border2, options.bbox1[0] - border2, 0
-    coord1 = options.bbox2[2] + border2, options.bbox2[1] + border2, options.bbox2[0] + border2, 0
+    # hard code output channel to 6 for now
+    coord1 = options.bbox2[2] + border2, options.bbox2[1] + border2, options.bbox2[0] + border2, 6
     coords = [coord0, coord1]
 
     master_logger.info("Running Ilastik in headless mode")
@@ -175,11 +176,22 @@ def gen_watershed(session_location, options, master_logger, image_filename=None)
     # Add the input file as the last arg
     ilastik_command += ' "dvid://' + options.datasrc + '"'
     master_logger.info("Executing ilastik headless command for pixel classification:\n%s" % ilastik_command)
+   
+    """
+    import subprocess
+    p = subprocess.Popen(ilastik_command.split(), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    master_logger.info("before!!!")
+    output, errors = p.communicate()
+
+    master_logger.info(output)
+    master_logger.info(errors)
+    """
+
     os.system(ilastik_command)
     if options.temp_dir is not None:
         shutil.rmtree(temp_dir)
 
-    labels = create_labels(border2, pixel_prob_filename, options, master_logger)
+    labels = create_labels(0, pixel_prob_filename, options, master_logger)
    
     imio.write_image_stack(labels,
         session_location + "/" + "supervoxels.h5")
@@ -187,9 +199,9 @@ def gen_watershed(session_location, options, master_logger, image_filename=None)
 def entrypoint(argv):
     applogger = app_logger.AppLogger(False, 'gen-watershed')
     master_logger = applogger.get_logger()
-   
+
     try:
-        session = session_manager.Session("gen-watershed", "Pixel classification wrapper for Ilastik", 
+        session = session_manager.Session("gen-watershed", "Watershed generation based on Ilastik boundary prediction", 
             master_logger, applogger, create_watershed_options)    
 
         gen_watershed(session.session_location, session.options, master_logger)
