@@ -818,9 +818,9 @@ class Rag(Graph):
             # null pattern to transparently allow merging of nodes.
             # Bonus feature: counts how many sp's went into a single node.
             try:
-                self.rig = ones(self.watershed.max()+1)
+                self.rig = ones(2 * self.watershed.max() + 1)
             except ValueError:
-                self.rig = ones(self.number_of_nodes()+1)
+                self.rig = ones(2 * self.number_of_nodes() + 1)
 
 
     def set_exclusions(self, excl):
