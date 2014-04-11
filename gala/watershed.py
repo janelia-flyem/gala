@@ -197,7 +197,7 @@ def gen_watershed(session_location, options, master_logger, image_filename=None)
         session_location + "/" + "supervoxels.h5")
 
     fout = open(session_location + "/max_body.json", 'w')
-    fout.write(json.dumps({ "max_id": labels.max() }, indent=4))
+    fout.write(json.dumps({ "max_id": int(labels.max()) }, indent=4))
 
 def entrypoint(argv):
     applogger = app_logger.AppLogger(False, 'gen-watershed')
