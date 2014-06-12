@@ -163,7 +163,7 @@ def gen_watershed(session_location, options, master_logger, image_filename=None)
                        ' --cutout_subregion="{coords}"'
                        " --preconvert_stacks"
                        " --project={project_file}"
-                       " --output_axis_order=txyzc" # gala assumes ilastik output is always txyzc
+                       " --output_axis_order=xyzc" # gala assumes ilastik output is always xyzc
                        " --output_format=hdf5"
                        " --output_filename_format={pixel_prob_filename}"
                        " --output_internal_path=/volume/predictions"
