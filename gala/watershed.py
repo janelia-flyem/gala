@@ -10,6 +10,7 @@ from skimage import morphology as skmorph
 from scipy.ndimage import label
 
 import imio, morpho, option_manager, app_logger, session_manager, util
+import syngeo
 
 # Group where we store predictions in HDF5 file
 PREDICTIONS_HDF5_GROUP = '/volume/predictions'
@@ -18,6 +19,13 @@ def ilp_file_verify(options_parser, options, master_logger):
     if options.classifier is not None:
         if not os.path.exists(options.classifier):
             raise Exception("ILP file " + options.classifier + " not found")
+
+def synapse_file_verify(options_parser, options, master_logger):
+    if options.synapse_file:
+        if not os.path.exists(options.synapse_file):
+            raise Exception("Synapse file " + options.synapse_file + " not found")
+        if not options.synapse_file.endswith('.json'):
+            raise Exception("Synapse file " + options.synapse_file + " does not end with .json")
 
 def temp_dir_verify(options_parser, options, master_logger):
     """
@@ -36,7 +44,11 @@ def create_watershed_options(options_parser):
         default_val=None, required=True, dtype=str, verify_fn=ilp_file_verify, num_args=None,
         shortcut=None, warning=False, hidden=False) 
 
-    options_parser.create_option("border", "Border surrounding dataset", 
+    options_parser.create_option("synapse-file", "Json file containing synapse information -- (0,0) at bottom right of buffered volume", 
+        default_val=None, required=False, dtype=str, verify_fn=synapse_file_verify, num_args=None,
+        shortcut=None, warning=False, hidden=False) 
+    
+    options_parser.create_option("border", "Buffer to surround bounding box (will be segmented)", 
         default_val=None, required=True, dtype=int, verify_fn=None, num_args=None,
         shortcut=None, warning=False, hidden=False) 
  
@@ -124,7 +136,26 @@ def create_labels(border_size, prediction_file, options, master_logger):
                 border_size:(-1*border_size),border_size:(-1*border_size)] = supervoxels_cropped
 
     master_logger.info("Finished watershed")
-   
+  
+    # split supervoxels according to synapse constraints
+    if options.synapse_file is not None:
+        master_logger.info("Processing synapses")
+        pre_post_pairs = syngeo.io.raveler_synapse_annotations_to_coords(
+                options.synapse_file)
+        synapse_volume = syngeo.io.volume_synapse_view(pre_post_pairs, boundary.shape)
+        if border_size > 0:
+            synvol_cropped = synapse_volume[border_size:(-1*border_size),
+                    border_size:(-1*border_size),border_size:(-1*border_size)]
+            synvol_cropped = synvol_cropped.copy()
+            synapse_volume[:,:,:] = 0
+            synapse_volume[border_size:(-1*border_size),
+                    border_size:(-1*border_size),border_size:(-1*border_size)] = synvol_cropped
+        
+        supervoxels = morpho.split_exclusions(boundary, supervoxels, synapse_volume, 1)
+        master_logger.info("Finished processing synapses")
+
+
+
     return supervoxels
 
 

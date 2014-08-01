@@ -111,7 +111,7 @@ def gen_pixel_probabilities(session_location, options, master_logger, image_file
                            #" --headless"
                            " --preconvert_stacks"
                            " --project={project_file}"
-                           " --output_axis_order=txyzc" # gala assumes ilastik output is always txyzc
+                           " --output_axis_order=xyzc" # gala assumes ilastik output is always txyzc
                            " --output_format=hdf5"
                            " --output_filename_format={pixel_prob_filename}"
                            " --output_internal_path=/volume/predictions"
