@@ -323,11 +323,7 @@ def flow_perform_agglomeration(options, supervoxels, prediction, image_stack,
     else:
         master_logger.info("Building RAG")
         boundary = grab_boundary(prediction, options.bound_channels, master_logger)   
-        if options.use_neuroproof:
-            agglom_stack = stack_np.Stack(supervoxels, boundary, synapse_file=options.synapse_file,
-                        master_logger=master_logger)
-        else:
-            agglom_stack = agglo.Rag(supervoxels, boundary, 
+        agglom_stack = agglo.Rag(supervoxels, boundary, 
                 merge_priority_function=agglo.boundary_median,
                 show_progress=True, nozeros=True, exclusions=synapse_volume)
         master_logger.info("Finished building RAG")
@@ -385,6 +381,9 @@ def run_segmentation_pipeline(session_location, options, master_logger):
 
     if options.raveler_output:
         image_stack = imio.read_image_stack(options.image_stack)
+        if options.h5_output:
+            imio.write_image_stack(supervoxels,
+                session_location + "/" + options.supervoxels_name)
 
     """
     if supervoxels is not None:
@@ -469,7 +468,7 @@ def create_segmentation_pipeline_options(options_parser):
         shortcut='NP', warning=False, hidden=(not np_installed)) 
 
     options_parser.create_option("supervoxels-name", "Name for the supervoxel segmentation", 
-        default_val="supervoxels.lzf.h5", required=False, dtype=str, verify_fn=None, num_args=None,
+        default_val="supervoxels.h5", required=False, dtype=str, verify_fn=None, num_args=None,
         shortcut=None, warning=False, hidden=True) 
 
     options_parser.create_option("supervoxels-file", "Supervoxel segmentation file or directory stack", 
