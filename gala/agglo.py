@@ -1937,7 +1937,7 @@ class Rag(Graph):
                 % output_format)
 
 
-    def write_plaza_json(self, fout, synapsejson=None):
+    def write_plaza_json(self, fout, synapsejson=None, offsetz=0):
         """Write graph to Steve Plaza's JSON spec."""
         json_vals = {}
         if synapsejson is not None:
