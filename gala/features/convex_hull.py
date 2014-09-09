@@ -32,7 +32,7 @@ class Manager(base.Null):
         if n2 is not None:
             m.ravel()[list(g[n1][n2]['boundary'])]=1
         else:
-            m.ravel()[list(g.node[n1]['extent'])] = 1
+            m.ravel()[list(g.extent(n1))] = 1
         m = m - nd.binary_erosion(m) #Only need border
         ind = np.np.array(np.nonzero(m)).T
         return ind
@@ -95,7 +95,7 @@ class Manager(base.Null):
         convex_vol = cache[1]
         features = []
         features.append(convex_vol)
-        features.append(convex_vol/float(len(g.node[n]['extent'])))
+        features.append(convex_vol/float(g.node[n]['size']))
         return np.array(features)
 
     def compute_edge_features(self, g, n1, n2, cache=None):
@@ -124,8 +124,8 @@ class Manager(base.Null):
         allind = np.concatenate((ind1,ind2))
         convex_vol_both, tri_both = self.convex_hull_vol(allind, g)
 
-        vol1 = float(len(g.node[n1]['extent']))
-        vol2 = float(len(g.node[n2]['extent']))
+        vol1 = float(g.node[n1]['size'])
+        vol2 = float(g.node[n2]['size'])
         volborder = float(len(g[n1][n2]['boundary']))
         volboth = vol1+vol2
 

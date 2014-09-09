@@ -14,7 +14,7 @@ class Null(object):
         if n2 is None:
             c1 = g.node[n1][self.default_cache]
             return self.compute_node_features(g, n1, c1)
-        if len(g.node[n1]['extent']) > len(g.node[n2]['extent']):
+        if g.node[n1]['size'] > g.node[n2]['size']:
             n1, n2 = n2, n1 # smaller node first
         c1, c2, ce = [d[self.default_cache] for d in 
                             [g.node[n1], g.node[n2], g[n1][n2]]]

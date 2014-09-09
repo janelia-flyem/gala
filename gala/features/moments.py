@@ -34,7 +34,7 @@ class Manager(base.Null):
         return (values ** np.arange(self.nmoments+1)).sum(axis=0).T
 
     def create_node_cache(self, g, n):
-        node_idxs = list(g.node[n]['extent'])
+        node_idxs = list(g.extent(n))
         if self.oriented:
             ar = g.max_probabilities_r
         else:

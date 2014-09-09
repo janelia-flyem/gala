@@ -91,7 +91,7 @@ class Manager(base.Null):
         return h, ps
 
     def create_node_cache(self, g, n):
-        node_idxs = list(g.node[n]['extent'])
+        node_idxs = list(g.extent(n))
         if self.oriented:
             ar = g.max_probabilities_r
         else:
