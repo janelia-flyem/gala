@@ -45,7 +45,7 @@ def h5py_stack(fn):
         raise
     return a
 
-def default_classifier_extension(cl):
+def default_classifier_extension(cl, use_joblib=True):
     """
     Return the default classifier file extension for the given classifier cl.
 
