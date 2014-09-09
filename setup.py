@@ -1,5 +1,6 @@
 #from distutils.core import setup
 from setuptools import setup
+from Cython.Build import cythonize
 
 descr = """Graph-based active learning of agglomeration
 
@@ -42,6 +43,7 @@ if __name__ == '__main__':
                  "bin/gala-segmentation-pipeline",
                  "bin/gala-train", "bin/gala-test-package",
                  "bin/gala-pixel", "bin/comparestacks",
-                 "bin/gala-valprob", "bin/gala-auto"]
+                 "bin/gala-valprob", "bin/gala-auto"],
+        ext_modules = cythonize(["gala/*.pyx","gala/features/*.pyx"], annotate=True)
     )
 
