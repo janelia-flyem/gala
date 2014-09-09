@@ -1,5 +1,7 @@
 import numpy as np
-from scipy.misc import comb as nchoosek
+cimport numpy as np
+
+from numpy import zeros as np_zeros
 from . import base
 
 class Manager(base.Null):
@@ -109,7 +111,48 @@ class Manager(base.Null):
         n = feat.ravel()[0]
         return np.concatenate(([n], feat[1:].T.ravel()))
 
+
+# from gala.features import cmoments as cm; import numpy as np; a = np.array([1,2,3,4,5]); a = a[:,None]; r = cm.central_moments_from_noncentral_sums(a)
 def central_moments_from_noncentral_sums(a):
+    return _central_moments_from_noncentral_sums(a.astype(np.double))
+
+cdef _central_moments_from_noncentral_sums(double[:,:] a):
+    if a.shape[0] == 1: return a
+    cdef np.ndarray[dtype=np.double_t, ndim=2] ac = np_zeros([a.shape[0], a.shape[1]], dtype=np.double)
+    cdef int ii, jj, n
+    cdef double N, mu, total
+    for ii in range(a.shape[1]):
+        N = a[0,ii]
+        for jj in range(a.shape[0]): a[jj,ii] /= N
+        mu = a[1,ii]
+        for n in range(2, a.shape[0]):
+            total = 0.0
+            for jj in range(n+1):
+                total += (_nchoosek(n,jj) * (-1)**(n-jj) * 
+                            a[jj, ii] * mu**(n-jj))
+            ac[n, ii] = total
+        ac[0, ii] = N
+        ac[1, ii] = mu
+    return ac
+
+cdef long _nchoosek(int n, int k):
+    cdef long accumulator = 1
+    cdef long i
+    for i in range(1, k+1):
+        accumulator *= (n+1-i)
+        accumulator /= i
+    return accumulator
+
+def nchoosek(n, k):
+    if type(k) == np.ndarray or type(k) == type([]):
+        out = np.zeros_like(k)
+        for ii in range(len(out)):
+            out[ii] = _nchoosek(n, k[ii])
+        return out
+    else:
+        return _nchoosek(n,k)
+
+def central_moments_from_noncentral_sums_py(a):
     """Compute moments about the mean from sums of x**i, for i=0, ..., len(a).
 
     The first two moments about the mean (1 and 0) would always be 
@@ -141,4 +184,3 @@ def ith_root(ar):
     ar[2:] = np.sign(ar[2:]) * \
         (abs(ar[2:]) ** (1.0/np.arange(2, len(ar)))[:, np.newaxis])
     return ar
-

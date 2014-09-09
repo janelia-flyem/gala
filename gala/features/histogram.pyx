@@ -1,4 +1,5 @@
 import numpy as np
+cimport numpy as np
 
 from . import base
  
@@ -60,11 +61,11 @@ class Manager(base.Null):
                 'either a 1-d or 2-d np.array of probabilities. '+
                 'Got %i-d np.array.'% vals.ndim)
 
-    def percentiles(self, h, desired_percentiles):
-        if h.ndim == 1 or any([i==1 for i in h.shape]): h = h.reshape((1,-1))
-        h = h.T
+    def percentiles_py(self, h, desired_percentiles):
+        if h.ndim == 1 or any([i==1 for i in h.shape]): h = h.reshape((1,-1)) # ensure has two dimensions
+        h = h.T # make it tall and skinny, ie (25,2)
         nchannels = h.shape[1]
-        hcum = np.concatenate(
+        hcum = np.concatenate( # reformulate the histogram as CDF instead of PDF and prepend 0 to each channel
             (np.zeros((1, nchannels)), h.cumsum(axis=0)), axis=0)
         bin_edges = np.zeros((self.nbins+1, nchannels))
         for i in range(nchannels):
@@ -78,10 +79,15 @@ class Manager(base.Null):
             slope = (bin_edges[b2]-bin_edges[b1]) / (hcum[b2]-hcum[b1])
             delta = p - hcum[b1]
             estim = bin_edges[b1] + delta*slope
-            error = slope==np.inf
+            error = np.isinf(slope)
             estim[error] = (bin_edges[b2]+bin_edges[b1])[error]/2
             ps[i] = estim
         return ps.T
+
+    def percentiles(self, h, desired_percentiles):
+        desired_percentiles = np.array(desired_percentiles); h = np.array(h)
+        if h.ndim == 1 or any([i==1 for i in h.shape]): h = h.reshape((1,-1))
+        return _percentiles(h.T, desired_percentiles, self.minval, self.maxval, self.nbins)
 
     def normalized_histogram_from_cache(self, cache, desired_percentiles):
         s = cache.sum(axis=1)[:,np.newaxis]
@@ -192,3 +198,30 @@ class Manager(base.Null):
         else:
             return self.JS_divergence(h1, h2)
 
+cdef _percentiles(double[:,:] h, double[:] desired_percentiles,
+                  double minval, double maxval, int nbins):
+    cdef double p, slope, prev_h, delta, estim, step_size, prev_b
+    cdef int cc,ii,jj,b2
+    cdef int nchannels = h.shape[1]
+    cdef np.ndarray[np.double_t, ndim=2] ps = np.zeros([nchannels, len(desired_percentiles)], dtype=np.double)
+    step_size = (maxval-minval)/nbins
+    for cc in range(nchannels):
+        for ii in range(1,h.shape[0]): # h = np.cumsum(h, axis=0)
+            h[ii,cc] += h[ii-1,cc]
+        for ii in range(desired_percentiles.shape[0]):
+            p = desired_percentiles[ii]
+            for jj in range(h.shape[0]):
+                if h[jj, cc] >= p: b2 = jj; break
+
+            if b2 > 0:
+                prev_h = h[b2-1, cc]
+                prev_b = b2 * step_size
+            else: prev_h = 0; prev_b = 0
+
+            if (h[b2, cc]-prev_h) == 0:
+                ps[cc,ii] = ((b2+1*step_size)+prev_b)/2
+            else:
+                slope = step_size / (h[b2, cc]-prev_h)
+                delta = p - prev_h
+                ps[cc,ii] = prev_b + (slope*delta)
+    return ps
