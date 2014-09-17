@@ -159,7 +159,7 @@ def mito_merge():
             else:
                 mito = n2
                 cyto = n1
-            if g.node[mito]['size']>g.node[cyto]['size']:
+            if g.node[mito]['size'] > g.node[cyto]['size']:
                 return np.inf
             else:
                 return 1.0 - (float(len(g[mito][cyto]["boundary"]))/
@@ -412,10 +412,11 @@ class Rag(Graph):
 
 
     def extent(self, nodeid):
-        if 'extent' in self.node[nodeid]: return self.node[nodeid]['extent']
+        if 'extent' in self.node[nodeid]:
+            return self.node[nodeid]['extent']
         extent_array = opt.flood_fill(self.watershed, 
-                np.array(self.node[nodeid]['entrypoint']), 
-                np.array(self.node[nodeid]['watershed_ids']))
+                                      np.array(self.node[nodeid]['entrypoint']), 
+                                      np.array(self.node[nodeid]['watershed_ids']))
         if len(extent_array) != self.node[nodeid]['size']:
             sys.stderr.write("Flood fill fail - found %d voxels but size expected %d\n" \
                                 % (len(extent_array), self.node[nodeid]['size']))
@@ -510,10 +511,14 @@ class Rag(Graph):
                 self.node[nodeid]['entrypoint'] = np.array(entrypoint_tuple)
             if 'watershed_ids' not in self.node[nodeid]:
                 self.node[nodeid]['watershed_ids'] = [nodeid]
-            try: self.node[nodeid]['extent'].add(idx)
-            except KeyError: self.node[nodeid]['extent'] = set([idx])
-            try: self.node[nodeid]['size'] += 1
-            except KeyError: self.node[nodeid]['size'] = 1
+            try:
+                self.node[nodeid]['extent'].add(idx)
+            except KeyError:
+                self.node[nodeid]['extent'] = set([idx])
+            try:
+                self.node[nodeid]['size'] += 1
+            except KeyError:
+                self.node[nodeid]['size'] = 1
 
             if edges is not None:
                 for l1,l2 in edges:
@@ -575,10 +580,14 @@ class Rag(Graph):
                     self.node[nodeid]['entrypoint'] = np.array(entrypoint_tuple)
                 if 'watershed_ids' not in self.node[nodeid]:
                     self.node[nodeid]['watershed_ids'] = [nodeid]
-                try: self.node[nodeid]['extent'].add(idx)
-                except KeyError: self.node[nodeid]['extent'] = set([idx])
-                try: self.node[nodeid]['size'] += 1
-                except KeyError: self.node[nodeid]['size'] = 1
+                try:
+                    self.node[nodeid]['extent'].add(idx)
+                except KeyError:
+                    self.node[nodeid]['extent'] = set([idx])
+                try:
+                    self.node[nodeid]['size'] += 1
+                except KeyError:
+                    self.node[nodeid]['size'] = 1
             else:
                 if len(adj_labels) == 0: continue
                 if adj_labels[-1] != self.boundary_body:

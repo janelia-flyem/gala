@@ -112,18 +112,20 @@ class Manager(base.Null):
         return np.concatenate(([n], feat[1:].T.ravel()))
 
 
-# from gala.features import cmoments as cm; import numpy as np; a = np.array([1,2,3,4,5]); a = a[:,None]; r = cm.central_moments_from_noncentral_sums(a)
 def central_moments_from_noncentral_sums(a):
     return _central_moments_from_noncentral_sums(a.astype(np.double))
 
+
 cdef _central_moments_from_noncentral_sums(double[:,:] a):
-    if a.shape[0] == 1: return a
+    if a.shape[0] == 1:
+        return a
     cdef np.ndarray[dtype=np.double_t, ndim=2] ac = np_zeros([a.shape[0], a.shape[1]], dtype=np.double)
     cdef int ii, jj, n
     cdef double N, mu, total
     for ii in range(a.shape[1]):
         N = a[0,ii]
-        for jj in range(a.shape[0]): a[jj,ii] /= N
+        for jj in range(a.shape[0]):
+            a[jj,ii] /= N
         mu = a[1,ii]
         for n in range(2, a.shape[0]):
             total = 0.0

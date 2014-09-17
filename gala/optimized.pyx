@@ -2,8 +2,9 @@ import numpy as np
 cimport numpy as np
 
 def despeckle_watershed(ws, in_place=True):
-    """ Function to clean up dots in an initial oversegmentation. If all
-    instances of a certain label are surrounded by a second label, then we
+    """ Function to clean up dots in an initial oversegmentation. 
+
+    If all instances of a label are surrounded by one second label, then we
     change those pixels to the second label. Useful for dealing with tiny dots
     when running watershed on un-thresholded probability maps. Assumes all
     labels appear only on one contiguous blob.
@@ -19,7 +20,8 @@ def despeckle_watershed(ws, in_place=True):
 
     Returns
     -------
-    the original image with all holes filled in their surrounding label
+    out : ndarray, same shape and type as `ws`
+        the original image with all holes filled in their surrounding label
     """
     cdef int ii
     if not in_place: ws = ws.copy()
@@ -38,26 +40,33 @@ cdef _despeckle_2d_watershed(long[:,:] ws):
     replacements = {}
     for ii in range(ws.shape[0]):
         for jj in range(ws.shape[1]):
-            if ws[ii,jj] not in neighborhoods: neighborhoods[ws[ii,jj]] = []
-            for i_offset in range(-1,2):
-                if i_offset+ii < 0 or i_offset+ii >= ws.shape[0]: continue
-                for j_offset in range(-1,2):
-                    if j_offset+jj < 0 or j_offset+jj >= ws.shape[1]: continue
+            if ws[ii,jj] not in neighborhoods:
+                neighborhoods[ws[ii,jj]] = []
+            for i_offset in [-1, 0, 1]:
+                if i_offset+ii < 0 or i_offset+ii >= ws.shape[0]:
+                    continue
+                for j_offset in [-1, 0, 1]:
+                    if j_offset+jj < 0 or j_offset+jj >= ws.shape[1]:
+                        continue
                     label = ws[ii+i_offset, jj+j_offset]
-                    if label == ws[ii,jj]: continue
-                    if label in neighborhoods[ws[ii,jj]]: continue
+                    if label == ws[ii,jj] or label in neighborhoods[ws[ii,jj]]:
+                        continue
                     neighborhoods[ws[ii,jj]].append(label)
     for label, neighbors in neighborhoods.iteritems():
-        if len(neighbors) == 1: replacements[label] = neighbors[0]
-        else: replacements[label] = label
+        if len(neighbors) == 1:
+            replacements[label] = neighbors[0]
+        else:
+            replacements[label] = label
     for ii in range(ws.shape[0]):
         for jj in range(ws.shape[1]):
             ws[ii,jj] = replacements[ws[ii,jj]]
     return ws
 
 def flood_fill(im, start, acceptable, limits=None, raveled=False):
-    """ Find all connected points in a 3D volume that have one of a set of
-    labels, flooding out from one starting point.
+    """ Find all connected points in a 3D volume.
+
+    Starting from a given point, this function floods into all adjacent
+    points that have an acceptable label.
 
     Parameters
     ----------
@@ -81,9 +90,9 @@ def flood_fill(im, start, acceptable, limits=None, raveled=False):
 
     Returns
     -------
-    matches : either an array of raveled indices of pixels in im, or a 
-    2D ndarray where each row is the coordinates of a pixel.
-
+    matches : ndarray
+        either a 1D array of raveled indices of pixels in im, or a 
+        2D ndarray where each row is the coordinates of a pixel.
     """
     cdef np.ndarray[np.int_t, ndim=2] matches
     if im.ndim == 3:
@@ -102,7 +111,22 @@ def flood_fill(im, start, acceptable, limits=None, raveled=False):
     else: raise ValueError("flood fill volume must be 3d!")
 
 cdef inline _row_match(long[:,:] rows, long[:] query, long limit):
-    """ fast check if the query array is a row in rows """
+    """ Fast check if the `query` array is a row in `rows`
+    
+    Parameters
+    ----------
+    rows : ndarray, 2 dimensions, type long
+        Each row represents a unique potential match.
+    query : ndarray, 1 dimension, type long
+        The group of numbers we wish to know if appears in `rows`
+    limit : long
+        Only searches the first `limit` many rows.
+
+    Returns
+    -------
+    rr : long
+        The row of the first occurence of `query`, or -1 if not found.
+    """
     cdef int rr, jj, match
     for rr in range(limit):
         match = 1
@@ -114,15 +138,29 @@ cdef inline _row_match(long[:,:] rows, long[:] query, long limit):
     return -1
 
 cdef inline _list_match(long[:] vals, long query):
-    """ fast check if a long is in a list """
+    """ Fast check if a long is in a list of longs
+    
+    Parameters
+    ----------
+    vals : ndarray, 1 dimension, type long
+        The list of acceptable values.
+    query : long
+        The value we wish to know whether is in vals.
+    
+    Returns
+    -------
+    jj : long
+        The index of the first occurence of query in vals,
+        or -1 if not found.
+    """
     cdef int jj
     for jj in range(vals.shape[0]):
         if vals[jj] == query: return jj
     return -1
 
 cdef _flood_fill_3d(long[:,:,:] im, long[:] start, long[:] acceptable, long[:,:] limits):
-    """ workhorse function for flood_fill, see its documentation.
-    assumes im[start] is in acceptable and start is within limits """
+    """ Workhorse function for flood_fill, see its documentation.
+    Assumes im[start] is in acceptable and start is within limits. """
     cdef int frontier_size = 1
     cdef int matches_size = 1
     cdef int starting_size = 5000
@@ -144,9 +182,12 @@ cdef _flood_fill_3d(long[:,:,:] im, long[:] start, long[:] acceptable, long[:,:]
             adjacent = _adjacent_points(base_point, limits)
             for p_ii in range(adjacent.shape[0]):
                 p = adjacent[p_ii]
-                if _list_match(p, -1) != -1: continue
-                if _row_match(matches, p, matches_size) > -1: continue
-                if _list_match(acceptable, im[p[0],p[1],p[2]]) == -1: continue
+                if _list_match(p, -1) != -1:
+                    continue
+                if _row_match(matches, p, matches_size) > -1:
+                    continue
+                if _list_match(acceptable, im[p[0],p[1],p[2]]) == -1:
+                    continue
                 new_frontier[new_frontier_size] = p
                 matches[matches_size] = p
                 matches_size += 1
@@ -161,9 +202,10 @@ cdef _flood_fill_3d(long[:,:,:] im, long[:] start, long[:] acceptable, long[:,:]
                 frontier[p_ii,jj] = new_frontier[p_ii, jj]
         frontier_size = new_frontier_size
     return matches[0:matches_size, :]
-    
+
+ 
 cdef np.ndarray[np.int_t, ndim=2] _expand_2darray(long[:,:] a):
-    """ double the number of rows in a matrix and copy over the existing values
+    """ Double the number of rows in a matrix and copy over the existing values
     """
     cdef int ii,jj
     cdef np.ndarray[np.int_t, ndim=2] expanded = np.zeros([a.shape[0] * 2, a.shape[1]], dtype=np.int)
@@ -172,10 +214,25 @@ cdef np.ndarray[np.int_t, ndim=2] _expand_2darray(long[:,:] a):
             expanded[ii,jj] = a[ii,jj]
     return expanded
 
+
 cdef np.ndarray[np.int_t, ndim=2] _adjacent_points(long[:] point, long[:,:] limits):
-    """ get all adjacent points to point that fall within limits. 
-    limits is specified as a matrix where each row represents a dimension and
-    the first column is lower bound and the second column is upper bound.
+    """ Get all adjacent points to point that fall within limits. 
+        
+    Parameters
+    ----------
+    point : ndarray, 1 dimension, type long
+        the coordinates of an n-dimensional point    
+    limits : ndarray, 2 dimensions, type long
+        point.shape[0] rows, 2 columns, each row of this array represents the
+        lower and upper (inclusive) bounds of acceptable values for
+        points that are returned.
+
+    Returns
+    -------
+    adjacent : ndarray, 2 dimensions, type long
+        2 rows for each "dimension" of point, one column for each dimension
+        Each row represents an adjacent points to `point`. Invalid points are
+        left as -1 across all columns.
     """
     cdef int dimensions = point.shape[0]
     cdef int variants = dimensions * 2
@@ -189,7 +246,8 @@ cdef np.ndarray[np.int_t, ndim=2] _adjacent_points(long[:] point, long[:,:] limi
         for s in shifts:
             v += 1
             new = point[d] + s
-            if new < limits[d,0] or new > limits[d,1]: continue
+            if new < limits[d,0] or new > limits[d,1]:
+                continue
             for ii in range(dimensions):
                 adjacent[v,ii] = point[ii]
             adjacent[v, d] = new

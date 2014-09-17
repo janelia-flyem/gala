@@ -7,6 +7,9 @@ class Manager(base.Null):
     def __init__(self, nbins=4, minval=0.0, maxval=1.0, 
             compute_percentiles=[], oriented=False, 
             compute_histogram=True, use_neuroproof=False, *args, **kwargs):
+        # Suggested starting parameters: 
+        #     nbins: 25 
+        #     compute_percentiles: [0.1, 0.5, 0.9]
         super(Manager, self).__init__()
         self.minval = minval
         self.maxval = maxval
@@ -62,10 +65,11 @@ class Manager(base.Null):
                 'Got %i-d np.array.'% vals.ndim)
 
     def percentiles_py(self, h, desired_percentiles):
-        if h.ndim == 1 or any([i==1 for i in h.shape]): h = h.reshape((1,-1)) # ensure has two dimensions
-        h = h.T # make it tall and skinny, ie (25,2)
+        if h.ndim == 1 or any([i==1 for i in h.shape]): h = h.reshape((1,-1))
+        h = h.T
         nchannels = h.shape[1]
-        hcum = np.concatenate( # reformulate the histogram as CDF instead of PDF and prepend 0 to each channel
+        # reformulate histogram as CDF instead of PDF & prepend 0 to each channel
+        hcum = np.concatenate( 
             (np.zeros((1, nchannels)), h.cumsum(axis=0)), axis=0)
         bin_edges = np.zeros((self.nbins+1, nchannels))
         for i in range(nchannels):
@@ -206,18 +210,19 @@ cdef _percentiles(double[:,:] h, double[:] desired_percentiles,
     cdef np.ndarray[np.double_t, ndim=2] ps = np.zeros([nchannels, len(desired_percentiles)], dtype=np.double)
     step_size = (maxval-minval)/nbins
     for cc in range(nchannels):
-        for ii in range(1,h.shape[0]): # h = np.cumsum(h, axis=0)
+        for ii in range(1,h.shape[0]):
             h[ii,cc] += h[ii-1,cc]
         for ii in range(desired_percentiles.shape[0]):
             p = desired_percentiles[ii]
             for jj in range(h.shape[0]):
-                if h[jj, cc] >= p: b2 = jj; break
-
+                if h[jj, cc] >= p: 
+                    b2 = jj
+                    break
             if b2 > 0:
                 prev_h = h[b2-1, cc]
                 prev_b = b2 * step_size
-            else: prev_h = 0; prev_b = 0
-
+            else:
+                prev_h = 0; prev_b = 0
             if (h[b2, cc]-prev_h) == 0:
                 ps[cc,ii] = ((b2+1*step_size)+prev_b)/2
             else:

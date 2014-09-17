@@ -710,11 +710,12 @@ def rand_by_threshold(ucm, gt, npoints=None):
         result[1, i] = adj_rand_index(seg, gt)
     return np.concatenate((ts[np.newaxis, :], result), axis=0)
 
-def rand_error(seg, gt, all_stats=False):
-    """Compute Adapted Rand error as defined by the SNEMI3D contest as
-    = 1 - the maximal F-score of the Rand index (excluding the zero 
-    component of the original labels). Adapted from the SNEMI3D MATLAB script,
-    hence the strange style.
+def adapted_rand_error(seg, gt, all_stats=False):
+    """Compute Adapted Rand error as defined by the SNEMI3D contest.
+
+    Formula is given as 1 - the maximal F-score of the Rand index 
+    (excluding the zero component of the original labels). Adapted 
+    from the SNEMI3D MATLAB script, hence the strange style.
 
     Parameters
     ----------
@@ -722,16 +723,18 @@ def rand_error(seg, gt, all_stats=False):
         the segmentation to score, where each value is the label at that point
     gt : np.ndarray, same shape as gt
         the groundtruth to score against, where each value is a label
-    all_stats : boolean, default is False
+    all_stats : boolean, optional
         whether to also return precision and recall as a 3-tuple with rand_error
 
     Returns
     -------
-    re : float
-        Rand error
-    OR
-    (re, precision, recall) : tuple of floats
-        Rand error, precision, and recall
+    are : float
+        The adapted Rand error; equal to $1 - \frac{2pr}{p + r}$,
+        where $p$ and $r$ are the precision and recall described below.
+    prec : float, optional
+        The adapted Rand precision. (Only returned when `all_stats` is ``True``.)
+    rec : float, optional
+        The adapted Rand recall.  (Only returned when `all_stats` is ``True``.)
     """
     # segA is truth, segB is query
     segA = np.ravel(gt)
@@ -761,10 +764,12 @@ def rand_error(seg, gt, all_stats=False):
     recall = sumAB / sumA
 
     fScore = 2.0 * precision * recall / (precision + recall)
-    re = 1.0 - fScore
+    are = 1.0 - fScore
     
-    if all_stats: return (precision, recall, re)
-    else: return re
+    if all_stats:
+        return (precision, recall, are)
+    else:
+        return are
 
 
 def calc_entropy(split_vals, count):

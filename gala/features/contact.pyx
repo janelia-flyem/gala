@@ -3,7 +3,8 @@ cimport numpy as np
 from . import base
 
 class Manager(base.Null):
-    def __init__(self, thresholds=[0.2], oriented=False, *args, **kwargs):
+    def __init__(self, thresholds=[0.1, 0.5, 0.9], oriented=False, 
+                 *args, **kwargs):
         super(Manager, self).__init__()
         self.thresholds = np.array(thresholds)
         self.oriented = oriented
@@ -60,7 +61,7 @@ class Manager(base.Null):
 
 
 cdef _compute_contact_matrix(double[:,:,:] totals, double volume_ratio_1,
-                                    double volume_ratio_2):
+                             double volume_ratio_2):
     cdef int tt,cc, feature_count, nchannels, nthresholds
     nchannels = totals.shape[0]
     nthresholds = totals.shape[1]
