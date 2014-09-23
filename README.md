@@ -87,6 +87,7 @@ $ cd tests
 $ python test_agglo.py
 $ python test_features.py
 $ python test_watershed.py
+$ python test_optimized.py
 $ python test_gala.py
 ```
 
