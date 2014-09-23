@@ -150,16 +150,11 @@ def get_classifier(name='random forest', *args, **kwargs):
             'or not implemented in Gala.')
 
 class DefaultRandomForest(RandomForestClassifier):
-    def __init__(self, *args, **kwargs):
-        if len(args) < 1 and not kwargs.has_key('n_estimators'):
-            kwargs['n_estimators'] = 100
-        if len(args) < 2 and not kwargs.has_key('criterion'):
-            kwargs['criterion'] = 'entropy'
-        if len(args) < 3 and not kwargs.has_key('max_depth'):
-            kwargs['max_depth'] = 20
-        if not kwargs.has_key('bootstrap'):
-            kwargs['bootstrap'] = False
-        super(DefaultRandomForest, self).__init__(*args, **kwargs)
+    def __init__(self, n_estimators=100, criterion='entropy', max_depth=20,
+            bootstrap=False):
+        super(DefaultRandomForest, self).__init__(
+            n_estimators=n_estimators, criterion=criterion,
+            max_depth=max_depth, bootstrap=bootstrap)
 
 
 class VigraRandomForest(object):

@@ -173,7 +173,12 @@ def classifier_probability(feature_extractor, classifier):
             return inf
         features = feature_extractor(g, n1, n2)
         try:
-            prediction = classifier.predict_proba(features)[0,1]
+            prediction_arr = np.array(classifier.predict_proba(features))
+            if prediction_arr.ndim > 2: prediction_arr = prediction_arr[0]
+            try:
+                prediction = prediction_arr[0][1]
+            except (TypeError, IndexError):
+                prediction = prediction_arr[0]
         except AttributeError:
             prediction = classifier.predict(features)[0]
         return prediction
