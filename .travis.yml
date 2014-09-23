@@ -1,57 +1,35 @@
-# Adopted from networkx travis.yml
-
 language: python
 python:
   - "2.7"
 virtualenv:
   system_site_packages: true
-before_install:
-  # Current TravisCI VM is Ubuntu 12.04 which has Python 2.7 and 3.2.
-  # So apt-get will only apply to those virtualenvs.
-  - sudo apt-get install -qq python-numpy python-scipy python-matplotlib python-pydot python-gdal
-  - sudo apt-get install -qq libhdf5-serial-dev
+install:
+  # all installing is now handled by conda as it is faster and more robust
+  - sudo apt-get update
+  - pip install -U setuptools
+  - wget http://repo.continuum.io/miniconda/Miniconda-3.4.2-Linux-x86_64.sh -O miniconda.sh;
+  - bash miniconda.sh -b -p $HOME/miniconda
+  - export PATH="$HOME/miniconda/bin:$PATH"
+  - hash -r
+  - conda config --set always_yes yes --set changeps1 no
+  - conda update -q conda
+  - conda info -a
 
-  # Additionally, the TravisCI VM has numpy preinstalled on 2.6, 2.7 and 3.2.
-  # So for 3.3 and pypy, numpy is not preinstalled and must be pip-installed.
-  # Matplotlib, pydot, and gdal are not available for 3.2 via apt-get.
-  # And they are also not available for 2.6, 3.3, and pypy except via pip.
-  # We could install via pip, but...
-  #   skipping numpy (for 3.3 and pypy) since it takes too long.
-  #   skipping scipy (for 2.6, 3.3, and pypy) since it takes too long.
-  #   skipping matplotlib (for 2.6, 3.3, and pypy) since it takes too long.
-  #   skipping pydot (for all) since it is not 3.x compatible.
-  #   skipping gdal (for all) since it has errors while installing from pip.
+  - conda create -q -n test-environment python=$TRAVIS_PYTHON_VERSION numpy scipy matplotlib networkx cython h5py PIL nose scikit-image scikit-learn setuptools pip
+  - source activate test-environment
 
-  - pip install pyyaml --use-mirrors
-  - pip install pyparsing --use-mirrors
-  #- pip install coveralls --use-mirrors
-  - pip install networkx --use-mirrors
-  - pip install cython
-  - pip install h5py
-  - pip install PIL
-  - pip install nose
-  - pip install scikit-learn
-  - pip install scikit-image
+  # custom package not available from conda
   - pip install viridis
 
-script:
   # Install gala
   - printenv PWD
   - python setup.py install
 
+script:
   # Run tests
   - cd tests
   - python -m nose test_agglo.py
   - python -m nose test_features.py
   - python -m nose test_watershed.py
+  - python -m nose test_optimized.py
   - python -m nose test_gala.py
-
-after_success:
-  # We must run coveralls from the git repo.
-  # But we ran tests from the installed directory.
-  # The .coverage file looks like it contains absolute paths,
-  # but coveralls does not seem to care.
-  
-  #- cp .coverage $TRAVIS_BUILD_DIR
-  #- cd $TRAVIS_BUILD_DIR
-  #- if [[ $TRAVIS_PYTHON_VERSION == '2.7' ]]; then coveralls; fi
