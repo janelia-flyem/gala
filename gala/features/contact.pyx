@@ -3,8 +3,28 @@ cimport numpy as np
 from . import base
 
 class Manager(base.Null):
+    """ Feature comparing area of contact of two segments to each segment.
+
+    For each segment, it computes both the fraction of the segment's 'dark' 
+    pixels (ie less than a specified threshold) that appear in the contact 
+    area, and that value normalized by the fraction of the segment's pixels
+    the contact area represents. This is motivated by inputs in which 
+    pixels represent probability of a cell membrane. For those datasets,
+    this feature effectively computes how much of the cell's membrane is
+    touching the other cell, and how much of the contact area is membrane.
+    """
+
     def __init__(self, thresholds=[0.1, 0.5, 0.9], oriented=False, 
                  *args, **kwargs):
+        """
+        Parameters
+        ----------
+        threshold : array-like, optional
+            The 'dark' values at which the contact ratios described above
+            will be computed.
+        oriented : bool, optional
+            Whether to use oriented probabilities.
+        """
         super(Manager, self).__init__()
         self.thresholds = np.array(thresholds)
         self.oriented = oriented

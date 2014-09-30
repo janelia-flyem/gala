@@ -711,7 +711,7 @@ def rand_by_threshold(ucm, gt, npoints=None):
     return np.concatenate((ts[np.newaxis, :], result), axis=0)
 
 def adapted_rand_error(seg, gt, all_stats=False):
-    """Compute Adapted Rand error as defined by the SNEMI3D contest.
+    """Compute Adapted Rand error as defined by the SNEMI3D contest [1]
 
     Formula is given as 1 - the maximal F-score of the Rand index 
     (excluding the zero component of the original labels). Adapted 
@@ -721,7 +721,7 @@ def adapted_rand_error(seg, gt, all_stats=False):
     ----------
     seg : np.ndarray
         the segmentation to score, where each value is the label at that point
-    gt : np.ndarray, same shape as gt
+    gt : np.ndarray, same shape as seg
         the groundtruth to score against, where each value is a label
     all_stats : boolean, optional
         whether to also return precision and recall as a 3-tuple with rand_error
@@ -735,6 +735,10 @@ def adapted_rand_error(seg, gt, all_stats=False):
         The adapted Rand precision. (Only returned when `all_stats` is ``True``.)
     rec : float, optional
         The adapted Rand recall.  (Only returned when `all_stats` is ``True``.)
+
+    References
+    ----------
+    [1]: http://brainiac2.mit.edu/SNEMI3D/evaluation
     """
     # segA is truth, segB is query
     segA = np.ravel(gt)

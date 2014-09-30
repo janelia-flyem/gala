@@ -46,7 +46,7 @@ def test_flood_fill_whole():
     example2 = np.zeros(shape, dtype=np.int)
     example2[5,5,5] = 0
     t7 = opt.flood_fill(example2, (5,5,5), [0], None, False)
-    assert_equal(len(t7), (example2==0).sum())
+    assert_equal(len(t7), (example2==0).sum(), fail_message)
 
 
 def test_flood_fill_pipes():
@@ -56,7 +56,8 @@ def test_flood_fill_pipes():
     example3[:,2,150] = 6
     example3[45,:,:] = 6
     t8 = opt.flood_fill(example3, (2,2,0), [6], None, True)
-    assert_equal(len(t8), (example3==6).sum())
+    assert_equal(len(t8), (example3==6).sum(), fail_message)
+
 
 def _despeckle_example():
     example = np.array( [[3,3,3,3,0,0,0,0,0,4,4,4,4,0,0,0,0,0,0,0,0,0,-1,10],
@@ -103,14 +104,14 @@ def _despeckle_example():
 
 
 def test_despeckle_in_place():
-    fail_message = "despeckle_watershed failed to corectly despeckle in place"
+    fail_message = "despeckle_watershed failed to correctly despeckle in place"
     example, expected = _despeckle_example()
     opt.despeckle_watershed(example, in_place=True)
     assert_equal(example, expected, fail_message)
 
 
 def test_despeckle_not_in_place():
-    fail_message = "despeckle_watershed failed to corectly despeckle not in place"
+    fail_message = "despeckle_watershed failed to correctly despeckle not in place"
     example, expected = _despeckle_example()
     calculated = opt.despeckle_watershed(example, in_place=False)
     assert_equal(calculated, expected, fail_message)
@@ -118,7 +119,7 @@ def test_despeckle_not_in_place():
     assert_equal(calculated, expected, "despeckle watershed modified original when not in place.")
 
 def test_despeckle_stack():
-    fail_message = "despeckle_watershed failed to corectly despeckle a stack of arrays"
+    fail_message = "despeckle_watershed failed to correctly despeckle a stack of arrays"
     example_single, expected_single = _despeckle_example()
     example = np.dstack((np.rot90(example_single, 2), example_single,
         np.rot90(example_single, 2), example_single)).transpose(2,0,1)
