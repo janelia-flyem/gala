@@ -27,7 +27,6 @@ try:
     from vigra.__version__ import version as vigra_version
     vigra_version = tuple(map(int, vigra_version.split('.')))
 except ImportError:
-    logging.warning('Vigra library not available.')
     vigra_available = False
 else:
     vigra_available = True
