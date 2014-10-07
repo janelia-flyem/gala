@@ -35,13 +35,10 @@ def train_and_save_classifier(training_data, filename):
 def test_generate_examples_1_channel():
     g_train = agglo.Rag(ws_train, pr_train, feature_manager=fc)
     np.random.RandomState(0)
-    (X, y, w, merges) = g_train.learn_agglomerate(gt_train, fc)[0]
+    (X, y, w, merges) = g_train.learn_agglomerate(gt_train, fc, random_state=0)[0]
     X_expected, y_expected = load_training_data('example-data/train-set-1.npz')
-    # because of the randomness, we only check the number and dim of examples
-    assert_equal(X.shape[1], X_expected.shape[1])
-    assert_allclose(X.shape[0], X_expected.shape[0], atol=10)
-    assert_equal(y.shape[1], y_expected.shape[1])
-    assert_allclose(y.shape[0], y_expected.shape[0], atol=10)
+    assert_allclose(X, X_expected, atol=1e-6)
+    assert_allclose(y, y_expected, atol=1e-6)
 
 
 def test_segment_with_classifer_1_channel():
@@ -58,14 +55,10 @@ def test_segment_with_classifer_1_channel():
 def test_generate_examples_4_channel():
     g_train = agglo.Rag(ws_train, p4_train, feature_manager=fc)
     np.random.RandomState(0)
-    (X, y, w, merges) = g_train.learn_agglomerate(gt_train, fc)[0]
-    #save_training_data('example-data/train-set-4.npz', X, y)
+    (X, y, w, merges) = g_train.learn_agglomerate(gt_train, fc, random_state=0)[0]
     X_expected, y_expected = load_training_data('example-data/train-set-4.npz')
-    # because of the randomness, we only check the number and dim of examples
-    assert_equal(X.shape[1], X_expected.shape[1])
-    assert_allclose(X.shape[0], X_expected.shape[0], atol=10)
-    assert_equal(y.shape[1], y_expected.shape[1])
-    assert_allclose(y.shape[0], y_expected.shape[0], atol=10)
+    assert_allclose(X, X_expected, atol=1e-6)
+    assert_allclose(y, y_expected, atol=1e-6)
 
 
 def test_segment_with_classifier_4_channel():

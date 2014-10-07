@@ -151,10 +151,10 @@ def get_classifier(name='random forest', *args, **kwargs):
 
 class DefaultRandomForest(RandomForestClassifier):
     def __init__(self, n_estimators=100, criterion='entropy', max_depth=20,
-            bootstrap=False):
+            bootstrap=False, random_state=None):
         super(DefaultRandomForest, self).__init__(
             n_estimators=n_estimators, criterion=criterion,
-            max_depth=max_depth, bootstrap=bootstrap)
+            max_depth=max_depth, bootstrap=bootstrap, random_state=random_state)
 
 
 class VigraRandomForest(object):

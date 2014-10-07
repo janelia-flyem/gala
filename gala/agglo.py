@@ -1081,6 +1081,7 @@ class Rag(Graph):
                           priority_mode='active',
                           memory=True,
                           unique=True,
+                          random_state=None,
                           max_num_epochs=10,
                           min_num_epochs=2,
                           max_num_samples=np.inf,
@@ -1131,6 +1132,10 @@ class Rag(Graph):
             the most recent one).
         unique : bool, optional
             Remove duplicate feature vectors.
+        random_state : int, optional
+            If provided, this parameter is passed to `get_classifier`
+            to set the random state and allow consistent results across
+            tests.
         max_num_epochs : int, optional
             Do not train for longer than this (this argument *may*
             override the `min_num_samples` argument).
@@ -1209,7 +1214,10 @@ class Rag(Graph):
                 g.merge_priority_function = boundary_mean
             elif num_epochs > 0 and priority_mode == 'active' or \
                 num_epochs % 2 == 1 and priority_mode == 'mixed':
-                cl = get_classifier(classifier)
+                if random_state == None:
+                    cl = get_classifier(classifier)
+                else:
+                    cl = get_classifier(classifier, random_state=random_state)
                 feat, lab = classify.sample_training_data(
                     data[0], data[1][:, label_type_keys[labeling_mode]],
                     max_num_samples)
