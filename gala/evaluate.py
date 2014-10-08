@@ -771,7 +771,7 @@ def adapted_rand_error(seg, gt, all_stats=False):
     are = 1.0 - fScore
     
     if all_stats:
-        return (precision, recall, are)
+        return (are, precision, recall)
     else:
         return are
 
