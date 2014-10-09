@@ -27,7 +27,6 @@ try:
     from vigra.__version__ import version as vigra_version
     vigra_version = tuple(map(int, vigra_version.split('.')))
 except ImportError:
-    logging.warning('Vigra library not available.')
     vigra_available = False
 else:
     vigra_available = True
@@ -45,7 +44,7 @@ def h5py_stack(fn):
         raise
     return a
 
-def default_classifier_extension(cl):
+def default_classifier_extension(cl, use_joblib=True):
     """
     Return the default classifier file extension for the given classifier cl.
 
@@ -150,16 +149,11 @@ def get_classifier(name='random forest', *args, **kwargs):
             'or not implemented in Gala.')
 
 class DefaultRandomForest(RandomForestClassifier):
-    def __init__(self, *args, **kwargs):
-        if len(args) < 1 and not kwargs.has_key('n_estimators'):
-            kwargs['n_estimators'] = 100
-        if len(args) < 2 and not kwargs.has_key('criterion'):
-            kwargs['criterion'] = 'entropy'
-        if len(args) < 3 and not kwargs.has_key('max_depth'):
-            kwargs['max_depth'] = 20
-        if not kwargs.has_key('bootstrap'):
-            kwargs['bootstrap'] = False
-        super(DefaultRandomForest, self).__init__(*args, **kwargs)
+    def __init__(self, n_estimators=100, criterion='entropy', max_depth=20,
+            bootstrap=False, random_state=None):
+        super(DefaultRandomForest, self).__init__(
+            n_estimators=n_estimators, criterion=criterion,
+            max_depth=max_depth, bootstrap=bootstrap, random_state=random_state)
 
 
 class VigraRandomForest(object):

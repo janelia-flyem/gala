@@ -393,7 +393,7 @@ def read_vtk(fin):
 
 ### HDF5 format
 
-def read_h5_stack(fn, group='stack', crop=[None]*6):
+def read_h5_stack(fn, group='stack', crop=[None]*6, **kwargs):
     """Read a volume in HDF5 format into numpy.ndarray.
 
     Parameters

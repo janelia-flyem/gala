@@ -21,9 +21,6 @@ def with_progress(collection, length=None, title=None, pbar=NoProgressBar()):
 try:
     from progressbar import ProgressBar, Percentage, Bar, ETA, RotatingMarker
 except ImportError:
-    logging.warning(' progressbar package not installed. Progress cannot be '+
-        'shown. See http://pypi.python.org/simple/progressbar or type '+
-        '"sudo easy_install progressbar" to fix.')
     StandardProgressBar = NoProgressBar
 else:
     class StandardProgressBar(object):
