@@ -1,8 +1,6 @@
 
-from numpy.testing import assert_array_equal, assert_allclose, assert_equal
-from numpy.testing.decorators import skipif
+from numpy.testing import assert_allclose
 import numpy as np
-import os
 from gala import imio, classify, features, agglo, evaluate as ev
 
 # load example data
@@ -88,4 +86,3 @@ if __name__ == '__main__':
     np.random.RandomState(0)
     from numpy import testing
     testing.run_module_suite()
-

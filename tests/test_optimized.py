@@ -1,6 +1,5 @@
 import numpy as np
-from numpy.testing import (assert_allclose, assert_approx_equal,
-                           assert_equal)
+from numpy.testing import assert_equal
 from gala import optimized as opt
 
 def _flood_fill_example():
