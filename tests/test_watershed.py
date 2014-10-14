@@ -1,3 +1,4 @@
+import os
 import time
 import numpy as np
 from scipy import ndimage as nd
@@ -5,6 +6,7 @@ from numpy.testing import assert_array_equal, assert_array_less
 
 from gala import morpho
 
+rundir = os.path.dirname(__file__)
 
 def time_me(function):
     def wrapped(*args, **kwargs):
@@ -17,9 +19,11 @@ def time_me(function):
 
 test_idxs = range(4)
 num_tests = len(test_idxs)
-fns = ['toy-data/test-%02i-probabilities.txt' % i for i in test_idxs]
+fns = [os.path.join(rundir, 'toy-data/test-%02i-probabilities.txt' % i)
+       for i in test_idxs]
 probs = map(np.loadtxt, fns)
-fns = ['toy-data/test-%02i-watershed.txt' % i for i in test_idxs]
+fns = [os.path.join(rundir, 'toy-data/test-%02i-watershed.txt' % i)
+       for i in test_idxs]
 results = map(np.loadtxt, fns)
 landscape = np.array([1,0,1,2,1,3,2,0,2,4,1,0])
 

@@ -1,3 +1,7 @@
+import os
+
+D = os.path.dirname(os.path.abspath(__file__)) + '/'
+
 import numpy as np
 from numpy.testing import assert_equal, assert_allclose
 
@@ -7,11 +11,11 @@ from gala import evaluate as ev
 
 test_idxs = range(4)
 num_tests = len(test_idxs)
-fns = ['toy-data/test-%02i-probabilities.txt' % i for i in test_idxs]
+fns = [D + 'toy-data/test-%02i-probabilities.txt' % i for i in test_idxs]
 probs = map(np.loadtxt, fns)
-fns = ['toy-data/test-%02i-watershed.txt' % i for i in test_idxs]
+fns = [D + 'toy-data/test-%02i-watershed.txt' % i for i in test_idxs]
 wss = [np.loadtxt(fn, dtype=np.uint32) for fn in fns]
-fns = ['toy-data/test-%02i-groundtruth.txt' % i for i in test_idxs]
+fns = [D + 'toy-data/test-%02i-groundtruth.txt' % i for i in test_idxs]
 results = map(np.loadtxt, fns)
 
 landscape = np.array([1,0,1,2,1,3,2,0,2,4,1,0])

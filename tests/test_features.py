@@ -48,9 +48,10 @@ def assert_equal_lists_or_arrays(a1, a2, eps=1e-3):
         assert_equal(a1, a2)
 
 
-probs2 = np.load('toy-data/test-04-probabilities.npy')
+probs2 = np.load(os.path.join(rundir, 'toy-data/test-04-probabilities.npy'))
 probs1 = probs2[..., 0]
-wss1 = np.loadtxt('toy-data/test-04-watershed.txt', np.uint32)
+wss1 = np.loadtxt(os.path.join(rundir, 'toy-data/test-04-watershed.txt'),
+                  np.uint32)
 f1, f2, f3 = (features.moments.Manager(2, False),
               features.histogram.Manager(3, compute_percentiles=[0.5]),
               features.squiggliness.Manager(ndim=2))
@@ -69,31 +70,38 @@ def run_matched(f, fn, c=1,
 
 def test_1channel_moment_features():
     f = f1
-    run_matched(f, 'toy-data/test-04-moments-1channel-12-13.pck')
+    run_matched(f, os.path.join(rundir,
+                    'toy-data/test-04-moments-1channel-12-13.pck'))
 
 def test_2channel_moment_features():
     f = f1
-    run_matched(f, 'toy-data/test-04-moments-2channel-12-13.pck', 2)
+    run_matched(f, os.path.join(rundir,
+                    'toy-data/test-04-moments-2channel-12-13.pck'), 2)
 
 def test_1channel_histogram_features():
     f = f2
-    run_matched(f, 'toy-data/test-04-histogram-1channel-12-13.pck')
+    run_matched(f, os.path.join(rundir,
+                    'toy-data/test-04-histogram-1channel-12-13.pck'))
 
 def test_2channel_histogram_features():
     f = f2
-    run_matched(f, 'toy-data/test-04-histogram-2channel-12-13.pck', 2)
+    run_matched(f, os.path.join(rundir,
+                    'toy-data/test-04-histogram-2channel-12-13.pck'), 2)
 
 def test_1channel_squiggliness_feature():
     f = f3
-    run_matched(f, 'toy-data/test-04-squiggle-1channel-12-13.pck')
+    run_matched(f, os.path.join(rundir,
+                    'toy-data/test-04-squiggle-1channel-12-13.pck'))
 
 def test_1channel_composite_feature():
     f = f4
-    run_matched(f, 'toy-data/test-04-composite-1channel-12-13.pck')
+    run_matched(f, os.path.join(rundir,
+                    'toy-data/test-04-composite-1channel-12-13.pck'))
 
 def test_2channel_composite_feature():
     f = f4
-    run_matched(f, 'toy-data/test-04-composite-2channel-12-13.pck', 2)
+    run_matched(f, os.path.join(rundir,
+                    'toy-data/test-04-composite-2channel-12-13.pck'), 2)
 
 
 if __name__ == '__main__':
