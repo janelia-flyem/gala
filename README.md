@@ -9,6 +9,7 @@ Gala supports n-dimensional images (images, volumes, videos, videos of
 volumes...) and multiple channels per image.
 
 [![Build Status](https://travis-ci.org/janelia-flyem/gala.png?branch=master)](https://travis-ci.org/janelia-flyem/gala)
+[![Coverage Status](https://img.shields.io/coveralls/janelia-flyem/gala.svg)](https://coveralls.io/r/janelia-flyem/gala)
 
 ## Requirements
 
