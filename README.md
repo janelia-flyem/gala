@@ -19,7 +19,6 @@ volumes...) and multiple channels per image.
 * Image (a.k.a. Python Imaging Library or PIL) 1.1.7
 * networkx 1.6+
 * HDF5 and h5py 1.5+
-* nose 1.3+
 * cython 0.17+
 * scikit-learn 0.15
 * matplotlib 1.2+
