@@ -5,6 +5,21 @@ distributed under the open-source [Janelia Farm license](http://janelia-flyem.gi
 described in [Nunez-Iglesias *et al*.](http://arxiv.org/abs/1303.6163), PLOS
 ONE, 2013.
 
+If you use this library in your research, please cite:
+
+> Nunez-Iglesias J, Kennedy R, Plaza SM, Chakraborty A and Katz WT (2014)
+> [Graph-based active learning of agglomeration (GALA): a Python library to
+> segment 2D and 3D
+> neuroimages.](http://journal.frontiersin.org/Journal/10.3389/fninf.2014.00034/abstract)
+> *Front. Neuroinform. 8:34.* doi:10.3389/fninf.2014.00034
+
+If you use or compare to the GALA algorithm in your research, please cite:
+
+> Nunez-Iglesias J, Kennedy R, Parag T, Shi J, Chklovskii DB (2013) [Machine
+> Learning of Hierarchical Clustering to Segment 2D and 3D
+> Images.](http://journal.frontiersin.org/Journal/10.3389/fninf.2014.00034/abstract)
+> *PLoS ONE 8(8): e71715.*  doi:10.1371/journal.pone.0071715
+
 Gala supports n-dimensional images (images, volumes, videos, videos of 
 volumes...) and multiple channels per image.
 
