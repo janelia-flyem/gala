@@ -1,0 +1,11 @@
+[run]
+omit =
+    *test_package*
+    *test_*
+    *auto*
+    *segmentation_stitch*
+    *stack_np*
+    *stitch*
+    *valprob*
+    *setup*
+    *__init__*
