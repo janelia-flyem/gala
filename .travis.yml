@@ -21,15 +21,13 @@ install:
   # custom package not available from conda
   - pip install viridis
 
+  - pip install pytest pytest-cov
+
   # Install gala
   - printenv PWD
-  - python setup.py install
+  # Build locally, pytest confuses local and global installs
+  - python setup.py develop
 
 script:
   # Run tests
-  - cd tests
-  - python -m nose test_agglo.py
-  - python -m nose test_features.py
-  - python -m nose test_watershed.py
-  - python -m nose test_optimized.py
-  - python -m nose test_gala.py
+  - py.test
