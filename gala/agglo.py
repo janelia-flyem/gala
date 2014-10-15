@@ -3,7 +3,6 @@ from itertools import combinations, izip, repeat, product
 import itertools as it
 import argparse
 import random
-import sys
 import logging
 import json
 from copy import deepcopy
@@ -19,22 +18,28 @@ from scipy.misc import comb as nchoosek
 from scipy.ndimage.measurements import label
 from networkx import Graph, biconnected_components
 from networkx.algorithms.traversal.depth_first_search import dfs_preorder_nodes
-from networkx.algorithms.components.connected import connected_components
+
+from viridis import tree
 
 # local modules
-import morpho
-import iterprogress as ip
-from ncut import ncutW
-from mergequeue import MergeQueue
-from evaluate import contingency_table as ev_contingency_table, split_vi, xlogx
-import features
-import classify
-from classify import get_classifier, \
+from . import morpho
+from . import iterprogress as ip
+from . import optimized as opt
+from .ncut import ncutW
+from .mergequeue import MergeQueue
+from .evaluate import contingency_table as ev_contingency_table, split_vi, xlogx
+from . import features
+from . import classify
+from .classify import get_classifier, \
     unique_learning_data_elements, concatenate_data_elements
 
 
 def contingency_table(a, b):
-    return np.array(ev_contingency_table(a, b).todense())
+    ct = ev_contingency_table(a, b)
+    nx, ny = ct.shape
+    ctout = np.zeros((2 * nx, ny), ct.dtype)
+    ct.todense(out=ctout[:nx, :])
+    return ctout
 
 
 arguments = argparse.ArgumentParser(add_help=False)
@@ -113,8 +118,8 @@ def approximate_boundary_mean(g, n1, n2):
 
 def make_ladder(priority_function, threshold, strictness=1):
     def ladder_function(g, n1, n2):
-        s1 = len(g.node[n1]['extent'])
-        s2 = len(g.node[n2]['extent'])
+        s1 = g.node[n1]['size']
+        s2 = g.node[n2]['size']
         ladder_condition = \
                 (s1 < threshold and not g.at_volume_boundary(n1)) or \
                 (s2 < threshold and not g.at_volume_boundary(n2))
@@ -155,7 +160,7 @@ def mito_merge():
             else:
                 mito = n2
                 cyto = n1
-            if len(g.node[mito]["extent"])>len(g.node[cyto]["extent"]):
+            if g.node[mito]['size'] > g.node[cyto]['size']:
                 return np.inf
             else:
                 return 1.0 - (float(len(g[mito][cyto]["boundary"]))/
@@ -169,7 +174,12 @@ def classifier_probability(feature_extractor, classifier):
             return inf
         features = feature_extractor(g, n1, n2)
         try:
-            prediction = classifier.predict_proba(features)[0,1]
+            prediction_arr = np.array(classifier.predict_proba(features))
+            if prediction_arr.ndim > 2: prediction_arr = prediction_arr[0]
+            try:
+                prediction = prediction_arr[0][1]
+            except (TypeError, IndexError):
+                prediction = prediction_arr[0]
         except AttributeError:
             prediction = classifier.predict(features)[0]
         return prediction
@@ -194,7 +204,7 @@ def expected_change_vi(feature_extractor, classifier, alpha=1.0, beta=1.0):
         p = prob_func(g, n1, n2) # Prediction from the classifier
         # Calculate change in VI if n1 and n2 should not be merged
         v = compute_local_vi_change(
-            len(g.node[n1]['extent']), len(g.node[n2]['extent']), g.volume_size
+            g.node[n1]['size'], g.node[n2]['size'], g.volume_size
         )
         # Return expected change
         return  (p*alpha*v + (1.0-p)*(-beta*v))
@@ -225,7 +235,7 @@ def expected_change_rand(feature_extractor, classifier, alpha=1.0, beta=1.0):
     def predict(g, n1, n2):
         p = float(prob_func(g, n1, n2)) # Prediction from the classifier
         v = compute_local_rand_change(
-            len(g.node[n1]['extent']), len(g.node[n2]['extent']), g.volume_size
+            g.node[n1]['size'], g.node[n2]['size'], g.volume_size
         )
         return p*v*alpha + (1.0-p)*(-beta*v)
     return predict
@@ -355,6 +365,7 @@ class Rag(Graph):
         super(Rag, self).__init__(weighted=False)
         self.show_progress = show_progress
         self.nozeros = nozeros
+        self.connectivity = connectivity
         self.pbar = (ip.StandardProgressBar() if self.show_progress
                      else ip.NoProgressBar())
         self.set_watershed(watershed, lowmem, connectivity)
@@ -368,11 +379,13 @@ class Rag(Graph):
             self.ucm_r = self.ucm.ravel()
         self.merge_priority_function = merge_priority_function
         self.max_merge_score = -inf
-        self.build_graph_from_watershed(allow_shared_boundaries, nozerosfast=self.nozeros)
+        self.build_graph_from_watershed(allow_shared_boundaries,
+                                        nozerosfast=self.nozeros)
         self.set_feature_manager(feature_manager)
         self.set_ground_truth(gt_vol)
         self.set_exclusions(exclusions)
         self.merge_queue = MergeQueue()
+        self.tree = tree.Ultrametric(self.nodes())
         self.frozen_nodes = set()
         if isfrozennode is not None:
             for node in self.nodes():
@@ -383,27 +396,18 @@ class Rag(Graph):
             for n1, n2 in self.edges():
                 if isfrozenedge(self, n1, n2):
                     self.frozen_edges.add((n1,n2))
+        for nodeid in self.nodes():
+            del self.node[nodeid]["extent"]
 
 
     def __copy__(self):
         """Return a copy of the object and attributes.
         """
-        if sys.version_info[:2] < (2,7):
-            # Python versions prior to 2.7 don't handle deepcopy of function
-            # objects well. Thus, keep a reference and remove from Rag object
-            f = self.neighbor_idxs; del self.neighbor_idxs
-            F = self.feature_manager; del self.feature_manager
         pr_shape = self.probabilities_r.shape
         g = super(Rag, self).copy()
         g.watershed_r = g.watershed.ravel()
-        g.segmentation_r = g.segmentation.ravel()
         g.ucm_r = g.ucm.ravel()
         g.probabilities_r = g.probabilities.reshape(pr_shape)
-        if sys.version_info[:2] < (2,7):
-            g.neighbor_idxs = f
-            self.neighbor_idxs = f
-            g.feature_manager = F
-            self.feature_manager = F
         return g
 
 
@@ -412,6 +416,19 @@ class Rag(Graph):
         """
         return self.__copy__()
 
+
+    def extent(self, nodeid):
+        if 'extent' in self.node[nodeid]:
+            return self.node[nodeid]['extent']
+        extent_array = opt.flood_fill(self.watershed, 
+                                      np.array(self.node[nodeid]['entrypoint']), 
+                                      np.array(self.node[nodeid]['watershed_ids']))
+        if len(extent_array) != self.node[nodeid]['size']:
+            sys.stderr.write("Flood fill fail - found %d voxels but size expected %d\n" \
+                                % (len(extent_array), self.node[nodeid]['size']))
+        raveled_indices = np.ravel_multi_index((extent_array[:,0], 
+                extent_array[:,1], extent_array[:,2]), self.watershed.shape)
+        return set(raveled_indices)
 
     def real_edges(self, *args, **kwargs):
         """Return edges internal to the volume.
@@ -495,10 +512,19 @@ class Rag(Graph):
                 edges = zip(repeat(nodeid), adj_labels)
             if not self.has_node(nodeid):
                 self.add_node(nodeid, extent=set())
+            if 'entrypoint' not in self.node[nodeid]:
+                entrypoint_tuple = np.unravel_index(idx, self.watershed.shape)
+                self.node[nodeid]['entrypoint'] = np.array(entrypoint_tuple)
+            if 'watershed_ids' not in self.node[nodeid]:
+                self.node[nodeid]['watershed_ids'] = [nodeid]
             try:
                 self.node[nodeid]['extent'].add(idx)
             except KeyError:
                 self.node[nodeid]['extent'] = set([idx])
+            try:
+                self.node[nodeid]['size'] += 1
+            except KeyError:
+                self.node[nodeid]['size'] = 1
 
             if edges is not None:
                 for l1,l2 in edges:
@@ -533,7 +559,8 @@ class Rag(Graph):
         None
         """
         if nozerosfast:
-            return self.build_graph_from_watershed_nozerosfast(idxs)
+            self.build_graph_from_watershed_nozerosfast(idxs)
+            return
 
         if self.watershed.size == 0: return # stop processing for empty graphs
         if not allow_shared_boundaries:
@@ -554,10 +581,19 @@ class Rag(Graph):
                 edges = zip(repeat(nodeid), adj_labels)
                 if not self.has_node(nodeid):
                     self.add_node(nodeid, extent=set())
+                if 'entrypoint' not in self.node[nodeid]:
+                    entrypoint_tuple = np.unravel_index(idx, self.watershed.shape)
+                    self.node[nodeid]['entrypoint'] = np.array(entrypoint_tuple)
+                if 'watershed_ids' not in self.node[nodeid]:
+                    self.node[nodeid]['watershed_ids'] = [nodeid]
                 try:
                     self.node[nodeid]['extent'].add(idx)
                 except KeyError:
                     self.node[nodeid]['extent'] = set([idx])
+                try:
+                    self.node[nodeid]['size'] += 1
+                except KeyError:
+                    self.node[nodeid]['size'] = 1
             else:
                 if len(adj_labels) == 0: continue
                 if adj_labels[-1] != self.boundary_body:
@@ -781,10 +817,8 @@ class Rag(Graph):
             self.watershed = morpho.pad(ws, [0, self.boundary_body])
         else:
             self.watershed = morpho.pad(ws, self.boundary_body)
-        self.segmentation = self.watershed.copy()
         self.watershed_r = self.watershed.ravel()
-        self.segmentation_r = self.segmentation.ravel() # reduce fct calls
-        self.pad_thickness = 2 if (self.segmentation==0).any() else 1
+        self.pad_thickness = 2 if (self.watershed == 0).any() else 1
         if lowmem:
             def neighbor_idxs(x):
                 return self.get_neighbor_idxs_lean(x, connectivity)
@@ -814,19 +848,19 @@ class Rag(Graph):
             gtm = gt.max()+1
             gt_ignore = [0, gtm] if (gt==0).any() else [gtm]
             seg_ignore = [0, self.boundary_body] if \
-                        (self.segmentation==0).any() else [self.boundary_body]
+                        (self.watershed==0).any() else [self.boundary_body]
             self.gt = morpho.pad(gt, gt_ignore)
-            self.rig = contingency_table(self.segmentation, self.gt)
-            self.rig[:, gt_ignore] = 0
-            self.rig[seg_ignore, :] = 0
+            self.rig = contingency_table(self.watershed, self.gt,
+                                         ignore_seg=seg_ignore,
+                                         ignore_gt=gt_ignore)
         else:
             self.gt = None
             # null pattern to transparently allow merging of nodes.
             # Bonus feature: counts how many sp's went into a single node.
             try:
-                self.rig = ones(self.watershed.max()+1)
+                self.rig = ones(2 * self.watershed.max() + 1)
             except ValueError:
-                self.rig = ones(self.number_of_nodes()+1)
+                self.rig = ones(2 * self.number_of_nodes() + 1)
 
 
     def set_exclusions(self, excl):
@@ -853,7 +887,7 @@ class Rag(Graph):
             excl = morpho.pad(excl, [0]*self.pad_thickness)
         for n in self.nodes():
             if excl.size != 0:
-                eids = unique(excl.ravel()[list(self.node[n]['extent'])])
+                eids = unique(excl.ravel()[list(self.extent(n))])
                 eids = eids[flatnonzero(eids)]
                 self.node[n]['exclusions'] = set(list(eids))
             else:
@@ -939,7 +973,7 @@ class Rag(Graph):
                                         self.merge_queue.peek()[0] < threshold:
             merge_priority, _, n1, n2 = self.merge_queue.pop()
             self.update_frozen_sets(n1, n2)
-            self.merge_nodes(n1,n2)
+            self.merge_nodes(n1, n2, merge_priority)
             if save_history:
                 history.append((n1,n2))
                 scores.append(merge_priority)
@@ -992,7 +1026,7 @@ class Rag(Graph):
                 break
             merge_priority, _, n1, n2 = self.merge_queue.pop()
             i += 1
-            self.merge_nodes(n1, n2)
+            self.merge_nodes(n1, n2, merge_priority)
             if save_history:
                 history.append((n1, n2))
                 evaluation.append(
@@ -1034,6 +1068,10 @@ class Rag(Graph):
         self.merge_priority_function = original_merge_priority_function
         self.merge_queue.finish()
         self.rebuild_merge_queue()
+        max_score = max([qitem[0] for qitem in self.merge_queue.q])
+        self.ucm -= max_score
+        for n in self.tree.nodes():
+            self.tree.node[n]['w'] -= max_score
 
 
     def learn_agglomerate(self, gts, feature_map,
@@ -1044,6 +1082,7 @@ class Rag(Graph):
                           priority_mode='active',
                           memory=True,
                           unique=True,
+                          random_state=None,
                           max_num_epochs=10,
                           min_num_epochs=2,
                           max_num_samples=np.inf,
@@ -1094,6 +1133,10 @@ class Rag(Graph):
             the most recent one).
         unique : bool, optional
             Remove duplicate feature vectors.
+        random_state : int, optional
+            If provided, this parameter is passed to `get_classifier`
+            to set the random state and allow consistent results across
+            tests.
         max_num_epochs : int, optional
             Do not train for longer than this (this argument *may*
             override the `min_num_samples` argument).
@@ -1172,7 +1215,10 @@ class Rag(Graph):
                 g.merge_priority_function = boundary_mean
             elif num_epochs > 0 and priority_mode == 'active' or \
                 num_epochs % 2 == 1 and priority_mode == 'mixed':
-                cl = get_classifier(classifier)
+                if random_state == None:
+                    cl = get_classifier(classifier)
+                else:
+                    cl = get_classifier(classifier, random_state=random_state)
                 feat, lab = classify.sample_training_data(
                     data[0], data[1][:, label_type_keys[labeling_mode]],
                     max_num_samples)
@@ -1271,7 +1317,7 @@ class Rag(Graph):
         n1, n2 = edge
         features = feature_map(self, n1, n2).ravel()
         # Calculate weights for weighting data points
-        s1, s2 = [len(self.node[n]['extent']) for n in [n1, n2]]
+        s1, s2 = [self.node[n]['size'] for n in [n1, n2]]
         weights = \
             compute_local_vi_change(s1, s2, self.volume_size), \
             compute_local_rand_change(s1, s2, self.volume_size)
@@ -1335,12 +1381,15 @@ class Rag(Graph):
             data.append(dat)
             label = dat[1][label_type_keys[labeling_mode]]
             if learning_mode != 'strict' or label < 0:
+                node_id = g.merge_nodes(n1, n2, merge_priority)
                 for ctable, assignment in zip(ctables, assignments):
-                    ctable[n1] += ctable[n2]
+                    ctable[node_id] = ctable[n1] + ctable[n2]
+                    ctable[n1] = 0
                     ctable[n2] = 0
-                    assignment[n1] = ctable[n1] == ctable[n1].max()
+                    assignment[node_id] = (ctable[node_id] ==
+                                           ctable[node_id].max())
+                    assignment[n1] = 0
                     assignment[n2] = 0
-                g.merge_nodes(n1, n2)
         return map(array, zip(*data))
 
 
@@ -1437,17 +1486,43 @@ class Rag(Graph):
             self.ucm_r[list(edge['boundary'])] = inf
 
 
-    def merge_nodes(self, n1, n2):
+    def rename_node(self, old, new):
+        """Rename node `old` to `new`, updating edges and weights.
+
+        Parameters
+        ----------
+        old : int
+            The node being renamed.
+        new : int
+            The new node id.
+        """
+        self.add_node(new, attr_dict=self.node[old])
+        self.add_edges_from(
+            [(new, v, self[old][v]) for v in self.neighbors(old)])
+        for v in self.neighbors(new):
+            qitem = self[new][v].get('qlink', None)
+            if qitem is not None:
+                if qitem[2] == old:
+                    qitem[2] = new
+                else:
+                    qitem[3] = new
+        self.remove_node(old)
+
+
+    def merge_nodes(self, n1, n2, merge_priority=0.0):
         """Merge two nodes, while updating the necessary edges.
 
         Parameters
         ----------
         n1, n2 : int
             Nodes determining the edge for which to update the UCM.
+        merge_priority : float, optional
+            The merge priority of the merge.
 
         Returns
         -------
-        None
+        node_id : int
+            The id of the node resulting from the merge.
 
         Notes
         -----
@@ -1464,54 +1539,57 @@ class Rag(Graph):
         else:
             self.node[n1]['exclusions'].update(self.node[n2]['exclusions'])
         self.update_ucm(n1, n2)
-        self.node[n1]['extent'].update(self.node[n2]['extent'])
+        w = self[n1][n2].get('weight', merge_priority)
+        self.node[n1]['size'] += self.node[n2]['size']
+        self.node[n1]['watershed_ids'] += self.node[n2]['watershed_ids']
+
         self.feature_manager.update_node_cache(self, n1, n2,
                 self.node[n1]['feature-cache'], self.node[n2]['feature-cache'])
-        self.segmentation_r[list(self.node[n2]['extent'])] = n1
         new_neighbors = [n for n in self.neighbors(n2)
-                                        if n not in [n1, self.boundary_body]]
+                         if n not in [n1, self.boundary_body]]
         for n in new_neighbors:
-            self.merge_edge_properties((n2,n), (n1,n))
+            self.merge_edge_properties((n2, n), (n1, n))
         # this if statement enables merging of non-adjacent nodes
         if self.has_edge(n1,n2) and self.has_zero_boundaries:
-            self.refine_post_merge_boundaries(n1, n2)
-        self.rig[n1] += self.rig[n2]
-        self.rig[n2] = 0
+            sp2segment = self.tree.get_map(w)
+            self.refine_post_merge_boundaries(n1, n2, sp2segment)
         try:
             self.merge_queue.invalidate(self[n1][n2]['qlink'])
         except KeyError:
             pass
+        node_id = self.tree.merge(n1, n2, w)
         self.remove_node(n2)
+        self.rename_node(n1, node_id)
+        self.rig[node_id] = self.rig[n1] + self.rig[n2]
+        self.rig[n1] = 0
+        self.rig[n2] = 0
+        return node_id
 
 
-    def refine_post_merge_boundaries(self, n1, n2):
+    def refine_post_merge_boundaries(self, n1, n2, sp2segment):
         """Ensure boundary pixels are only counted once after a merge.
 
         Parameters
         ----------
         n1, n2 : int
             Nodes determining the edge for which to update the UCM.
-
-        Returns
-        -------
-        None
+        sp2segment : array of int
+            The most recent map from superpixels to segments.
         """
         boundary = array(list(self[n1][n2]['boundary']))
-        boundary_neighbor_pixels = self.segmentation_r[
-            self.neighbor_idxs(boundary)
-        ]
-        add = ( (boundary_neighbor_pixels == 0) +
-            (boundary_neighbor_pixels == n1) +
-            (boundary_neighbor_pixels == n2) ).all(axis=1)
-        check = True-add
-        self.node[n1]['extent'].update(boundary[add])
+        boundary_neighbor_pixels = sp2segment[self.watershed_r[
+                                              self.neighbor_idxs(boundary)]]
+        add = ((boundary_neighbor_pixels == 0) +
+               (boundary_neighbor_pixels == n1) +
+               (boundary_neighbor_pixels == n2)).all(axis=1)
+        check = True - add
         self.feature_manager.pixelwise_update_node_cache(self, n1,
                         self.node[n1]['feature-cache'], boundary[add])
-        self.segmentation_r[boundary[add]] = n1
         boundaries_to_edit = {}
         for px in boundary[check]:
-            for lb in unique(
-                        self.segmentation_r[self.neighbor_idxs(px)]):
+            px_neighbors = self.neighbor_idxs(px)
+            labels = np.unique(sp2segment[self.watershed_r[px_neighbors]])
+            for lb in labels:
                 if lb not in [0, n1, self.boundary_body]:
                     try:
                         boundaries_to_edit[(n1,lb)].append(px)
@@ -1577,7 +1655,7 @@ class Rag(Graph):
         .. [1] Shi, J., and Malik, J. (2000). Normalized cuts and image
                segmentation. Pattern Analysis and Machine Intelligence.
         """
-        node_extent = list(self.node[u]['extent'])
+        node_extent = list(self.extent(u))
         node_borders = set().union(
                         *[self[u][v]['boundary'] for v in self.neighbors(u)])
         labels = unique(self.watershed_r[node_extent])
@@ -1662,7 +1740,11 @@ class Rag(Graph):
         --------
         ``agglo.Rag.get_ucm``
         """
-        return morpho.juicy_center(self.segmentation, self.pad_thickness)
+        m = self.tree.get_map()
+        seg = m[self.watershed]
+        if self.pad_thickness > 1: # volume has zero-boundaries
+            seg = morpho.remove_merged_boundaries(seg, self.connectivity)
+        return morpho.juicy_center(seg, self.pad_thickness)
 
 
     def get_ucm(self):
@@ -1721,7 +1803,7 @@ class Rag(Graph):
         if nbunch is None:
             nbunch = self.nodes()
         for n in nbunch:
-            vr[list(self.node[n]['extent'])] = n
+            vr[list(self.extent(n))] = n
         return morpho.juicy_center(v,self.pad_thickness)
 
 
@@ -1782,8 +1864,8 @@ class Rag(Graph):
             del bcc[container] # remove the main graph
             bcc = map(list, bcc)
             for cc in bcc:
-                cc.sort(key=lambda x: len(self.node[x]['extent']), reverse=True)
-            bcc.sort(key=lambda x: len(self.node[x[0]]['extent']))
+                cc.sort(key=lambda x: self.node[x]['size'], reverse=True)
+            bcc.sort(key=lambda x: self.node[x[0]]['size'])
             for cc in bcc:
                 self.merge_subgraph(cc, cc[0])
 
@@ -1847,7 +1929,7 @@ class Rag(Graph):
         """
         if not self.at_volume_boundary(n) or n == self.boundary_body:
             return False
-        v = zeros(self.segmentation.shape, uint8)
+        v = zeros(self.watershed.shape, uint8)
         v.ravel()[list(self[n][self.boundary_body]['boundary'])] = 1
         _, n = label(v, ones([3]*v.ndim))
         return n > 1
@@ -1967,8 +2049,8 @@ class Rag(Graph):
             {'location': map(int, self.get_edge_coordinates(i, j)[-1::-1]),
             'node1': int(i), 'node2': int(j),
             'edge_size': len(self[i][j]['boundary']),
-            'size1': len(self.node[i]['extent']),
-            'size2': len(self.node[j]['extent']),
+            'size1': self.node[i]['size'],
+            'size2': self.node[j]['size'],
             'weight': float(self[i][j]['weight'])}
             for i, j in self.real_edges()
         ]
@@ -2009,7 +2091,7 @@ class Rag(Graph):
             nodes_to_merge = nodes[inds]
             node1 = nodes_to_merge[0]
             for node in nodes_to_merge[1:]:
-                self.merge_nodes(node1,node)
+                self.merge_nodes(node1, node)
 
 
     def compute_W(self, merge_priority_function, sigma=255.0*20, nodes=None):
@@ -2060,7 +2142,7 @@ def is_mito_boundary(g, n1, n2, channel=2, threshold=0.5):
 
 
 def is_mito(g, n, channel=2, threshold=0.5):
-        return max(np.mean(g.probabilities_r[list(g.node[n]["extent"]), c]) \
+        return max(np.mean(g.probabilities_r[list(g.extent(n)), c]) \
         for c in channel) > threshold
 
 

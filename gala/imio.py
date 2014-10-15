@@ -141,15 +141,16 @@ def write_image_stack(npy_vol, fn, **kwargs):
     >>> import numpy as np
     >>> from gala.imio import write_image_stack
     >>> im = 255 * np.array([
-        [[0, 1, 0], [1, 0, 1], [0, 1, 0]],
-        [[1, 0, 1], [0, 1, 0], [1, 0, 1]]], dtype=uint8)
+    ... [[0, 1, 0], [1, 0, 1], [0, 1, 0]],
+    ... [[1, 0, 1], [0, 1, 0], [1, 0, 1]]], dtype=uint8)
     >>> im.shape
     (2, 3, 3)
     >>> write_image_stack(im, 'image-example-%02i.png', axis=0)
     >>> import os
-    >>> os.path.listdir('.')
+    >>> fns = sorted(filter(lambda x: x.endswith('.png'), os.listdir('.')))
+    >>> fns # two 3x3 images
     ['image-example-00.png', 'image-example-01.png']
-    >>> # two 3x3 images
+    >>> os.remove(fns[0]); os.remove(fns[1]) # doctest cleanup
     """
     fn = os.path.expanduser(fn)
     if fn.endswith('.png'):
@@ -308,7 +309,7 @@ def extract_segments(seg, ids):
     Examples
     --------
     >>> segments = array([[45, 45, 51, 51],
-                          [45, 83, 83, 51]])
+    ...                   [45, 83, 83, 51]])
     >>> extract_segments(segments, [83, 45])
     array([[2, 2, 0, 0],
            [2, 1, 1, 0]], dtype=uint8)
@@ -397,7 +398,7 @@ def read_vtk(fin):
 
 ### HDF5 format
 
-def read_h5_stack(fn, group='stack', crop=[None]*6):
+def read_h5_stack(fn, group='stack', crop=[None]*6, **kwargs):
     """Read a volume in HDF5 format into numpy.ndarray.
 
     Parameters

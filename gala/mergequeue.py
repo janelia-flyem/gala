@@ -28,6 +28,8 @@ class MergeQueue(object):
         return len(self.q) == 0
 
     def peek(self):
+        while not self.q[0][1]:
+            heappop(self.q)
         return self.q[0]
 
     def pop(self):

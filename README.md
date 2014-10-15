@@ -20,7 +20,7 @@ volumes...) and multiple channels per image.
 * HDF5 and h5py 1.5+
 * nose 1.3+
 * cython 0.17+
-* scikit-learn 0.10+, preferably 0.14+
+* scikit-learn 0.15
 * matplotlib 1.2+
 * scikit-image 0.9+
 
@@ -29,15 +29,19 @@ volumes...) and multiple channels per image.
 * progressbar 2.3-dev
 * [vigra/vigranumpy](hci.iwr.uni-heidelberg.de/vigra/) (1.9.0)
 
-For vigra, you are on your own. It is used for the random forest classifier,
-but if you don't install it you can use any of the scikit-learn classifiers,
+In its original incarnation, this project used Vigra for the random forest
+classifier. Installation is less simple than scikit-learn, which has emerged
+in the last year as a truly excellent implementation and is now recommended.
+Tests in the test suite expect scikit-learn rather than Vigra.
+You can also use any of the scikit-learn classifiers,
 including their newly-excellent random forest.
 
 ## Installation
 
 ### Installing gala
 
-Gala is a pure python library and can be installed in two ways:
+Gala is a Python library with limited Cython extensions and can be 
+installed in two ways:
 * Add the gala directory to your PYTHONPATH environment variable, or
 * Use distutils to install it into your preferred python environment:
 
@@ -47,19 +51,16 @@ $ python setup.py install
 
 ### Installing requirements
 
-You can install all the requirements yourself: most are available in
-the Python Package Index (PyPI) and can be installed with simple commands:
+Though you can install all the requirements yourself, as most are available in
+the Python Package Index (PyPI) and can be installed with simple commands,
+the easiest way to get up and running is to use the 
+[Continuum Anaconda](http://www.continuum.io/downloads) Python distribution.
+An example of installing all dependencies for gala on linux is shown in
+the `.travis.yml` test recipe.
 
-```bash
-$ pip install scikit-learn
-```
+### Installing with Buildem
 
-Alternatively, a number of Python distributions include all the above
-dependencies and a bunch more for good measure. Two examples are
-[Continuum Anaconda](http://www.continuum.io/downloads) and
-[Enthought Canopy](https://www.enthought.com/products/canopy/).
-
-Finally, you can use Janelia's own
+Alternatively, you can use Janelia's own
 [buildem system](http://github.com/janelia-flyem/buildem#readme) to
 automatically download, compile, test, and install requirements into a
 specified buildem prefix directory. (You will need CMake.) 
@@ -86,6 +87,7 @@ $ cd tests
 $ python test_agglo.py
 $ python test_features.py
 $ python test_watershed.py
+$ python test_optimized.py
 $ python test_gala.py
 ```
 

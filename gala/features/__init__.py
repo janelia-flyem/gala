@@ -7,6 +7,7 @@ Features
 
 from . import \
     base, \
+    contact, \
     convex_hull, \
     graph, \
     histogram, \
@@ -16,5 +17,5 @@ from . import \
     orientation, \
     squiggliness
 
-__all__ = ['base', 'convex_hull', 'graph', 'histogram', 'inclusion', 'io',
-    'moments', 'orientation', 'squiggliness']
+__all__ = ['base', 'contact', 'convex_hull', 'graph', 'histogram', 'inclusion',
+    'io', 'moments', 'orientation', 'squiggliness']

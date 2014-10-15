@@ -16,7 +16,7 @@ class Manager(base.Null):
     def create_node_cache(self, g, n):
         # Get subscripts of extent (morpho.unravel_index was slow)
         M = np.zeros_like(g.watershed); 
-        M.ravel()[list(g.node[n]['extent'])] = 1 
+        M.ravel()[list(g.extent(n))] = 1 
         ind = np.array(np.nonzero(M)).T
         # Get second moment matrix
         smm = np.cov(ind.T)/float(len(ind))
