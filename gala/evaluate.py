@@ -211,8 +211,8 @@ def get_stratified_sample(ar, n):
     Examples
     --------
     >>> ar = np.array([[0, 4, 1, 3],
-                       [4, 1, 3, 5],
-                       [3, 5, 2, 1]])
+    ...                [4, 1, 3, 5],
+    ...                [3, 5, 2, 1]])
     >>> np.unique(ar)
     array([0, 1, 2, 3, 4, 5])
     >>> get_stratified_sample(ar, 3)
@@ -220,7 +220,7 @@ def get_stratified_sample(ar, n):
     """
     u = np.unique(ar)
     nu = len(u)
-    if nu <= 2*n:
+    if nu < 2*n:
         return u
     else:
         step = nu / n
@@ -305,7 +305,7 @@ def relabel_from_one(label_field):
     Examples
     --------
     >>> import numpy as np
-    >>> label_field = array([1, 1, 5, 5, 8, 99, 42])
+    >>> label_field = np.array([1, 1, 5, 5, 8, 99, 42])
     >>> relab, fw, inv = relabel_from_one(label_field)
     >>> relab
     array([1, 1, 2, 2, 3, 5, 4])

@@ -407,7 +407,7 @@ def relabel_connected(im, connectivity=1):
     Examples
     --------
     >>> image = np.array([[1, 1, 2],
-                          [2, 1, 1]])
+    ...                   [2, 1, 1]])
     >>> im_out = relabel_connected(image)
     >>> im_out
     array([[1, 1, 2],
