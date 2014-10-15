@@ -19,18 +19,19 @@ from scipy.ndimage.measurements import label
 from networkx import Graph, biconnected_components
 from networkx.algorithms.traversal.depth_first_search import dfs_preorder_nodes
 
-# local modules
-import morpho
-import iterprogress as ip
-import optimized as opt
-from ncut import ncutW
-from mergequeue import MergeQueue
-from evaluate import contingency_table as ev_contingency_table, split_vi, xlogx
-import features
-import classify
-from classify import get_classifier, \
-    unique_learning_data_elements, concatenate_data_elements
 from viridis import tree
+
+# local modules
+from . import morpho
+from . import iterprogress as ip
+from . import optimized as opt
+from .ncut import ncutW
+from .mergequeue import MergeQueue
+from .evaluate import contingency_table as ev_contingency_table, split_vi, xlogx
+from . import features
+from . import classify
+from .classify import get_classifier, \
+    unique_learning_data_elements, concatenate_data_elements
 
 
 def contingency_table(a, b):
