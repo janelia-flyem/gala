@@ -40,6 +40,21 @@ def create_watershed_options(options_parser):
         default_val=None, required=True, dtype=str, verify_fn=None, num_args=None,
         shortcut=None, warning=False, hidden=False) 
 
+    options_parser.create_option("server", "dvid server", 
+        default_val=None, required=False, dtype=str, verify_fn=None, num_args=None,
+        shortcut=None, warning=False, hidden=False) 
+
+    options_parser.create_option("uuid", "dvid uuid", 
+        default_val=None, required=False, dtype=str, verify_fn=None, num_args=None,
+        shortcut=None, warning=False, hidden=False) 
+
+
+
+
+    options_parser.create_option("roi", "roi if it exists", 
+        default_val=None, required=False, dtype=str, verify_fn=None, num_args=None,
+        shortcut=None, warning=False, hidden=False) 
+
     options_parser.create_option("classifier", "ILP file containing pixel classifier", 
         default_val=None, required=True, dtype=str, verify_fn=ilp_file_verify, num_args=None,
         shortcut=None, warning=False, hidden=False) 
@@ -119,21 +134,32 @@ def create_labels(border_size, prediction_file, options, master_logger):
     
     boundary_cropped = boundary
     seeds_cropped = seeds 
-    if border_size > 0:
-        boundary_cropped = boundary[border_size:(-1*border_size), border_size:(-1*border_size),border_size:(-1*border_size)]
+    # ?! add mask roi
+    watershed_mask = numpy.ones(boundary_cropped.shape).astype(numpy.uint8)
+
+    my_array = None
+    if options.roi is not None:
+        border2 = options.border
+        coord0 = (0, options.bbox1[0] - border2, options.bbox1[1] - border2, options.bbox1[2] - border2)
+        coord1 = (1, options.bbox2[0] + border2, options.bbox2[1] + border2, options.bbox2[2] + border2)
+ 
+        import httplib
+        from pydvid.voxels import RoiMaskAccessor
+        conn = httplib.HTTPConnection("emdata2:8000")
+        roi_access = RoiMaskAccessor(conn, options.uuid, options.roi, throttle=True, retry_timeout=1800.0 )
+        my_array = roi_access.get_ndarray( coord0, coord1 )
+        my_array = my_array.transpose((3,2,1,0)).squeeze()
+        #print watershed_mask.shape
+        #print my_array.shape
+        watershed_mask[my_array == 0] = 0
+        boundary_cropped[my_array == 0] = 1
         seeds_cropped = label(boundary_cropped==0)[0]
+
         if options.seed_size > 0:
             seeds_cropped = morpho.remove_small_connected_components(seeds_cropped, options.seed_size)
 
-    supervoxels_cropped = skmorph.watershed(boundary_cropped, seeds_cropped)
-    
+    supervoxels_cropped = skmorph.watershed(boundary_cropped, seeds_cropped, None, None, watershed_mask)
     supervoxels = supervoxels_cropped
-    if border_size > 0:
-        supervoxels = seeds.copy()
-        supervoxels.dtype = supervoxels_cropped.dtype
-        supervoxels[:,:,:] = 0 
-        supervoxels[border_size:(-1*border_size), 
-                border_size:(-1*border_size),border_size:(-1*border_size)] = supervoxels_cropped
 
     master_logger.info("Finished watershed")
   
@@ -143,14 +169,8 @@ def create_labels(border_size, prediction_file, options, master_logger):
         pre_post_pairs = syngeo.io.raveler_synapse_annotations_to_coords(
                 options.synapse_file)
         synapse_volume = syngeo.io.volume_synapse_view(pre_post_pairs, boundary.shape)
-        if border_size > 0:
-            synvol_cropped = synapse_volume[border_size:(-1*border_size),
-                    border_size:(-1*border_size),border_size:(-1*border_size)]
-            synvol_cropped = synvol_cropped.copy()
-            synapse_volume[:,:,:] = 0
-            synapse_volume[border_size:(-1*border_size),
-                    border_size:(-1*border_size),border_size:(-1*border_size)] = synvol_cropped
-        
+        if my_array is not None:
+            synapse_volume[my_array == 0] = 0
         supervoxels = morpho.split_exclusions(boundary, supervoxels, synapse_volume, 1)
         master_logger.info("Finished processing synapses")
 
@@ -183,8 +203,8 @@ def gen_watershed(session_location, options, master_logger, image_filename=None)
     # do not add to the border size
     border2 = options.border
     coord0 = options.bbox1[2] - border2, options.bbox1[1] - border2, options.bbox1[0] - border2, 0
-    # hard code output channel to 6 for now
-    coord1 = options.bbox2[2] + border2, options.bbox2[1] + border2, options.bbox2[0] + border2, 6
+    # hard code output channel to 4 for now
+    coord1 = options.bbox2[2] + border2, options.bbox2[1] + border2, options.bbox2[0] + border2, 4
     coords = [coord0, coord1]
 
     master_logger.info("Running Ilastik in headless mode")
@@ -205,7 +225,11 @@ def gen_watershed(session_location, options, master_logger, image_filename=None)
         ilastik_command += " --sys_tmp_dir={}".format( options.temp_dir )
 
     # Add the input file as the last arg
-    ilastik_command += ' "dvid://' + options.datasrc + '"'
+    ilastik_command += ' "dvid://' + options.datasrc
+    #if options.roi is not None:
+    #    ilastik_command += '?roi=' + options.roi + '&throttle=on"'
+    #else:
+    ilastik_command += '?throttle=on"'
     master_logger.info("Executing ilastik headless command for pixel classification:\n%s" % ilastik_command)
    
     """
