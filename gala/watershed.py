@@ -174,8 +174,6 @@ def create_labels(border_size, prediction_file, options, master_logger):
         supervoxels = morpho.split_exclusions(boundary, supervoxels, synapse_volume, 1)
         master_logger.info("Finished processing synapses")
 
-
-
     return supervoxels
 
 
@@ -247,12 +245,29 @@ def gen_watershed(session_location, options, master_logger, image_filename=None)
         shutil.rmtree(temp_dir)
 
     labels = create_labels(0, pixel_prob_filename, options, master_logger)
-   
-    imio.write_image_stack(labels,
+     
+    # relabel from 1
+    unique_arr = numpy.unique(labels)
+    sp_remap = {}
+    sp_remap[0] = 0
+    new_spid = 1
+    for val in unique_arr:
+        if val == 0:
+            continue
+        sp_remap[val] = new_spid
+        new_spid += 1
+                 
+    # Relabel superpixel image values
+    vectorized_relabel = numpy.frompyfunc(sp_remap.__getitem__, 1, 1)
+    remapped_labels = vectorized_relabel(labels)
+    final_labels = remapped_labels.astype(numpy.uint32)
+
+
+    imio.write_image_stack(final_labels,
         session_location + "/" + "supervoxels.h5")
 
     fout = open(session_location + "/max_body.json", 'w')
-    fout.write(json.dumps({ "max_id": int(labels.max()) }, indent=4))
+    fout.write(json.dumps({ "max_id": int(final_labels.max()) }, indent=4))
 
 def entrypoint(argv):
     applogger = app_logger.AppLogger(False, 'gen-watershed')
