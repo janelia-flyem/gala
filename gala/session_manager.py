@@ -1,3 +1,4 @@
+from __future__ import absolute_import
 #!/usr/bin/env python
 #
 # Copyright 2012 HHMI.  All rights reserved.
@@ -36,7 +37,7 @@ import sys
 import datetime
 import getpass
 
-import option_manager 
+from . import option_manager
 
 class Session:
     """The Session Manager 

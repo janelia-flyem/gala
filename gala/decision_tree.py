@@ -1,5 +1,6 @@
+from __future__ import absolute_import
 from numpy import inf, unique, array, zeros
-from decision_stump import DecisionStump
+from .decision_stump import DecisionStump
 
 class DecisionTree():
     """ Class for a decision tree.

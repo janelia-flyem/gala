@@ -1,6 +1,7 @@
+from __future__ import absolute_import
 
 from heapq import heapify, heappush, heappop
-from iterprogress import NoProgressBar, StandardProgressBar
+from .iterprogress import NoProgressBar, StandardProgressBar
 
 class MergeQueue(object):
     def __init__(self, items=[], length=None, with_progress=False, 

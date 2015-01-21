@@ -1,5 +1,8 @@
+from __future__ import absolute_import
+from __future__ import print_function
 # imports
 from gala import imio, classify, features, agglo, evaluate as ev
+from six.moves import map
 
 # read in training data
 gt_train, pr_train, ws_train = (map(imio.read_h5_stack,
@@ -15,7 +18,7 @@ fc = features.base.Composite(children=[fm, fh])
 g_train = agglo.Rag(ws_train, pr_train, feature_manager=fc)
 (X, y, w, merges) = g_train.learn_agglomerate(gt_train, fc)[0]
 y = y[:, 0] # gala has 3 truth labeling schemes, pick the first one
-print(X.shape, y.shape) # standard scikit-learn input format
+print((X.shape, y.shape)) # standard scikit-learn input format
 
 # train a classifier, scikit-learn syntax
 rf = classify.DefaultRandomForest().fit(X, y)
@@ -35,7 +38,7 @@ p4_train = imio.read_h5_stack('train-p4.lzf.h5')
 g_train4 = agglo.Rag(ws_train, p4_train, feature_manager=fc)
 (X4, y4, w4, merges4) = g_train4.learn_agglomerate(gt_train, fc)[0]
 y4 = y4[:, 0]
-print(X4.shape, y4.shape)
+print((X4.shape, y4.shape))
 rf4 = classify.DefaultRandomForest().fit(X4, y4)
 learned_policy4 = agglo.classifier_probability(fc, rf4)
 p4_test = imio.read_h5_stack('test-p4.lzf.h5')

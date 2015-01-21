@@ -1,3 +1,4 @@
+from __future__ import absolute_import
 import argparse
 import json
 
@@ -53,7 +54,7 @@ class OptionManager:
                 json_file = open(file_name)
                 json_data = json.load(json_file)
                 json_file.close()        
-            except Exception, e:
+            except Exception as e:
                 self.master_logger.warning("error in opening " + file_name + \
                     " (%s) , using flags only" % str(e))
 

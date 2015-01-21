@@ -1,8 +1,10 @@
+from __future__ import absolute_import
 import os
 
 from numpy.testing import assert_allclose
 import numpy as np
 from gala import imio, classify, features, agglo, evaluate as ev
+from six.moves import map
 
 rundir = os.path.dirname(__file__)
 

@@ -1,9 +1,11 @@
+from __future__ import absolute_import
 import numpy
-import agglo
-import morpho
+from . import agglo
+from . import morpho
 import scipy.sparse
 import scipy.sparse.linalg
 import scipy.cluster.vq
+from six.moves import range
  
 def ncutW(W, num_eigs=10, kmeans_iters=10, offset = 0.5, **kwargs):
     """Run the normalized cut algorithm

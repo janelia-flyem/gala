@@ -1,4 +1,6 @@
-import imio, option_manager, app_logger, session_manager
+from __future__ import absolute_import
+from __future__ import print_function
+from . import imio, option_manager, app_logger, session_manager
 import libNeuroProofPriority as neuroproof
 import os
 import sys
@@ -7,6 +9,7 @@ import h5py
 import numpy
 import json
 import traceback
+from six.moves import range
 
 def image_stack_verify(options_parser, options, master_logger):
     if options.test_stack is not None:
@@ -142,7 +145,7 @@ def auto_proofread(body2gtbody, rag_file, size_threshold, master_logger, test_st
             per = 0
         else:
             per = (float(nomerge_hist[iter1])/float(tot_hist[iter1]) * 100)
-        print iter1, ", ", per , ", " , tot_hist[iter1] 
+        print(iter1, ", ", per , ", " , tot_hist[iter1])
 
     master_logger.info("Probability Actual Agreement with Groundtruth Est")
     for iter1 in range(0, 101):
@@ -150,7 +153,7 @@ def auto_proofread(body2gtbody, rag_file, size_threshold, master_logger, test_st
             per = 0
         else:
             per = (float(nomerge_hist2[iter1])/float(tot_hist2[iter1]) * 100)
-        print iter1, ", ", per , ", " , tot_hist2[iter1] 
+        print(iter1, ", ", per , ", " , tot_hist2[iter1])
 
     body2body = {}
     for key, vallist in bodyremap.items():
@@ -212,7 +215,7 @@ def valprob(session_location, options, master_logger):
             per = 0
         else:
             per = (float(nomerge_hist[iter1])/float(tot_hist[iter1]) * 100)
-        print iter1, ", ", per , ", " , tot_hist[iter1] 
+        print(iter1, ", ", per , ", " , tot_hist[iter1])
     
     auto_proofread(body2gtbody, options.ragprob_file, options.size_threshold, master_logger, options.test_stack, session_location)
 
@@ -226,8 +229,8 @@ def entrypoint(argv):
             master_logger, applogger, create_valprob_options)    
 
         valprob(session.session_location, session.options, master_logger)
-    except Exception, e:
+    except Exception as e:
         master_logger.error(str(traceback.format_exc()))
-    except KeyboardInterrupt, err:
+    except KeyboardInterrupt as err:
         master_logger.error(str(traceback.format_exc()))
  

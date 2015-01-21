@@ -1,3 +1,4 @@
+from __future__ import absolute_import
 import sys
 import os
 import argparse
@@ -18,6 +19,7 @@ import re
 import datetime
 
 from . import imio, morpho, classify, evaluate, app_logger, session_manager, pixel, features, stack_np
+from six.moves import range
 
 # Group where we store predictions in HDF5 file
 PREDICTIONS_HDF5_GROUP = '/volume/predictions'
@@ -800,9 +802,9 @@ def entrypoint(argv):
             master_logger, applogger, create_stitching_options)    
         master_logger.info("Session location: " + session.session_location)
         run_stitching(session.session_location, session.options, master_logger) 
-    except Exception, e:
+    except Exception as e:
         master_logger.error(str(traceback.format_exc()))
-    except KeyboardInterrupt, err:
+    except KeyboardInterrupt as err:
         master_logger.error(str(traceback.format_exc()))
  
    

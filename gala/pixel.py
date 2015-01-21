@@ -1,3 +1,4 @@
+from __future__ import absolute_import
 import os
 import sys
 import glob
@@ -7,7 +8,7 @@ import json
 import shutil
 import traceback
 
-import imio, option_manager, app_logger, session_manager, util
+from . import imio, option_manager, app_logger, session_manager, util
 
 def image_stack_verify(options_parser, options, master_logger):
     if options.image_stack is not None:
@@ -140,8 +141,8 @@ def entrypoint(argv):
             master_logger, applogger, create_pixel_options)    
 
         gen_pixel_probabilities(session.session_location, session.options, master_logger)
-    except Exception, e:
+    except Exception as e:
         master_logger.error(str(traceback.format_exc()))
-    except KeyboardInterrupt, err:
+    except KeyboardInterrupt as err:
         master_logger.error(str(traceback.format_exc()))
  

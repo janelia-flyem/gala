@@ -1,10 +1,13 @@
-from annotefinder import AnnoteFinder
+from __future__ import absolute_import
+from .annotefinder import AnnoteFinder
 from math import ceil
 import numpy as np
 import scipy
-import evaluate
+from . import evaluate
 from skimage import color
 import matplotlib
+from six.moves import range
+from six.moves import zip
 plt = matplotlib.pyplot
 cm = plt.cm
 import itertools as it

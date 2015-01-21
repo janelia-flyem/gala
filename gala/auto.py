@@ -1,4 +1,6 @@
-import imio, option_manager, app_logger, session_manager
+from __future__ import absolute_import
+from __future__ import print_function
+from . import imio, option_manager, app_logger, session_manager
 import libNeuroProofPriority as neuroproof
 import os
 import sys
@@ -7,6 +9,7 @@ import h5py
 import numpy
 import json
 import traceback
+from six.moves import range
 
 def image_stack_verify(options_parser, options, master_logger):
     if options.test_stack is not None:
@@ -142,7 +145,7 @@ def auto_proofread(body2gtbody, rag_file, size_threshold, master_logger, test_st
             per = 0
         else:
             per = (float(nomerge_hist[iter1])/float(tot_hist[iter1]) * 100)
-        print iter1, ", ", per , ", " , tot_hist[iter1] 
+        print(iter1, ", ", per , ", " , tot_hist[iter1])
 
     master_logger.info("Probability Actual Agreement with Groundtruth Est")
     for iter1 in range(0, 101):
@@ -150,7 +153,7 @@ def auto_proofread(body2gtbody, rag_file, size_threshold, master_logger, test_st
             per = 0
         else:
             per = (float(nomerge_hist2[iter1])/float(tot_hist2[iter1]) * 100)
-        print iter1, ", ", per , ", " , tot_hist2[iter1] 
+        print(iter1, ", ", per , ", " , tot_hist2[iter1])
 
     body2body = {}
     for key, vallist in bodyremap.items():
@@ -203,7 +206,7 @@ def auto(session_location, options, master_logger):
     
     for (node1, node2, dummy) in pairprob_list:
         if body2gtbody[node1] == body2gtbody[node2]:
-            print "merge: " , node1, node2
+            print("merge: " , node1, node2)
             node2 = body2body[node2]
             node1 = body2body[node1]
             body2body[node1] = node2
@@ -214,11 +217,11 @@ def auto(session_location, options, master_logger):
             for b1 in remap_list:
                 body2body[b1] = node2
         else:
-            print "split: " , node1, node2
+            print("split: " , node1, node2)
 
     f1 = h5py.File('proofread.h5', 'w')
     f1.create_dataset('stack', data=test_stack)
-    arr = numpy.array(body2body.items())
+    arr = numpy.array(list(body2body.items()))
     f1.create_dataset('transforms', data=arr)
         
 
@@ -231,8 +234,8 @@ def entrypoint(argv):
             master_logger, applogger, create_auto_options)    
 
         auto(session.session_location, session.options, master_logger)
-    except Exception, e:
+    except Exception as e:
         master_logger.error(str(traceback.format_exc()))
-    except KeyboardInterrupt, err:
+    except KeyboardInterrupt as err:
         master_logger.error(str(traceback.format_exc()))
  
