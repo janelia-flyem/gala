@@ -1,6 +1,6 @@
 from __future__ import absolute_import
 # built-ins
-from itertools import combinations, izip, repeat, product
+from itertools import combinations, repeat, product
 import itertools as it
 import argparse
 import random
@@ -1433,7 +1433,7 @@ class Rag(Graph):
         errors_remaining = conditional_countdown(labels2, num_errors)
         nodes = None
         for nodes, label, errs, count in \
-                        izip(merge_seq, labels1, errors_remaining, counter):
+                        zip(merge_seq, labels1, errors_remaining, counter):
             n1, n2 = nodes
             if not label:
                 self.merge_nodes(n1, n2)
