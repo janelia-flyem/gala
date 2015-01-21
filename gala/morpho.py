@@ -556,7 +556,7 @@ def get_neighbor_idxs(ar, idxs, connectivity=1):
             prod = array(list(it.product(*([[1,-1]]*i))))
             i_strides = array(list(it.combinations(strides,i))).T
             steps.append(prod.dot(i_strides).ravel())
-    return idxs[:,newaxis] + concatenate(steps)
+    return idxs[:,newaxis] + concatenate(steps).astype(int32)
 
 def orphans(a):
     """Find all the segments that do not touch the volume boundary.
