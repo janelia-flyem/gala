@@ -5,9 +5,6 @@ try:
 except ImportError:
     ""
 
-import matplotlib
-
-
 class AnnoteFinder:
   """
   callback for matplotlib to display an annotation when points are clicked on.  The
