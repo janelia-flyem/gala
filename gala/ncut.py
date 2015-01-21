@@ -1,7 +1,5 @@
 from __future__ import absolute_import
 import numpy
-from . import agglo
-from . import morpho
 import scipy.sparse
 import scipy.sparse.linalg
 import scipy.cluster.vq
