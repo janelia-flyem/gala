@@ -38,7 +38,6 @@ else:
 
 # local imports
 from . import iterprogress as ip
-from .adaboost import AdaBoost
 
 
 def h5py_stack(fn):
@@ -343,8 +342,6 @@ def select_classifier(cname, features=None, labels=None, **kwargs):
         else:
             raise RuntimeError('tried to use random forest classifier, ' +
                 'but neither scikit-learn nor vigra are available.')
-    elif 'adaboost'.startswith(cname):
-        c = AdaBoost(**kwargs)
     if features is not None and labels is not None:
         c = c.fit(features, labels, **kwargs)
     return c
