@@ -87,7 +87,7 @@ def load_classifier(fn):
         with open(fn, 'r') as f:
             cl = pck.load(f)
         return cl
-    except pck.UnpicklingError:
+    except (pck.UnpicklingError, UnicodeDecodeError):
         pass
     if sklearn_available:
         try:

@@ -1,10 +1,20 @@
 from __future__ import absolute_import
 import os
+import sys
+
+PYTHON_VERSION = sys.version_info[0]
 
 from numpy.testing import assert_allclose
 import numpy as np
+from sklearn.externals import joblib
+import subprocess as sp
 from gala import imio, classify, features, agglo, evaluate as ev
 from six.moves import map
+
+
+def tar_extract(fn):
+    sp.call(['tar', '-xzf', fn + '.tar.gz'])
+
 
 rundir = os.path.dirname(__file__)
 
@@ -52,8 +62,13 @@ def test_generate_examples_1_channel():
 
 
 def test_segment_with_classifer_1_channel():
-    rf = classify.load_classifier(
+    if PYTHON_VERSION == 2:
+        rf = classify.load_classifier(
             os.path.join(rundir, 'example-data/rf-1.joblib'))
+    else:
+        fn = os.path.join(rundir, 'example-data/rf1-py3.joblib')
+        tar_extract(fn)
+        rf = joblib.load(os.path.basename(fn))
     learned_policy = agglo.classifier_probability(fc, rf)
     g_test = agglo.Rag(ws_test, pr_test, learned_policy, feature_manager=fc)
     g_test.agglomerate(0.5)
@@ -75,8 +90,13 @@ def test_generate_examples_4_channel():
 
 
 def test_segment_with_classifier_4_channel():
-    rf = classify.load_classifier(
+    if PYTHON_VERSION == 2:
+        rf = classify.load_classifier(
             os.path.join(rundir, 'example-data/rf-4.joblib'))
+    else:
+        fn = os.path.join(rundir, 'example-data/rf4-py3.joblib')
+        tar_extract(fn)
+        rf = joblib.load(os.path.basename(fn))
     learned_policy = agglo.classifier_probability(fc, rf)
     g_test = agglo.Rag(ws_test, p4_test, learned_policy, feature_manager=fc)
     g_test.agglomerate(0.5)
