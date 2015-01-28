@@ -2,6 +2,13 @@ build-*
 tmp/
 data/
 cluster
+
+# Cython
+*.c
+*.so
+*.html
+
+# Python bytecode
 *.pyc
 .*.swp
 ipython_log.py*
