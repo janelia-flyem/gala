@@ -3,7 +3,7 @@ python:
   - "2.7"
   - "3.4"
 virtualenv:
-  system_site_packages: true
+  system_site_packages: false
 install:
   # all installing is now handled by conda as it is faster and more robust
   - sudo apt-get update
