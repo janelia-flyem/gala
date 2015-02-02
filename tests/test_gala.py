@@ -46,7 +46,10 @@ fc = features.base.Composite(children=[fm, fh])
 
 def load_training_data(fn):
     io = np.load(fn)
-    return io['X'], io['y']
+    X, y = io['X'], io['y']
+    if y.ndim > 1:
+        y = y[:, 0]
+    return X, y
 
 def save_training_data(fn, X, y):
     np.savez(fn, X=X, y=y)
