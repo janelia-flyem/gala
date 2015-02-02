@@ -144,10 +144,14 @@ def save_classifier(cl, fn, use_joblib=True, **kwargs):
 def get_classifier(name='random forest', *args, **kwargs):
     name = name.lower()
     is_random_forest = name.find('random') > -1 and name.find('forest') > -1
+    is_naive_bayes = name.find('naive') > -1
     if vigra_available and is_random_forest:
         return VigraRandomForest(*args, **kwargs)
     elif sklearn_available and is_random_forest:
         return DefaultRandomForest(*args, **kwargs)
+    elif sklearn_available and is_naive_bayes:
+        from sklearn.naive_bayes import GaussianNB
+        return GaussianNB(*args, **kwargs)
     else:
         raise NotImplementedError('Classifier "%s" is either not installed ' +
             'or not implemented in Gala.')
