@@ -137,8 +137,8 @@ def save_classifier(cl, fn, use_joblib=True, **kwargs):
             kwargs['compress'] = 3
         joblib.dump(cl, fn, **kwargs)
     else:
-        with open(fn, 'w') as f:
-            pck.dump(cl, f, protocol=kwargs.get('protocol', -1))
+        with open(fn, 'wb') as f:
+            pck.dump(cl, f, protocol=kwargs.get('protocol', 2))
 
 
 def get_classifier(name='random forest', *args, **kwargs):
