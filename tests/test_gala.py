@@ -51,11 +51,12 @@ def load_training_data(fn):
 def save_training_data(fn, X, y):
     np.savez(fn, X=X, y=y)
 
-def train_and_save_classifier(training_data, filename):
-    X, y = load_training_data(training_data)
-    rf = classify.get_classifier('random forest')
-    rf.fit(X, y)
-    classify.save_classifier(rf, filename)
+def train_and_save_classifier(training_data_file, filename,
+                              classifier_kind='random forest'):
+    X, y = load_training_data(training_data_file)
+    cl = classify.get_classifier(classifier_kind)
+    cl.fit(X, y)
+    classify.save_classifier(cl, filename, use_joblib=False)
 
 ### tests
 
