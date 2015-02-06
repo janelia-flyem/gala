@@ -1,3 +1,5 @@
+from __future__ import absolute_import
+from __future__ import print_function
 # built-ins
 import os
 import json
@@ -10,6 +12,9 @@ import tempfile as tmp
 
 # libraries
 import h5py
+from six.moves import map
+from six.moves import range
+from six.moves import zip
 try:
     import Image
 except:
@@ -17,7 +22,7 @@ except:
 try:
     from pylibtiff import TIFF
 except:
-    print "pylibtiff not available: http://www.lfd.uci.edu/~gohlke/pythonlibs/#pylibtiff"
+    print("pylibtiff not available: http://www.lfd.uci.edu/~gohlke/pythonlibs/#pylibtiff")
 
 
 from scipy.ndimage.measurements import label
@@ -31,8 +36,8 @@ from skimage.io.collection import alphanumeric_key
 from skimage.io import imread
 
 # local files
-import evaluate
-import morpho
+from . import evaluate
+from . import morpho
 
 ### Auto-detect file format
 
@@ -356,9 +361,9 @@ def write_vtk(ar, fn, spacing=[1.0, 1.0, 1.0]):
     f.write('created by write_vtk (Python implementation by JNI)\n')
     f.write('BINARY\n')
     f.write('DATASET STRUCTURED_POINTS\n')
-    f.write(' '.join(['DIMENSIONS'] + map(str, ar.shape[-1::-1])) + '\n')
-    f.write(' '.join(['ORIGIN'] + map(str, zeros(3))) + '\n')
-    f.write(' '.join(['SPACING'] + map(str, spacing)) + '\n')
+    f.write(' '.join(['DIMENSIONS'] + list(map(str, ar.shape[-1::-1]))) + '\n')
+    f.write(' '.join(['ORIGIN'] + list(map(str, zeros(3)))) + '\n')
+    f.write(' '.join(['SPACING'] + list(map(str, spacing))) + '\n')
     f.write('POINT_DATA ' + str(ar.size) + '\n')
     f.write('SCALARS image_data ' +
                             numpy_type_to_vtk_string[ar.dtype.type] + '\n')
@@ -452,7 +457,7 @@ def compute_sp_to_body_map(sps, bodies):
     such as non-matching shapes, or superpixels mapping to more than one
     segment, will result in undefined behavior downstream with no warning.
     """
-    sp_to_body = unique(zip(sps.ravel(), bodies.ravel())).astype(uint64)
+    sp_to_body = unique(list(zip(sps.ravel(), bodies.ravel()))).astype(uint64)
     return sp_to_body
 
 def write_mapped_segmentation(superpixel_map, sp_to_body_map, fn, 
@@ -676,7 +681,7 @@ def segs_to_raveler(sps, bodies, min_size=0, do_conn_comp=False, sps_out=None):
     if sps_out is None:
         sps_out = raveler_serial_section_map(sps, min_size, do_conn_comp, False)
     segment_map = raveler_serial_section_map(bodies, min_size, do_conn_comp)
-    segment_to_body = unique(zip(segment_map.ravel(), bodies.ravel()))
+    segment_to_body = unique(list(zip(segment_map.ravel(), bodies.ravel())))
     segment_to_body = segment_to_body[segment_to_body[:,0] != 0]
     segment_to_body = concatenate((array([[0,0]]), segment_to_body), axis=0)
     sp_to_segment = []
@@ -685,7 +690,7 @@ def segs_to_raveler(sps, bodies, min_size=0, do_conn_comp=False, sps_out=None):
         segment_map_i *= sp_map_i.astype(bool)
         valid = (sp_map_i != 0) + (segment_map_i == 0)
         sp_to_segment.append(
-            unique(zip(it.repeat(i), sp_map_i[valid], segment_map_i[valid])))
+            unique(list(zip(it.repeat(i), sp_map_i[valid], segment_map_i[valid]))))
         valid = segment_map != 0
         logging.debug('plane %i done'%i)
     logging.info('total superpixels before: ' + str(len(unique(sps))) +
@@ -997,7 +1002,7 @@ def raveler_to_labeled_volume(rav_export_dir, get_glia=False,
     glia : list of int (optional, only returned if `get_glia` is True)
         The IDs in the segmentation corresponding to glial cells.
     """
-    import morpho
+    from . import morpho
     spmap = read_image_stack(
         os.path.join(rav_export_dir, 'superpixel_maps', '*.png'), crop=crop)
     spmap = raveler_rgba_to_int(spmap)
@@ -1009,7 +1014,7 @@ def raveler_to_labeled_volume(rav_export_dir, get_glia=False,
     max_sp = sp2seg_list[:,1].max()
     start_plane = sp2seg_list[:,0].min()
     for z, sp, seg in sp2seg_list:
-        if not sp2seg.has_key(z):
+        if z not in sp2seg:
             sp2seg[z] = zeros(max_sp+1, uint32)
         sp2seg[z][sp] = seg
     max_seg = seg2bod_list[:,0].max()
@@ -1073,7 +1078,7 @@ def write_ilastik_project(images, labels, fn, label_names=None):
     if type(images) != list:
         images = [images]
         labels = [labels]
-    ulbs = unique(concatenate(map(unique, labels)))[1:]
+    ulbs = unique(concatenate(list(map(unique, labels))))[1:]
     colors = array(ilastik_label_colors[:len(ulbs)])
     names = ['Label %i'%i for i in ulbs]
     names = array(names, '|S%i'%max(map(len, names)))
@@ -1137,7 +1142,7 @@ def read_prediction_from_ilastik_batch(fn, **kwargs):
     -------
     None
     """
-    if not kwargs.has_key('group'):
+    if 'group' not in kwargs:
         kwargs['group'] = '/volume/prediction'
     a = squeeze(read_h5_stack(fn, **kwargs))
     if kwargs.get('single_channel', True):

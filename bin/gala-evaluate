@@ -1,3 +1,5 @@
+from __future__ import absolute_import
+from __future__ import print_function
 #!/usr/bin/env python
 
 # ensure imported package is local to this executable
@@ -10,7 +12,7 @@ pkg_dir = os.path.abspath(os.path.join(this_dir, '..'))
 sys.path.insert(0, pkg_dir)
 
 # Python standard library
-import argparse, cPickle
+import argparse, six.moves.cPickle
 import subprocess as sp
 import logging
 
@@ -83,4 +85,4 @@ if __name__ == '__main__':
             vi = np.concatenate((np.array([args.threshold]), 
                 ev.split_vi(seg, gt)))[..., np.newaxis]
         imio.write_h5_stack(vi, segfn, group='vi')
-        print vi[:, :max(6, len(vi[0]))]
+        print(vi[:, :max(6, len(vi[0]))])

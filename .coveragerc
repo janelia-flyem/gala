@@ -2,6 +2,7 @@
 omit =
     *test_package*
     *test_*
+    *generate_test_results*
     *auto*
     *segmentation_stitch*
     *stack_np*

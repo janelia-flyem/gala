@@ -1,14 +1,19 @@
+from __future__ import absolute_import
+from __future__ import print_function
 #!/usr/bin/env python
 
 # system modules
 import os
 import logging
 import random
-import cPickle as pck
+import six.moves.cPickle as pck
 
 # libraries
 import h5py
 import numpy as np
+from six.moves import map
+from six.moves import range
+from six.moves import zip
 np.seterr(divide='ignore')
 
 try:
@@ -32,15 +37,14 @@ else:
     vigra_available = True
 
 # local imports
-import iterprogress as ip
-from .adaboost import AdaBoost
+from . import iterprogress as ip
 
 
 def h5py_stack(fn):
     try:
         a = np.array(h5py.File(fn, 'r')['stack'])
     except Exception as except_inst:
-        print except_inst
+        print(except_inst)
         raise
     return a
 
@@ -83,7 +87,7 @@ def load_classifier(fn):
         with open(fn, 'r') as f:
             cl = pck.load(f)
         return cl
-    except pck.UnpicklingError:
+    except (pck.UnpicklingError, UnicodeDecodeError):
         pass
     if sklearn_available:
         try:
@@ -129,21 +133,25 @@ def save_classifier(cl, fn, use_joblib=True, **kwargs):
     if isinstance(cl, VigraRandomForest):
         cl.save_to_disk(fn)
     elif use_joblib and sklearn_available:
-        if not kwargs.has_key('compress'):
+        if 'compress' not in kwargs:
             kwargs['compress'] = 3
         joblib.dump(cl, fn, **kwargs)
     else:
-        with open(fn, 'w') as f:
-            pck.dump(cl, f, protocol=kwargs.get('protocol', -1))
+        with open(fn, 'wb') as f:
+            pck.dump(cl, f, protocol=kwargs.get('protocol', 2))
 
 
 def get_classifier(name='random forest', *args, **kwargs):
     name = name.lower()
     is_random_forest = name.find('random') > -1 and name.find('forest') > -1
+    is_naive_bayes = name.find('naive') > -1
     if vigra_available and is_random_forest:
         return VigraRandomForest(*args, **kwargs)
     elif sklearn_available and is_random_forest:
         return DefaultRandomForest(*args, **kwargs)
+    elif sklearn_available and is_naive_bayes:
+        from sklearn.naive_bayes import GaussianNB
+        return GaussianNB(*args, **kwargs)
     else:
         raise NotImplementedError('Classifier "%s" is either not installed ' +
             'or not implemented in Gala.')
@@ -219,7 +227,7 @@ class VigraRandomForest(object):
 
 def read_rf_info(fn):
     f = h5py.File(fn)
-    return map(np.array, [f['oob'], f['feature_importance']])
+    return list(map(np.array, [f['oob'], f['feature_importance']]))
 
 def concatenate_data_elements(alldata):
     """Return one big learning set from a list of learning sets.
@@ -227,7 +235,7 @@ def concatenate_data_elements(alldata):
     A learning set is a list/tuple of length 4 containing features, labels,
     weights, and node merge history.
     """
-    return map(np.concatenate, zip(*alldata))
+    return list(map(np.concatenate, zip(*alldata)))
 
 def unique_learning_data_elements(alldata):
     if type(alldata[0]) not in (list, tuple): alldata = [alldata]
@@ -240,7 +248,7 @@ def unique_learning_data_elements(alldata):
         (bcs.min(), np.mean(bcs), np.median(bcs), bcs.max())
     )
     def get_uniques(ar): return ar[uids]
-    return map(get_uniques, [f, l, w, h])
+    return list(map(get_uniques, [f, l, w, h]))
 
 def sample_training_data(features, labels, num_samples=None):
     """Get a random sample from a classification training dataset.
@@ -265,7 +273,7 @@ def sample_training_data(features, labels, num_samples=None):
     m = len(features)
     if num_samples is None or num_samples >= m:
         return features, labels
-    idxs = random.sample(range(m), num_samples)
+    idxs = random.sample(list(range(m)), num_samples)
     return features[idxs], labels[idxs]
 
 def save_training_data_to_disk(data, fn, names=None, info='N/A'):
@@ -309,7 +317,7 @@ def make_thresholded_boundary_overlap_loss(tol_false, tol_true):
 def label_merges(g, merge_history, feature_map_function, gt, loss_function):
     """Replay an agglomeration history and label the loss of each merge."""
     labels = np.zeros(len(merge_history))
-    number_of_features = feature_map_function(g, *g.edges_iter().next()).size
+    number_of_features = feature_map_function(g, *next(g.edges_iter())).size
     features = np.zeros((len(merge_history), number_of_features))
     labeled_image = np.zeros(gt.shape, np.double)
     for i, nodes in enumerate(ip.with_progress(
@@ -338,8 +346,6 @@ def select_classifier(cname, features=None, labels=None, **kwargs):
         else:
             raise RuntimeError('tried to use random forest classifier, ' +
                 'but neither scikit-learn nor vigra are available.')
-    elif 'adaboost'.startswith(cname):
-        c = AdaBoost(**kwargs)
     if features is not None and labels is not None:
         c = c.fit(features, labels, **kwargs)
     return c

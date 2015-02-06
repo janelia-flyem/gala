@@ -1,3 +1,4 @@
+from __future__ import absolute_import
 #!/usr/bin/env python
 
 
@@ -549,9 +550,9 @@ def entrypoint(argv):
             master_logger, applogger, create_segmentation_pipeline_options)    
         master_logger.info("Session location: " + session.session_location)
         run_segmentation_pipeline(session.session_location, session.options, master_logger) 
-    except Exception, e:
+    except Exception as e:
         master_logger.error(str(traceback.format_exc()))
-    except KeyboardInterrupt, err:
+    except KeyboardInterrupt as err:
         master_logger.error(str(traceback.format_exc()))
  
    

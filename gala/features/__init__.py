@@ -4,6 +4,7 @@ Features
 
     All the features used in agglomeration should be put here.
 """
+from __future__ import absolute_import
 
 from . import \
     base, \

@@ -1,8 +1,29 @@
+from __future__ import absolute_import
 import os
+import sys
+import glob
+from contextlib import contextmanager
 
-from numpy.testing import assert_allclose
+PYTHON_VERSION = sys.version_info[0]
+
+from numpy.testing import assert_allclose, assert_array_equal
 import numpy as np
+from sklearn.externals import joblib
+from sklearn.naive_bayes import GaussianNB
+import subprocess as sp
 from gala import imio, classify, features, agglo, evaluate as ev
+from six.moves import map, cPickle as pickle
+
+
+@contextmanager
+def tar_extract(fn):
+    sp.call(['tar', '-xzf', fn + '.tar.gz'])
+    ext_fn = os.path.basename(fn)
+    yield ext_fn
+    os.remove(ext_fn)
+    for sub_fn in glob.glob(ext_fn + '_*'):
+        os.remove(sub_fn)
+
 
 rundir = os.path.dirname(__file__)
 
@@ -24,34 +45,75 @@ fc = features.base.Composite(children=[fm, fh])
 
 ### helper functions
 
+
+def load_pickle(fn):
+    with open(fn, 'rb') as fin:
+        if PYTHON_VERSION == 3:
+            return pickle.load(fin, encoding='bytes', fix_imports=True)
+        else:  # Python 2
+            return pickle.load(fin)
+
+
 def load_training_data(fn):
     io = np.load(fn)
-    return io['X'], io['y']
+    X, y = io['X'], io['y']
+    if y.ndim > 1:
+        y = y[:, 0]
+    return X, y
 
 def save_training_data(fn, X, y):
     np.savez(fn, X=X, y=y)
 
-def train_and_save_classifier(training_data, filename):
-    X, y = load_training_data(training_data)
-    rf = classify.get_classifier('random forest')
-    rf.fit(X, y)
-    classify.save_classifier(rf, filename)
+def train_and_save_classifier(training_data_file, filename,
+                              classifier_kind='random forest'):
+    X, y = load_training_data(training_data_file)
+    cl = classify.get_classifier(classifier_kind)
+    cl.fit(X, y)
+    classify.save_classifier(cl, filename, use_joblib=False)
 
 ### tests
 
 def test_generate_examples_1_channel():
+    """Run a flat epoch and an active epoch of learning, compare learned sets.
+
+    The *order* of the edges learned by learn_flat is not guaranteed, so we
+    test the *set* of learned edges for the flat epoch. The learned epoch
+    *should* have a fixed order, so we test array equality.
+
+    Uses 1 channel probabilities.
+    """
     g_train = agglo.Rag(ws_train, pr_train, feature_manager=fc)
-    np.random.RandomState(0)
-    (X, y, w, merges) = g_train.learn_agglomerate(gt_train, fc, random_state=0)[0]
-    X_expected, y_expected = load_training_data(
-            os.path.join(rundir, 'example-data/train-set-1.npz'))
-    assert_allclose(X, X_expected, atol=1e-6)
-    assert_allclose(y, y_expected, atol=1e-6)
+    _, alldata = g_train.learn_agglomerate(gt_train, fc,
+                                           classifier='naive bayes')
+    testfn = ('example-data/train-naive-bayes-merges1-py3.pck'
+              if PYTHON_VERSION == 3 else
+              'example-data/train-naive-bayes-merges1-py2.pck')
+    exp0, exp1 = load_pickle(os.path.join(rundir, testfn))
+    expected_edges = set(map(tuple, exp0))
+    edges = set(map(tuple, alldata[0][3]))
+    merges = alldata[1][3]
+    assert edges == expected_edges
+    # concordant is the maximum edges concordant in the Python 2.7 version.
+    # The remaining edges diverge because of apparent differences
+    # between Linux and OSX floating point handling.
+    concordant = slice(None, 171) if PYTHON_VERSION == 2 else slice(None)
+    assert_array_equal(merges[concordant], exp1[concordant])
+    nb = GaussianNB().fit(alldata[0][0], alldata[0][1][:, 0])
+    nbexp = joblib.load(os.path.join(rundir,
+                                     'example-data/naive-bayes-1.joblib'))
+    assert_allclose(nb.theta_, nbexp.theta_, atol=1e-10)
+    assert_allclose(nb.sigma_, nbexp.sigma_, atol=1e-4)
+    assert_allclose(nb.class_prior_, nbexp.class_prior_, atol=1e-7)
 
 
 def test_segment_with_classifer_1_channel():
-    rf = classify.load_classifier(
+    if PYTHON_VERSION == 2:
+        rf = classify.load_classifier(
             os.path.join(rundir, 'example-data/rf-1.joblib'))
+    else:
+        fn = os.path.join(rundir, 'example-data/rf1-py3.joblib')
+        with tar_extract(fn) as fn:
+            rf = joblib.load(fn)
     learned_policy = agglo.classifier_probability(fc, rf)
     g_test = agglo.Rag(ws_test, pr_test, learned_policy, feature_manager=fc)
     g_test.agglomerate(0.5)
@@ -63,18 +125,42 @@ def test_segment_with_classifer_1_channel():
 
 
 def test_generate_examples_4_channel():
+    """Run a flat epoch and an active epoch of learning, compare learned sets.
+
+    The *order* of the edges learned by learn_flat is not guaranteed, so we
+    test the *set* of learned edges for the flat epoch. The learned epoch
+    *should* have a fixed order, so we test array equality.
+
+    Uses 4 channel probabilities.
+    """
     g_train = agglo.Rag(ws_train, p4_train, feature_manager=fc)
-    np.random.RandomState(0)
-    (X, y, w, merges) = g_train.learn_agglomerate(gt_train, fc, random_state=0)[0]
-    X_expected, y_expected = load_training_data(
-            os.path.join(rundir, 'example-data/train-set-4.npz'))
-    assert_allclose(X, X_expected, atol=1e-6)
-    assert_allclose(y, y_expected, atol=1e-6)
+    _, alldata = g_train.learn_agglomerate(gt_train, fc,
+                                           classifier='naive bayes')
+    testfn = ('example-data/train-naive-bayes-merges4-py3.pck'
+              if PYTHON_VERSION == 3 else
+              'example-data/train-naive-bayes-merges4-py2.pck')
+    exp0, exp1 = load_pickle(os.path.join(rundir, testfn))
+    expected_edges = set(map(tuple, exp0))
+    edges = set(map(tuple, alldata[0][3]))
+    merges = alldata[1][3]
+    assert edges == expected_edges
+    assert_array_equal(merges, exp1)
+    nb = GaussianNB().fit(alldata[0][0], alldata[0][1][:, 0])
+    nbexp = joblib.load(os.path.join(rundir,
+                                     'example-data/naive-bayes-4.joblib'))
+    assert_allclose(nb.theta_, nbexp.theta_, atol=1e-10)
+    assert_allclose(nb.sigma_, nbexp.sigma_, atol=1e-4)
+    assert_allclose(nb.class_prior_, nbexp.class_prior_, atol=1e-7)
 
 
 def test_segment_with_classifier_4_channel():
-    rf = classify.load_classifier(
+    if PYTHON_VERSION == 2:
+        rf = classify.load_classifier(
             os.path.join(rundir, 'example-data/rf-4.joblib'))
+    else:
+        fn = os.path.join(rundir, 'example-data/rf4-py3.joblib')
+        with tar_extract(fn) as fn:
+            rf = joblib.load(fn)
     learned_policy = agglo.classifier_probability(fc, rf)
     g_test = agglo.Rag(ws_test, p4_test, learned_policy, feature_manager=fc)
     g_test.agglomerate(0.5)

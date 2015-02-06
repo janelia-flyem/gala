@@ -1,3 +1,4 @@
+from __future__ import absolute_import
 #!/usr/bin/env python
 
 import numpy as np
@@ -21,8 +22,11 @@ from scipy.ndimage.measurements import label, find_objects
 from scipy.ndimage.morphology import binary_opening, binary_closing, \
     binary_dilation, grey_closing, iterate_structure
 #from scipy.spatial.distance import cityblock as manhattan_distance
-import iterprogress as ip
+from . import iterprogress as ip
 from .evaluate import relabel_from_one
+from six.moves import map
+from six.moves import range
+from six.moves import zip
 
 try:
     import skimage.morphology
@@ -343,7 +347,7 @@ def watershed_sequence(a, seeds=None, mask=None, axis=0, **kwargs):
         mask = it.repeat(None)
     ws = [watershed(i, seeds=s, mask=m, **kwargs)
                                         for i, s, m in zip(a, seeds, mask)]
-    counts = map(np.max, ws[:-1])
+    counts = list(map(np.max, ws[:-1]))
     counts = np.concatenate((np.array([0]), counts))
     counts = np.cumsum(counts)
     for c, w in zip(counts, ws):
@@ -463,7 +467,7 @@ def pad(ar, vals, axes=None):
     if ar.size == 0:
         return ar
     if axes is None:
-        axes = range(ar.ndim)
+        axes = list(range(ar.ndim))
     if not _is_container(vals):
         vals = [vals]
     if not _is_container(axes):
@@ -504,7 +508,7 @@ def pad(ar, vals, axes=None):
         return pad(ar2, vals[1:], axes)
         
 def juicy_center(ar, skinsize=1):
-    for i in xrange(ar.ndim):
+    for i in range(ar.ndim):
         ar = ar.swapaxes(0,i)
         ar = ar[skinsize:-skinsize]
         ar = ar.swapaxes(0,i)
@@ -512,7 +516,7 @@ def juicy_center(ar, skinsize=1):
 
 def surfaces(ar, skinsize=1):
     s = []
-    for i in xrange(ar.ndim):
+    for i in range(ar.ndim):
         ar = ar.swapaxes(0, i)
         s.append(ar[0:skinsize].copy())
         s.append(ar[-skinsize:].copy())
@@ -552,7 +556,7 @@ def get_neighbor_idxs(ar, idxs, connectivity=1):
             prod = array(list(it.product(*([[1,-1]]*i))))
             i_strides = array(list(it.combinations(strides,i))).T
             steps.append(prod.dot(i_strides).ravel())
-    return idxs[:,newaxis] + concatenate(steps)
+    return idxs[:,newaxis] + concatenate(steps).astype(int32)
 
 def orphans(a):
     """Find all the segments that do not touch the volume boundary.
@@ -571,7 +575,7 @@ def non_traversing_segments(a):
     surface = hollowed(a)
     surface_ccs = label(surface)[0]
     idxs = flatnonzero(surface)
-    pairs = unique(zip(surface.ravel()[idxs], surface_ccs.ravel()[idxs]))
+    pairs = unique(list(zip(surface.ravel()[idxs], surface_ccs.ravel()[idxs])))
     return flatnonzero(bincount(pairs.astype(int)[:,0])==1)
 
 def damify(a, in_place=False):

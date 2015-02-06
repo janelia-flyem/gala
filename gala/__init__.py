@@ -4,6 +4,7 @@ Gala
 
     Gala is a Python package for nD image segmentation. 
 """
+from __future__ import absolute_import
 
 import sys, logging
 if sys.version_info[:2] < (2,6):

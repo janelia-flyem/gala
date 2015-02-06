@@ -1,5 +1,6 @@
+from __future__ import absolute_import
 # built-ins
-from itertools import combinations, izip, repeat, product
+from itertools import combinations, repeat, product
 import itertools as it
 import argparse
 import random
@@ -32,6 +33,9 @@ from . import features
 from . import classify
 from .classify import get_classifier, \
     unique_learning_data_elements, concatenate_data_elements
+from six.moves import map
+from six.moves import range
+from six.moves import zip
 
 
 def contingency_table(a, b):
@@ -578,7 +582,7 @@ class Rag(Graph):
             nodeid = self.watershed_r[idx]
             if nodeid != 0:
                 adj_labels = adj_labels[adj_labels != nodeid]
-                edges = zip(repeat(nodeid), adj_labels)
+                edges = list(zip(repeat(nodeid), adj_labels))
                 if not self.has_node(nodeid):
                     self.add_node(nodeid, extent=set())
                 if 'entrypoint' not in self.node[nodeid]:
@@ -739,7 +743,7 @@ class Rag(Graph):
             if sp[1:] == sw:
                 sp = sp[1:]+[sp[0]]
                 probs = probs.transpose(sp)
-            axes = range(p_ndim-1)
+            axes = list(range(p_ndim-1))
             self.probabilities = morpho.pad(probs, padding, axes)
             self.probabilities_r = self.probabilities.reshape(
                                                 (self.watershed.size, -1))
@@ -781,7 +785,7 @@ class Rag(Graph):
                 self.probabilities_r[:, self.channel_is_oriented]
             self.oriented_probabilities_r = \
                 self.oriented_probabilities_r[
-                    range(len(self.oriented_probabilities_r)),
+                    list(range(len(self.oriented_probabilities_r))),
                     self.orientation_map_r]
             self.non_oriented_probabilities_r = \
                 self.probabilities_r[:, ~self.channel_is_oriented]
@@ -1278,9 +1282,9 @@ class Rag(Graph):
             gts = [gts] # allow using single ground truth as input
         ctables = [contingency_table(self.get_segmentation(), gt) for gt in gts]
         assignments = [(ct == ct.max(axis=1)[:,newaxis]) for ct in ctables]
-        return map(array, zip(*[
+        return list(map(array, zip(*[
                 self.learn_edge(e, ctables, assignments, feature_map)
-                for e in self.real_edges()]))
+                for e in self.real_edges()])))
 
 
     def learn_edge(self, edge, ctables, assignments, feature_map):
@@ -1390,7 +1394,7 @@ class Rag(Graph):
                                            ctable[node_id].max())
                     assignment[n1] = 0
                     assignment[n2] = 0
-        return map(array, zip(*data))
+        return list(map(array, zip(*data)))
 
 
     def replay_merge_history(self, merge_seq, labels=None, num_errors=1):
@@ -1429,7 +1433,7 @@ class Rag(Graph):
         errors_remaining = conditional_countdown(labels2, num_errors)
         nodes = None
         for nodes, label, errs, count in \
-                        izip(merge_seq, labels1, errors_remaining, counter):
+                        zip(merge_seq, labels1, errors_remaining, counter):
             n1, n2 = nodes
             if not label:
                 self.merge_nodes(n1, n2)
@@ -1462,7 +1466,7 @@ class Rag(Graph):
             edge = self[n1][n2]
         except KeyError:
             return
-        w = edge['weight'] if edge.has_key('weight') else -inf
+        w = edge['weight'] if 'weight' in edge else -inf
         if self.ucm is not None:
             self.max_merge_score = max(self.max_merge_score, w)
             idxs = list(edge['boundary'])
@@ -1608,7 +1612,7 @@ class Rag(Graph):
                     self.feature_manager.create_edge_cache(self, u, v)
             self.update_merge_queue(u, v)
         for n in self.neighbors(n2):
-            if not boundaries_to_edit.has_key((n1,n)) and n != n1:
+            if (n1,n) not in boundaries_to_edit and n != n1:
                 self.update_merge_queue(n1, n)
 
 
@@ -1709,7 +1713,7 @@ class Rag(Graph):
         """
         if self.boundary_body in [u, v]:
             return
-        if self[u][v].has_key('qlink'):
+        if 'qlink' in self[u][v]:
             self.merge_queue.invalidate(self[u][v]['qlink'])
         if not self.merge_queue.is_null_queue:
             w = self.merge_priority_function(self,u,v)
@@ -1862,7 +1866,7 @@ class Rag(Graph):
             container = [i for i, s in enumerate(bcc) if
                          self.boundary_body in s][0]
             del bcc[container] # remove the main graph
-            bcc = map(list, bcc)
+            bcc = list(map(list, bcc))
             for cc in bcc:
                 cc.sort(key=lambda x: self.node[x]['size'], reverse=True)
             bcc.sort(key=lambda x: self.node[x[0]]['size'])
@@ -1988,7 +1992,7 @@ class Rag(Graph):
         labels = [self.get_pixel_label(*e) for e in self.real_edges()]
         if false_splits_only:
             labels = [l for l in labels if l[1] == 2]
-        ids, ls = map(array,zip(*labels))
+        ids, ls = list(map(array,zip(*labels)))
         ar[ids] = ls.astype(ar.dtype)
         return ar.reshape(self.watershed.shape)
 
@@ -2046,7 +2050,7 @@ class Rag(Graph):
                 json_vals["synapse_bodies"].append(temp)
 
         edge_list = [
-            {'location': map(int, self.get_edge_coordinates(i, j)[-1::-1]),
+            {'location': list(map(int, self.get_edge_coordinates(i, j)[-1::-1])),
             'node1': int(i), 'node2': int(j),
             'edge_size': len(self[i][j]['boundary']),
             'size1': self.node[i]['size'],

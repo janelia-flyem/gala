@@ -1,4 +1,6 @@
 # coding=utf-8
+from __future__ import absolute_import
+from __future__ import print_function
 
 import numpy as np
 import multiprocessing
@@ -12,6 +14,9 @@ import scipy.sparse as sparse
 from scipy.ndimage.measurements import label
 from scipy.spatial.distance import pdist, squareform
 from sklearn.metrics import precision_recall_curve
+from six.moves import map
+from six.moves import range
+from six.moves import zip
 
 
 def sparse_min(mat, axis=None):
@@ -186,7 +191,7 @@ def wiggle_room_precision_recall(pred, boundary, margin=2, connectivity=1):
         pred_dil.ravel()[np.flatnonzero(pred==m)[0]] = m
     prec, _, ts = precision_recall_curve(gtd.ravel(), pred.ravel())
     _, rec, _ = precision_recall_curve(boundary.ravel(), pred_dil.ravel())
-    return zip(ts, prec, rec)
+    return list(zip(ts, prec, rec))
 
 
 def get_stratified_sample(ar, n):
@@ -250,7 +255,7 @@ def edit_distance(aseg, gt, size_threshold=1000, sp=None):
     if sp is None:
         return raw_edit_distance(aseg, gt, size_threshold)
     else:
-        import agglo
+        from . import agglo
         bps = agglo.best_possible_segmentation(sp, gt)
         return raw_edit_distance(aseg, bps, size_threshold)
 
@@ -488,7 +493,7 @@ def make_synaptic_functions(fn, fcts):
     if not isinstance(fcts, coll.Iterable):
         return make_function(fcts)
     else:
-        return map(make_function, fcts)
+        return list(map(make_function, fcts))
 
 
 def make_synaptic_vi(fn):
@@ -809,7 +814,7 @@ def split_vi_mem(x, y):
     y_flat = y.ravel()
 
     count = 0
-    print "Analyzing similarities"
+    print("Analyzing similarities")
     for pos in range(0,len(x_flat)):
         x_val = x_flat[pos]
         y_val = y_flat[pos]
@@ -820,7 +825,7 @@ def split_vi_mem(x, y):
             (x_map[x_val])[y_val] += 1
             (y_map[y_val])[x_val] += 1
             count += 1
-    print "Finished analyzing similarities"
+    print("Finished analyzing similarities")
 
     x_ents = {}
     y_ents = {}
@@ -973,7 +978,7 @@ def vi_tables(x, y=None, ignore_x=[0], ignore_y=[0]):
     lpxgy[nzy] = xlogx(divide_columns(nzpxy, nzpy)).sum(axis=0)
     hxgy = -(py*lpxgy)
 
-    return [pxy] + map(np.asarray, [px, py, hxgy, hygx, lpygx, lpxgy])
+    return [pxy] + list(map(np.asarray, [px, py, hxgy, hygx, lpygx, lpxgy]))
 
 
 def sorted_vi_components(s1, s2, ignore1=[0], ignore2=[0], compress=False):
@@ -1052,7 +1057,7 @@ def split_components(idx, cont, num_elems=4, axis=0):
     idxs = (-cc).argsort()[:num_elems]
     probs = cc[idxs]
     probst = cct[idxs]
-    return zip(idxs, probs, probst)
+    return list(zip(idxs, probs, probst))
 
 
 def rand_values(cont_table):

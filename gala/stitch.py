@@ -1,14 +1,17 @@
+from __future__ import absolute_import
 #!/usr/bin/env python
 
 import sys, os, argparse
 import pdb
-from agglo import Rag
-from imio import read_image_stack
-from morpho import juicy_center
+from .agglo import Rag
+from .imio import read_image_stack
+from .morpho import juicy_center
 from numpy import zeros, bool, hstack, vstack, newaxis, array, savetxt
 from scipy.ndimage.filters import median_filter, gaussian_filter
 from scipy.ndimage.measurements import label
 from gala import single_arg_read_image_stack
+from six.moves import range
+from six.moves import zip
 
 class EvalAction(argparse.Action):
     def __call__(parser, namespace, values, option_string=None):
@@ -90,7 +93,7 @@ if __name__ == '__main__':
     thickness = args.thickness
     zcrop1 = [0,thickness]
     overlaps = [2**i+1 for i in range(1,8)]
-    results_table = zeros([len(args.thresholds), len(range(1,8))], dtype=bool)
+    results_table = zeros([len(args.thresholds), len(list(range(1,8)))], dtype=bool)
     for j, overlap in enumerate(overlaps):
         zcrop2 = [thickness-overlap, 2*thickness-overlap]
         # pdb.set_trace()

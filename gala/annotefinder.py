@@ -1,12 +1,11 @@
+from __future__ import absolute_import
 import math
+from six.moves import zip
 
 try:
     import pylab
 except ImportError:
     ""
-
-import matplotlib
-
 
 class AnnoteFinder:
   """
@@ -21,7 +20,7 @@ class AnnoteFinder:
   """
 
   def __init__(self, xdata, ydata, annotes, axis=None, xtol=None, ytol=None, xmin=None,ymin=None,xmax=None,ymax=None):
-    self.data = zip(xdata, ydata, annotes)
+    self.data = list(zip(xdata, ydata, annotes))
     if xtol is None:
       xtol = ((max(xdata) - min(xdata))/float(len(xdata)))/2
     if ytol is None:

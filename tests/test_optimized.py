@@ -1,6 +1,8 @@
+from __future__ import absolute_import
 import numpy as np
 from numpy.testing import assert_equal
 from gala import optimized as opt
+from six.moves import map
 
 def _flood_fill_example():
     return    np.array([[[0,1,2,5],
