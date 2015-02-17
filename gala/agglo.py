@@ -167,8 +167,10 @@ def make_ladder(priority_function, threshold, strictness=1):
 
 def no_mito_merge(priority_function):
     def predict(g, n1, n2):
-        if n1 in g.frozen_nodes or n2 in g.frozen_nodes \
-        or (n1, n2) in g.frozen_edges:
+        frozen = (n1 in g.frozen_nodes or
+                  n2 in g.frozen_nodes or
+                  (n1, n2) in g.frozen_edges)
+        if frozen:
             return np.inf
         else:
             return priority_function(g, n1, n2)
