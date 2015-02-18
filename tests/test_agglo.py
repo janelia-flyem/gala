@@ -12,7 +12,7 @@ from gala import agglo
 from gala import evaluate as ev
 
 
-test_idxs = list(range(4))
+test_idxs = list(range(6))
 num_tests = len(test_idxs)
 fns = [D + 'toy-data/test-%02i-probabilities.txt' % i for i in test_idxs]
 probs = list(map(np.loadtxt, fns))
@@ -59,6 +59,22 @@ def test_no_dam_agglomeration():
     g.agglomerate(0.75)
     assert_allclose(ev.vi(g.get_segmentation(), results[i]), 0.0,
                     err_msg='No dam agglomeration failed.')
+
+
+def test_mito():
+    i = 5
+    def frozen(g, i):
+        "hardcoded frozen nodes representing mitochondria"
+        return i in [3, 4]
+    g = agglo.Rag(wss[i], probs[i], agglo.no_mito_merge(agglo.boundary_mean),
+                  normalize_probabilities=True, isfrozennode=frozen)
+    g.agglomerate(0.15)
+    g.merge_priority_function = agglo.mito_merge()
+    g.rebuild_merge_queue()
+    g.agglomerate(1.0)
+    assert_allclose(ev.vi(g.get_segmentation(), results[i]), 0.0,
+                    err_msg='Mito merge failed')
+
 
 if __name__ == '__main__':
     from numpy import testing

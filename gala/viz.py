@@ -1,5 +1,5 @@
 from __future__ import absolute_import
-from .annotefinder import AnnoteFinder
+from .annotefinder import AnnotationFinder
 from math import ceil
 import numpy as np
 import scipy
@@ -233,9 +233,7 @@ def plot_vi_breakdown_panel(px, h, title, xlab, ylab, hlines, scatter_size,
         plt.plot(x, val/x, color='gray', ls=':', **kwargs) 
     plt.scatter(px, h, label=title, s=scatter_size, **kwargs)
     # Make points clickable to identify ID. This section needs work.
-    af = AnnoteFinder(px, h, [str(i) for i in range(len(px))], 
-        xtol=0.005, ytol=0.005, xmin=-0.05*max(px), ymin=-0.05*max(px), 
-        xmax = 1.05*max(px), ymax=1.05*max(h))
+    af = AnnotationFinder(px, h, [str(i) for i in range(len(px))])
     plt.connect('button_press_event', af)
     plt.xlim(xmin=-0.05*max(px), xmax=1.05*max(px))
     plt.ylim(ymin=-0.05*max(h), ymax=1.05*max(h))

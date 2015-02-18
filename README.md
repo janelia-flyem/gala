@@ -1,9 +1,10 @@
 # gala: segmentation of nD images [![Picture](https://raw.github.com/janelia-flyem/janelia-flyem.github.com/master/images/gray_janelia_logo.png)](http://janelia.org/)
 
-Gala is a python library for performing and evaluating image segmentation,
-distributed under the open-source [Janelia Farm license](http://janelia-flyem.github.com/janelia_farm_license.html). It implements the algorithm
-described in [Nunez-Iglesias *et al*.](http://arxiv.org/abs/1303.6163), PLOS
-ONE, 2013.
+Gala is a Python library for performing and evaluating image segmentation,
+distributed under the open-source, BSD-like
+[Janelia Farm license](http://janelia-flyem.github.com/janelia_farm_license.html).
+It implements the algorithm described in
+[Nunez-Iglesias *et al*.](http://arxiv.org/abs/1303.6163), PLOS ONE, 2013.
 
 If you use this library in your research, please cite:
 
@@ -21,17 +22,18 @@ If you use or compare to the GALA algorithm in your research, please cite:
 > *PLoS ONE 8(8): e71715.*  doi:10.1371/journal.pone.0071715
 
 Gala supports n-dimensional images (images, volumes, videos, videos of 
-volumes...) and multiple channels per image.
+volumes...) and multiple channels per image. It is compatible with both
+Python 3.4 and Python 2.7.
 
 [![Build Status](https://travis-ci.org/janelia-flyem/gala.png?branch=master)](https://travis-ci.org/janelia-flyem/gala)
 [![Coverage Status](https://img.shields.io/coveralls/janelia-flyem/gala.svg)](https://coveralls.io/r/janelia-flyem/gala)
 
 ## Requirements
 
-* Python 2.7
+* Python 3.4 or 2.7
 * numpy 1.7+
 * scipy 0.10+
-* Image (a.k.a. Python Imaging Library or PIL) 1.1.7
+* Image (a.k.a. Python Imaging Library or PIL) 1.1.7 or Pillow 2.5+
 * networkx 1.6+
 * HDF5 and h5py 1.5+
 * cython 0.17+
@@ -46,17 +48,18 @@ volumes...) and multiple channels per image.
 
 In its original incarnation, this project used Vigra for the random forest
 classifier. Installation is less simple than scikit-learn, which has emerged
-in the last year as a truly excellent implementation and is now recommended.
+in recent years as a truly excellent implementation and is now recommended.
 Tests in the test suite expect scikit-learn rather than Vigra.
 You can also use any of the scikit-learn classifiers,
-including their newly-excellent random forest.
+including their world-class random forest implementation.
 
 ## Installation
 
 ### Installing gala
 
 Gala is a Python library with limited Cython extensions and can be 
-installed in two ways:
+installed in three ways:
+* Use pip: `pip install gala`.
 * Add the gala directory to your PYTHONPATH environment variable, or
 * Use distutils to install it into your preferred python environment:
 
@@ -93,18 +96,16 @@ On Mac, you might have to install compilers (such as gcc, g++, and gfortran).
 
 ### Testing
 
-The test coverage is rather tiny, but it is still a nice way to check you
-haven't completely screwed up your installation. Note: the test scripts
-*must* be run from the `tests` directory.
+The test coverage is rather small, but it is still a nice way to check you
+haven't completely screwed up your installation. After installing gala, go
+to the code directory and type:
 
 ```bash
-$ cd tests
-$ python test_agglo.py
-$ python test_features.py
-$ python test_watershed.py
-$ python test_optimized.py
-$ python test_gala.py
+$ py.test
 ```
+
+You need to have pytest and pytest-cov installed, both of which are
+available through PyPI.
 
 ## Usage
 

@@ -1,90 +1,62 @@
 from __future__ import absolute_import
-import math
 from six.moves import zip
+import numpy as np
+from scipy import spatial
+from matplotlib import pyplot as plt
 
-try:
-    import pylab
-except ImportError:
-    ""
 
-class AnnoteFinder:
-  """
-  callback for matplotlib to display an annotation when points are clicked on.  The
-  point which is closest to the click and within xtol and ytol is identified.
+class AnnotationFinder:
+    """MPL callback to display an annotation when points are clicked.
     
-  Register this function like this:
-    
-  scatter(xdata, ydata)
-  af = AnnoteFinder(xdata, ydata, annotes)
-  connect('button_press_event', af)
-  """
+    The nearest point within xtol and ytol is identified.
 
-  def __init__(self, xdata, ydata, annotes, axis=None, xtol=None, ytol=None, xmin=None,ymin=None,xmax=None,ymax=None):
-    self.data = list(zip(xdata, ydata, annotes))
-    if xtol is None:
-      xtol = ((max(xdata) - min(xdata))/float(len(xdata)))/2
-    if ytol is None:
-      ytol = ((max(ydata) - min(ydata))/float(len(ydata)))/2
-    self.xtol = xtol
-    self.ytol = ytol
-    if axis is None:
-      self.axis = pylab.gca()
-    else:
-      self.axis= axis
-    self.drawnAnnotations = {}
-    self.links = []
-    self.xmin=xmin
-    self.ymin=ymin
-    self.xmax=xmax
-    self.ymax=ymax
+    Register this function like this:
 
-  def distance(self, x1, x2, y1, y2):
+    plt.scatter(xdata, ydata)
+    af = AnnotationFinder(xdata, ydata, annotations)
+    plt.connect('button_press_event', af)
     """
-    return the distance between two points
-    """
-    return math.hypot(x1 - x2, y1 - y2)
 
-  def __call__(self, event):
-    if event.inaxes:
-      clickX = event.xdata
-      clickY = event.ydata
-      if self.axis is None or self.axis==event.inaxes:
-        annotes = []
-        for x,y,a in self.data:
-          if  clickX-self.xtol < x < clickX+self.xtol and  clickY-self.ytol < y < clickY+self.ytol :
-            annotes.append((self.distance(x,clickX,y,clickY),x,y, a) )
-        if annotes:
-          annotes.sort()
-          distance, x, y, annote = annotes[0]
-          self.drawAnnote(event.inaxes, x, y, annote)
-          for l in self.links:
-            l.drawSpecificAnnote(annote)
+    def __init__(self, xdata, ydata, annotations, axis=None):
+        self.points = np.array(zip(xdata, ydata))
+        self.annotations = annotations
+        self.nntree = spatial.cKDTree(self.points)
+        if axis is None:
+            self.axis = plt.gca()
+        else:
+            self.axis = axis
+        self.drawn_annotations = {}
+        # links to other AnnotationFinder instances
+        self.links = []
 
-  def drawAnnote(self, axis, x, y, annote):
-    """
-    Draw the annotation on the plot
-    """
-    if (x,y) in self.drawnAnnotations:
-      markers = self.drawnAnnotations[(x,y)]
-      for m in markers:
-        m.set_visible(not m.get_visible())
-      pylab.axes(self.axis)
-      if self.xmin is not None: pylab.xlim(xmin=self.xmin)
-      if self.ymin is not None: pylab.ylim(ymin=self.ymin)
-      if self.xmax is not None: pylab.xlim(xmax=self.xmax)
-      if self.ymax is not None: pylab.ylim(ymax=self.ymax)
-      self.axis.figure.canvas.draw()
-    else:
-      t = axis.text(x,y, "(%3.2f, %3.2f) - %s"%(x,y,annote), )
-      self.drawnAnnotations[(x,y)] = [t]
-      pylab.axes(self.axis)
-      if self.xmin is not None: pylab.xlim(xmin=self.xmin)
-      if self.ymin is not None: pylab.ylim(ymin=self.ymin)
-      if self.xmax is not None: pylab.xlim(xmax=self.xmax)
-      if self.ymax is not None: pylab.ylim(ymax=self.ymax)
-      self.axis.figure.canvas.draw()
+    def __call__(self, event):
+        if event.inaxes:
+            clicked = np.array([event.xdata, event.ydata])
+            if self.axis is None or self.axis == event.inaxes:
+                nnidx = self.nntree.query(clicked)[1]
+                x, y = self.points[nnidx]
+                annotation = self.annotations[nnidx]
+                self.draw_annotation(event.inaxes, x, y, annotation)
+                for link in self.links:
+                    link.draw_specific_annotation(annotation)
 
-  def drawSpecificAnnote(self, annote):
-    annotesToDraw = [(x,y,a) for x,y,a in self.data if a==annote]
-    for x,y,a in annotesToDraw:
-      self.drawAnnote(self.axis, x, y, a)
+    def draw_annotation(self, axis, x, y, annotation):
+        """Draw the annotation on the plot."""
+        if (x, y) in self.drawn_annotations:
+            markers = self.drawn_annotations[(x, y)]
+            for m in markers:
+                m.set_visible(not m.get_visible())
+            plt.axes(self.axis)
+            self.axis.figure.canvas.draw()
+        else:
+            t = axis.text(x, y, "(%3.2f, %3.2f) - %s" % (x, y, annotation), )
+            self.drawn_annotations[(x, y)] = [t]
+            plt.axes(self.axis)
+            self.axis.figure.canvas.draw()
+
+    def draw_specific_annotation(self, annotation):
+        to_draw = [(x, y, a)
+                   for (x, y), a in zip(self.points, self.annotations)
+                   if a == annotation]
+        for x, y, a in to_draw:
+            self.draw_annotation(self.axis, x, y, a)

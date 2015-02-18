@@ -88,7 +88,33 @@ arggroup.add_argument('--allow-shared-boundaries', action='store_true',
 
 
 def conditional_countdown(seq, start=1, pred=bool):
-    """Count down from 'start' each time pred(elem) is true for elem in seq."""
+    """Count down from 'start' each time pred(elem) is true for elem in seq.
+
+    Used to know how many elements of a sequence remain that satisfy a
+    predicate.
+
+    Parameters
+    ----------
+    seq : iterable
+        Any sequence.
+    start : int, optional
+        The starting element.
+    pred : function, type(next(seq)) -> bool
+        A predicate acting on the elements of `seq`.
+
+    Examples
+    --------
+    >>> seq = range(10)
+    >>> cc = conditional_countdown(seq, start=5, pred=lambda x: x % 2 == 1)
+    >>> next(cc)
+    5
+    >>> next(cc)
+    4
+    >>> next(cc)
+    4
+    >>> next(cc)
+    3
+    """
     remaining = start
     for elem in seq:
         if pred(elem):
@@ -141,8 +167,10 @@ def make_ladder(priority_function, threshold, strictness=1):
 
 def no_mito_merge(priority_function):
     def predict(g, n1, n2):
-        if n1 in g.frozen_nodes or n2 in g.frozen_nodes \
-        or (n1, n2) in g.frozen_edges:
+        frozen = (n1 in g.frozen_nodes or
+                  n2 in g.frozen_nodes or
+                  (n1, n2) in g.frozen_edges)
+        if frozen:
             return np.inf
         else:
             return priority_function(g, n1, n2)
