@@ -16,6 +16,9 @@
 import sys
 import os
 
+
+# Add the local code to the Python path, so docs are generated for
+# current working copy
 rundir = os.path.dirname(__file__)
 sys.path.insert(0, rundir[:-4]) # remove '/doc' from end of path
 
