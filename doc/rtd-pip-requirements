@@ -6,3 +6,4 @@ cython>=0.22
 scipy>=0.13
 viridis>=0.3
 six>=1.9.0
+sklearn>=0.15
