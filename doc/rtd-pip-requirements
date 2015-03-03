@@ -1,0 +1,8 @@
+numpy>=1.6
+numpydoc>=0.5
+pillow>=2.7.0
+networkx>=1.6
+h5py>=1.5
+scipy>=0.9
+viridis>=0.2
+cython>=0.17
