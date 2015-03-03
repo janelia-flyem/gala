@@ -1,5 +1,6 @@
 [run]
 omit =
+    doc/*
     *test_package*
     *test_*
     *generate_test_results*
