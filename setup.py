@@ -18,8 +18,8 @@ DISTNAME            = 'gala'
 DESCRIPTION         = 'Hierarchical nD image segmentation algorithms'
 LONG_DESCRIPTION    = descr
 MAINTAINER          = 'Juan Nunez-Iglesias'
-MAINTAINER_EMAIL    = 'jni@janelia.hhmi.org'
-URL                 = 'https://github.com/janelia-flyem/gala'
+MAINTAINER_EMAIL    = 'juan.n@unimelb.edu.au'
+URL                 = 'https://gala.readthedocs.org'
 LICENSE             = 'Janelia (BSD-like)'
 DOWNLOAD_URL        = 'https://github.com/janelia-flyem/gala'
 VERSION             = '0.2dev'
@@ -46,7 +46,8 @@ if __name__ == '__main__':
                  "bin/gala-train", "bin/gala-test-package",
                  "bin/gala-pixel", "bin/comparestacks",
                  "bin/gala-valprob", "bin/gala-auto"],
-        ext_modules = cythonize(["gala/*.pyx","gala/features/*.pyx"], annotate=True),
+        ext_modules = cythonize(["gala/*.pyx","gala/features/*.pyx"],
+                                annotate=True),
         include_dirs=[numpy.get_include()]
     )
 
