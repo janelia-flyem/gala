@@ -565,7 +565,7 @@ def split_vi(x, y=None, ignore_x=[0], ignore_y=[0]):
 
     See Also
     --------
-    `vi`
+    vi
     """
     _, _, _ , hxgy, hygx, _, _ = vi_tables(x, y, ignore_x, ignore_y)
     # false merges, false splits
