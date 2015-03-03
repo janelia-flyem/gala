@@ -482,7 +482,7 @@ class Rag(Graph):
 
         See Also
         --------
-        ``real_edges_iter``, ``networkx.Graph.edges``.
+        real_edges_iter, networkx.Graph.edges
         """
         return [e for e in super(Rag, self).edges(*args, **kwargs) if
                                             self.boundary_body not in e[:2]]
@@ -702,7 +702,7 @@ class Rag(Graph):
 
         See Also
         --------
-        ``self.set_watershed``
+        set_watershed
         """
         return self.pixel_neighbors[idxs]
 
@@ -966,7 +966,7 @@ class Rag(Graph):
 
         See Also
         --------
-        ``self.build_merge_queue``
+        build_merge_queue
         """
         self.merge_queue = self.build_merge_queue()
 
@@ -1047,7 +1047,7 @@ class Rag(Graph):
 
         See Also
         --------
-        ``Rag.agglomerate``.
+        agglomerate
         """
         if self.merge_queue.is_empty():
             self.merge_queue = self.build_merge_queue()
@@ -1217,7 +1217,7 @@ class Rag(Graph):
 
         See Also
         --------
-        ``Rag.__init__``
+        __init__
         """
         learning_mode = learning_mode.lower()
         labeling_mode = labeling_mode.lower()
@@ -1304,7 +1304,7 @@ class Rag(Graph):
 
         See Also
         --------
-        ``learn_agglomerate``.
+        learn_agglomerate
         """
         if type(gts) != list:
             gts = [gts] # allow using single ground truth as input
@@ -1770,7 +1770,7 @@ class Rag(Graph):
 
         See Also
         --------
-        ``agglo.Rag.get_ucm``
+        get_ucm
         """
         m = self.tree.get_map()
         seg = m[self.watershed]

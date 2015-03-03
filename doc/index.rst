@@ -36,10 +36,11 @@ volumes...) and multiple channels per image.
 Contents:
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 1
 
    installation
    gettingstarted
+   api/api
 
 
 .. |Build Status| image:: https://travis-ci.org/janelia-flyem/gala.png?branch=master
