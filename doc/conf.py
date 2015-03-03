@@ -40,7 +40,7 @@ class Mock(object):
         else:
             return Mock()
 
-MOCK_MODULES = ['skimage', 'sklearn']
+MOCK_MODULES = ['skimage', 'sklearn', 'h5py']
 on_rtd = os.environ.get('READTHEDOCS', None) == 'True'
 if on_rtd:
     for module in MOCK_MODULES:
