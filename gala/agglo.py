@@ -306,7 +306,77 @@ def random_priority(g, n1, n2):
 
 
 class Rag(Graph):
-    """Region adjacency graph for segmentation of nD volumes."""
+    """Region adjacency graph for segmentation of nD volumes.
+
+    The label field can be complete (every pixel belongs to a
+    region > 0), or it can have boundaries (regions are separated
+    by pixels of label 0). Regions are considered adjacent if (a)
+    they are adjacent to each other, or (b) they are both adjacent
+    to a pixel of label 0.
+
+    Parameters
+    ----------
+    watershed : array of int, shape (M, N, ..., P)
+        The labeled regions of the image. Note: this is called
+        `watershed` for historical reasons, but could refer to a
+        superpixel map of any origin.
+    probabilities : array of float, shape (M, N, ..., P[, Q])
+        The probability of each pixel of belonging to a particular
+        class. Typically, this has the same shape as `watershed`
+        and represents the probability that the pixel is part of a
+        region boundary, but it can also have an additional
+        dimension for probabilities of belonging to other classes,
+        such as mitochondria (in biological images) or specific
+        textures (in natural images).
+    merge_priority_function : callable function, optional
+        This function must take exactly three arguments as input
+        (a Rag object and two node IDs) and return a single float.
+    allow_shared_boundaries : bool, optional
+        If True, 0-pixels with three or more adjacent labels belong
+        to the boundaries of each possible pair of labels.
+        Otherwise, these pixels do not belong to any boundaries.
+    feature_manager : ``features.base.Null`` object, optional
+        A feature manager object that controls feature computation
+        and feature caching.
+    show_progress : bool, optional
+        Whether to display an ASCII progress bar during long-
+        -running graph operations.
+    lowmem : bool, optional
+        Use a lower-memory mode by not pre-caching the neighbors
+        array. This trades off a 10% decrease in memory usage
+        for a 10% slower runtime.
+    connectivity : int in {1, ..., `watershed.ndim`}
+        When determining adjacency, allow neighbors along
+        `connectivity` dimensions.
+    channel_is_oriented : array-like of bool, shape (Q,), optional
+        For multi-channel images, some channels, for example some
+        edge detectors, have a specific orientation. In conjunction
+        with the `orientation_map` argument, specify which channels
+        have an orientation associated with them.
+    orientation_map : array-like of float, shape (Q,)
+        Specify the orientation of the corresponding channel. (2D
+        images only)
+    normalize_probabilities : bool, optional
+        Divide the input `probabilities` by their maximum to ensure
+        a range in [0, 1].
+    nozeros : bool, optional
+        If you know your volume has no 0-labeled pixels, setting
+        `nozeros` to ``True`` will speed up graph construction.
+    exclusions : array-like of int, shape (M, N, ..., P), optional
+        Volume of same shape as `watershed`. Mark points in the
+        volume with the same label (>0) to prevent them from being
+        merged during agglomeration. For example, if
+        `exclusions[45, 92] == exclusions[51, 105] == 1`, then
+        segments `watershed[45, 92]` and `watershed[51, 105]` will
+        never be merged, regardless of the merge priority function.
+    isfrozennode : function, optional
+        Function taking in a Rag object and a node id and returning
+        a bool. If the function returns ``True``, the node will not
+        be merged, regardless of the merge priority function.
+    isfrozenedge : function, optional
+        As `isfrozennode`, but the function should take the graph
+        and *two* nodes, to specify an edge that cannot be merged.
+    """
 
     def __init__(self, watershed=array([]), probabilities=array([]),
             merge_priority_function=boundary_mean,
@@ -316,84 +386,7 @@ class Rag(Graph):
             channel_is_oriented=None, orientation_map=array([]),
             normalize_probabilities=False, nozeros=False, exclusions=array([]),
             isfrozennode=None, isfrozenedge=None):
-        """Create a graph from label and image/probability volumes.
 
-        The label field can be complete (every pixel belongs to a
-        region > 0), or it can have boundaries (regions are separated
-        by pixels of label 0). Regions are considered adjacent if (a)
-        they are adjacent to each other, or (b) they are both adjacent
-        to a pixel of label 0.
-
-        Parameters
-        ----------
-        watershed : array of int, shape (M, N, ..., P)
-            The labeled regions of the image. Note: this is called
-            `watershed` for historical reasons, but could refer to a
-            superpixel map of any origin.
-        probabilities : array of float, shape (M, N, ..., P[, Q])
-            The probability of each pixel of belonging to a particular
-            class. Typically, this has the same shape as `watershed`
-            and represents the probability that the pixel is part of a
-            region boundary, but it can also have an additional
-            dimension for probabilities of belonging to other classes,
-            such as mitochondria (in biological images) or specific
-            textures (in natural images).
-        merge_priority_function : callable function, optional
-            This function must take exactly three arguments as input
-            (a Rag object and two node IDs) and return a single float.
-        allow_shared_boundaries : bool, optional
-            If True, 0-pixels with three or more adjacent labels belong
-            to the boundaries of each possible pair of labels.
-            Otherwise, these pixels do not belong to any boundaries.
-        feature_manager : ``features.base.Null`` object, optional
-            A feature manager object that controls feature computation
-            and feature caching.
-        show_progress : bool, optional
-            Whether to display an ASCII progress bar during long-
-            -running graph operations.
-        lowmem : bool, optional
-            Use a lower-memory mode by not pre-caching the neighbors
-            array. This trades off a 10% decrease in memory usage
-            for a 10% slower runtime.
-        connectivity : int in {1, ..., `watershed.ndim`}
-            When determining adjacency, allow neighbors along
-            `connectivity` dimensions.
-        channel_is_oriented : array-like of bool, shape (Q,), optional
-            For multi-channel images, some channels, for example some
-            edge detectors, have a specific orientation. In conjunction
-            with the `orientation_map` argument, specify which channels
-            have an orientation associated with them.
-        orientation_map : array-like of float, shape (Q,)
-            Specify the orientation of the corresponding channel. (2D
-            images only)
-        normalize_probabilities : bool, optional
-            Divide the input `probabilities` by their maximum to ensure
-            a range in [0, 1].
-        nozeros : bool, optional
-            If you know your volume has no 0-labeled pixels, setting
-            `nozeros` to ``True`` will speed up graph construction.
-        exclusions : array-like of int, shape (M, N, ..., P), optional
-            Volume of same shape as `watershed`. Mark points in the
-            volume with the same label (>0) to prevent them from being
-            merged during agglomeration. For example, if
-            `exclusions[45, 92] == exclusions[51, 105] == 1`, then
-            segments `watershed[45, 92]` and `watershed[51, 105]` will
-            never be merged, regardless of the merge priority function.
-        isfrozennode : function, optional
-            Function taking in a Rag object and a node id and returning
-            a bool. If the function returns ``True``, the node will not
-            be merged, regardless of the merge priority function.
-        isfrozenedge : function, optional
-            As `isfrozennode`, but the function should take the graph
-            and *two* nodes, to specify an edge that cannot be merged.
-
-        Returns
-        -------
-        self : Rag object
-            A region adjacency graph (Rag) object, containing all
-            necessary information to perform agglomerative
-            segmentation.
-        """
         super(Rag, self).__init__(weighted=False)
         self.show_progress = show_progress
         self.nozeros = nozeros
@@ -1217,7 +1210,7 @@ class Rag(Graph):
 
         See Also
         --------
-        __init__
+        Rag
         """
         learning_mode = learning_mode.lower()
         labeling_mode = labeling_mode.lower()
@@ -1330,7 +1323,6 @@ class Rag(Graph):
             so each segment corresponds to exactly one ground truth segment.
         feature_map : function (Rag, node, node) -> array of float
             The map from node pairs to a feature vector.
-
 
         Returns
         -------
