@@ -22,6 +22,30 @@ import os
 rundir = os.path.dirname(__file__)
 sys.path.insert(0, rundir[:-4]) # remove '/doc' from end of path
 
+# Mock modules to prevent build fails on RTD
+
+class Mock(object):
+    def __init__(self, *args, **kwargs):
+        pass
+
+    def __call__(self, *args, **kwargs):
+        return Mock()
+
+    @classmethod
+    def __getattr__(self, name):
+        if name in ('__file__', '__path__'):
+            return '/dev/null'
+        elif name[0] == name[0].upper():
+            return type(name, (), {})
+        else:
+            return Mock()
+
+MOCK_MODULES = ['skimage', 'sklearn']
+on_rtd = os.environ.get('READTHEDOCS', None) == 'True'
+if on_rtd:
+    for module in MOCK_MODULES:
+        sys.modules[module] = Mock()
+
 # If extensions (or modules to document with autodoc) are in another directory,
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
@@ -114,8 +138,6 @@ pygments_style = 'sphinx'
 # Code below copied from:
 # http://docs.readthedocs.org/en/latest/theme.html#how-do-i-use-this-locally-and-on-read-the-docs
 # on_rtd is whether we are on readthedocs.org
-on_rtd = os.environ.get('READTHEDOCS', None) == 'True'
-
 if not on_rtd:  # only import and set the theme if we're building docs locally
     import sphinx_rtd_theme
     html_theme = 'sphinx_rtd_theme'
