@@ -1,5 +1,7 @@
 from __future__ import absolute_import
 #from distutils.core import setup
+import sys
+import os
 from setuptools import setup
 from Cython.Build import cythonize
 import numpy
@@ -28,6 +30,13 @@ INST_DEPENDENCIES   = {}
 
 
 if __name__ == '__main__':
+
+    # Massive hack: installing on RTD fails, so we change installation to
+    # building in-place
+    on_rtd = (os.environ.get('READTHEDOCS', None) == 'True')
+    if on_rtd:
+        sys.argv[1] = 'build_ext'
+        sys.argv.append('-i')
 
     setup(name=DISTNAME,
         version=VERSION,
