@@ -11,7 +11,7 @@ if sys.version_info[:2] < (2,6):
     logging.warning('Gala has not been tested on Python versions prior to 2.6'+
         ' (%d.%d detected).'%sys.version_info[:2])
 
-__author__ = 'Juan Nunez-Iglesias <jni@janelia.hhmi.org>, '+\
+__author__ = 'Juan Nunez-Iglesias <juan.n@unimelb.edu.au>, '+\
              'Ryan Kennedy <kenry@cis.upenn.edu>'
 del sys, logging
 
