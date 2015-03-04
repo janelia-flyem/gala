@@ -24,7 +24,7 @@ MAINTAINER_EMAIL    = 'juan.n@unimelb.edu.au'
 URL                 = 'https://gala.readthedocs.org'
 LICENSE             = 'Janelia (BSD-like)'
 DOWNLOAD_URL        = 'https://github.com/janelia-flyem/gala'
-VERSION             = '0.2dev'
+VERSION             = '0.2.0'
 PYTHON_VERSION      = (2, 7)
 INST_DEPENDENCIES   = {} 
 
