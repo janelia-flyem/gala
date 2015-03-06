@@ -1,5 +1,9 @@
+=============
 Release notes
 =============
+
+0.2.1
+=====
 
 This release owes much of its existence to Neal Donnelly (@NealJMD on GitHub),
 who bravely delved into gala and reduced its memory and time footprints by
