@@ -4,22 +4,24 @@ Installation
 Requirements
 ------------
 
--  Python 2.7
+-  Python 3.4 or 2.7
 -  numpy 1.7+
 -  scipy 0.10+
--  Image (a.k.a. Python Imaging Library or PIL) 1.1.7
+-  Image (a.k.a. Python Imaging Library or PIL) 1.1.7 or Pillow 2.5+
 -  networkx 1.6+
 -  HDF5 and h5py 1.5+
 -  cython 0.17+
--  scikit-learn 0.15
+-  scikit-learn 0.15+
 -  matplotlib 1.2+
--  scikit-image 0.9+
+-  scikit-image 0.11+
+-  viridis 0.3+
 
 Optional dependencies
 ~~~~~~~~~~~~~~~~~~~~~
 
--  progressbar 2.3-dev
+-  progressbar 2.3 (Python 2.7 only, currently)
 -  `vigra/vigranumpy <hci.iwr.uni-heidelberg.de/vigra/>`__ (1.9.0)
+-  libtiff 0.4+
 
 In its original incarnation, this project used Vigra for the random
 forest classifier. Installation is less simple than scikit-learn, which
