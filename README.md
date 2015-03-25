@@ -40,11 +40,13 @@ Python 3.4 and Python 2.7.
 * scikit-learn 0.15
 * matplotlib 1.2+
 * scikit-image 0.9+
+* viridis 0.3+
 
 ### Optional dependencies
 
-* progressbar 2.3-dev
+* progressbar 2.3 (Python 2.7 only, currently)
 * [vigra/vigranumpy](hci.iwr.uni-heidelberg.de/vigra/) (1.9.0)
+* libtiff 0.4+
 
 In its original incarnation, this project used Vigra for the random forest
 classifier. Installation is less simple than scikit-learn, which has emerged
