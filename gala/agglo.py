@@ -1743,7 +1743,7 @@ class Rag(Graph):
             self.merge_queue.push(new_qitem)
 
 
-    def get_segmentation(self):
+    def get_segmentation(self, threshold=None):
         """Return the unpadded segmentation represented by the graph.
 
         Remember that the segmentation volume is padded with an
@@ -1752,7 +1752,10 @@ class Rag(Graph):
 
         Parameters
         ----------
-        None
+        threshold : float, optional
+            Get the segmentation at the given threshold. If no
+            threshold is given, return the segmentation at the current
+            level of agglomeration.
 
         Returns
         -------
@@ -1764,7 +1767,17 @@ class Rag(Graph):
         --------
         get_ucm
         """
-        m = self.tree.get_map()
+        if threshold is None:
+            # a threshold of np.inf is the same as no threshold on the
+            # tree when getting the map (see below). Thus, using a
+            # threshold of `None` (the default), we get the segmentation
+            # implied by the current merge tree.
+            threshold = np.inf
+        elif threshold > self.max_merge_score:
+            # If a higher threshold is required than has been merged, we
+            # continue the agglomeration until that threshold is hit.
+            self.agglomerate(threshold)
+        m = self.tree.get_map(threshold)
         seg = m[self.watershed]
         if self.pad_thickness > 1: # volume has zero-boundaries
             seg = morpho.remove_merged_boundaries(seg, self.connectivity)
