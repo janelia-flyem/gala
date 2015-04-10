@@ -41,7 +41,7 @@ Contents:
    installation
    gettingstarted
    api/api
-   release
+   release-notes
 
 
 .. |Build Status| image:: https://travis-ci.org/janelia-flyem/gala.png?branch=master
