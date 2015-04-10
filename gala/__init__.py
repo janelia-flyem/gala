@@ -18,4 +18,4 @@ del sys, logging
 __all__ = ['agglo', 'morpho', 'evaluate', 'viz', 'imio', 'classify',
     'stack_np', 'app_logger', 'option_manager', 'features', 'filter']
 
-__version__ = '0.2.1'
+__version__ = '0.2.3'
