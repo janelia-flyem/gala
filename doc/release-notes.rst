@@ -2,8 +2,24 @@
 Release notes
 =============
 
-0.2.1
-=====
+0.2.3
+-----
+
+Minor feature addition: enable exporting segmentation results *after*
+agglomeration is complete.
+
+0.2.2
+-----
+
+This maintenance release contains several bug fixes:
+
+- package Cython source files (.pyx) for PyPI
+- package the gala-segment command-line interface for PyPI
+- include viridis in ``requirements.txt``
+- update libtiff usage
+
+0.2
+===
 
 This release owes much of its existence to Neal Donnelly (@NealJMD on GitHub),
 who bravely delved into gala and reduced its memory and time footprints by
