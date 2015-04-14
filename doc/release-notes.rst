@@ -1,6 +1,9 @@
 Release notes
 =============
 
+0.2
+===
+
 0.2.3
 -----
 
@@ -18,7 +21,7 @@ This maintenance release contains several bug fixes:
 - update libtiff usage
 
 0.2
-======
+---
 
 This release owes much of its existence to Neal Donnelly (@NealJMD on GitHub),
 who bravely delved into gala and reduced its memory and time footprints by
