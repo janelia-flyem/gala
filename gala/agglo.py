@@ -812,7 +812,7 @@ class Rag(Graph):
                 self.probabilities_r[:, ~self.channel_is_oriented]
 
 
-    def set_watershed(self, ws=array([]), lowmem=False, connectivity=1):
+    def set_watershed(self, ws=array([], int), lowmem=False, connectivity=1):
         """Set the initial segmentation volume (watershed).
 
         The initial segmentation is called `watershed` for historical
