@@ -832,6 +832,9 @@ class Rag(Graph):
         -------
         None
         """
+        if not np.issubdtype(ws.dtype, np.integer):
+            ws = ws.astype(morpho.smallest_int_dtype(np.max(ws),
+                                                     signed=np.min(ws) < 0))
         try:
             self.boundary_body = ws.max()+1
         except ValueError: # empty watershed given
