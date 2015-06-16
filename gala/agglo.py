@@ -378,7 +378,7 @@ class Rag(Graph):
         and *two* nodes, to specify an edge that cannot be merged.
     """
 
-    def __init__(self, watershed=array([]), probabilities=array([]),
+    def __init__(self, watershed=array([], int), probabilities=array([]),
             merge_priority_function=boundary_mean,
             allow_shared_boundaries=True, gt_vol=None,
             feature_manager=features.base.Null(),
