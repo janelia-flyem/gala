@@ -30,6 +30,15 @@ def test_8_connectivity():
     assert_equal(agglo.boundary_mean(g, 1, 2), 0.75)
     assert_equal(agglo.boundary_mean(g, 1, 4), 1.0)
 
+def test_float_watershed():
+    """Ensure float arrays passed as watersheds don't crash everything."""
+    p = np.array([[0,0.5,0],[0.5,1.0,0.5],[0,0.5,0]])
+    ws = np.array([[1,0,2],[0,0,0],[3,0,4]], np.float32)
+    g = agglo.Rag(ws, p, connectivity=2)
+    assert_equal(agglo.boundary_mean(g, 1, 2), 0.75)
+    assert_equal(agglo.boundary_mean(g, 1, 4), 1.0)
+
+
 def test_empty_rag():
     g = agglo.Rag()
     assert_equal(g.nodes(), [])

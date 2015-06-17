@@ -378,7 +378,7 @@ class Rag(Graph):
         and *two* nodes, to specify an edge that cannot be merged.
     """
 
-    def __init__(self, watershed=array([]), probabilities=array([]),
+    def __init__(self, watershed=array([], int), probabilities=array([]),
             merge_priority_function=boundary_mean,
             allow_shared_boundaries=True, gt_vol=None,
             feature_manager=features.base.Null(),
@@ -812,7 +812,7 @@ class Rag(Graph):
                 self.probabilities_r[:, ~self.channel_is_oriented]
 
 
-    def set_watershed(self, ws=array([]), lowmem=False, connectivity=1):
+    def set_watershed(self, ws=array([], int), lowmem=False, connectivity=1):
         """Set the initial segmentation volume (watershed).
 
         The initial segmentation is called `watershed` for historical
@@ -832,6 +832,9 @@ class Rag(Graph):
         -------
         None
         """
+        if not np.issubdtype(ws.dtype, np.integer):
+            ws = ws.astype(morpho.smallest_int_dtype(np.max(ws),
+                                                     signed=np.min(ws) < 0))
         try:
             self.boundary_body = ws.max()+1
         except ValueError: # empty watershed given
