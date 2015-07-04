@@ -23,19 +23,20 @@ results = list(map(np.loadtxt, fns))
 
 landscape = np.array([1,0,1,2,1,3,2,0,2,4,1,0])
 
-def test_8_connectivity():
-    p = np.array([[0,0.5,0],[0.5,1.0,0.5],[0,0.5,0]])
-    ws = np.array([[1,0,2],[0,0,0],[3,0,4]], np.uint32)
+
+def test_2_connectivity():
+    p = np.array([[1., 0.], [0., 1.]])
+    ws = np.array([[1, 2], [3, 4]], np.uint32)
     g = agglo.Rag(ws, p, connectivity=2)
-    assert_equal(agglo.boundary_mean(g, 1, 2), 0.75)
+    assert_equal(agglo.boundary_mean(g, 1, 2), 0.5)
     assert_equal(agglo.boundary_mean(g, 1, 4), 1.0)
 
 def test_float_watershed():
     """Ensure float arrays passed as watersheds don't crash everything."""
-    p = np.array([[0,0.5,0],[0.5,1.0,0.5],[0,0.5,0]])
-    ws = np.array([[1,0,2],[0,0,0],[3,0,4]], np.float32)
+    p = np.array([[1., 0.], [0., 1.]])
+    ws = np.array([[1, 2], [3, 4]], np.float32)
     g = agglo.Rag(ws, p, connectivity=2)
-    assert_equal(agglo.boundary_mean(g, 1, 2), 0.75)
+    assert_equal(agglo.boundary_mean(g, 1, 2), 0.5)
     assert_equal(agglo.boundary_mean(g, 1, 4), 1.0)
 
 
@@ -44,13 +45,15 @@ def test_empty_rag():
     assert_equal(g.nodes(), [])
     assert_equal(g.copy().nodes(), [])
 
+
 def test_agglomeration():
     i = 1
     g = agglo.Rag(wss[i], probs[i], agglo.boundary_mean, 
-        normalize_probabilities=True)
+                  normalize_probabilities=True)
     g.agglomerate(0.51)
     assert_allclose(ev.vi(g.get_segmentation(), results[i]), 0.0,
                     err_msg='Mean agglomeration failed.')
+
 
 def test_ladder_agglomeration():
     i = 2
