@@ -59,8 +59,8 @@ def test_ladder_agglomeration():
     i = 2
     g = agglo.Rag(wss[i], probs[i], agglo.boundary_mean,
         normalize_probabilities=True)
-    g.agglomerate_ladder(2)
-    g.agglomerate(0.5)
+    g.agglomerate_ladder(3)
+    g.agglomerate(0.51)
     assert_allclose(ev.vi(g.get_segmentation(), results[i]), 0.0,
                     err_msg='Ladder agglomeration failed.')
 
