@@ -88,6 +88,19 @@ def test_mito():
                     err_msg='Mito merge failed')
 
 
+def test_mask():
+    i = 1
+    mask = np.array([[1, 1, 1, 1, 1],
+                     [1, 0, 1, 1, 1],
+                     [0, 0, 0, 1, 1],
+                     [0, 0, 0, 0, 1]], dtype=bool)
+    g = agglo.Rag(wss[i], probs[i], mask=mask)
+    assert 3 not in g
+    assert (1, 2) in g.edges()
+    assert (1, 5) in g.edges()
+    assert (2, 4) in g.edges()
+
+
 if __name__ == '__main__':
     from numpy import testing
     testing.run_module_suite()

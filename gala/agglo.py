@@ -328,6 +328,10 @@ class Rag(Graph):
     feature_manager : ``features.base.Null`` object, optional
         A feature manager object that controls feature computation
         and feature caching.
+    mask : array of bool, shape (M, N, ..., P)
+        A mask of the same shape as `watershed`, `True` in the
+        positions to be processed when making a RAG, `False` in the
+        positions to ignore.
     show_progress : bool, optional
         Whether to display an ASCII progress bar during long-
         -running graph operations.
@@ -367,7 +371,7 @@ class Rag(Graph):
 
     def __init__(self, watershed=array([], int), probabilities=array([]),
             merge_priority_function=boundary_mean, gt_vol=None,
-            feature_manager=features.base.Null(),
+            feature_manager=features.base.Null(), mask=None,
             show_progress=False, lowmem=False, connectivity=1,
             channel_is_oriented=None, orientation_map=array([]),
             normalize_probabilities=False, exclusions=array([]),
@@ -389,6 +393,10 @@ class Rag(Graph):
             self.ucm_r = self.ucm.ravel()
         self.merge_priority_function = merge_priority_function
         self.max_merge_score = -inf
+        if mask is None:
+            self.mask = np.ones(self.watershed_r.shape, dtype=bool)
+        else:
+            self.mask = morpho.pad(mask, True).ravel()
         self.build_graph_from_watershed()
         self.set_feature_manager(feature_manager)
         self.set_ground_truth(gt_vol)
@@ -508,6 +516,8 @@ class Rag(Graph):
                     extent=set(flatnonzero(self.watershed==self.boundary_body)))
         inner_idxs = idxs[self.watershed_r[idxs] != self.boundary_body]
         for idx in ip.with_progress(inner_idxs, title='Graph ', pbar=self.pbar):
+            if not self.mask[idx]:
+                continue
             nodeid = self.watershed_r[idx]
             self.add_node(nodeid)  # no-op if already present
             node = self.node[nodeid]
@@ -521,7 +531,7 @@ class Rag(Graph):
             node['size'] += 1
 
             ns = self.neighbor_idxs(idx)
-            adj = np.unique(self.watershed_r[ns])
+            adj = np.unique(self.watershed_r[ns[self.mask[ns]]])
             edges = zip(repeat(nodeid), adj[adj != nodeid])
             for l1, l2 in edges:
                 if self.has_edge(l1, l2):
