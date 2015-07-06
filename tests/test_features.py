@@ -114,6 +114,17 @@ def test_2channel_composite_feature():
                     'toy-data/test-04-composite-2channel-12-13.pck'), 2)
 
 
+def test_convex_hull():
+    ws = np.array([[1, 2, 2],
+                   [1, 1, 2],
+                   [1, 2, 2]], dtype=np.uint8)
+    chull = features.convex_hull.Manager()
+    g = agglo.Rag(ws, feature_manager=chull)
+    expected = np.array([0.5, 0.125, 0.5, 0.1, 1., 0.167, 0.025, 0.069,
+                         0.44, 0.056, 1.25, 1.5, 1.2, 0.667])
+    assert_allclose(chull(g, 1, 2), expected, atol=0.01, rtol=1.)
+
+
 if __name__ == '__main__':
     from numpy import testing
     testing.run_module_suite()

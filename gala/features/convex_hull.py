@@ -35,7 +35,7 @@ class Manager(base.Null):
         else:
             m.ravel()[list(g.extent(n1))] = 1
         m = m - nd.binary_erosion(m) #Only need border
-        ind = np.np.array(np.nonzero(m)).T
+        ind = np.array(np.nonzero(m)).T
         return ind
 
 
