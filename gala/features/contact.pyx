@@ -70,15 +70,6 @@ class Manager(base.Null):
     def update_edge_cache(self, g, e1, e2, dst, src):
         dst += src
 
-    def pixelwise_update_edge_cache(self, g, n1, n2, dst, idxs, remove=False):
-        if len(idxs) == 0: return
-        n1_idxs = np.array(list(g.extent(n1)))
-        n2_idxs = np.array(list(g.extent(n2)))
-        a = -1.0 if remove else 1.0
-        if self.oriented: ar = g.oriented_probabilities_r
-        else: ar = g.non_oriented_probabilities_r
-        dst += a * _compute_edge_cache(idxs, n1_idxs, n2_idxs, ar, self.thresholds)
-
 
 cdef _compute_contact_matrix(double[:,:,:] totals, double volume_ratio_1,
                              double volume_ratio_2):

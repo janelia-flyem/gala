@@ -84,12 +84,6 @@ class Manager(base.Null):
         vol, tri = self.convex_hull_vol(allind, g)
         dst = np.array([tri,vol])
 
-    def pixelwise_update_node_cache(self, g, n, dst, idxs, remove=False):
-        pass
-
-    def pixelwise_update_edge_cache(self, g, n1, n2, dst, idxs, remove=False):
-        pass
-
     def compute_node_features(self, g, n, cache=None):
         if cache is None: 
             cache = g.node[n][self.default_cache]

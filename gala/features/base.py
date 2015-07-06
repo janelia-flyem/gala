@@ -33,10 +33,6 @@ class Null(object):
         pass
     def update_edge_cache(self, *args, **kwargs):
         pass
-    def pixelwise_update_node_cache(self, *args, **kwargs):
-        pass
-    def pixelwise_update_edge_cache(self, *args, **kwargs):
-        pass
     def compute_node_features(self, *args, **kwargs):
         return np.array([])
     def compute_edge_features(self, *args, **kwargs):
@@ -69,14 +65,6 @@ class Composite(Null):
         for i, child in enumerate(self.children):
             child.update_edge_cache(g, e1, e2, dst[i], src[i])
     
-    def pixelwise_update_node_cache(self, g, n, dst, idxs, remove=False):
-        for i, child in enumerate(self.children):
-            child.pixelwise_update_node_cache(g, n, dst[i], idxs, remove)
-
-    def pixelwise_update_edge_cache(self, g, n1, n2, dst, idxs, remove=False):
-        for i, child in enumerate(self.children):
-            child.pixelwise_update_edge_cache(g, n1, n2, dst[i], idxs, remove)
-
     def compute_node_features(self, g, n, cache=None):
         if cache is None: cache = g.node[n][self.default_cache]
         features = []
