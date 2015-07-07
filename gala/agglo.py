@@ -308,12 +308,6 @@ def random_priority(g, n1, n2):
 class Rag(Graph):
     """Region adjacency graph for segmentation of nD volumes.
 
-    The label field can be complete (every pixel belongs to a
-    region > 0), or it can have boundaries (regions are separated
-    by pixels of label 0). Regions are considered adjacent if (a)
-    they are adjacent to each other, or (b) they are both adjacent
-    to a pixel of label 0.
-
     Parameters
     ----------
     watershed : array of int, shape (M, N, ..., P)
@@ -331,13 +325,13 @@ class Rag(Graph):
     merge_priority_function : callable function, optional
         This function must take exactly three arguments as input
         (a Rag object and two node IDs) and return a single float.
-    allow_shared_boundaries : bool, optional
-        If True, 0-pixels with three or more adjacent labels belong
-        to the boundaries of each possible pair of labels.
-        Otherwise, these pixels do not belong to any boundaries.
     feature_manager : ``features.base.Null`` object, optional
         A feature manager object that controls feature computation
         and feature caching.
+    mask : array of bool, shape (M, N, ..., P)
+        A mask of the same shape as `watershed`, `True` in the
+        positions to be processed when making a RAG, `False` in the
+        positions to ignore.
     show_progress : bool, optional
         Whether to display an ASCII progress bar during long-
         -running graph operations.
@@ -359,9 +353,6 @@ class Rag(Graph):
     normalize_probabilities : bool, optional
         Divide the input `probabilities` by their maximum to ensure
         a range in [0, 1].
-    nozeros : bool, optional
-        If you know your volume has no 0-labeled pixels, setting
-        `nozeros` to ``True`` will speed up graph construction.
     exclusions : array-like of int, shape (M, N, ..., P), optional
         Volume of same shape as `watershed`. Mark points in the
         volume with the same label (>0) to prevent them from being
@@ -379,17 +370,15 @@ class Rag(Graph):
     """
 
     def __init__(self, watershed=array([], int), probabilities=array([]),
-            merge_priority_function=boundary_mean,
-            allow_shared_boundaries=True, gt_vol=None,
-            feature_manager=features.base.Null(),
+            merge_priority_function=boundary_mean, gt_vol=None,
+            feature_manager=features.base.Null(), mask=None,
             show_progress=False, lowmem=False, connectivity=1,
             channel_is_oriented=None, orientation_map=array([]),
-            normalize_probabilities=False, nozeros=False, exclusions=array([]),
+            normalize_probabilities=False, exclusions=array([]),
             isfrozennode=None, isfrozenedge=None):
 
         super(Rag, self).__init__(weighted=False)
         self.show_progress = show_progress
-        self.nozeros = nozeros
         self.connectivity = connectivity
         self.pbar = (ip.StandardProgressBar() if self.show_progress
                      else ip.NoProgressBar())
@@ -404,8 +393,11 @@ class Rag(Graph):
             self.ucm_r = self.ucm.ravel()
         self.merge_priority_function = merge_priority_function
         self.max_merge_score = -inf
-        self.build_graph_from_watershed(allow_shared_boundaries,
-                                        nozerosfast=self.nozeros)
+        if mask is None:
+            self.mask = np.ones(self.watershed_r.shape, dtype=bool)
+        else:
+            self.mask = morpho.pad(mask, True).ravel()
+        self.build_graph_from_watershed()
         self.set_feature_manager(feature_manager)
         self.set_ground_truth(gt_vol)
         self.set_exclusions(exclusions)
@@ -503,64 +495,8 @@ class Rag(Graph):
                                             self.boundary_body not in e[:2])
 
 
-    def build_graph_from_watershed_nozerosfast(self, idxs):
-        """Build the graph object from the region labels.
 
-        Parameters
-        ----------
-        idxs : array-like of int
-            Build the graph considering only these indices (linear into
-            the raveled array).
-
-        Returns
-        -------
-        None
-
-        Notes
-        -----
-        Always allow shared boundaries in this code.
-        """
-        if self.watershed.size == 0: return # stop processing for empty graphs
-        if idxs is None:
-            idxs = arange(self.watershed.size)
-            self.add_node(self.boundary_body,
-                    extent=set(flatnonzero(self.watershed==self.boundary_body)))
-        inner_idxs = idxs[self.watershed_r[idxs] != self.boundary_body]
-        for idx in inner_idxs:
-            ns = self.neighbor_idxs(idx)
-            adj_labels = self.watershed_r[ns]
-            nodeid = self.watershed_r[idx]
-            adj_labels = adj_labels[adj_labels != nodeid]
-            edges = None
-            if adj_labels.size > 0:
-                adj_labels = unique(adj_labels)
-                edges = zip(repeat(nodeid), adj_labels)
-            if not self.has_node(nodeid):
-                self.add_node(nodeid, extent=set())
-            if 'entrypoint' not in self.node[nodeid]:
-                entrypoint_tuple = np.unravel_index(idx, self.watershed.shape)
-                self.node[nodeid]['entrypoint'] = np.array(entrypoint_tuple)
-            if 'watershed_ids' not in self.node[nodeid]:
-                self.node[nodeid]['watershed_ids'] = [nodeid]
-            try:
-                self.node[nodeid]['extent'].add(idx)
-            except KeyError:
-                self.node[nodeid]['extent'] = set([idx])
-            try:
-                self.node[nodeid]['size'] += 1
-            except KeyError:
-                self.node[nodeid]['size'] = 1
-
-            if edges is not None:
-                for l1,l2 in edges:
-                    if self.has_edge(l1, l2):
-                        self[l1][l2]['boundary'].add(idx)
-                    else:
-                        self.add_edge(l1, l2, boundary=set([idx]))
-
-
-    def build_graph_from_watershed(self, allow_shared_boundaries=True,
-                                   idxs=None, nozerosfast=False):
+    def build_graph_from_watershed(self, idxs=None):
         """Build the graph object from the region labels.
 
         The region labels should have been set ahead of time using
@@ -568,71 +504,40 @@ class Rag(Graph):
 
         Parameters
         ----------
-        allow_shared_boundaries : bool, optional
-            Allow voxels that have three or more distinct neighboring
-            labels to be included in all boundaries.
         idxs : array-like of int, optional
             Linear indices into raveled volume array. If provided, the
             graph is built only for these indices.
-        nozerosfast : bool, optional
-            Assume that there are no zero (boundary) labels in the
-            volume. By removing this check, graph build time is
-            reduced.
-
-        Returns
-        -------
-        None
         """
-        if nozerosfast:
-            self.build_graph_from_watershed_nozerosfast(idxs)
-            return
-
-        if self.watershed.size == 0: return # stop processing for empty graphs
-        if not allow_shared_boundaries:
-            self.ignored_boundary = zeros(self.watershed.shape, bool)
+        if self.watershed.size == 0:
+            return # stop processing for empty graphs
         if idxs is None:
             idxs = arange(self.watershed.size)
             self.add_node(self.boundary_body,
                     extent=set(flatnonzero(self.watershed==self.boundary_body)))
         inner_idxs = idxs[self.watershed_r[idxs] != self.boundary_body]
         for idx in ip.with_progress(inner_idxs, title='Graph ', pbar=self.pbar):
-            ns = self.neighbor_idxs(idx)
-            adj_labels = self.watershed_r[ns]
-            adj_labels = unique(adj_labels)
-            adj_labels = adj_labels[adj_labels.nonzero()]
+            if not self.mask[idx]:
+                continue
             nodeid = self.watershed_r[idx]
-            if nodeid != 0:
-                adj_labels = adj_labels[adj_labels != nodeid]
-                edges = list(zip(repeat(nodeid), adj_labels))
-                if not self.has_node(nodeid):
-                    self.add_node(nodeid, extent=set())
-                if 'entrypoint' not in self.node[nodeid]:
-                    entrypoint_tuple = np.unravel_index(idx, self.watershed.shape)
-                    self.node[nodeid]['entrypoint'] = np.array(entrypoint_tuple)
-                if 'watershed_ids' not in self.node[nodeid]:
-                    self.node[nodeid]['watershed_ids'] = [nodeid]
-                try:
-                    self.node[nodeid]['extent'].add(idx)
-                except KeyError:
-                    self.node[nodeid]['extent'] = set([idx])
-                try:
-                    self.node[nodeid]['size'] += 1
-                except KeyError:
-                    self.node[nodeid]['size'] = 1
-            else:
-                if len(adj_labels) == 0: continue
-                if adj_labels[-1] != self.boundary_body:
-                    edges = list(combinations(adj_labels, 2))
+            self.add_node(nodeid)  # no-op if already present
+            node = self.node[nodeid]
+            if 'size' not in node:  # node not initialised
+                node['size'] = 0
+                node['entrypoint'] = np.array(
+                                np.unravel_index(idx, self.watershed.shape))
+                node['watershed_ids'] = [nodeid]
+                node['extent'] = set()
+            node['extent'].add(idx)
+            node['size'] += 1
+
+            ns = self.neighbor_idxs(idx)
+            adj = np.unique(self.watershed_r[ns[self.mask[ns]]])
+            edges = zip(repeat(nodeid), adj[adj != nodeid])
+            for l1, l2 in edges:
+                if self.has_edge(l1, l2):
+                    self[l1][l2]['boundary'].add(idx)
                 else:
-                    edges = list(product([self.boundary_body], adj_labels[:-1]))
-            if allow_shared_boundaries or len(edges) == 1:
-                for l1,l2 in edges:
-                    if self.has_edge(l1, l2):
-                        self[l1][l2]['boundary'].add(idx)
-                    else:
-                        self.add_edge(l1, l2, boundary=set([idx]))
-            elif len(edges) > 1:
-                self.ignored_boundary.ravel()[idx] = True
+                    self.add_edge(l1, l2, boundary=set([idx]))
 
 
     def set_feature_manager(self, feature_manager):
@@ -840,11 +745,7 @@ class Rag(Graph):
         except ValueError: # empty watershed given
             self.boundary_body = -1
         self.volume_size = ws.size
-        self.has_zero_boundaries = (ws==0).any()
-        if self.has_zero_boundaries:
-            self.watershed = morpho.pad(ws, [0, self.boundary_body])
-        else:
-            self.watershed = morpho.pad(ws, self.boundary_body)
+        self.watershed = morpho.pad(ws, self.boundary_body)
         self.watershed_r = self.watershed.ravel()
         self.pad_thickness = 2 if (self.watershed == 0).any() else 1
         if lowmem:
@@ -1576,10 +1477,6 @@ class Rag(Graph):
                          if n not in [n1, self.boundary_body]]
         for n in new_neighbors:
             self.merge_edge_properties((n2, n), (n1, n))
-        # this if statement enables merging of non-adjacent nodes
-        if self.has_edge(n1,n2) and self.has_zero_boundaries:
-            sp2segment = self.tree.get_map(w)
-            self.refine_post_merge_boundaries(n1, n2, sp2segment)
         try:
             self.merge_queue.invalidate(self[n1][n2]['qlink'])
         except KeyError:
@@ -1591,53 +1488,6 @@ class Rag(Graph):
         self.rig[n1] = 0
         self.rig[n2] = 0
         return node_id
-
-
-    def refine_post_merge_boundaries(self, n1, n2, sp2segment):
-        """Ensure boundary pixels are only counted once after a merge.
-
-        Parameters
-        ----------
-        n1, n2 : int
-            Nodes determining the edge for which to update the UCM.
-        sp2segment : array of int
-            The most recent map from superpixels to segments.
-        """
-        boundary = array(list(self[n1][n2]['boundary']))
-        boundary_neighbor_pixels = sp2segment[self.watershed_r[
-                                              self.neighbor_idxs(boundary)]]
-        add = ((boundary_neighbor_pixels == 0) +
-               (boundary_neighbor_pixels == n1) +
-               (boundary_neighbor_pixels == n2)).all(axis=1)
-        check = True - add
-        self.feature_manager.pixelwise_update_node_cache(self, n1,
-                        self.node[n1]['feature-cache'], boundary[add])
-        boundaries_to_edit = {}
-        for px in boundary[check]:
-            px_neighbors = self.neighbor_idxs(px)
-            labels = np.unique(sp2segment[self.watershed_r[px_neighbors]])
-            for lb in labels:
-                if lb not in [0, n1, self.boundary_body]:
-                    try:
-                        boundaries_to_edit[(n1,lb)].append(px)
-                    except KeyError:
-                        boundaries_to_edit[(n1,lb)] = [px]
-        for u, v in boundaries_to_edit.keys():
-            idxs = set(boundaries_to_edit[(u,v)])
-            if self.has_edge(u, v):
-                idxs = idxs - self[u][v]['boundary']
-                self[u][v]['boundary'].update(idxs)
-                self.feature_manager.pixelwise_update_edge_cache(self, u, v,
-                                    self[u][v]['feature-cache'], list(idxs))
-            else:
-                self.add_edge(u, v, boundary=set(idxs))
-                self[u][v]['feature-cache'] = \
-                    self.feature_manager.create_edge_cache(self, u, v)
-            self.update_merge_queue(u, v)
-        for n in self.neighbors(n2):
-            if (n1,n) not in boundaries_to_edit and n != n1:
-                self.update_merge_queue(n1, n)
-
 
     def merge_subgraph(self, subgraph=None, source=None):
         """Merge a (typically) connected set of nodes together.

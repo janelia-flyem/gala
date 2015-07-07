@@ -57,24 +57,6 @@ class Manager(base.Null):
     def update_edge_cache(self, g, e1, e2, dst, src):
         dst += src
 
-    def pixelwise_update_node_cache(self, g, n, dst, idxs, remove=False):
-        if len(idxs) == 0: return
-        a = -1.0 if remove else 1.0
-        if self.oriented:
-            ar = g.max_probabilities_r
-        else:
-            ar = g.non_oriented_probabilities_r
-        dst += a * self.compute_moment_sums(ar, idxs)
-
-    def pixelwise_update_edge_cache(self, g, n1, n2, dst, idxs, remove=False):
-        if len(idxs) == 0: return
-        a = -1.0 if remove else 1.0
-        if self.oriented:
-            ar = g.max_probabilities_r
-        else:
-            ar = g.non_oriented_probabilities_r
-        dst += a * self.compute_moment_sums(ar, idxs)
-
     def compute_node_features(self, g, n, cache=None):
         if cache is None: 
             cache = g.node[n][self.default_cache]

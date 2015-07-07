@@ -36,17 +36,8 @@ class Manager(base.Null):
             (dst[np.newaxis,self.ndim:], src[np.newaxis,self.ndim:]),
             axis=0).max(axis=0)
 
-    def pixelwise_update_edge_cache(self, g, n1, n2, dst, idxs, remove=False):
-        if remove:
-            pass
-            # dst = self.create_edge_cache(g, n1, n2)
-        if len(idxs) == 0: return
-        b = np.concatenate(
-            self.compute_bounding_box(idxs, g.watershed.shape))
-        self.update_edge_cache(g, (n1,n2), None, dst, b)
-
     def compute_edge_features(self, g, n1, n2, cache=None):
-        if cache is None: 
+        if cache is None:
             cache = g[n1][n2][self.default_cache]
         m, M = cache[:self.ndim], cache[self.ndim:]
         plane_surface = np.sort(M-m)[1:].prod() * (3.0-g.pad_thickness)

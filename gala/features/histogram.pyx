@@ -124,29 +124,10 @@ class Manager(base.Null):
     def update_edge_cache(self, g, e1, e2, dst, src):
         dst += src
 
-    def pixelwise_update_node_cache(self, g, n, dst, idxs, remove=False):
-        if len(idxs) == 0: return
-        a = -1.0 if remove else 1.0
-        if self.oriented:
-            ar = g.max_probabilities_r
-        else:
-            ar = g.non_oriented_probabilities_r
-
-        dst += a * self.histogram(ar[idxs,:])
-
-    def pixelwise_update_edge_cache(self, g, n1, n2, dst, idxs, remove=False):
-        if len(idxs) == 0: return
-        a = -1.0 if remove else 1.0
-        if self.oriented:
-            ar = g.oriented_probabilities_r
-        else:
-            ar = g.non_oriented_probabilities_r
-
-        dst += a * self.histogram(ar[idxs,:])
-
     def JS_divergence(self, p, q):
         m = (p+q)/2
         return (self.KL_divergence(p, m) + self.KL_divergence(q, m))/2
+
     def KL_divergence(self, p, q):
         """Return the Kullback-Leibler Divergence between two histograms."""
         kl = []

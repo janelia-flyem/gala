@@ -28,15 +28,15 @@ fns = [os.path.join(rundir, 'toy-data/test-%02i-probabilities.txt' % i)
 probs = list(map(np.loadtxt, fns))
 fns = [os.path.join(rundir, 'toy-data/test-%02i-watershed.txt' % i)
        for i in test_idxs]
-results = list(map(np.loadtxt, fns))
+results = [np.loadtxt(fn, dtype=np.int32) for fn in fns]
 landscape = np.array([1,0,1,2,1,3,2,0,2,4,1,0])
 
 
 def test_watershed_images():
-    wss = [morpho.watershed(probs[i], dams=True) for i in range(3)] + \
-          [morpho.watershed(probs[3], dams=False)]
+    wss = [morpho.watershed(probs[i], dams=(i == 0)) for i in range(2)]
     for i, (ws, res) in enumerate(zip(wss, results)):
-        assert_array_equal(ws, res, 'Image watershed test %i failed.' % i)
+        yield (assert_array_equal, ws, res,
+               'Image watershed test %i failed.' % i)
 
 
 def test_watershed():

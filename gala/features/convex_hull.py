@@ -35,7 +35,7 @@ class Manager(base.Null):
         else:
             m.ravel()[list(g.extent(n1))] = 1
         m = m - nd.binary_erosion(m) #Only need border
-        ind = np.np.array(np.nonzero(m)).T
+        ind = np.array(np.nonzero(m)).T
         return ind
 
 
@@ -83,12 +83,6 @@ class Manager(base.Null):
         allind = np.concatenate((ind1,ind2))
         vol, tri = self.convex_hull_vol(allind, g)
         dst = np.array([tri,vol])
-
-    def pixelwise_update_node_cache(self, g, n, dst, idxs, remove=False):
-        pass
-
-    def pixelwise_update_edge_cache(self, g, n1, n2, dst, idxs, remove=False):
-        pass
 
     def compute_node_features(self, g, n, cache=None):
         if cache is None: 
