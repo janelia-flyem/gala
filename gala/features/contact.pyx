@@ -60,7 +60,7 @@ class Manager(base.Null):
         return feature_vector
 
     def create_edge_cache(self, g, n1, n2):
-        edge_idxs = np.array(list(g[n1][n2]['boundary']))
+        edge_idxs = np.array(g[n1][n2]['boundary'])
         n1_idxs = np.array(list(g.extent(n1)))
         n2_idxs = np.array(list(g.extent(n2)))
         if self.oriented: ar = g.oriented_probabilities_r

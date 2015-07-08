@@ -127,15 +127,15 @@ def conditional_countdown(seq, start=1, pred=bool):
 ############################
 
 def oriented_boundary_mean(g, n1, n2):
-    return mean(g.oriented_probabilities_r[list(g[n1][n2]['boundary'])])
+    return mean(g.oriented_probabilities_r[g[n1][n2]['boundary']])
 
 
 def boundary_mean(g, n1, n2):
-    return mean(g.probabilities_r[list(g[n1][n2]['boundary'])])
+    return mean(g.probabilities_r[g[n1][n2]['boundary']])
 
 
 def boundary_median(g, n1, n2):
-    return median(g.probabilities_r[list(g[n1][n2]['boundary'])])
+    return median(g.probabilities_r[g[n1][n2]['boundary']])
 
 
 def approximate_boundary_mean(g, n1, n2):
@@ -195,8 +195,8 @@ def mito_merge():
             if g.node[mito]['size'] > g.node[cyto]['size']:
                 return np.inf
             else:
-                return 1.0 - (float(len(g[mito][cyto]["boundary"]))/
-                sum([len(g[mito][x]["boundary"]) for x in g.neighbors(mito)]))
+                return 1.0 - (float(len(g[mito][cyto]['boundary']))/
+                sum([len(g[mito][x]['boundary']) for x in g.neighbors(mito)]))
     return predict
 
 
@@ -295,7 +295,7 @@ def boundary_mean_ladder(g, n1, n2, threshold, strictness=1):
 
 
 def boundary_mean_plus_sem(g, n1, n2, alpha=-6):
-    bvals = g.probabilities_r[list(g[n1][n2]['boundary'])]
+    bvals = g.probabilities_r[g[n1][n2]['boundary']]
     return mean(bvals) + alpha*sem(bvals)
 
 
@@ -540,9 +540,9 @@ class Rag(Graph):
                 if v == nodeid:
                     continue
                 if self.has_edge(nodeid, v):
-                    self[nodeid][v]['boundary'].add(idx)
+                    self[nodeid][v]['boundary'].append(idx)
                 else:
-                    self.add_edge(nodeid, v, boundary=set([idx]))
+                    self.add_edge(nodeid, v, boundary=[idx])
 
 
     def set_feature_manager(self, feature_manager):
@@ -1398,7 +1398,7 @@ class Rag(Graph):
         w = edge['weight'] if 'weight' in edge else -inf
         if self.ucm is not None:
             self.max_merge_score = max(self.max_merge_score, w)
-            idxs = list(edge['boundary'])
+            idxs = edge['boundary']
             self.ucm_r[idxs] = self.max_merge_score
 
 
@@ -1416,7 +1416,7 @@ class Rag(Graph):
         """
         edge = self[n1][n2]
         if self.ucm is not None:
-            self.ucm_r[list(edge['boundary'])] = inf
+            self.ucm_r[edge['boundary']] = inf
 
 
     def rename_node(self, old, new):
@@ -1561,7 +1561,7 @@ class Rag(Graph):
         if not self.has_edge(u,v):
             self.add_edge(u, v, attr_dict=self[w][x])
         else:
-            self[u][v]['boundary'].update(self[w][x]['boundary'])
+            self[u][v]['boundary'].extend(self[w][x]['boundary'])
             self.feature_manager.update_edge_cache(self, (u, v), (w, x),
                     self[u][v]['feature-cache'], self[w][x]['feature-cache'])
         try:
@@ -1718,7 +1718,7 @@ class Rag(Graph):
             ebunch = self.real_edges_iter()
         ebunch = sorted([(self[u][v]['weight'], u, v) for u, v in ebunch])
         for w, u, v in ebunch:
-            b = list(self[u][v]['boundary'])
+            b = self[u][v]['boundary']
             mr[b] = w
         if hasattr(self, 'ignored_boundary'):
             m[self.ignored_boundary] = inf
@@ -1819,7 +1819,7 @@ class Rag(Graph):
         if not self.at_volume_boundary(n) or n == self.boundary_body:
             return False
         v = zeros(self.watershed.shape, uint8)
-        v.ravel()[list(self[n][self.boundary_body]['boundary'])] = 1
+        v.ravel()[self[n][self.boundary_body]['boundary']] = 1
         _, n = label(v, ones([3]*v.ndim))
         return n > 1
 
@@ -1864,7 +1864,7 @@ class Rag(Graph):
 
 
     def get_pixel_label(self, n1, n2):
-        boundary = array(list(self[n1][n2]['boundary']))
+        boundary = array(self[n1][n2]['boundary'])
         min_idx = boundary[self.probabilities_r[boundary,0].argmin()]
         if self.should_merge(n1, n2):
             return min_idx, 2
@@ -1892,7 +1892,7 @@ class Rag(Graph):
 
 
     def boundary_indices(self, n1, n2):
-        return list(self[n1][n2]['boundary'])
+        return self[n1][n2]['boundary']
 
 
     def get_edge_coordinates(self, n1, n2, arbitrary=False):
@@ -2016,17 +2016,17 @@ def get_edge_coordinates(g, n1, n2, arbitrary=False):
     """Find where in the segmentation the edge (n1, n2) is most visible."""
     boundary = g[n1][n2]['boundary']
     if arbitrary:
-        # quickly get an arbirtrary point on the boundary
-        idx = boundary.pop(); boundary.add(idx)
+        # quickly get an arbitrary point on the boundary
+        idx = boundary.pop(); boundary.append(idx)
         coords = unravel_index(idx, g.watershed.shape)
     else:
-        boundary_idxs = unravel_index(list(boundary), g.watershed.shape)
+        boundary_idxs = unravel_index(boundary, g.watershed.shape)
         coords = [bincount(dimcoords).argmax() for dimcoords in boundary_idxs]
     return array(coords) - g.pad_thickness
 
 
 def is_mito_boundary(g, n1, n2, channel=2, threshold=0.5):
-    return max(np.mean(g.probabilities_r[list(g[n1][n2]["boundary"]), c])
+    return max(np.mean(g.probabilities_r[g[n1][n2]['boundary'], c])
                for c in channel) > threshold
 
 

@@ -309,7 +309,7 @@ def boundary_overlap_threshold(boundary_idxs, gt, tol_false, tol_true):
 def make_thresholded_boundary_overlap_loss(tol_false, tol_true):
     """Return a merge loss function based on boundary overlaps."""
     def loss(g, n1, n2, gt):
-        boundary_idxs = list(g[n1][n2]['boundary'])
+        boundary_idxs = g[n1][n2]['boundary']
         return \
             boundary_overlap_threshold(boundary_idxs, gt, tol_false, tol_true)
     return loss
@@ -326,7 +326,7 @@ def label_merges(g, merge_history, feature_map_function, gt, loss_function):
         n1, n2 = nodes
         features[i,:] = feature_map_function(g, n1, n2)
         labels[i] = loss_function(g, n1, n2, gt)
-        labeled_image.ravel()[list(g[n1][n2]['boundary'])] = 2+labels[i]
+        labeled_image.ravel()[g[n1][n2]['boundary']] = 2+labels[i]
         g.merge_nodes(n1,n2)
     return features, labels, labeled_image
 
