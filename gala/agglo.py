@@ -438,13 +438,14 @@ class Rag(Graph):
         if 'extent' in self.node[nodeid]:
             return self.node[nodeid]['extent']
         extent_array = opt.flood_fill(self.watershed, 
-                                      np.array(self.node[nodeid]['entrypoint']), 
-                                      np.array(self.node[nodeid]['watershed_ids']))
+                            np.array(self.node[nodeid]['entrypoint']),
+                            np.array(self.node[nodeid]['watershed_ids']))
         if len(extent_array) != self.node[nodeid]['size']:
-            sys.stderr.write("Flood fill fail - found %d voxels but size expected %d\n" \
-                                % (len(extent_array), self.node[nodeid]['size']))
-        raveled_indices = np.ravel_multi_index((extent_array[:,0], 
-                extent_array[:,1], extent_array[:,2]), self.watershed.shape)
+            sys.stderr.write('Flood fill fail - found %d voxels but size'
+                             'expected %d\n' %
+                             (len(extent_array), self.node[nodeid]['size']))
+        raveled_indices = np.ravel_multi_index(extent_array.T,
+                                               self.watershed.shape)
         return set(raveled_indices)
 
     def real_edges(self, *args, **kwargs):
@@ -2027,13 +2028,13 @@ def get_edge_coordinates(g, n1, n2, arbitrary=False):
 
 
 def is_mito_boundary(g, n1, n2, channel=2, threshold=0.5):
-        return max(np.mean(g.probabilities_r[list(g[n1][n2]["boundary"]), c]) \
-        for c in channel) > threshold
+    return max(np.mean(g.probabilities_r[list(g[n1][n2]["boundary"]), c])
+               for c in channel) > threshold
 
 
 def is_mito(g, n, channel=2, threshold=0.5):
-        return max(np.mean(g.probabilities_r[list(g.extent(n)), c]) \
-        for c in channel) > threshold
+    return max(np.mean(g.probabilities_r[g.extent(n), c])
+               for c in channel) > threshold
 
 
 def best_possible_segmentation(ws, gt):
