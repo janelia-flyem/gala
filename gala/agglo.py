@@ -513,14 +513,16 @@ class Rag(Graph):
             return # stop processing for empty graphs
         if idxs is None:
             idxs = arange(self.watershed.size)
-            self.add_node(self.boundary_body,
-                    extent=flatnonzero(self.watershed==self.boundary_body))
+        self.add_node(self.boundary_body,
+                      extent=flatnonzero(self.watershed==self.boundary_body))
         inner_idxs = idxs[self.watershed_r[idxs] != self.boundary_body]
+        labels = np.unique(self.watershed_r[inner_idxs])
+        for lab in labels:
+            self.add_node(lab)
         for idx in ip.with_progress(inner_idxs, title='Graph ', pbar=self.pbar):
             if not self.mask[idx]:
                 continue
             nodeid = self.watershed_r[idx]
-            self.add_node(nodeid)  # no-op if already present
             node = self.node[nodeid]
             if 'size' not in node:  # node not initialised
                 node['size'] = 0
