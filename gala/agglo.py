@@ -516,12 +516,11 @@ class Rag(Graph):
         self.add_node(self.boundary_body,
                       extent=flatnonzero(self.watershed==self.boundary_body))
         inner_idxs = idxs[self.watershed_r[idxs] != self.boundary_body]
+        inner_idxs = inner_idxs[self.mask[inner_idxs]]  # use only masked idxs
         labels = np.unique(self.watershed_r[inner_idxs])
         for lab in labels:
             self.add_node(lab)
         for idx in ip.with_progress(inner_idxs, title='Graph ', pbar=self.pbar):
-            if not self.mask[idx]:
-                continue
             nodeid = self.watershed_r[idx]
             node = self.node[nodeid]
             if 'size' not in node:  # node not initialised
