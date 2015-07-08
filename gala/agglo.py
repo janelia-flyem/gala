@@ -532,13 +532,16 @@ class Rag(Graph):
             node['size'] += 1
 
             ns = self.neighbor_idxs(idx)
-            adj = np.unique(self.watershed_r[ns[self.mask[ns]]])
-            edges = zip(repeat(nodeid), adj[adj != nodeid])
-            for l1, l2 in edges:
-                if self.has_edge(l1, l2):
-                    self[l1][l2]['boundary'].add(idx)
+            ns = ns[self.mask[ns]]
+            adj = self.watershed_r[ns]
+            adj = set(adj)
+            for v in adj:
+                if v == nodeid:
+                    continue
+                if self.has_edge(nodeid, v):
+                    self[nodeid][v]['boundary'].add(idx)
                 else:
-                    self.add_edge(l1, l2, boundary=set([idx]))
+                    self.add_edge(nodeid, v, boundary=set([idx]))
 
 
     def set_feature_manager(self, feature_manager):
