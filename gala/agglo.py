@@ -514,7 +514,7 @@ class Rag(Graph):
         if idxs is None:
             idxs = arange(self.watershed.size)
             self.add_node(self.boundary_body,
-                    extent=set(flatnonzero(self.watershed==self.boundary_body)))
+                    extent=flatnonzero(self.watershed==self.boundary_body))
         inner_idxs = idxs[self.watershed_r[idxs] != self.boundary_body]
         for idx in ip.with_progress(inner_idxs, title='Graph ', pbar=self.pbar):
             if not self.mask[idx]:
@@ -527,8 +527,8 @@ class Rag(Graph):
                 node['entrypoint'] = np.array(
                                 np.unravel_index(idx, self.watershed.shape))
                 node['watershed_ids'] = [nodeid]
-                node['extent'] = set()
-            node['extent'].add(idx)
+                node['extent'] = list()
+            node['extent'].append(idx)
             node['size'] += 1
 
             ns = self.neighbor_idxs(idx)
@@ -817,7 +817,7 @@ class Rag(Graph):
             excl = morpho.pad(excl, [0]*self.pad_thickness)
         for n in self.nodes():
             if excl.size != 0:
-                eids = unique(excl.ravel()[list(self.extent(n))])
+                eids = unique(excl.ravel()[self.extent(n)])
                 eids = eids[flatnonzero(eids)]
                 self.node[n]['exclusions'] = set(list(eids))
             else:
@@ -1533,16 +1533,10 @@ class Rag(Graph):
         .. [1] Shi, J., and Malik, J. (2000). Normalized cuts and image
                segmentation. Pattern Analysis and Machine Intelligence.
         """
-        node_extent = list(self.extent(u))
-        node_borders = set().union(
-                        *[self[u][v]['boundary'] for v in self.neighbors(u)])
+        node_extent = self.extent(u)
         labels = unique(self.watershed_r[node_extent])
-        if labels[0] == 0:
-            labels = labels[1:]
         self.remove_node(u)
-        self.build_graph_from_watershed(
-            idxs=array(list(set().union(node_extent, node_borders)))
-        )
+        self.build_graph_from_watershed(idxs=node_extent)
         self.ncut(num_clusters=n, nodes=labels, **kwargs)
 
 
@@ -1694,7 +1688,7 @@ class Rag(Graph):
         if nbunch is None:
             nbunch = self.nodes()
         for n in nbunch:
-            vr[list(self.extent(n))] = n
+            vr[self.extent(n)] = n
         return morpho.juicy_center(v,self.pad_thickness)
 
 
