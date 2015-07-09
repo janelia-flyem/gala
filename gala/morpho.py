@@ -581,19 +581,42 @@ def raveled_steps_to_neighbors(shape, connectivity=1):
 
 
 def get_neighbor_idxs(ar, idxs, connectivity=1):
+    """Return indices of neighboring voxels given array, indices, connectivity.
+
+    Parameters
+    ----------
+    ar : ndarray
+        The array in which neighbors are to be found.
+    idxs : int or container of int
+        The indices for which to find neighbors.
+    connectivity : int in {1, 2, ..., ``ar.ndim``}
+        The number of orthogonal steps allowed to be considered a
+        neighbor.
+
+    Returns
+    -------
+    neighbor_idxs : 2D array, shape (nidxs, nneighbors)
+        The neighbor indices for each index passed.
+
+    Examples
+    --------
+    >>> ar = np.arange(16).reshape((4, 4))
+    >>> ar
+    array([[ 0,  1,  2,  3],
+           [ 4,  5,  6,  7],
+           [ 8,  9, 10, 11],
+           [12, 13, 14, 15]])
+    >>> get_neighbor_idxs(ar, [5, 10], connectivity=1)
+    array([[ 9,  6,  1,  4],
+           [14, 11,  6,  9]])
+    >>> get_neighbor_idxs(ar, 9, connectivity=2)
+    array([[13, 10,  5,  8, 14, 12,  6,  4]])
+    """
     if isscalar(idxs):  # in case only a single idx is given
         idxs = [idxs]
     idxs = array(idxs)  # in case a list or other array-like is given
-    strides = array(ar.strides)/ar.itemsize
-    if connectivity == 1:
-        steps = (strides, -strides)
-    else:
-        steps = []
-        for i in range(1,connectivity+1):
-            prod = array(list(it.product(*([[1,-1]]*i))))
-            i_strides = array(list(it.combinations(strides,i))).T
-            steps.append(prod.dot(i_strides).ravel())
-    return idxs[:,newaxis] + concatenate(steps).astype(int32)
+    steps = raveled_steps_to_neighbors(ar.shape, connectivity)
+    return idxs[:, np.newaxis] + steps
 
 def orphans(a):
     """Find all the segments that do not touch the volume boundary.
