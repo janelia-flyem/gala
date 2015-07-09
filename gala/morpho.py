@@ -581,11 +581,11 @@ def raveled_steps_to_neighbors(shape, connectivity=1):
 
 
 def get_neighbor_idxs(ar, idxs, connectivity=1):
-    if isscalar(idxs): # in case only a single idx is given
+    if isscalar(idxs):  # in case only a single idx is given
         idxs = [idxs]
-    idxs = array(idxs) # in case a list or other array-like is given
+    idxs = array(idxs)  # in case a list or other array-like is given
     strides = array(ar.strides)/ar.itemsize
-    if connectivity == 1: 
+    if connectivity == 1:
         steps = (strides, -strides)
     else:
         steps = []
