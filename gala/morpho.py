@@ -543,6 +543,43 @@ def build_neighbors_array(ar, connectivity=1):
     idxs = arange(ar.size, dtype=uint32)
     return get_neighbor_idxs(ar, idxs, connectivity)
 
+
+def raveled_steps_to_neighbors(shape, connectivity=1):
+    """Compute the stepsize along all axes for given connectivity and shape.
+
+    Parameters
+    ----------
+    shape : tuple of int
+        The shape of the array along which we are stepping.
+    connectivity : int in {1, 2, ..., ``len(shape)``}
+        The number of orthogonal steps we can take to reach a "neighbor".
+
+    Returns
+    -------
+    steps : array of int64
+        The steps needed to get to neighbors from a particular raveled
+        index.
+
+    Examples
+    --------
+    >>> shape = (5, 4, 9)
+    >>> steps = raveled_steps_to_neighbors(shape)
+    >>> sorted(steps)
+    [-36, -9, -1, 1, 9, 36]
+    >>> steps2 = raveled_steps_to_neighbors(shape, 2)
+    >>> sorted(steps2)
+    [-45, -37, -36, -35, -27, -10, -9, -8, -1, 1, 8, 9, 10, 27, 35, 36, 37, 45]
+    """
+    stepsizes = np.cumprod((1,) + shape[-1:0:-1])[::-1]
+    steps = []
+    steps.extend((stepsizes, -stepsizes))
+    for nhops in range(2, connectivity + 1):
+        prod = np.array(list(it.product(*([[1, -1]] * nhops))))
+        multisteps = np.array(list(it.combinations(stepsizes, nhops))).T
+        steps.append(np.dot(prod, multisteps).ravel())
+    return np.concatenate(steps).astype(np.int64)
+
+
 def get_neighbor_idxs(ar, idxs, connectivity=1):
     if isscalar(idxs): # in case only a single idx is given
         idxs = [idxs]
