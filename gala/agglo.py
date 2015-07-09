@@ -532,7 +532,7 @@ class Rag(Graph):
             node['extent'].append(idx)
             node['size'] += 1
 
-            ns = self.neighbor_idxs(idx)
+            ns = idx + self.steps
             ns = ns[self.mask[ns]]
             adj = self.watershed_r[ns]
             adj = set(adj)
@@ -580,56 +580,6 @@ class Rag(Graph):
                     self.edges(), title='Edge caches ', pbar=self.pbar):
             self[n1][n2]['feature-cache'] = \
                             self.feature_manager.create_edge_cache(self, n1, n2)
-
-
-    def get_neighbor_idxs_fast(self, idxs):
-        """Retrieve a previously computed set of neighbors from an array.
-
-        Parameters
-        ----------
-        idxs : int or iterable of int
-            A linear index or set of indices into the padded array.
-
-        Returns
-        -------
-        neighbors : array of int, shape `(len(idxs), N_neighbors)`
-            An array of linear indices to the neighbors of each input
-            index.
-
-        Raises
-        ------
-        AttributeError
-            If ``self.pixel_neighbors`` does not exist. It must be
-            previously computed by
-            ``self.set_watershed(..., lowmem=False)``.
-
-        See Also
-        --------
-        set_watershed
-        """
-        return self.pixel_neighbors[idxs]
-
-
-    def get_neighbor_idxs_lean(self, idxs, connectivity=1):
-        """Compute neighbor indices from input indices.
-
-        Parameters
-        ----------
-        idxs : int or iterable of int
-            A linear index or set of indices into the padded array.
-        connectivity : int in {1, ..., ``self.watershed.ndim``}, optional
-            The neighbor connectivity, defining which voxels are
-            considered adjacent to the center. A connectivity of 1
-            means voxels whose coordinates differ by 1 along only a
-            single dimension, 2 along up to 2 dimensions, and so on.
-
-        Returns
-        -------
-        neighbors : array of int, shape `(len(idxs), N_neighbors)`
-            An array of linear indices to the neighbors of each input
-            index.
-        """
-        return morpho.get_neighbor_idxs(self.watershed, idxs, connectivity)
 
 
     def set_probabilities(self, probs=array([]), normalize=False):
@@ -753,14 +703,8 @@ class Rag(Graph):
         self.watershed = morpho.pad(ws, self.boundary_body)
         self.watershed_r = self.watershed.ravel()
         self.pad_thickness = 2 if (self.watershed == 0).any() else 1
-        if lowmem:
-            def neighbor_idxs(x):
-                return self.get_neighbor_idxs_lean(x, connectivity)
-            self.neighbor_idxs = neighbor_idxs
-        else:
-            self.pixel_neighbors = \
-                morpho.build_neighbors_array(self.watershed, connectivity)
-            self.neighbor_idxs = self.get_neighbor_idxs_fast
+        self.steps = morpho.raveled_steps_to_neighbors(self.watershed.shape,
+                                                       connectivity)
 
 
     def set_ground_truth(self, gt=None):
