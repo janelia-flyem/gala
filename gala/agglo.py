@@ -512,7 +512,7 @@ class Rag(Graph):
         if self.watershed.size == 0:
             return # stop processing for empty graphs
         if idxs is None:
-            idxs = arange(self.watershed.size)
+            idxs = arange(self.watershed.size, dtype=self.steps.dtype)
         self.add_node(self.boundary_body,
                       extent=flatnonzero(self.watershed==self.boundary_body))
         inner_idxs = idxs[self.watershed_r[idxs] != self.boundary_body]
