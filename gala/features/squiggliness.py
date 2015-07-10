@@ -41,5 +41,5 @@ class Manager(base.Null):
             cache = g[n1][n2][self.default_cache]
         m, M = cache[:self.ndim], cache[self.ndim:]
         plane_surface = np.sort(M-m)[1:].prod() * (3.0-g.pad_thickness)
-        return np.array([len(g[n1][n2]['boundary']) / plane_surface])
+        return np.array([len(set(g[n1][n2]['boundary'])) / plane_surface])
 

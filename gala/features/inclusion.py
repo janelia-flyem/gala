@@ -32,11 +32,11 @@ class Manager(base.Null):
                               for x in g.neighbors(n1)])
         bd_lengths2 = sorted([len(g[n2][x]['boundary'])
                               for x in g.neighbors(n2)])
-        ratios1 = [float(len(g[n1][n2]["boundary"]))/float(sum(bd_lengths1)),
-                   float(len(g[n1][n2]["boundary"]))/float(sum(bd_lengths2))]
+        ratios1 = [float(len(g[n1][n2]['boundary']))/float(sum(bd_lengths1)),
+                   float(len(g[n1][n2]['boundary']))/float(sum(bd_lengths2))]
         ratios1.sort()
-        ratios2 = [float(len(g[n1][n2]["boundary"]))/float(max(bd_lengths1)),
-                   float(len(g[n1][n2]["boundary"]))/float(max(bd_lengths2))]
+        ratios2 = [float(len(g[n1][n2]['boundary']))/float(max(bd_lengths1)),
+                   float(len(g[n1][n2]['boundary']))/float(max(bd_lengths2))]
         ratios2.sort()
         return np.concatenate((ratios1, ratios2))
 

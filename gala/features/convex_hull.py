@@ -31,7 +31,7 @@ class Manager(base.Null):
     def convex_hull_ind(self, g, n1, n2=None):
         m = np.zeros_like(g.watershed); 
         if n2 is not None:
-            m.ravel()[list(g[n1][n2]['boundary'])]=1
+            m.ravel()[g[n1][n2]['boundary']]=1
         else:
             m.ravel()[list(g.extent(n1))] = 1
         m = m - nd.binary_erosion(m) #Only need border
