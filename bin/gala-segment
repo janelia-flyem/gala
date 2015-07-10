@@ -291,6 +291,3 @@ if __name__ == '__main__':
     if not args.use_neuroproof:
         g.agglomerate(inf)
         MasterLogger.info("Finished complete RAG agglomeration")
-        u = g.get_ucm()
-        MasterLogger.info("Writing final ucm")
-        imio.write_image_stack(u, (h5stacks + '.ucm.lzf.h5')%inf, compression='lzf')

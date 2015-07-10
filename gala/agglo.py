@@ -381,12 +381,6 @@ class Rag(Graph):
         self.set_watershed(watershed, connectivity)
         self.set_probabilities(probabilities, normalize_probabilities)
         self.set_orientations(orientation_map, channel_is_oriented)
-        if watershed is None:
-            self.ucm = None
-        else:
-            self.ucm = -inf*ones(self.watershed.shape, dtype=float)
-            self.ucm[self.watershed==0] = inf
-            self.ucm_r = self.ucm.ravel()
         self.merge_priority_function = merge_priority_function
         self.max_merge_score = -inf
         if mask is None:
@@ -419,7 +413,6 @@ class Rag(Graph):
         pr_shape = self.probabilities_r.shape
         g = super(Rag, self).copy()
         g.watershed_r = g.watershed.ravel()
-        g.ucm_r = g.ucm.ravel()
         g.probabilities_r = g.probabilities.reshape(pr_shape)
         return g
 
@@ -943,7 +936,6 @@ class Rag(Graph):
         self.merge_queue.finish()
         self.rebuild_merge_queue()
         max_score = max([qitem[0] for qitem in self.merge_queue.q])
-        self.ucm -= max_score
         for n in self.tree.nodes():
             self.tree.node[n]['w'] -= max_score
 
@@ -1311,54 +1303,6 @@ class Rag(Graph):
         return count, nodes
 
 
-    def update_ucm(self, n1, n2):
-        """Update ultrametric contour map with the current max boundary value.
-
-        Parameters
-        ----------
-        n1, n2 : int
-            Nodes determining the edge for which to update the UCM.
-
-        Returns
-        -------
-        None
-
-        Notes
-        -----
-        Presently, the gala UCM is an approximation. A true UCM is a
-        subpixel property of the edges *between* pixels (unless using
-        pixel-thick boundaries). Gala, instead, uses the edges of
-        segments. If using a boundary-less segmentation, it is best to
-        avoid the UCM.
-        """
-        try:
-            edge = self[n1][n2]
-        except KeyError:
-            return
-        w = edge['weight'] if 'weight' in edge else -inf
-        if self.ucm is not None:
-            self.max_merge_score = max(self.max_merge_score, w)
-            idxs = edge['boundary']
-            self.ucm_r[idxs] = self.max_merge_score
-
-
-    def update_max_ucm(self, n1, n2):
-        """Update the UCM locally with an infinite value.
-
-        Parameters
-        ----------
-        n1, n2 : int
-            Nodes determining the edge for which to update the UCM.
-
-        Returns
-        -------
-        None
-        """
-        edge = self[n1][n2]
-        if self.ucm is not None:
-            self.ucm_r[edge['boundary']] = inf
-
-
     def rename_node(self, old, new):
         """Rename node `old` to `new`, updating edges and weights.
 
@@ -1399,19 +1343,14 @@ class Rag(Graph):
 
         Notes
         -----
-        This updates the UCM with the maximum merge priority value
-        encountered so far.
-
         Additionally, the RIG (region intersection graph), the
         contingency matrix to the ground truth (if provided) is
         updated.
         """
         if len(self.node[n1]['exclusions'] & self.node[n2]['exclusions']) > 0:
-            self.update_max_ucm(n1, n2)
             return
         else:
             self.node[n1]['exclusions'].update(self.node[n2]['exclusions'])
-        self.update_ucm(n1, n2)
         w = self[n1][n2].get('weight', merge_priority)
         self.node[n1]['size'] += self.node[n2]['size']
         self.node[n1]['watershed_ids'] += self.node[n2]['watershed_ids']
@@ -1554,10 +1493,6 @@ class Rag(Graph):
         seg : array of int
             The segmentation of the volume presently represented by the
             graph.
-
-        See Also
-        --------
-        get_ucm
         """
         if threshold is None:
             # a threshold of np.inf is the same as no threshold on the
@@ -1574,37 +1509,6 @@ class Rag(Graph):
         if self.pad_thickness > 1: # volume has zero-boundaries
             seg = morpho.remove_merged_boundaries(seg, self.connectivity)
         return morpho.juicy_center(seg, self.pad_thickness)
-
-
-    def get_ucm(self):
-        """Return the current, unpadded ultrametric contour map.
-
-        The contour map is an approximation, because in the absence of
-        boundaries, the true UCM is a subpixel property of the faces
-        between pixels. However, in this case, we return all those
-        pixels that touch a face, which can result in segments being
-        disconnected in the UCM.
-
-        In the case of "thick" boundaries where segments don't have
-        very thin regions, this is a valid approximation.
-
-        Parameters
-        ----------
-        None
-
-        Returns
-        -------
-        ucm : array of float
-            The map of boundary values between segments implied by the
-            hierarchical agglomeration process.
-        """
-        if hasattr(self, 'ignored_boundary'):
-            self.ucm[self.ignored_boundary] = self.max_merge_score
-        ucm = morpho.juicy_center(self.ucm, self.pad_thickness)
-        umin, umax = unique(ucm)[([1, -2],)]
-        ucm[ucm==-inf] = umin-1
-        ucm[ucm==inf] = umax+1
-        return ucm
 
 
     def build_volume(self, nbunch=None):
