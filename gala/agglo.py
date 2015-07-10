@@ -335,10 +335,6 @@ class Rag(Graph):
     show_progress : bool, optional
         Whether to display an ASCII progress bar during long-
         -running graph operations.
-    lowmem : bool, optional
-        Use a lower-memory mode by not pre-caching the neighbors
-        array. This trades off a 10% decrease in memory usage
-        for a 10% slower runtime.
     connectivity : int in {1, ..., `watershed.ndim`}
         When determining adjacency, allow neighbors along
         `connectivity` dimensions.
@@ -372,7 +368,7 @@ class Rag(Graph):
     def __init__(self, watershed=array([], int), probabilities=array([]),
             merge_priority_function=boundary_mean, gt_vol=None,
             feature_manager=features.base.Null(), mask=None,
-            show_progress=False, lowmem=False, connectivity=1,
+            show_progress=False, connectivity=1,
             channel_is_oriented=None, orientation_map=array([]),
             normalize_probabilities=False, exclusions=array([]),
             isfrozennode=None, isfrozenedge=None):
@@ -382,7 +378,7 @@ class Rag(Graph):
         self.connectivity = connectivity
         self.pbar = (ip.StandardProgressBar() if self.show_progress
                      else ip.NoProgressBar())
-        self.set_watershed(watershed, lowmem, connectivity)
+        self.set_watershed(watershed, connectivity)
         self.set_probabilities(probabilities, normalize_probabilities)
         self.set_orientations(orientation_map, channel_is_oriented)
         if watershed is None:
@@ -675,7 +671,7 @@ class Rag(Graph):
                 self.probabilities_r[:, ~self.channel_is_oriented]
 
 
-    def set_watershed(self, ws=array([], int), lowmem=False, connectivity=1):
+    def set_watershed(self, ws=array([], int), connectivity=1):
         """Set the initial segmentation volume (watershed).
 
         The initial segmentation is called `watershed` for historical
@@ -685,9 +681,6 @@ class Rag(Graph):
         ----------
         ws : array of int
             The initial segmentation.
-        lowmem : bool, optional
-            Whether to use a low memory/high time mode. This usually
-            results in about 10% less memory usage and 10% more time.
         connectivity : int in {1, ..., `ws.ndim`}, optional
             The pixel neighborhood.
 
