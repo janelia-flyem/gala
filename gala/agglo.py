@@ -520,7 +520,10 @@ class Rag(Graph):
         labels = np.unique(self.watershed_r[inner_idxs])
         for lab in labels:
             self.add_node(lab)
-        for idx in ip.with_progress(inner_idxs, title='Graph ', pbar=self.pbar):
+        if self.show_progress:
+            inner_idxs = ip.with_progress(inner_idxs, title='Graph ',
+                                          pbar=self.pbar)
+        for idx in inner_idxs:
             nodeid = self.watershed_r[idx]
             node = self.node[nodeid]
             if 'size' not in node:  # node not initialised
