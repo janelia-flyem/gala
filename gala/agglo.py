@@ -20,6 +20,7 @@ from scipy.misc import comb as nchoosek
 from scipy.ndimage.measurements import label
 from networkx import Graph, biconnected_components
 from networkx.algorithms.traversal.depth_first_search import dfs_preorder_nodes
+from skimage.segmentation import relabel_sequential
 
 from viridis import tree
 
@@ -510,22 +511,25 @@ class Rag(Graph):
         inner_idxs = idxs[self.watershed_r[idxs] != self.boundary_body]
         inner_idxs = inner_idxs[self.mask[inner_idxs]]  # use only masked idxs
         labels = np.unique(self.watershed_r[inner_idxs])
-        for lab in labels:
-            self.add_node(lab)
+        sizes = np.bincount(self.watershed_r[inner_idxs])
+        for nodeid in labels:
+            self.add_node(nodeid)
+            node = self.node[nodeid]
+            node['size'] = sizes[nodeid]
+            node['extent'] = np.zeros(sizes[nodeid], dtype=inner_idxs.dtype)
+            node['visited'] = 0  # number of idxs seen so far
+            node['watershed_ids'] = [nodeid]
         if self.show_progress:
             inner_idxs = ip.with_progress(inner_idxs, title='Graph ',
                                           pbar=self.pbar)
         for idx in inner_idxs:
             nodeid = self.watershed_r[idx]
             node = self.node[nodeid]
-            if 'size' not in node:  # node not initialised
-                node['size'] = 0
+            if 'entrypoint' not in node:  # node not initialised
                 node['entrypoint'] = np.array(
                                 np.unravel_index(idx, self.watershed.shape))
-                node['watershed_ids'] = [nodeid]
-                node['extent'] = list()
-            node['extent'].append(idx)
-            node['size'] += 1
+            node['extent'][node['visited']] = idx
+            node['visited'] += 1
 
             ns = idx + self.steps
             ns = ns[self.mask[ns]]
@@ -692,6 +696,9 @@ class Rag(Graph):
         except ValueError: # empty watershed given
             self.boundary_body = -1
         self.volume_size = ws.size
+        if ws.size > 0:
+            ws, _, inv = relabel_sequential(ws)
+            self.inverse_watershed_map = inv  # translates to original labels
         self.watershed = morpho.pad(ws, self.boundary_body)
         self.watershed_r = self.watershed.ravel()
         self.pad_thickness = 1
