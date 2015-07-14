@@ -157,36 +157,7 @@ oversegmentation error or false splits, both measured in bits.
 (Results may vary since there is some randomness involved in training a
 random forest, and the datasets are small.)
 
-Threshold-dependent evaluation
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-An ultrametric contour map (UCM) can be thresholded to provide the
-segmentation at any threshold of agglomeration. (It may, however, result
-in a split when a segment becomes thinner than three pixels, because
-gala uses a pixel-level approximation for the boundary between segments,
-which is ultimately a subpixel property.)
-
-To get the UCM, agglomerate to infinity, and then use the ``get_ucm``
-function.
-
-With the UCM, you can test threshold-dependent segmentation performance,
-using, for example, the split VI plot:
-
-.. code:: python
-
-    g_test.agglomerate(np.inf)
-    g_test4.agglomerate(np.inf)
-    g_testm.agglomerate(np.inf)
-    ucms = [g.get_ucm() for g in [g_test, g_test4, g_testm]]
-    vis = [ev.vi_by_threshold(u, gt_test, [0], [0])[1:] for u in ucms]
-    colors = ['deepskyblue', 'orange', 'black']
-    from matplotlib import pyplot as plt
-    plt.figure(figsize=(5,5))
-    from gala import viz
-    viz.plot_split_vi(vis, colors=colors)
-    plt.xlim(0, 1); plt.ylim(0, 1)
-
-And, as mentioned earlier, many other evaluation functions are
+As mentioned earlier, many other evaluation functions are
 available. See the documentation for the ``evaluate`` package for more
 information.
 
@@ -197,8 +168,6 @@ information.
     ari = ev.adj_rand_index(seg_test1, gt_test)
     # Fowlkes-Mallows index
     fm = ev.fm_index(seg_test1, gt_test)
-    # pixel-wise precision-recall
-    pwprs = [ev.pixel_wise_precision_recall(u, gt_test) for u in ucms]
 
 Other options
 ~~~~~~~~~~~~~

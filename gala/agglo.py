@@ -8,6 +8,7 @@ import logging
 import json
 from copy import deepcopy
 from math import isnan
+
 # libraries
 from numpy import (array, mean, zeros, zeros_like, uint8, where, unique,
     double, newaxis, nonzero, median, exp, log2, float, ones, arange, inf,
@@ -19,6 +20,7 @@ from scipy.misc import comb as nchoosek
 from scipy.ndimage.measurements import label
 from networkx import Graph, biconnected_components
 from networkx.algorithms.traversal.depth_first_search import dfs_preorder_nodes
+from skimage.segmentation import relabel_sequential
 
 from viridis import tree
 
@@ -206,8 +208,10 @@ def classifier_probability(feature_extractor, classifier):
             return inf
         features = feature_extractor(g, n1, n2)
         try:
-            prediction_arr = np.array(classifier.predict_proba(features))
-            if prediction_arr.ndim > 2: prediction_arr = prediction_arr[0]
+            prediction = classifier.predict_proba(features)
+            prediction_arr = np.array(prediction, copy=False)
+            if prediction_arr.ndim > 2:
+                prediction_arr = prediction_arr[0]
             try:
                 prediction = prediction_arr[0][1]
             except (TypeError, IndexError):
@@ -381,12 +385,6 @@ class Rag(Graph):
         self.set_watershed(watershed, connectivity)
         self.set_probabilities(probabilities, normalize_probabilities)
         self.set_orientations(orientation_map, channel_is_oriented)
-        if watershed is None:
-            self.ucm = None
-        else:
-            self.ucm = -inf*ones(self.watershed.shape, dtype=float)
-            self.ucm[self.watershed==0] = inf
-            self.ucm_r = self.ucm.ravel()
         self.merge_priority_function = merge_priority_function
         self.max_merge_score = -inf
         if mask is None:
@@ -419,7 +417,6 @@ class Rag(Graph):
         pr_shape = self.probabilities_r.shape
         g = super(Rag, self).copy()
         g.watershed_r = g.watershed.ravel()
-        g.ucm_r = g.ucm.ravel()
         g.probabilities_r = g.probabilities.reshape(pr_shape)
         return g
 
@@ -514,22 +511,25 @@ class Rag(Graph):
         inner_idxs = idxs[self.watershed_r[idxs] != self.boundary_body]
         inner_idxs = inner_idxs[self.mask[inner_idxs]]  # use only masked idxs
         labels = np.unique(self.watershed_r[inner_idxs])
-        for lab in labels:
-            self.add_node(lab)
+        sizes = np.bincount(self.watershed_r[inner_idxs])
+        for nodeid in labels:
+            self.add_node(nodeid)
+            node = self.node[nodeid]
+            node['size'] = sizes[nodeid]
+            node['extent'] = np.zeros(sizes[nodeid], dtype=inner_idxs.dtype)
+            node['visited'] = 0  # number of idxs seen so far
+            node['watershed_ids'] = [nodeid]
         if self.show_progress:
             inner_idxs = ip.with_progress(inner_idxs, title='Graph ',
                                           pbar=self.pbar)
         for idx in inner_idxs:
             nodeid = self.watershed_r[idx]
             node = self.node[nodeid]
-            if 'size' not in node:  # node not initialised
-                node['size'] = 0
+            if 'entrypoint' not in node:  # node not initialised
                 node['entrypoint'] = np.array(
                                 np.unravel_index(idx, self.watershed.shape))
-                node['watershed_ids'] = [nodeid]
-                node['extent'] = list()
-            node['extent'].append(idx)
-            node['size'] += 1
+            node['extent'][node['visited']] = idx
+            node['visited'] += 1
 
             ns = idx + self.steps
             ns = ns[self.mask[ns]]
@@ -696,9 +696,12 @@ class Rag(Graph):
         except ValueError: # empty watershed given
             self.boundary_body = -1
         self.volume_size = ws.size
+        if ws.size > 0:
+            ws, _, inv = relabel_sequential(ws)
+            self.inverse_watershed_map = inv  # translates to original labels
         self.watershed = morpho.pad(ws, self.boundary_body)
         self.watershed_r = self.watershed.ravel()
-        self.pad_thickness = 2 if (self.watershed == 0).any() else 1
+        self.pad_thickness = 1
         self.steps = morpho.raveled_steps_to_neighbors(self.watershed.shape,
                                                        connectivity)
 
@@ -943,7 +946,6 @@ class Rag(Graph):
         self.merge_queue.finish()
         self.rebuild_merge_queue()
         max_score = max([qitem[0] for qitem in self.merge_queue.q])
-        self.ucm -= max_score
         for n in self.tree.nodes():
             self.tree.node[n]['w'] -= max_score
 
@@ -1311,54 +1313,6 @@ class Rag(Graph):
         return count, nodes
 
 
-    def update_ucm(self, n1, n2):
-        """Update ultrametric contour map with the current max boundary value.
-
-        Parameters
-        ----------
-        n1, n2 : int
-            Nodes determining the edge for which to update the UCM.
-
-        Returns
-        -------
-        None
-
-        Notes
-        -----
-        Presently, the gala UCM is an approximation. A true UCM is a
-        subpixel property of the edges *between* pixels (unless using
-        pixel-thick boundaries). Gala, instead, uses the edges of
-        segments. If using a boundary-less segmentation, it is best to
-        avoid the UCM.
-        """
-        try:
-            edge = self[n1][n2]
-        except KeyError:
-            return
-        w = edge['weight'] if 'weight' in edge else -inf
-        if self.ucm is not None:
-            self.max_merge_score = max(self.max_merge_score, w)
-            idxs = edge['boundary']
-            self.ucm_r[idxs] = self.max_merge_score
-
-
-    def update_max_ucm(self, n1, n2):
-        """Update the UCM locally with an infinite value.
-
-        Parameters
-        ----------
-        n1, n2 : int
-            Nodes determining the edge for which to update the UCM.
-
-        Returns
-        -------
-        None
-        """
-        edge = self[n1][n2]
-        if self.ucm is not None:
-            self.ucm_r[edge['boundary']] = inf
-
-
     def rename_node(self, old, new):
         """Rename node `old` to `new`, updating edges and weights.
 
@@ -1399,19 +1353,14 @@ class Rag(Graph):
 
         Notes
         -----
-        This updates the UCM with the maximum merge priority value
-        encountered so far.
-
         Additionally, the RIG (region intersection graph), the
         contingency matrix to the ground truth (if provided) is
         updated.
         """
         if len(self.node[n1]['exclusions'] & self.node[n2]['exclusions']) > 0:
-            self.update_max_ucm(n1, n2)
             return
         else:
             self.node[n1]['exclusions'].update(self.node[n2]['exclusions'])
-        self.update_ucm(n1, n2)
         w = self[n1][n2].get('weight', merge_priority)
         self.node[n1]['size'] += self.node[n2]['size']
         self.node[n1]['watershed_ids'] += self.node[n2]['watershed_ids']
@@ -1554,10 +1503,6 @@ class Rag(Graph):
         seg : array of int
             The segmentation of the volume presently represented by the
             graph.
-
-        See Also
-        --------
-        get_ucm
         """
         if threshold is None:
             # a threshold of np.inf is the same as no threshold on the
@@ -1574,37 +1519,6 @@ class Rag(Graph):
         if self.pad_thickness > 1: # volume has zero-boundaries
             seg = morpho.remove_merged_boundaries(seg, self.connectivity)
         return morpho.juicy_center(seg, self.pad_thickness)
-
-
-    def get_ucm(self):
-        """Return the current, unpadded ultrametric contour map.
-
-        The contour map is an approximation, because in the absence of
-        boundaries, the true UCM is a subpixel property of the faces
-        between pixels. However, in this case, we return all those
-        pixels that touch a face, which can result in segments being
-        disconnected in the UCM.
-
-        In the case of "thick" boundaries where segments don't have
-        very thin regions, this is a valid approximation.
-
-        Parameters
-        ----------
-        None
-
-        Returns
-        -------
-        ucm : array of float
-            The map of boundary values between segments implied by the
-            hierarchical agglomeration process.
-        """
-        if hasattr(self, 'ignored_boundary'):
-            self.ucm[self.ignored_boundary] = self.max_merge_score
-        ucm = morpho.juicy_center(self.ucm, self.pad_thickness)
-        umin, umax = unique(ucm)[([1, -2],)]
-        ucm[ucm==-inf] = umin-1
-        ucm[ucm==inf] = umax+1
-        return ucm
 
 
     def build_volume(self, nbunch=None):

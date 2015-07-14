@@ -39,8 +39,6 @@ if __name__ == '__main__':
     parser.add_argument('-V', help='Evaluate using variation of information.')
     parser.add_argument('-B', '--vi-beta', type=float, default=1.0,
         help='Relative penalty for false merges in weighted VI.')
-    parser.add_argument('-u', '--ucm', action='store_true', default=False,
-        help='Assume the segmentation is an ultrametric contour map.')
     parser.add_argument('-1', '--no-relabel-from-one', action='store_false',
         default=True, dest='relabel_from_one',
         help='Don\'t relabel the volumes from 1 before evaluating.')
@@ -74,15 +72,10 @@ if __name__ == '__main__':
         if args.relabel_from_one:
             gt = ev.relabel_from_one(gt)[0]
     for segfn in args.seg:
-        args.ucm = args.ucm or segfn.endswith('.ucm.lzf.h5') or \
-                               segfn.endswith('.ucm.h5')
         seg = imio.read_image_stack(segfn)
-        if args.ucm:
-            vi = ev.vi_by_threshold(seg, gt, [0], [0], args.npoints)
-        else:
-            if args.relabel_from_one:
-                seg = ev.relabel_from_one(seg)[0]
-            vi = np.concatenate((np.array([args.threshold]), 
-                ev.split_vi(seg, gt)))[..., np.newaxis]
+        if args.relabel_from_one:
+            seg = ev.relabel_from_one(seg)[0]
+        vi = np.concatenate((np.array([args.threshold]),
+            ev.split_vi(seg, gt)))[..., np.newaxis]
         imio.write_h5_stack(vi, segfn, group='vi')
         print(vi[:, :max(6, len(vi[0]))])
