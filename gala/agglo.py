@@ -8,6 +8,7 @@ import logging
 import json
 from copy import deepcopy
 from math import isnan
+
 # libraries
 from numpy import (array, mean, zeros, zeros_like, uint8, where, unique,
     double, newaxis, nonzero, median, exp, log2, float, ones, arange, inf,
@@ -206,8 +207,10 @@ def classifier_probability(feature_extractor, classifier):
             return inf
         features = feature_extractor(g, n1, n2)
         try:
-            prediction_arr = np.array(classifier.predict_proba(features))
-            if prediction_arr.ndim > 2: prediction_arr = prediction_arr[0]
+            prediction = classifier.predict_proba(features)
+            prediction_arr = np.array(prediction, copy=False)
+            if prediction_arr.ndim > 2:
+                prediction_arr = prediction_arr[0]
             try:
                 prediction = prediction_arr[0][1]
             except (TypeError, IndexError):
@@ -691,7 +694,7 @@ class Rag(Graph):
         self.volume_size = ws.size
         self.watershed = morpho.pad(ws, self.boundary_body)
         self.watershed_r = self.watershed.ravel()
-        self.pad_thickness = 2 if (self.watershed == 0).any() else 1
+        self.pad_thickness = 1
         self.steps = morpho.raveled_steps_to_neighbors(self.watershed.shape,
                                                        connectivity)
 
