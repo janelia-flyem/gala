@@ -25,7 +25,7 @@ cite:
 
     Nunez-Iglesias J, Kennedy R, Parag T, Shi J, Chklovskii DB (2013)
     `Machine Learning of Hierarchical Clustering to Segment 2D and 3D
-    Images. <http://journal.frontiersin.org/Journal/10.3389/fninf.2014.00034/abstract>`__
+    Images. <http://journals.plos.org/plosone/article?id=10.1371/journal.pone.0071715>`__
     *PLoS ONE 8(8): e71715.* doi:10.1371/journal.pone.0071715
 
 Gala supports n-dimensional images (images, volumes, videos, videos of
