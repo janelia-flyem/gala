@@ -49,10 +49,12 @@ Minor changes:
 --------------
 
 - @anirbanchakraborty added the concepts of "frozen nodes" and "frozen edges",
-  and the "inclusiveness" feature, which are never merged. This is useful to
+  which are never merged. This is useful to
   temporarily ignore mitochondria during the first stages of agglomeration,
   which can dramatically reduce errors. (See
   `A Context-aware Delayed Agglomeration Framework for EM Segmentation <http://arxiv.org/abs/1406.1476>`__.)
+- @anirbanchakraborty added the inclusiveness feature, a measure of how much
+  a region is "surrounded" by another.
 - The `gala.evaluate` module now supports the Adapted Rand Error, as used by
   the `SNEMI3D challenge <http://brainiac2.mit.edu/SNEMI3D>`__.
 - Improvements to the `gala.morphology` module.
