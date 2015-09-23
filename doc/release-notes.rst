@@ -2,6 +2,52 @@
 Release notes
 =============
 
+0.3
+===
+
+Announcing the third release of gala!
+
+I want to thank Paul Watkins, Sean Colby, Larissa Heinrich,
+Joergen Kornfeld, and Jan Funke for their bug reports and mailing
+list discussions, which prompted almost all of the improvements in
+this release.
+
+I must also thank the
+`Saalfeld lab <https://www.janelia.org/lab/saalfeld-lab>`__ for financial
+support while I was making these improvements.
+
+This release focuses on performance improvements, but also includes some
+API and behavior changes.
+
+**This is the last release of gala supporting Python 2.** Upcoming work
+will focus on asynchronous learning to enable interactive proofreading,
+for which Python 3.4 and 3.5 offer compelling features and libraries. If
+you absolutely *need* Python 2.7 support in gala, get in touch!
+
+On to the changes in this version!
+
+
+Major changes:
+--------------
+
+- 2x memory reduction and 3x RAG construction speedup.
+- Add support for masked volumes: use a boolean array of the same shape
+  as the image to inspect only ``True`` positions.
+- **API break:** The label "0" is no longer considered a boundary label;
+  volumes with a single-voxel-thick boundary are no longer supported.
+- **API break:** The Ultrametric Contour Map (UCM) is gone, because it is
+  inaccurate without a voxel-thick boundary, and was computationally
+  expensive to maintain.
+
+Minor changes:
+--------------
+
+- Add ``paper_em`` and ``snemi3d`` default feature managers (in
+  ``gala.features.default``) to reproduce previous gala results.
+- Bug fix: passing a label array of type floating point no longer
+  causes a crash. (But you really should use integers for labels!)
+
+
 0.2
 ===
 
