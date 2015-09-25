@@ -1,4 +1,3 @@
-from __future__ import absolute_import
 import sys, os
 import pickle as pck
 from copy import deepcopy as copy

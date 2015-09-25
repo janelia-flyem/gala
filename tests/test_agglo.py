@@ -1,7 +1,4 @@
-from __future__ import absolute_import
 import os
-from six.moves import map
-from six.moves import range
 
 D = os.path.dirname(os.path.abspath(__file__)) + '/'
 
