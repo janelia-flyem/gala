@@ -24,8 +24,8 @@ MAINTAINER_EMAIL    = 'juan.n@unimelb.edu.au'
 URL                 = 'https://gala.readthedocs.org'
 LICENSE             = 'Janelia (BSD-like)'
 DOWNLOAD_URL        = 'https://github.com/janelia-flyem/gala'
-VERSION             = '0.3dev'
-PYTHON_VERSION      = (2, 7)
+VERSION             = '0.4dev'
+PYTHON_VERSION      = (3, 5)
 INST_DEPENDENCIES   = {} 
 
 
@@ -52,9 +52,7 @@ if __name__ == '__main__':
             'Intended Audience :: Healthcare Industry',
             'Intended Audience :: Science/Research',
             'Programming Language :: Cython',
-            'Programming Language :: Python',
-            'Programming Language :: Python :: 2.7',
-            'Programming Language :: Python :: 3',
+            'Programming Language :: Python :: 3.5',
             'Topic :: Scientific/Engineering',
             'Topic :: Scientific/Engineering :: Bio-Informatics',
             'Topic :: Scientific/Engineering :: Image Recognition',
