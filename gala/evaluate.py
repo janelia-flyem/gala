@@ -1,6 +1,4 @@
 # coding=utf-8
-from __future__ import absolute_import
-from __future__ import print_function
 
 import numpy as np
 import multiprocessing
@@ -14,9 +12,6 @@ import scipy.sparse as sparse
 from scipy.ndimage.measurements import label
 from scipy.spatial.distance import pdist, squareform
 from sklearn.metrics import precision_recall_curve
-from six.moves import map
-from six.moves import range
-from six.moves import zip
 
 
 def sparse_min(mat, axis=None):

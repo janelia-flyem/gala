@@ -1,8 +1,7 @@
 language: python
 sudo: false
 python:
-  - "2.7"
-  - "3.4"
+  - "3.5"
 virtualenv:
   system_site_packages: false
 install:
@@ -35,4 +34,4 @@ script:
   - py.test
 
 after_success:
-  - if [[ $TRAVIS_PYTHON_VERSION == 2.7 ]]; then coveralls; fi
+  - if [[ $TRAVIS_PYTHON_VERSION == 3.5 ]]; then coveralls; fi

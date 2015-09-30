@@ -1,4 +1,3 @@
-from __future__ import absolute_import
 #!/usr/bin/env python
 
 import numpy as np
@@ -21,29 +20,14 @@ from scipy.ndimage import distance_transform_cdt
 from scipy.ndimage.measurements import label, find_objects
 from scipy.ndimage.morphology import binary_opening, binary_closing, \
     binary_dilation, grey_closing, iterate_structure
-#from scipy.spatial.distance import cityblock as manhattan_distance
 from . import iterprogress as ip
 from .evaluate import relabel_from_one
-from six.moves import map
-from six.moves import range
-from six.moves import zip
 
-try:
-    import skimage.morphology
-    skimage_available = True
-except ImportError:
-    logging.warning('Unable to load skimage.')
-    skimage_available = False
+from skimage import measure, util
+import skimage.morphology
 
 zero3d = array([0,0,0])
 
-def manhattan_distance(a, b):
-    return sum(abs(a-b))
-
-def diamond_se(radius, dimension):
-    se = generate_binary_structure(dimension, 1)
-    return iterate_structure(se, radius)
-    
 def complement(a):
     return a.max()-a
 
@@ -102,26 +86,27 @@ def morphological_reconstruction(marker, mask, connectivity=1):
     return marker
 
 def hminima(a, thresh):
-    """Suppress all minima that are shallower than thresh."""
+    """Suppress all minima that are shallower than thresh.
+
+    Parameters
+    ----------
+    a : array
+        The input array on which to perform hminima.
+    thresh : float
+        Any local minima shallower than this will be flattened.
+
+    Returns
+    -------
+    out : array
+        A copy of the input array with shallow minima suppressed.
+    """
     maxval = a.max()
     ainv = maxval-a
     return maxval - morphological_reconstruction(ainv-thresh, ainv)
 
 imhmin = hminima
 
-def remove_small_connected_components(a, min_size=64, in_place=False):
-    original_dtype = a.dtype
-    if a.dtype == bool:
-        a = label(a)[0]
-    elif not in_place:
-        a = a.copy()
-    if min_size == 0: # shortcut for efficiency
-        return a
-    component_sizes = bincount(a.ravel())
-    too_small = component_sizes < min_size
-    too_small_locations = too_small[a]
-    a[too_small_locations] = 0
-    return a.astype(original_dtype)
+remove_small_connected_components = skimage.morphology.remove_small_objects
 
 def regional_minima(a, connectivity=1):
     """Find the regional minima in an ndarray."""
@@ -148,22 +133,6 @@ def impose_minima(a, minima, connectivity=1):
     minima = minima.astype(bool)
     marker[minima] = mask[minima]
     return m - morphological_reconstruction(marker, mask, connectivity)
-
-def refined_seeding(a, maximum_height=0, grey_close_radius=1, 
-    binary_open_radius=1, binary_close_radius=1, minimum_size=0):
-    """Perform morphological operations to get good segmentation seeds."""
-    if grey_close_radius > 0:
-        strel = diamond_se(grey_close_radius, a.ndim)
-        a = grey_closing(a, footprint=strel)
-    s = (a <= maximum_height)
-    if binary_open_radius > 0:
-        strel = diamond_se(binary_open_radius, s.ndim)
-        s = binary_opening(s, structure=strel)
-    if binary_close_radius > 0:
-        strel = diamond_se(binary_close_radius, s.ndim)
-        s = binary_closing(s, structure=strel)
-    s = remove_small_connected_components(s, minimum_size)
-    return label(s)[0]
 
 def minimum_seeds(current_seeds, min_seed_coordinates, connectivity=1):
     """Ensure that each point in given coordinates has its own seed."""
@@ -268,7 +237,7 @@ def watershed(a, seeds=None, connectivity=1, mask=None, smooth_thresh=0.0,
         b = hminima(a, smooth_thresh)
     if seeds.dtype == bool:
         seeds = label(seeds, sel)[0]
-    if skimage_available and not override_skimage and not dams:
+    if not override_skimage and not dams:
         return skimage.morphology.watershed(b, seeds, sel, None, mask)
     elif seeded:
         b = impose_minima(a, seeds.astype(bool), connectivity)
@@ -618,25 +587,71 @@ def get_neighbor_idxs(ar, idxs, connectivity=1):
     steps = raveled_steps_to_neighbors(ar.shape, connectivity)
     return idxs[:, np.newaxis] + steps
 
+
 def orphans(a):
     """Find all the segments that do not touch the volume boundary.
     
     This function differs from agglo.Rag.orphans() in that it does not use the
     graph, but rather computes orphans directly from a volume.
+
+    Parameters
+    ----------
+    a : array of int
+        A segmented volume.
+
+    Returns
+    -------
+    orph : 1D array of int
+        The IDs of any segments not touching the volume boundary.
+
+    Examples
+    --------
+    >>> segs = np.array([[1, 1, 1, 2],
+    ...                  [1, 3, 4, 2],
+    ...                  [1, 2, 2, 2]], int)
+    >>> orphans(segs)
+    array([3, 4])
+    >>> orphans(segs[:2])
+    array([], dtype=int64)
     """
     return setdiff1d(
             unique(a), unique(concatenate([s.ravel() for s in surfaces(a)]))
             )
 
+
 def non_traversing_segments(a):
-    """Find segments that enter the volume but do not leave it elsewhere."""
-    if a.all():
-        a = damify(a)
+    """Find segments that enter the volume but do not leave it elsewhere.
+
+    Parameters
+    ----------
+    a : array of int
+        A segmented volume.
+
+    Returns
+    -------
+    nt : 1D array of int
+        The IDs of any segments not traversing the volume.
+
+    Examples
+    --------
+    >>> segs = np.array([[1, 2, 3, 3, 4],
+    ...                  [1, 2, 2, 3, 4],
+    ...                  [1, 5, 5, 3, 4],
+    ...                  [1, 1, 5, 3, 4]], int)
+    >>> non_traversing_segments(segs)
+    array([1, 2, 4, 5])
+    """
     surface = hollowed(a)
-    surface_ccs = label(surface)[0]
+    surface_ccs = measure.label(surface) + 1
+    surface_ccs[surface == 0] = 0
     idxs = flatnonzero(surface)
-    pairs = unique(list(zip(surface.ravel()[idxs], surface_ccs.ravel()[idxs])))
-    return flatnonzero(bincount(pairs.astype(int)[:,0])==1)
+    pairs = np.array(list(zip(surface.ravel()[idxs],
+                              surface_ccs.ravel()[idxs])))
+    unique_pairs = util.unique_rows(pairs)
+    surface_singles = np.bincount(unique_pairs[:, 0]) == 1
+    nt = np.flatnonzero(surface_singles)
+    return nt
+
 
 def damify(a, in_place=False):
     """Add dams to a borderless segmentation."""

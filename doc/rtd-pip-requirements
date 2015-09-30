@@ -5,6 +5,5 @@ networkx>=1.9
 cython>=0.22
 scipy>=0.13
 viridis>=0.3
-six>=1.9.0
 scikit-learn>=0.15
 scikit-image>=0.10

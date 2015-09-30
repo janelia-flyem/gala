@@ -1,4 +1,3 @@
-from __future__ import absolute_import
 # built-ins
 from itertools import combinations, repeat, product
 import itertools as it
@@ -35,9 +34,6 @@ from . import features
 from . import classify
 from .classify import get_classifier, \
     unique_learning_data_elements, concatenate_data_elements
-from six.moves import map
-from six.moves import range
-from six.moves import zip
 
 
 def contingency_table(a, b):

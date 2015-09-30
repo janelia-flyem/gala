@@ -1,8 +1,5 @@
-from __future__ import absolute_import
-from __future__ import print_function
 # imports
 from gala import imio, classify, features, agglo, evaluate as ev
-from six.moves import map
 
 # read in training data
 gt_train, pr_train, ws_train = (map(imio.read_h5_stack,

@@ -1,10 +1,7 @@
-from __future__ import absolute_import
 import os
 import sys
 import glob
 from contextlib import contextmanager
-
-PYTHON_VERSION = sys.version_info[0]
 
 from numpy.testing import assert_allclose, assert_array_equal
 import numpy as np
@@ -12,7 +9,7 @@ from sklearn.externals import joblib
 from sklearn.naive_bayes import GaussianNB
 import subprocess as sp
 from gala import imio, classify, features, agglo, evaluate as ev
-from six.moves import map, cPickle as pickle
+import pickle
 
 
 @contextmanager
@@ -48,10 +45,7 @@ fc = features.base.Composite(children=[fm, fh])
 
 def load_pickle(fn):
     with open(fn, 'rb') as fin:
-        if PYTHON_VERSION == 3:
-            return pickle.load(fin, encoding='bytes', fix_imports=True)
-        else:  # Python 2
-            return pickle.load(fin)
+        return pickle.load(fin, encoding='bytes', fix_imports=True)
 
 
 def load_training_data(fn):
@@ -85,19 +79,13 @@ def test_generate_examples_1_channel():
     g_train = agglo.Rag(ws_train, pr_train, feature_manager=fc)
     _, alldata = g_train.learn_agglomerate(gt_train, fc,
                                            classifier='naive bayes')
-    testfn = ('example-data/train-naive-bayes-merges1-py3.pck'
-              if PYTHON_VERSION == 3 else
-              'example-data/train-naive-bayes-merges1-py2.pck')
+    testfn = 'example-data/train-naive-bayes-merges1-py3.pck'
     exp0, exp1 = load_pickle(os.path.join(rundir, testfn))
     expected_edges = set(map(tuple, exp0))
     edges = set(map(tuple, alldata[0][3]))
     merges = alldata[1][3]
     assert edges == expected_edges
-    # concordant is the maximum edges concordant in the Python 2.7 version.
-    # The remaining edges diverge because of apparent differences
-    # between Linux and OSX floating point handling.
-    concordant = slice(None, 171) if PYTHON_VERSION == 2 else slice(None)
-    assert_array_equal(merges[concordant], exp1[concordant])
+    assert_array_equal(merges, exp1)
     nb = GaussianNB().fit(alldata[0][0], alldata[0][1][:, 0])
     nbexp = joblib.load(os.path.join(rundir,
                                      'example-data/naive-bayes-1.joblib'))
@@ -107,13 +95,9 @@ def test_generate_examples_1_channel():
 
 
 def test_segment_with_classifer_1_channel():
-    if PYTHON_VERSION == 2:
-        rf = classify.load_classifier(
-            os.path.join(rundir, 'example-data/rf-1.joblib'))
-    else:
-        fn = os.path.join(rundir, 'example-data/rf1-py3.joblib')
-        with tar_extract(fn) as fn:
-            rf = joblib.load(fn)
+    fn = os.path.join(rundir, 'example-data/rf1-py3.joblib')
+    with tar_extract(fn) as fn:
+        rf = joblib.load(fn)
     learned_policy = agglo.classifier_probability(fc, rf)
     g_test = agglo.Rag(ws_test, pr_test, learned_policy, feature_manager=fc)
     g_test.agglomerate(0.5)
@@ -136,9 +120,7 @@ def test_generate_examples_4_channel():
     g_train = agglo.Rag(ws_train, p4_train, feature_manager=fc)
     _, alldata = g_train.learn_agglomerate(gt_train, fc,
                                            classifier='naive bayes')
-    testfn = ('example-data/train-naive-bayes-merges4-py3.pck'
-              if PYTHON_VERSION == 3 else
-              'example-data/train-naive-bayes-merges4-py2.pck')
+    testfn = 'example-data/train-naive-bayes-merges4-py3.pck'
     exp0, exp1 = load_pickle(os.path.join(rundir, testfn))
     expected_edges = set(map(tuple, exp0))
     edges = set(map(tuple, alldata[0][3]))
@@ -154,13 +136,9 @@ def test_generate_examples_4_channel():
 
 
 def test_segment_with_classifier_4_channel():
-    if PYTHON_VERSION == 2:
-        rf = classify.load_classifier(
-            os.path.join(rundir, 'example-data/rf-4.joblib'))
-    else:
-        fn = os.path.join(rundir, 'example-data/rf4-py3.joblib')
-        with tar_extract(fn) as fn:
-            rf = joblib.load(fn)
+    fn = os.path.join(rundir, 'example-data/rf4-py3.joblib')
+    with tar_extract(fn) as fn:
+        rf = joblib.load(fn)
     learned_policy = agglo.classifier_probability(fc, rf)
     g_test = agglo.Rag(ws_test, p4_test, learned_policy, feature_manager=fc)
     g_test.agglomerate(0.5)

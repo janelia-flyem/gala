@@ -1,4 +1,3 @@
-from __future__ import absolute_import
 import os
 import time
 import numpy as np
@@ -6,9 +5,6 @@ from scipy import ndimage as nd
 from numpy.testing import assert_array_equal, assert_array_less
 
 from gala import morpho
-from six.moves import map
-from six.moves import range
-from six.moves import zip
 
 rundir = os.path.dirname(__file__)
 

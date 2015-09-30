@@ -1,4 +1,3 @@
-from __future__ import absolute_import
 # python standard library
 import logging
 import itertools as it

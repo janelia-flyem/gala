@@ -1,18 +1,13 @@
-from __future__ import absolute_import
 import sys, os
-import six.moves.cPickle as pck
+import pickle as pck
 from copy import deepcopy as copy
 
 import numpy as np
 from numpy.testing import (assert_allclose, assert_approx_equal,
                            assert_equal)
-from six.moves import zip
 
 rundir = os.path.dirname(__file__)
 sys.path.append(rundir)
-
-
-PYTHON = sys.version_info[0]
 
 
 from gala import agglo, features
@@ -71,10 +66,7 @@ def run_matched(f, fn, c=1,
     g = agglo.Rag(wss1, p, feature_manager=f)
     o = list_of_feature_arrays(g, f, edges, merges)
     with open(fn, 'rb') as fin:
-        if PYTHON == 2:
-            r = pck.load(fin)
-        else:
-            r = pck.load(fin, encoding='bytes')
+        r = pck.load(fin, encoding='bytes')
     assert_equal_lists_or_arrays(o, r)
 
 

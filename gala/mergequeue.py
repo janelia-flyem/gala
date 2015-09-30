@@ -1,4 +1,3 @@
-from __future__ import absolute_import
 
 from heapq import heapify, heappush, heappop
 from .iterprogress import NoProgressBar, StandardProgressBar
