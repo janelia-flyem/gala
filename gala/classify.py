@@ -35,14 +35,6 @@ else:
 from . import iterprogress as ip
 
 
-def h5py_stack(fn):
-    try:
-        a = np.array(h5py.File(fn, 'r')['stack'])
-    except Exception as except_inst:
-        print(except_inst)
-        raise
-    return a
-
 def default_classifier_extension(cl, use_joblib=True):
     """
     Return the default classifier file extension for the given classifier cl.
