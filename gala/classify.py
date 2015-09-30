@@ -9,6 +9,7 @@ import pickle as pck
 # libraries
 import h5py
 import numpy as np
+from numpy.testing import assert_raises
 np.seterr(divide='ignore')
 
 from sklearn.svm import SVC
