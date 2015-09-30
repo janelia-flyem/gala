@@ -5,7 +5,6 @@ import json
 
 from numpy import zeros_like, array, double, zeros
 import numpy
-from six.moves import range
 
 def get_prob_handle(classifier):
     def get_prob(features):

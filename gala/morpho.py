@@ -23,9 +23,6 @@ from scipy.ndimage.morphology import binary_opening, binary_closing, \
 #from scipy.spatial.distance import cityblock as manhattan_distance
 from . import iterprogress as ip
 from .evaluate import relabel_from_one
-from six.moves import map
-from six.moves import range
-from six.moves import zip
 
 try:
     import skimage.morphology

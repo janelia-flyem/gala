@@ -10,9 +10,6 @@ import tempfile as tmp
 
 # libraries
 import h5py
-from six.moves import map
-from six.moves import range
-from six.moves import zip
 try:
     import Image
 except:

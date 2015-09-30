@@ -7,7 +7,6 @@ import h5py
 import numpy
 import json
 import traceback
-from six.moves import range
 
 def image_stack_verify(options_parser, options, master_logger):
     if options.test_stack is not None:

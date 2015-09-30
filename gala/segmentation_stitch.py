@@ -18,7 +18,6 @@ import re
 import datetime
 
 from . import imio, morpho, classify, evaluate, app_logger, session_manager, pixel, features, stack_np
-from six.moves import range
 
 # Group where we store predictions in HDF5 file
 PREDICTIONS_HDF5_GROUP = '/volume/predictions'

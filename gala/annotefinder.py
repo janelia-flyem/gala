@@ -1,4 +1,3 @@
-from six.moves import zip
 import numpy as np
 from scipy import spatial
 from matplotlib import pyplot as plt

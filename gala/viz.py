@@ -5,8 +5,6 @@ import scipy
 from . import evaluate
 from skimage import color
 import matplotlib
-from six.moves import range
-from six.moves import zip
 plt = matplotlib.pyplot
 cm = plt.cm
 import itertools as it

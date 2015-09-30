@@ -9,8 +9,6 @@ from numpy import zeros, bool, hstack, vstack, newaxis, array, savetxt
 from scipy.ndimage.filters import median_filter, gaussian_filter
 from scipy.ndimage.measurements import label
 from gala import single_arg_read_image_stack
-from six.moves import range
-from six.moves import zip
 
 class EvalAction(argparse.Action):
     def __call__(parser, namespace, values, option_string=None):

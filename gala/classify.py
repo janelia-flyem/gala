@@ -4,14 +4,11 @@
 import os
 import logging
 import random
-import six.moves.cPickle as pck
+import pickle as pck
 
 # libraries
 import h5py
 import numpy as np
-from six.moves import map
-from six.moves import range
-from six.moves import zip
 np.seterr(divide='ignore')
 
 try:
