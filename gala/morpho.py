@@ -23,6 +23,7 @@ from scipy.ndimage.morphology import binary_opening, binary_closing, \
 from . import iterprogress as ip
 from .evaluate import relabel_from_one
 
+from skimage import measure, util
 import skimage.morphology
 
 zero3d = array([0,0,0])
@@ -586,25 +587,71 @@ def get_neighbor_idxs(ar, idxs, connectivity=1):
     steps = raveled_steps_to_neighbors(ar.shape, connectivity)
     return idxs[:, np.newaxis] + steps
 
+
 def orphans(a):
     """Find all the segments that do not touch the volume boundary.
     
     This function differs from agglo.Rag.orphans() in that it does not use the
     graph, but rather computes orphans directly from a volume.
+
+    Parameters
+    ----------
+    a : array of int
+        A segmented volume.
+
+    Returns
+    -------
+    orph : 1D array of int
+        The IDs of any segments not touching the volume boundary.
+
+    Examples
+    --------
+    >>> segs = np.array([[1, 1, 1, 2],
+    ...                  [1, 3, 4, 2],
+    ...                  [1, 2, 2, 2]], int)
+    >>> orphans(segs)
+    array([3, 4])
+    >>> orphans(segs[:2])
+    array([], dtype=int64)
     """
     return setdiff1d(
             unique(a), unique(concatenate([s.ravel() for s in surfaces(a)]))
             )
 
+
 def non_traversing_segments(a):
-    """Find segments that enter the volume but do not leave it elsewhere."""
-    if a.all():
-        a = damify(a)
+    """Find segments that enter the volume but do not leave it elsewhere.
+
+    Parameters
+    ----------
+    a : array of int
+        A segmented volume.
+
+    Returns
+    -------
+    nt : 1D array of int
+        The IDs of any segments not traversing the volume.
+
+    Examples
+    --------
+    >>> segs = np.array([[1, 2, 3, 3, 4],
+    ...                  [1, 2, 2, 3, 4],
+    ...                  [1, 5, 5, 3, 4],
+    ...                  [1, 1, 5, 3, 4]], int)
+    >>> non_traversing_segments(segs)
+    array([1, 2, 4, 5])
+    """
     surface = hollowed(a)
-    surface_ccs = label(surface)[0]
+    surface_ccs = measure.label(surface) + 1
+    surface_ccs[surface == 0] = 0
     idxs = flatnonzero(surface)
-    pairs = unique(list(zip(surface.ravel()[idxs], surface_ccs.ravel()[idxs])))
-    return flatnonzero(bincount(pairs.astype(int)[:,0])==1)
+    pairs = np.array(list(zip(surface.ravel()[idxs],
+                              surface_ccs.ravel()[idxs])))
+    unique_pairs = util.unique_rows(pairs)
+    surface_singles = np.bincount(unique_pairs[:, 0]) == 1
+    nt = np.flatnonzero(surface_singles)
+    return nt
+
 
 def damify(a, in_place=False):
     """Add dams to a borderless segmentation."""
