@@ -11,16 +11,10 @@ import h5py
 import numpy as np
 np.seterr(divide='ignore')
 
-try:
-    from sklearn.svm import SVC
-    from sklearn.linear_model import LogisticRegression, LinearRegression
-    from sklearn.ensemble import RandomForestClassifier
-    from sklearn.externals import joblib
-except ImportError:
-    logging.warning('scikit-learn not found.')
-    sklearn_available = False
-else:
-    sklearn_available = True
+from sklearn.svm import SVC
+from sklearn.linear_model import LogisticRegression, LinearRegression
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.externals import joblib
 
 try:
     from vigra.learning import RandomForest as BaseVigraRandomForest
@@ -61,7 +55,7 @@ def default_classifier_extension(cl, use_joblib=True):
     """
     if isinstance(cl, VigraRandomForest):
         return ".classifier.h5"
-    elif use_joblib and sklearn_available:
+    elif use_joblib:
         return ".classifier.joblib"
     else:
         return ".classifier"
@@ -93,12 +87,11 @@ def load_classifier(fn):
         return cl
     except (pck.UnpicklingError, UnicodeDecodeError):
         pass
-    if sklearn_available:
-        try:
-            cl = joblib.load(fn)
-            return cl
-        except KeyError:
-            pass
+    try:
+        cl = joblib.load(fn)
+        return cl
+    except KeyError:
+        pass
     if vigra_available:
         cl = VigraRandomForest()
         try:
@@ -109,7 +102,7 @@ def load_classifier(fn):
         except RuntimeError as e:
             logging.error(e)
     raise IOError("File '%s' does not appear to be a valid classifier file"
-        % fn)
+                  % fn)
 
 def save_classifier(cl, fn, use_joblib=True, **kwargs):
     """Save a classifier to disk.
@@ -136,7 +129,7 @@ def save_classifier(cl, fn, use_joblib=True, **kwargs):
     """
     if isinstance(cl, VigraRandomForest):
         cl.save_to_disk(fn)
-    elif use_joblib and sklearn_available:
+    elif use_joblib:
         if 'compress' not in kwargs:
             kwargs['compress'] = 3
         joblib.dump(cl, fn, **kwargs)
@@ -146,19 +139,47 @@ def save_classifier(cl, fn, use_joblib=True, **kwargs):
 
 
 def get_classifier(name='random forest', *args, **kwargs):
+    """Return a classifier given a name.
+
+    Parameters
+    ----------
+    name : string
+        The name of the classifier, e.g. 'random forest' or 'naive bayes'.
+    *args, **kwargs :
+        Additional arguments to pass to the constructor of the classifier.
+
+    Returns
+    -------
+    cl : classifier
+        A classifier object implementing the scikit-learn interface.
+
+    Raises
+    ------
+    NotImplementedError
+        If the classifier name is not recognized.
+
+    Examples
+    --------
+    >>> cl = get_classifier('random forest', n_estimators=47)
+    >>> isinstance(cl, RandomForestClassifier)
+    True
+    >>> cl.n_estimators
+    47
+    >>> assert_raises(NotImplementedError, get_classifier, 'perfect class')
+    """
     name = name.lower()
     is_random_forest = name.find('random') > -1 and name.find('forest') > -1
     is_naive_bayes = name.find('naive') > -1
     if vigra_available and is_random_forest:
         return VigraRandomForest(*args, **kwargs)
-    elif sklearn_available and is_random_forest:
+    elif is_random_forest:
         return DefaultRandomForest(*args, **kwargs)
-    elif sklearn_available and is_naive_bayes:
+    elif is_naive_bayes:
         from sklearn.naive_bayes import GaussianNB
         return GaussianNB(*args, **kwargs)
     else:
-        raise NotImplementedError('Classifier "%s" is either not installed ' +
-            'or not implemented in Gala.')
+        raise NotImplementedError('Classifier "%s" is either not installed '
+                                  'or not implemented in Gala.')
 
 class DefaultRandomForest(RandomForestClassifier):
     def __init__(self, n_estimators=100, criterion='entropy', max_depth=20,
@@ -343,13 +364,7 @@ def select_classifier(cname, features=None, labels=None, **kwargs):
     elif 'linear-regression'.startswith(cname):
         c = LinearRegression()
     elif 'random-forest'.startswith(cname):
-        if sklearn_available:
-            c = DefaultRandomForest()
-        elif vigra_available:
-            c = VigraRandomForest()
-        else:
-            raise RuntimeError('tried to use random forest classifier, ' +
-                'but neither scikit-learn nor vigra are available.')
+        c = DefaultRandomForest()
     if features is not None and labels is not None:
         c = c.fit(features, labels, **kwargs)
     return c
