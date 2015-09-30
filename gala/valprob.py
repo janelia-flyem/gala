@@ -1,5 +1,3 @@
-from __future__ import absolute_import
-from __future__ import print_function
 from . import imio, option_manager, app_logger, session_manager
 import libNeuroProofPriority as neuroproof
 import os

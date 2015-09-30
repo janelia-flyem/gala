@@ -1,4 +1,3 @@
-from __future__ import absolute_import
 # external libraries
 import numpy as np
 import networkx as nx

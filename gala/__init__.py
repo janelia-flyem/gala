@@ -4,7 +4,6 @@ Gala
 
     Gala is a Python package for nD image segmentation. 
 """
-from __future__ import absolute_import
 
 __author__ = 'Juan Nunez-Iglesias <juan.n@unimelb.edu.au>, '+\
              'Ryan Kennedy <kenry@cis.upenn.edu>'

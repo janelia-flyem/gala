@@ -1,4 +1,3 @@
-from __future__ import absolute_import
 from .annotefinder import AnnotationFinder
 from math import ceil
 import numpy as np

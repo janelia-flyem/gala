@@ -1,4 +1,3 @@
-from __future__ import absolute_import
 # built-ins
 import libNeuroProofRag as neuroproof
 from . import morpho

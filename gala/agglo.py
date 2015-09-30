@@ -1,4 +1,3 @@
-from __future__ import absolute_import
 # built-ins
 from itertools import combinations, repeat, product
 import itertools as it
