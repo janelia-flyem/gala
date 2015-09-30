@@ -85,7 +85,20 @@ def morphological_reconstruction(marker, mask, connectivity=1):
     return marker
 
 def hminima(a, thresh):
-    """Suppress all minima that are shallower than thresh."""
+    """Suppress all minima that are shallower than thresh.
+
+    Parameters
+    ----------
+    a : array
+        The input array on which to perform hminima.
+    thresh : float
+        Any local minima shallower than this will be flattened.
+
+    Returns
+    -------
+    out : array
+        A copy of the input array with shallow minima suppressed.
+    """
     maxval = a.max()
     ainv = maxval-a
     return maxval - morphological_reconstruction(ainv-thresh, ainv)
