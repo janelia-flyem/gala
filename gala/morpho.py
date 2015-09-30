@@ -24,12 +24,7 @@ from scipy.ndimage.morphology import binary_opening, binary_closing, \
 from . import iterprogress as ip
 from .evaluate import relabel_from_one
 
-try:
-    import skimage.morphology
-    skimage_available = True
-except ImportError:
-    logging.warning('Unable to load skimage.')
-    skimage_available = False
+import skimage.morphology
 
 zero3d = array([0,0,0])
 
@@ -264,7 +259,7 @@ def watershed(a, seeds=None, connectivity=1, mask=None, smooth_thresh=0.0,
         b = hminima(a, smooth_thresh)
     if seeds.dtype == bool:
         seeds = label(seeds, sel)[0]
-    if skimage_available and not override_skimage and not dams:
+    if not override_skimage and not dams:
         return skimage.morphology.watershed(b, seeds, sel, None, mask)
     elif seeded:
         b = impose_minima(a, seeds.astype(bool), connectivity)
