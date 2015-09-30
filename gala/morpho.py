@@ -92,19 +92,7 @@ def hminima(a, thresh):
 
 imhmin = hminima
 
-def remove_small_connected_components(a, min_size=64, in_place=False):
-    original_dtype = a.dtype
-    if a.dtype == bool:
-        a = label(a)[0]
-    elif not in_place:
-        a = a.copy()
-    if min_size == 0: # shortcut for efficiency
-        return a
-    component_sizes = bincount(a.ravel())
-    too_small = component_sizes < min_size
-    too_small_locations = too_small[a]
-    a[too_small_locations] = 0
-    return a.astype(original_dtype)
+remove_small_connected_components = skimage.morphology.remove_small_objects
 
 def regional_minima(a, connectivity=1):
     """Find the regional minima in an ndarray."""

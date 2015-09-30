@@ -746,7 +746,7 @@ def serial_section_map(nd_map, min_size=0, do_conn_comp=False,
             relabeled, fmap, imap = evaluate.relabel_from_one(a)
             return relabeled, len(imap)
     def remove_small(a):
-        return morpho.remove_small_connected_components(a, min_size, False)
+        return morpho.remove_small_connected_components(a, min_size)
     mplanes = map(remove_small, nd_map)
     relabeled_planes, nids_per_plane = zip(*map(label_fct, mplanes))
     start_ids = concatenate((array([0], int), cumsum(nids_per_plane)[:-1])) \
