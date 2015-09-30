@@ -37,10 +37,27 @@ from . import iterprogress as ip
 
 def default_classifier_extension(cl, use_joblib=True):
     """
-    Return the default classifier file extension for the given classifier cl.
+    Return the default classifier file extension for the given classifier.
 
-    Returns:
-        String of file extension
+    Parameters
+    ----------
+    cl : sklearn estimator or VigraRandomForest object
+        A classifier to be saved.
+    use_joblib : bool, optional
+        Whether or not joblib will be used to save the classifier.
+
+    Returns
+    -------
+    ext : string
+        File extension
+
+    Examples
+    --------
+    >>> cl = RandomForestClassifier()
+    >>> default_classifier_extension(cl)
+    .classifier.joblib
+    >>> default_classifier_extension(cl, False)
+    .classifier
     """
     if isinstance(cl, VigraRandomForest):
         return ".classifier.h5"
