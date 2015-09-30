@@ -49,9 +49,9 @@ def default_classifier_extension(cl, use_joblib=True):
     --------
     >>> cl = RandomForestClassifier()
     >>> default_classifier_extension(cl)
-    .classifier.joblib
+    '.classifier.joblib'
     >>> default_classifier_extension(cl, False)
-    .classifier
+    '.classifier'
     """
     if isinstance(cl, VigraRandomForest):
         return ".classifier.h5"
