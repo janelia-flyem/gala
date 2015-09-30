@@ -7,7 +7,6 @@ Gala
 
 __author__ = 'Juan Nunez-Iglesias <juan.n@unimelb.edu.au>, '+\
              'Ryan Kennedy <kenry@cis.upenn.edu>'
-del sys, logging
 
 __all__ = ['agglo', 'morpho', 'evaluate', 'viz', 'imio', 'classify',
     'stack_np', 'app_logger', 'option_manager', 'features', 'filter']
