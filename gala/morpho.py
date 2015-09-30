@@ -20,7 +20,6 @@ from scipy.ndimage import distance_transform_cdt
 from scipy.ndimage.measurements import label, find_objects
 from scipy.ndimage.morphology import binary_opening, binary_closing, \
     binary_dilation, grey_closing, iterate_structure
-#from scipy.spatial.distance import cityblock as manhattan_distance
 from . import iterprogress as ip
 from .evaluate import relabel_from_one
 
@@ -28,13 +27,6 @@ import skimage.morphology
 
 zero3d = array([0,0,0])
 
-def manhattan_distance(a, b):
-    return sum(abs(a-b))
-
-def diamond_se(radius, dimension):
-    se = generate_binary_structure(dimension, 1)
-    return iterate_structure(se, radius)
-    
 def complement(a):
     return a.max()-a
 
@@ -139,22 +131,6 @@ def impose_minima(a, minima, connectivity=1):
     minima = minima.astype(bool)
     marker[minima] = mask[minima]
     return m - morphological_reconstruction(marker, mask, connectivity)
-
-def refined_seeding(a, maximum_height=0, grey_close_radius=1, 
-    binary_open_radius=1, binary_close_radius=1, minimum_size=0):
-    """Perform morphological operations to get good segmentation seeds."""
-    if grey_close_radius > 0:
-        strel = diamond_se(grey_close_radius, a.ndim)
-        a = grey_closing(a, footprint=strel)
-    s = (a <= maximum_height)
-    if binary_open_radius > 0:
-        strel = diamond_se(binary_open_radius, s.ndim)
-        s = binary_opening(s, structure=strel)
-    if binary_close_radius > 0:
-        strel = diamond_se(binary_close_radius, s.ndim)
-        s = binary_closing(s, structure=strel)
-    s = remove_small_connected_components(s, minimum_size)
-    return label(s)[0]
 
 def minimum_seeds(current_seeds, min_seed_coordinates, connectivity=1):
     """Ensure that each point in given coordinates has its own seed."""
