@@ -1,5 +1,4 @@
 # built-ins
-from itertools import combinations, repeat, product
 import itertools as it
 import argparse
 import random
