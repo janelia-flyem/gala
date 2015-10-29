@@ -73,6 +73,8 @@ class Solver(object):
         self.build_rag()
         self.comm = zmq.Context().socket(zmq.PAIR)
         self.comm.connect(host + ':' + str(port))
+        self.history = []
+        self.separate = []
         self.features = []
         self.targets = []
         self.relearn_threshold = relearn_threshold
@@ -83,8 +85,10 @@ class Solver(object):
                              merge_priority_function=self.policy,
                              feature_manager=_feature_manager,
                              normalize_probabilities=True)
+        self.original_rag = self.rag.copy()
 
     def send_segmentation(self):
+        self.relearn()
         self.rag.agglomerate(0.5)
         dst = list(self.rag.tree.get_map(0.5))
         src = list(range(len(dst)))
@@ -118,6 +122,7 @@ class Solver(object):
         s0 = next(segments)
         for s1 in segments:
             self.features.append(_feature_manager(self.rag, s0, s1))
+            self.history.append((s0, s1))
             s0 = self.rag.merge_nodes(s0, s1)
             self.targets.append(MERGE_LABEL)
 
@@ -125,7 +130,15 @@ class Solver(object):
         s0, s1 = segments
         self.features.append(_feature_manager(self.rag, s0, s1))
         self.targets.append(SEPAR_LABEL)
+        self.separate.append((s0, s1))
 
     def relearn(self):
         clf = classify.DefaultRandomForest().fit(self.features, self.targets)
         self.policy = agglo.classifier_probability(_feature_manager, clf)
+        self.rag = self.original_rag.copy()
+        self.rag.merge_priority_function = self.policy
+        self.rag.rebuild_merge_queue()
+        for i, (s0, s1) in enumerate(self.separate):
+            self.rag.node[s0]['exclusions'].add(i)
+            self.rag.node[s1]['exclusions'].add(i)
+        self.rag.replay_merge_history(self.history)
