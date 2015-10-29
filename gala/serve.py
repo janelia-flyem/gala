@@ -1,7 +1,6 @@
 from . import agglo, features
 import zmq
 import json
-import ujson
 
 
 _feature_manager = features.default.snemi3d()
@@ -58,6 +57,8 @@ class Solver(object):
                              normalize_probabilities=True)
         self.comm = zmq.Context().socket(zmq.PAIR)
         self.comm.connect(host + ':' + str(port))
+        self.features = []
+        self.targets = []
 
     def send_segmentation(self):
         self.rag.agglomerate(0.5)
