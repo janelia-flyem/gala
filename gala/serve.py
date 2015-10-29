@@ -143,6 +143,3 @@ class Solver(object):
             self.rag.node[s0]['exclusions'].add(i)
             self.rag.node[s1]['exclusions'].add(i)
         self.rag.replay_merge_history(self.history)
-
-    def __del__(self):
-        self.comm.unbind(self.addr)
