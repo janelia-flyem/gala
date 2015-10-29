@@ -88,7 +88,7 @@ class Solver(object):
         self.original_rag = self.rag.copy()
 
     def send_segmentation(self):
-        self.relearn()
+        self.relearn()  # correct way to do it is to implement RAG splits
         self.rag.agglomerate(0.5)
         dst = list(self.rag.tree.get_map(0.5))
         src = list(range(len(dst)))
