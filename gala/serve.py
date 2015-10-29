@@ -65,14 +65,15 @@ class Solver(object):
     Attributes
     ----------
     '''
-    def __init__(self, labels, image, port=5556, host='tcp://localhost',
+    def __init__(self, labels, image, port=5556, host='tcp://*',
                  relearn_threshold=20):
         self.labels = labels
         self.image = image
         self.policy = agglo.boundary_mean
         self.build_rag()
         self.comm = zmq.Context().socket(zmq.PAIR)
-        self.comm.connect(host + ':' + str(port))
+        self.addr = host + ':' + str(port)
+        self.comm.bind(host + ':' + str(port))
         self.history = []
         self.separate = []
         self.features = []
@@ -90,7 +91,7 @@ class Solver(object):
     def send_segmentation(self):
         self.relearn()  # correct way to do it is to implement RAG splits
         self.rag.agglomerate(0.5)
-        dst = list(self.rag.tree.get_map(0.5))
+        dst = [int(i) for i in self.rag.tree.get_map(0.5)]
         src = list(range(len(dst)))
         message = {'type': 'fragment-segment-lut',
                    'data': {'fragments': src, 'segments': dst}}
@@ -142,3 +143,6 @@ class Solver(object):
             self.rag.node[s0]['exclusions'].add(i)
             self.rag.node[s1]['exclusions'].add(i)
         self.rag.replay_merge_history(self.history)
+
+    def __del__(self):
+        self.comm.unbind(self.addr)
