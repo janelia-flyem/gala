@@ -1,9 +1,15 @@
-from . import agglo, features
+from . import agglo, features, classify
 import zmq
 import json
 
 
 _feature_manager = features.default.snemi3d()
+
+
+# constants
+# labels for machine learning libs
+MERGE_LABEL = 0
+SEPAR_LABEL = 1
 
 def obj2jsonbytes(obj):
     '''Convert object to JSON representation using ASCII bytes, not Unicode.
@@ -41,6 +47,14 @@ def jsonbytes2obj(bytes_msg):
     obj = json.loads(unicode_msg)
 
 
+def root(tree, n):  # speed this up by adding a function to viridis
+    anc = tree.ancestors(n)
+    if anc == []:
+        return n
+    else:
+        return anc[-1]
+
+
 class Solver(object):
     '''
     ZMQ-based interface between proofreading clients and gala RAGs.
@@ -51,21 +65,31 @@ class Solver(object):
     Attributes
     ----------
     '''
-    def __init__(self, labels, image, port=5556, host='tcp://localhost'):
-        self.rag = agglo.Rag(labels, image,
-                             feature_manager=_feature_manager,
-                             normalize_probabilities=True)
+    def __init__(self, labels, image, port=5556, host='tcp://localhost',
+                 relearn_threshold=20):
+        self.labels = labels
+        self.image = image
+        self.policy = agglo.boundary_mean
+        self.build_rag()
         self.comm = zmq.Context().socket(zmq.PAIR)
         self.comm.connect(host + ':' + str(port))
         self.features = []
         self.targets = []
+        self.relearn_threshold = relearn_threshold
+        self.relearn_trigger = relearn_threshold
+
+    def build_rag(self):
+        self.rag = agglo.Rag(self.labels, self.image,
+                             merge_priority_function=self.policy,
+                             feature_manager=_feature_manager,
+                             normalize_probabilities=True)
 
     def send_segmentation(self):
         self.rag.agglomerate(0.5)
         dst = list(self.rag.tree.get_map(0.5))
         src = list(range(len(dst)))
-        message = {'type': 'region-lut',
-                   'data': {'src': src, 'dst': dst}}
+        message = {'type': 'fragment-segment-lut',
+                   'data': {'fragments': src, 'segments': dst}}
         self.comm.send_json(message)
 
     def listen(self):
@@ -74,28 +98,34 @@ class Solver(object):
             command = message['type']
             data = message['data']
             if command == 'merge':
-                regions = data['regions']
-                self.learn_merge(regions)
+                segments = data['segments']
+                self.learn_merge(segments)
             elif command == 'separate':
-                regions = data['regions']
-                self.learn_separation(regions)
+                segments = data['segments']
+                self.learn_separation(segments)
             elif command == 'request':
                 what = data['what']
-                if what == 'region-lut':
+                if what == 'fragment-segment-lut':
                     self.send_segmentation()
             elif command == 'stop':
                 return
-
-    def learn_merge(self, regions):
-        def top_level(n):  # speed this up by adding a function to viridis
-            anc = self.rag.tree.ancestors(n)
-            if anc == []:
-                return n
             else:
-                return anc[-1]
-        regions = iter(set(map(top_level, regions)))
-        r0 = next(regions)
-        for r1 in regions:
-            self.features.append(_feature_manager(self.rag, r0, r1))
-            r0 = self.rag.merge_nodes(r0, r1)
-            self.targets.append(0)
+                print('command %s not recognized.' % command)
+                return
+
+    def learn_merge(self, segments):
+        segments = iter(set(root(self.rag.tree, s) for s in  segments))
+        s0 = next(segments)
+        for s1 in segments:
+            self.features.append(_feature_manager(self.rag, s0, s1))
+            s0 = self.rag.merge_nodes(s0, s1)
+            self.targets.append(MERGE_LABEL)
+
+    def learn_separation(self, segments):
+        s0, s1 = segments
+        self.features.append(_feature_manager(self.rag, s0, s1))
+        self.targets.append(SEPAR_LABEL)
+
+    def relearn(self):
+        clf = classify.DefaultRandomForest().fit(self.features, self.targets)
+        self.policy = agglo.classifier_probability(_feature_manager, clf)
