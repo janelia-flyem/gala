@@ -1,16 +1,16 @@
 # built-ins
 import itertools as it
+import sys
 import argparse
 import random
 import logging
 import json
 from copy import deepcopy
-from math import isnan
 
 # libraries
-from numpy import (array, mean, zeros, zeros_like, uint8, where, unique,
-    double, newaxis, nonzero, median, exp, log2, float, ones, arange, inf,
-    flatnonzero, sign, unravel_index, bincount)
+from numpy import (array, mean, zeros, zeros_like, where, unique,
+    newaxis, nonzero, median, float, ones, arange, inf, isnan,
+    flatnonzero, unravel_index, bincount)
 import numpy as np
 from scipy.stats import sem
 from scipy.sparse import lil_matrix
@@ -247,7 +247,7 @@ def compute_local_vi_change(s1, s2, n):
     py1 = float(s1)/n
     py2 = float(s2)/n
     py = py1+py2
-    return -(py1*log2(py1) + py2*log2(py2) - py*log2(py))
+    return -(py1*np.log2(py1) + py2*np.log2(py2) - py*np.log2(py))
 
 
 def compute_true_delta_vi(ctable, n1, n2):
@@ -257,7 +257,7 @@ def compute_true_delta_vi(ctable, n1, n2):
     p1g_log_p1g = xlogx(ctable[n1]).sum()
     p2g_log_p2g = xlogx(ctable[n2]).sum()
     p3g_log_p3g = xlogx(ctable[n1]+ctable[n2]).sum()
-    return p3*log2(p3) - p1*log2(p1) - p2*log2(p2) - \
+    return p3*np.log2(p3) - p1*np.log2(p1) - p2*np.log2(p2) - \
                                 2*(p3g_log_p3g - p1g_log_p1g - p2g_log_p2g)
 
 
@@ -601,7 +601,7 @@ class Rag(Graph):
         if len(probs) == 0:
             self.probabilities = zeros_like(self.watershed)
             self.probabilities_r = self.probabilities.ravel()
-        probs = probs.astype(double)
+        probs = probs.astype('float')
         if normalize and len(probs) > 1:
             probs -= probs.min() # ensure probs.min() == 0
             probs /= probs.max() # ensure probs.max() == 1
@@ -1194,7 +1194,7 @@ class Rag(Graph):
             [-compute_true_delta_rand(ctable, n1, n2, self.volume_size)
                                                     for ctable in ctables]
         ]
-        labels = [sign(mean(cont_label)) for cont_label in cont_labels]
+        labels = [np.sign(mean(cont_label)) for cont_label in cont_labels]
         if any(map(isnan, labels)) or any([label == 0 for l in labels]):
             logging.debug('NaN or 0 labels found. ' +
                                     ' '.join(map(str, [labels, (n1, n2)])))
@@ -1557,7 +1557,7 @@ class Rag(Graph):
         """
         if len(self.merge_queue) == 0:
             self.rebuild_merge_queue()
-        m = zeros(self.watershed.shape, double)
+        m = zeros(self.watershed.shape, 'float')
         mr = m.ravel()
         if ebunch is None:
             ebunch = self.real_edges_iter()
@@ -1663,7 +1663,7 @@ class Rag(Graph):
         """
         if not self.at_volume_boundary(n) or n == self.boundary_body:
             return False
-        v = zeros(self.watershed.shape, uint8)
+        v = zeros(self.watershed.shape, 'uint8')
         v.ravel()[self[n][self.boundary_body]['boundary']] = 1
         _, n = label(v, ones([3]*v.ndim))
         return n > 1
@@ -1836,7 +1836,7 @@ class Rag(Graph):
             except KeyError:
                 continue
             w = merge_priority_function(self,u,v)
-            W[i,j] = W[j,i] = exp(-w**2/sigma)
+            W[i,j] = W[j,i] = np.exp(-w**2/sigma)
         return W
 
 
