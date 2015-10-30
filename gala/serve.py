@@ -11,41 +11,6 @@ _feature_manager = features.default.snemi3d()
 MERGE_LABEL = 0
 SEPAR_LABEL = 1
 
-def obj2jsonbytes(obj):
-    '''Convert object to JSON representation using ASCII bytes, not Unicode.
-
-    Parameters
-    ----------
-    obj : any object
-        The input object. Must be JSON-serializable.
-
-    Returns
-    -------
-    bytes_msg : bytes
-        JSON encoding of ``obj`` in a Python bytes object (not a string).
-    '''
-    unicode_msg = json.dumps(obj)
-    bytes_msg = str.encode(unicode_msg, encoding='ascii')
-    return bytes_msg
-
-
-def jsonbytes2obj(bytes_msg):
-    '''Decode a bytes-encoded message to string before loading from JSON.
-
-
-    Parameters
-    ----------
-    bytes_msg : bytes
-        A bytes-encoded message containing a JSON object representation.
-
-    Returns
-    -------
-    obj : object (typically dict)
-        The object represented by the JSON encoding.
-    '''
-    unicode_msg = bytes.decode(bytes_msg)
-    obj = json.loads(unicode_msg)
-
 
 def root(tree, n):  # speed this up by adding a function to viridis
     anc = tree.ancestors(n)
