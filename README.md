@@ -22,15 +22,15 @@ If you use or compare to the GALA algorithm in your research, please cite:
 > *PLoS ONE 8(8): e71715.*  doi:10.1371/journal.pone.0071715
 
 Gala supports n-dimensional images (images, volumes, videos, videos of 
-volumes...) and multiple channels per image. It is compatible with both
-Python 3.4 and Python 2.7.
+volumes...) and multiple channels per image. It is compatible with
+Python 3.4 and 3.5.
 
 [![Build Status](https://travis-ci.org/janelia-flyem/gala.png?branch=master)](https://travis-ci.org/janelia-flyem/gala)
 [![Coverage Status](https://img.shields.io/coveralls/janelia-flyem/gala.svg)](https://coveralls.io/r/janelia-flyem/gala)
 
 ## Requirements
 
-* Python 3.4 or 2.7
+* Python 3.4 or 3.5
 * numpy 1.7+
 * scipy 0.10+
 * Image (a.k.a. Python Imaging Library or PIL) 1.1.7 or Pillow 2.5+
@@ -44,7 +44,7 @@ Python 3.4 and Python 2.7.
 
 ### Optional dependencies
 
-* progressbar 2.3 (Python 2.7 only, currently)
+* progressbar 2.3
 * [vigra/vigranumpy](hci.iwr.uni-heidelberg.de/vigra/) (1.9.0)
 * libtiff 0.4+
 
