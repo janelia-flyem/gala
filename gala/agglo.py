@@ -766,10 +766,6 @@ class Rag(Graph):
     def build_merge_queue(self):
         """Build a queue of node pairs to be merged in a specific priority.
 
-        Parameters
-        ----------
-        None
-
         Returns
         -------
         mq : MergeQueue object
