@@ -1,5 +1,5 @@
 import numpy as np
-from scipy import ndimage as nd
+from scipy import ndimage as ndi
 
 
 def nd_sobel_magnitude(image, spacing=None):
@@ -22,7 +22,7 @@ def nd_sobel_magnitude(image, spacing=None):
     if spacing is None:
         spacing = np.ones(image.ndim, np.float32)
     for ax, sp in enumerate(spacing):
-        axsobel = nd.sobel(image, axis=ax) / sp
+        axsobel = ndi.sobel(image, axis=ax) / sp
         filtered += axsobel * axsobel
     filtered = np.sqrt(filtered)
     return filtered
