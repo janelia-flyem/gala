@@ -20,6 +20,6 @@ def extents(labels):
     counts = np.bincount(labels)
     indptr = np.concatenate([[0], np.cumsum(counts)])
     indices = np.empty(labels.size, int)
-    extents_count(labels.ravel(), indptr.copy(), indices)
+    extents_count(labels.ravel(), indptr.copy(), out=indices)
     locs = sparse.csr_matrix((indices, indices, indptr), dtype=int)
     return locs
