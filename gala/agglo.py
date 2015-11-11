@@ -515,15 +515,15 @@ class Rag(Graph):
             node = self.node[nodeid]
             node['size'] = sizes[nodeid]
             node['watershed_ids'] = [nodeid]
+            node['entrypoint'] = (
+                np.array(np.unravel_index(self.extent(nodeid)[0],
+                                          self.watershed.shape)))
         if self.show_progress:
             inner_idxs = ip.with_progress(inner_idxs, title='Graph ',
                                           pbar=self.pbar)
         for idx in inner_idxs:
             nodeid = self.watershed_r[idx]
             node = self.node[nodeid]
-            if 'entrypoint' not in node:  # node not initialised
-                node['entrypoint'] = np.array(
-                                np.unravel_index(idx, self.watershed.shape))
             ns = idx + self.steps
             ns = ns[self.mask[ns]]
             adj = self.watershed_r[ns]
