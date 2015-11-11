@@ -24,6 +24,7 @@ from viridis import tree
 
 # local modules
 from . import morpho
+from . import sparselol as lol
 from . import iterprogress as ip
 from . import optimized as opt
 from .ncut import ncutW
@@ -402,8 +403,6 @@ class Rag(Graph):
             for n1, n2 in self.edges():
                 if isfrozenedge(self, n1, n2):
                     self.frozen_edges.add((n1,n2))
-        for nodeid in self.nodes():
-            del self.node[nodeid]["extent"]
 
 
     def __copy__(self):
@@ -423,18 +422,22 @@ class Rag(Graph):
 
 
     def extent(self, nodeid):
-        if 'extent' in self.node[nodeid]:
-            return self.node[nodeid]['extent']
-        extent_array = opt.flood_fill(self.watershed, 
-                            np.array(self.node[nodeid]['entrypoint']),
-                            np.array(self.node[nodeid]['watershed_ids']))
-        if len(extent_array) != self.node[nodeid]['size']:
-            sys.stderr.write('Flood fill fail - found %d voxels but size'
-                             'expected %d\n' %
-                             (len(extent_array), self.node[nodeid]['size']))
-        raveled_indices = np.ravel_multi_index(extent_array.T,
-                                               self.watershed.shape)
-        return set(raveled_indices)
+        try:
+            ext = self.extents
+            full_ext = [ext.indices[ext.indptr[f]:ext.indptr[f+1]]
+                        for f in self.node[nodeid]['watershed_ids']]
+            return np.concatenate(full_ext)
+        except AttributeError:
+            extent_array = opt.flood_fill(self.watershed,
+                               np.array(self.node[nodeid]['entrypoint']),
+                               np.array(self.node[nodeid]['watershed_ids']))
+            if len(extent_array) != self.node[nodeid]['size']:
+                sys.stderr.write('Flood fill fail - found %d voxels but size'
+                                 'expected %d\n' % (len(extent_array),
+                                                    self.node[nodeid]['size']))
+            raveled_indices = np.ravel_multi_index(extent_array.T,
+                                                   self.watershed.shape)
+            return set(raveled_indices)
 
     def real_edges(self, *args, **kwargs):
         """Return edges internal to the volume.
@@ -501,18 +504,16 @@ class Rag(Graph):
             return # stop processing for empty graphs
         if idxs is None:
             idxs = arange(self.watershed.size, dtype=self.steps.dtype)
-        self.add_node(self.boundary_body,
-                      extent=flatnonzero(self.watershed==self.boundary_body))
+        self.add_node(self.boundary_body)
         inner_idxs = idxs[self.watershed_r[idxs] != self.boundary_body]
         inner_idxs = inner_idxs[self.mask[inner_idxs]]  # use only masked idxs
         labels = np.unique(self.watershed_r[inner_idxs])
         sizes = np.bincount(self.watershed_r[inner_idxs])
+        self.extents = lol.extents(self.watershed)
         for nodeid in labels:
             self.add_node(nodeid)
             node = self.node[nodeid]
             node['size'] = sizes[nodeid]
-            node['extent'] = np.zeros(sizes[nodeid], dtype=inner_idxs.dtype)
-            node['visited'] = 0  # number of idxs seen so far
             node['watershed_ids'] = [nodeid]
         if self.show_progress:
             inner_idxs = ip.with_progress(inner_idxs, title='Graph ',
@@ -523,9 +524,6 @@ class Rag(Graph):
             if 'entrypoint' not in node:  # node not initialised
                 node['entrypoint'] = np.array(
                                 np.unravel_index(idx, self.watershed.shape))
-            node['extent'][node['visited']] = idx
-            node['visited'] += 1
-
             ns = idx + self.steps
             ns = ns[self.mask[ns]]
             adj = self.watershed_r[ns]
