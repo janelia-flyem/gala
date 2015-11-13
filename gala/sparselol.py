@@ -1,4 +1,5 @@
 import numpy as np
+from numpy.lib import stride_tricks
 from scipy import sparse
 from .sparselol_cy import extents_count
 
@@ -22,6 +23,6 @@ def extents(labels):
     indices = np.empty(labels.size, int)
     extents_count(labels.ravel(), indptr.copy(), out=indices)
     one = np.ones((1,), dtype=int)
-    data = np.lib.as_strided(one, shape=indices.shape, strides=(0,))
+    data = stride_tricks.as_strided(one, shape=indices.shape, strides=(0,))
     locs = sparse.csr_matrix((data, indices, indptr), dtype=int)
     return locs
