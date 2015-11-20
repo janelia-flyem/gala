@@ -84,6 +84,7 @@ def test_generate_examples_1_channel():
     """
     g_train = agglo.Rag(ws_train, pr_train, feature_manager=fc)
     _, alldata = g_train.learn_agglomerate(gt_train, fc,
+                                           learning_mode='permissive',
                                            classifier='naive bayes')
     testfn = ('example-data/train-naive-bayes-merges1-py3.pck'
               if PYTHON_VERSION == 3 else
@@ -135,6 +136,7 @@ def test_generate_examples_4_channel():
     """
     g_train = agglo.Rag(ws_train, p4_train, feature_manager=fc)
     _, alldata = g_train.learn_agglomerate(gt_train, fc,
+                                           learning_mode='permissive',
                                            classifier='naive bayes')
     testfn = ('example-data/train-naive-bayes-merges4-py3.pck'
               if PYTHON_VERSION == 3 else
