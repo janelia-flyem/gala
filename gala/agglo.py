@@ -43,7 +43,7 @@ from six.moves import zip
 def contingency_table(a, b):
     ct = ev_contingency_table(a, b)
     nx, ny = ct.shape
-    ctout = np.zeros((2 * nx, ny), ct.dtype)
+    ctout = np.zeros((2*nx + 1, ny), ct.dtype)
     ct.todense(out=ctout[:nx, :])
     return ctout
 
