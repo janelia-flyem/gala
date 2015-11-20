@@ -1104,8 +1104,9 @@ class Rag(Graph):
             g.show_progress = False # bug in MergeQueue usage causes
                                     # progressbar crash.
             g.rebuild_merge_queue()
-            alldata.append(g._learn_agglomerate(ctables, feature_map,
-                                                learning_mode, labeling_mode))
+            alldata.append(g.learn_epoch(ctables, feature_map,
+                                         learning_mode=learning_mode,
+                                         labeling_mode=labeling_mode))
             if memory:
                 if unique:
                     data = unique_learning_data_elements(alldata)
@@ -1210,8 +1211,8 @@ class Rag(Graph):
         return features, labels, weights, (n1, n2)
 
 
-    def _learn_agglomerate(self, ctables, feature_map, gt_dts,
-                        learning_mode='strict', labeling_mode='assignment'):
+    def learn_epoch(self, ctables, feature_map,
+                    learning_mode='permissive', labeling_mode='assignment'):
         """Learn the agglomeration process using various strategies.
 
         Parameters
@@ -1223,10 +1224,11 @@ class Rag(Graph):
             The map from node pairs to a feature vector. This must
             consist either of uncached features or of the cache used
             when building the graph.
-        learning_mode : {'strict', 'loose'}
+        learning_mode : {'strict', 'permissive'}, optional
             If ``'strict'``, don't proceed with a merge when it goes against
-            the ground truth.
-        labeling_mode : {'assignment', 'vi-sign', 'rand-sign'}
+            the ground truth. For historical reasons, 'loose' is allowed as
+            a synonym for 'strict'.
+        labeling_mode : {'assignment', 'vi-sign', 'rand-sign'}, optional
             Which label to use for `learning_mode`. Note that all labels
             are saved in the end.
 
