@@ -206,7 +206,7 @@ def classifier_probability(feature_extractor, classifier):
     def predict(g, n1, n2):
         if n1 == g.boundary_body or n2 == g.boundary_body:
             return inf
-        features = feature_extractor(g, n1, n2)
+        features = np.atleast_2d(feature_extractor(g, n1, n2))
         try:
             prediction = classifier.predict_proba(features)
             prediction_arr = np.array(prediction, copy=False)
