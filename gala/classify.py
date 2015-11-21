@@ -9,11 +9,8 @@ import pickle as pck
 # libraries
 import h5py
 import numpy as np
-from numpy.testing import assert_raises
 np.seterr(divide='ignore')
 
-from sklearn.svm import SVC
-from sklearn.linear_model import LogisticRegression, LinearRegression
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.externals import joblib
 
@@ -25,9 +22,6 @@ except ImportError:
     vigra_available = False
 else:
     vigra_available = True
-
-# local imports
-from . import iterprogress as ip
 
 
 def default_classifier_extension(cl, use_joblib=True):
