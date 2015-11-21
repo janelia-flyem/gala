@@ -160,6 +160,7 @@ def get_classifier(name='random forest', *args, **kwargs):
     True
     >>> cl.n_estimators
     47
+    >>> from numpy.testing import assert_raises
     >>> assert_raises(NotImplementedError, get_classifier, 'perfect class')
     """
     name = name.lower()
