@@ -14,7 +14,7 @@ install:
   - conda update -q conda
   - conda info -a
 
-  - conda create -q -n test-environment python=$TRAVIS_PYTHON_VERSION numpy scipy matplotlib networkx cython h5py pillow scikit-image scikit-learn setuptools pip
+  - conda create -q -n test-environment python=$TRAVIS_PYTHON_VERSION numpy scipy matplotlib networkx cython h5py pillow scikit-image scikit-learn=0.16 setuptools pip
   - source activate test-environment
 
   # custom package not available from conda
