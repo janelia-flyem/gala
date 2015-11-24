@@ -172,6 +172,8 @@ def get_classifier(name='random forest', *args, **kwargs):
         return DefaultRandomForest(*args, **kwargs)
     elif is_naive_bayes:
         from sklearn.naive_bayes import GaussianNB
+        if 'random_state' in kwargs:
+            del kwargs['random_state']
         return GaussianNB(*args, **kwargs)
     else:
         raise NotImplementedError('Classifier "%s" is either not installed '
