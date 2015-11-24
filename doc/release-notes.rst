@@ -5,6 +5,13 @@ Release notes
 0.3
 ===
 
+0.3.2
+-----
+
+- Bug fix: missing import in ``test_gala.py``. This was caused by rebasing
+  commits from post-0.3 onto 0.3.
+
+
 0.3.1
 -----
 
