@@ -5,6 +5,30 @@ Release notes
 0.3
 ===
 
+0.3.1
+-----
+
+This is a major bug fix release addressing
+`issue #63 on GitHub <https://github.com/janelia-flyem/gala/issues/63>`__.
+You can read more there and in the related
+`mailing list thread <http://gala.30861.n7.nabble.com/issue-with-learn-agglomerate-td81.html>`__,
+but the gist is that the "learning mode" parameter did nothing in previous
+releases of gala. The gala library in fact was not implementing the algorithm
+described in the GALA paper, but rather, a variant of
+`LASH <http://papers.nips.cc/paper/4249-learning-to-agglomerate-superpixel-hierarchies>`__
+with memory across epochs. (LASH only retains data from the most recent
+learning epoch.) It remains to be determined whether
+the "strict" learning mode described in our paper indeed yields
+improvements in segmentation accuracy. 
+
+Note that the included tests pass when using scikit-learn 0.16, but not with
+the recently-released 0.17, because of changes in the implementation of
+``GaussianNB``.
+
+
+0.3.0
+-----
+
 Announcing the third release of gala!
 
 I want to thank Paul Watkins, Sean Colby, Larissa Heinrich,
