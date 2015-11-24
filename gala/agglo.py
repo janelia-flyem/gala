@@ -616,9 +616,6 @@ class Rag(Graph):
             self.probabilities = morpho.pad(probs, padding)
             self.probabilities_r = self.probabilities.ravel()[:,newaxis]
         elif p_ndim == w_ndim+1:
-            if sp[1:] == sw:
-                sp = sp[1:]+[sp[0]]
-                probs = probs.transpose(sp)
             axes = list(range(p_ndim-1))
             self.probabilities = morpho.pad(probs, padding, axes)
             self.probabilities_r = self.probabilities.reshape(
@@ -1087,10 +1084,7 @@ class Rag(Graph):
                 g.merge_priority_function = boundary_mean
             elif num_epochs > 0 and priority_mode == 'active' or \
                 num_epochs % 2 == 1 and priority_mode == 'mixed':
-                if random_state == None:
-                    cl = get_classifier(classifier)
-                else:
-                    cl = get_classifier(classifier, random_state=random_state)
+                cl = get_classifier(classifier, random_state=random_state)
                 feat, lab = classify.sample_training_data(
                     data[0], data[1][:, label_type_keys[labeling_mode]],
                     max_num_samples)
@@ -1684,12 +1678,7 @@ class Rag(Graph):
     def non_traversing_bodies(self):
         """List bodies that are not orphans and do not traverse the volume."""
         return [n for n in self.nodes() if self.at_volume_boundary(n) and
-            not self.is_traversed_by_node(n)]
-
-
-    def compute_non_traversing_bodies(self):
-        """Same as agglo.Rag.non_traversing_bodies, but doesn't use graph."""
-        return morpho.non_traversing_bodies(self.get_segmentation())
+                not self.is_traversed_by_node(n) and n != self.boundary_body]
 
 
     def raveler_body_annotations(self, traverse=False):
