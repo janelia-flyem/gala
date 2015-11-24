@@ -1,5 +1,4 @@
 import os
-import sys
 import glob
 from contextlib import contextmanager
 
@@ -67,7 +66,7 @@ def train_and_save_classifier(training_data_file, filename,
 
 ### tests
 
-def test_generate_examples_1_channel():
+def test_generate_lash_examples_1_channel():
     """Run a flat epoch and an active epoch of learning, compare learned sets.
 
     The *order* of the edges learned by learn_flat is not guaranteed, so we
@@ -78,6 +77,7 @@ def test_generate_examples_1_channel():
     """
     g_train = agglo.Rag(ws_train, pr_train, feature_manager=fc)
     _, alldata = g_train.learn_agglomerate(gt_train, fc,
+                                           learning_mode='permissive',
                                            classifier='naive bayes')
     testfn = 'example-data/train-naive-bayes-merges1-py3.pck'
     exp0, exp1 = load_pickle(os.path.join(rundir, testfn))
@@ -92,6 +92,24 @@ def test_generate_examples_1_channel():
     assert_allclose(nb.theta_, nbexp.theta_, atol=1e-10)
     assert_allclose(nb.sigma_, nbexp.sigma_, atol=1e-4)
     assert_allclose(nb.class_prior_, nbexp.class_prior_, atol=1e-7)
+
+
+def test_generate_gala_examples_1_channel():
+    """As `test_generate_lash_examples_1_channel`, but using strict learning.
+    """
+    g_train = agglo.Rag(ws_train, pr_train, feature_manager=fc)
+    _, alldata = g_train.learn_agglomerate(gt_train, fc,
+                                           learning_mode='strict',
+                                           classifier='naive bayes')
+    testfn = 'example-data/train-naive-bayes-merges1-py3.pck'
+    exp0, exp1 = load_pickle(os.path.join(rundir, testfn))
+    expected_edges = set(map(tuple, exp0))
+    edges = set(map(tuple, alldata[0][3]))
+    merges = alldata[1][3]
+    # expect same edges in flat learning
+    assert edges == expected_edges  # flat learning epoch
+    # expect more edges in strict training than permissive
+    assert np.shape(merges)[0] > np.shape(exp1)[0]
 
 
 def test_segment_with_classifer_1_channel():
@@ -119,6 +137,7 @@ def test_generate_examples_4_channel():
     """
     g_train = agglo.Rag(ws_train, p4_train, feature_manager=fc)
     _, alldata = g_train.learn_agglomerate(gt_train, fc,
+                                           learning_mode='permissive',
                                            classifier='naive bayes')
     testfn = 'example-data/train-naive-bayes-merges4-py3.pck'
     exp0, exp1 = load_pickle(os.path.join(rundir, testfn))

@@ -98,6 +98,15 @@ def test_mask():
     assert (2, 4) in g.edges()
 
 
+def test_traverse():
+    labels = [[0, 1, 2],
+              [0, 1, 2],
+              [0, 1, 2]]
+    g = agglo.Rag(np.array(labels))
+    assert g.traversing_bodies() == [1]
+    assert g.non_traversing_bodies() == [0, 2]
+
+
 if __name__ == '__main__':
     from numpy import testing
     testing.run_module_suite()

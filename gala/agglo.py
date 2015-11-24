@@ -39,7 +39,7 @@ from .classify import get_classifier, \
 def contingency_table(a, b):
     ct = ev_contingency_table(a, b)
     nx, ny = ct.shape
-    ctout = np.zeros((2 * nx, ny), ct.dtype)
+    ctout = np.zeros((2*nx + 1, ny), ct.dtype)
     ct.todense(out=ctout[:nx, :])
     return ctout
 
@@ -202,7 +202,7 @@ def classifier_probability(feature_extractor, classifier):
     def predict(g, n1, n2):
         if n1 == g.boundary_body or n2 == g.boundary_body:
             return inf
-        features = feature_extractor(g, n1, n2)
+        features = np.atleast_2d(feature_extractor(g, n1, n2))
         try:
             prediction = classifier.predict_proba(features)
             prediction_arr = np.array(prediction, copy=False)
@@ -616,9 +616,6 @@ class Rag(Graph):
             self.probabilities = morpho.pad(probs, padding)
             self.probabilities_r = self.probabilities.ravel()[:,newaxis]
         elif p_ndim == w_ndim+1:
-            if sp[1:] == sw:
-                sp = sp[1:]+[sp[0]]
-                probs = probs.transpose(sp)
             axes = list(range(p_ndim-1))
             self.probabilities = morpho.pad(probs, padding, axes)
             self.probabilities_r = self.probabilities.reshape(
@@ -1087,10 +1084,7 @@ class Rag(Graph):
                 g.merge_priority_function = boundary_mean
             elif num_epochs > 0 and priority_mode == 'active' or \
                 num_epochs % 2 == 1 and priority_mode == 'mixed':
-                if random_state == None:
-                    cl = get_classifier(classifier)
-                else:
-                    cl = get_classifier(classifier, random_state=random_state)
+                cl = get_classifier(classifier, random_state=random_state)
                 feat, lab = classify.sample_training_data(
                     data[0], data[1][:, label_type_keys[labeling_mode]],
                     max_num_samples)
@@ -1104,8 +1098,9 @@ class Rag(Graph):
             g.show_progress = False # bug in MergeQueue usage causes
                                     # progressbar crash.
             g.rebuild_merge_queue()
-            alldata.append(g._learn_agglomerate(ctables, feature_map,
-                                                learning_mode, labeling_mode))
+            alldata.append(g.learn_epoch(ctables, feature_map,
+                                         learning_mode=learning_mode,
+                                         labeling_mode=labeling_mode))
             if memory:
                 if unique:
                     data = unique_learning_data_elements(alldata)
@@ -1210,8 +1205,8 @@ class Rag(Graph):
         return features, labels, weights, (n1, n2)
 
 
-    def _learn_agglomerate(self, ctables, feature_map, gt_dts,
-                        learning_mode='strict', labeling_mode='assignment'):
+    def learn_epoch(self, ctables, feature_map,
+                    learning_mode='permissive', labeling_mode='assignment'):
         """Learn the agglomeration process using various strategies.
 
         Parameters
@@ -1223,10 +1218,11 @@ class Rag(Graph):
             The map from node pairs to a feature vector. This must
             consist either of uncached features or of the cache used
             when building the graph.
-        learning_mode : {'strict', 'loose'}
+        learning_mode : {'strict', 'permissive'}, optional
             If ``'strict'``, don't proceed with a merge when it goes against
-            the ground truth.
-        labeling_mode : {'assignment', 'vi-sign', 'rand-sign'}
+            the ground truth. For historical reasons, 'loose' is allowed as
+            a synonym for 'strict'.
+        labeling_mode : {'assignment', 'vi-sign', 'rand-sign'}, optional
             Which label to use for `learning_mode`. Note that all labels
             are saved in the end.
 
@@ -1682,12 +1678,7 @@ class Rag(Graph):
     def non_traversing_bodies(self):
         """List bodies that are not orphans and do not traverse the volume."""
         return [n for n in self.nodes() if self.at_volume_boundary(n) and
-            not self.is_traversed_by_node(n)]
-
-
-    def compute_non_traversing_bodies(self):
-        """Same as agglo.Rag.non_traversing_bodies, but doesn't use graph."""
-        return morpho.non_traversing_bodies(self.get_segmentation())
+                not self.is_traversed_by_node(n) and n != self.boundary_body]
 
 
     def raveler_body_annotations(self, traverse=False):

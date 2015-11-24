@@ -280,7 +280,7 @@ def write_png_image_stack(npy_vol, fn, axis=-1, bitdepth=None):
         npy_vol = uint32(npy_vol)
     for z, pl in enumerate(npy_vol):
         im = Image.new(mode_base, pl.T.shape)
-        im.fromstring(pl.tostring(), 'raw', mode)
+        im.frombytes(pl.tostring(), 'raw', mode)
         im.save(fn % z)
 
 ### VTK structured points array format
