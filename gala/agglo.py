@@ -523,7 +523,6 @@ class Rag(Graph):
                                           pbar=self.pbar)
         for idx in inner_idxs:
             nodeid = self.watershed_r[idx]
-            node = self.node[nodeid]
             ns = idx + self.steps
             ns = ns[self.mask[ns]]
             adj = self.watershed_r[ns]
