@@ -17,7 +17,7 @@ def extents(labels):
         A sparse matrix in which the nonzero elements of row i are the
         indices of value i in ``arr``.
     """
-    labels = labels.ravel()
+    labels = labels.astype(int).ravel()
     counts = np.bincount(labels)
     indptr = np.concatenate([[0], np.cumsum(counts)])
     indices = np.empty(labels.size, int)
