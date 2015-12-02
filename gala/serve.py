@@ -148,13 +148,13 @@ def proofread(fragments, true_segmentation, host='tcp://localhost', port=5556,
     random = check_random_state(random_state)
     random.shuffle(true_labels)
     for _, label in zip(range(num_operations), true_labels):
-        components = [int(i) for i in ctable.getcol(label).indices]
+        components = [int(i) for i in ctable.getcol(int(label)).indices]
         comm.send_json({'type': 'merge',
                         'data': {'segments': components}})
         for fragment in components:
             for neighbor in base_graph[fragment]:
                 if neighbor not in components:
-                    edge = [fragment, neighbor]
+                    edge = [int(fragment), int(neighbor)]
                     comm.send_json({'type': 'separate',
                                     'data': {'segments': edge}})
 
