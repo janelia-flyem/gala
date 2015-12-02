@@ -428,7 +428,7 @@ class Rag(Graph):
             ext = self.extents
             full_ext = [ext.indices[ext.indptr[f]:ext.indptr[f+1]]
                         for f in self.node[nodeid]['watershed_ids']]
-            return np.concatenate(full_ext)
+            return np.concatenate(full_ext).astype(np.intp)
         except AttributeError:
             extent_array = opt.flood_fill(self.watershed,
                                np.array(self.node[nodeid]['entrypoint']),
