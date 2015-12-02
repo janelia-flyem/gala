@@ -1376,19 +1376,18 @@ class Rag(Graph):
             A subgraph to merge.
         source : int (node id), optional
             Merge the subgraph to this node.
-
-        Returns
-        -------
-        None
         """
         if type(subgraph) not in [Rag, Graph]: # input is node list
             subgraph = self.subgraph(subgraph)
-        if len(subgraph) > 0:
-            node_dfs = list(dfs_preorder_nodes(subgraph, source))
+        if len(subgraph) == 0:
+            return
+        import networkx as nx
+        for subsubgraph in nx.connected_component_subgraphs(subgraph):
+            node_dfs = list(dfs_preorder_nodes(subsubgraph, source))
             # dfs_preorder_nodes returns iter, convert to list
             source_node, other_nodes = node_dfs[0], node_dfs[1:]
             for current_node in other_nodes:
-                self.merge_nodes(source_node, current_node)
+                source_node = self.merge_nodes(source_node, current_node)
 
 
     def split_node(self, u, n=2, **kwargs):
