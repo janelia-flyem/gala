@@ -34,6 +34,7 @@ from . import features
 from . import classify
 from .classify import get_classifier, \
     unique_learning_data_elements, concatenate_data_elements
+from .dtypes import label_dtype
 
 
 def contingency_table(a, b):
@@ -365,13 +366,14 @@ class Rag(Graph):
         and *two* nodes, to specify an edge that cannot be merged.
     """
 
-    def __init__(self, watershed=array([], int), probabilities=array([]),
-            merge_priority_function=boundary_mean, gt_vol=None,
-            feature_manager=features.base.Null(), mask=None,
-            show_progress=False, connectivity=1,
-            channel_is_oriented=None, orientation_map=array([]),
-            normalize_probabilities=False, exclusions=array([]),
-            isfrozennode=None, isfrozenedge=None):
+    def __init__(self, watershed=array([], label_dtype),
+                 probabilities=array([]),
+                 merge_priority_function=boundary_mean, gt_vol=None,
+                 feature_manager=features.base.Null(), mask=None,
+                 show_progress=False, connectivity=1,
+                 channel_is_oriented=None, orientation_map=array([]),
+                 normalize_probabilities=False, exclusions=array([]),
+                 isfrozennode=None, isfrozenedge=None):
 
         super(Rag, self).__init__(weighted=False)
         self.show_progress = show_progress
@@ -660,7 +662,7 @@ class Rag(Graph):
                 self.probabilities_r[:, ~self.channel_is_oriented]
 
 
-    def set_watershed(self, ws=array([], int), connectivity=1):
+    def set_watershed(self, ws=array([], label_dtype), connectivity=1):
         """Set the initial segmentation volume (watershed).
 
         The initial segmentation is called `watershed` for historical
@@ -677,13 +679,11 @@ class Rag(Graph):
         -------
         None
         """
-        if not np.issubdtype(ws.dtype, np.integer):
-            ws = ws.astype(morpho.smallest_int_dtype(np.max(ws),
-                                                     signed=np.min(ws) < 0))
+        ws = ws.astype(label_dtype)
         try:
-            self.boundary_body = ws.max()+1
+            self.boundary_body = np.max(ws) + 1
         except ValueError: # empty watershed given
-            self.boundary_body = -1
+            self.boundary_body = 1
         self.volume_size = ws.size
         if ws.size > 0:
             ws, _, inv = relabel_sequential(ws)
