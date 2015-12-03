@@ -506,9 +506,9 @@ class Rag(Graph):
             return # stop processing for empty graphs
         if idxs is None:
             idxs = arange(self.watershed.size, dtype=self.steps.dtype)
+        idxs = idxs[self.mask[idxs]]  # use only masked idxs
         self.add_node(self.boundary_body)
         inner_idxs = idxs[self.watershed_r[idxs] != self.boundary_body]
-        inner_idxs = inner_idxs[self.mask[inner_idxs]]  # use only masked idxs
         labels = np.unique(self.watershed_r[inner_idxs])
         sizes = np.bincount(self.watershed_r)
         if not hasattr(self, 'extents'):
