@@ -509,9 +509,10 @@ class Rag(Graph):
         self.add_node(self.boundary_body)
         inner_idxs = idxs[self.watershed_r[idxs] != self.boundary_body]
         inner_idxs = inner_idxs[self.mask[inner_idxs]]  # use only masked idxs
-        labels = np.unique(self.watershed_r)
+        labels = np.unique(self.watershed_r[inner_idxs])
         sizes = np.bincount(self.watershed_r)
-        self.extents = lol.extents(self.watershed)
+        if not hasattr(self, 'extents'):
+            self.extents = lol.extents(self.watershed)
         for nodeid in labels:
             self.add_node(nodeid)
             node = self.node[nodeid]
