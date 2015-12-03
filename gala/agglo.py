@@ -508,8 +508,7 @@ class Rag(Graph):
             idxs = arange(self.watershed.size, dtype=self.steps.dtype)
         idxs = idxs[self.mask[idxs]]  # use only masked idxs
         self.add_node(self.boundary_body)
-        inner_idxs = idxs[self.watershed_r[idxs] != self.boundary_body]
-        labels = np.unique(self.watershed_r[inner_idxs])
+        labels = np.unique(self.watershed_r[idxs])
         sizes = np.bincount(self.watershed_r)
         if not hasattr(self, 'extents'):
             self.extents = lol.extents(self.watershed)
@@ -521,6 +520,7 @@ class Rag(Graph):
             node['entrypoint'] = (
                 np.array(np.unravel_index(self.extent(nodeid)[0],
                                           self.watershed.shape)))
+        inner_idxs = idxs[self.watershed_r[idxs] != self.boundary_body]
         if self.show_progress:
             inner_idxs = ip.with_progress(inner_idxs, title='Graph ',
                                           pbar=self.pbar)
