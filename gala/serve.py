@@ -95,6 +95,8 @@ class Solver(object):
 
     def learn_separation(self, segments):
         s0, s1 = segments
+        # trace the segments up to the current state of the RAG
+        # don't use the segments directly
         self.features.append(_feature_manager(self.rag, s0, s1))
         self.targets.append(SEPAR_LABEL)
         self.separate.append((s0, s1))
