@@ -93,13 +93,14 @@ class Solver(object):
             s0 = self.rag.merge_nodes(s0, s1)
             self.targets.append(MERGE_LABEL)
 
-    def learn_separation(self, segments):
-        s0, s1 = segments
+    def learn_separation(self, fragments):
+        f0, f1 = fragments
+        s0, s1 = self.rag.separate_fragments(f0, f1)
         # trace the segments up to the current state of the RAG
         # don't use the segments directly
         self.features.append(_feature_manager(self.rag, s0, s1))
         self.targets.append(SEPAR_LABEL)
-        self.separate.append((s0, s1))
+        self.separate.append((f0, f1))
 
     def relearn(self):
         clf = classify.DefaultRandomForest().fit(self.features, self.targets)

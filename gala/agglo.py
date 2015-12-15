@@ -1416,21 +1416,33 @@ class Rag(Graph):
         self.build_graph_from_watershed(idxs=node_extent)
         self.ncut(num_clusters=n, nodes=labels, **kwargs)
 
-    def separate_fragments(self, f1, f2):
-        """Ensure fragments (watersheds) f1 and f2 are in different nodes.
+    def separate_fragments(self, f0, f1):
+        """Ensure fragments (watersheds) f0 and f1 are in different nodes.
 
-        If f1 and f2 are the same segment, split that segment at the
-        lowest common ancestor of f1 and f2 in the merge tree, then add an
+        If f0 and f1 are the same segment, split that segment at the
+        lowest common ancestor of f0 and f1 in the merge tree, then add an
         exclusion. Otherwise, simply add an exclusion.
 
         Parameters
         ----------
-        f1, f2: int
+        f0, f1 : int
             The fragments to be separated.
+
+        Returns
+        -------
+        s0, s1 : int
+            The separated segments resulting from the break. If the
+            fragments were already in separate segments, return the
+            highest ancestor of each fragment on the merge tree.
         """
-        lca = tree.lowest_common_ancestor(self.tree, f1, f2)
+        lca = tree.lowest_common_ancestor(self.tree, f0, f1)
         if lca is not None:
+            s0, s1 = self.tree.children(lca)
             self.delete_merge(lca)
+        else:
+            s0 = self.tree.highest_ancestor(f0)
+            s1 = self.tree.highest_ancestor(f1)
+        return s0, s1
 
     def delete_merge(self, tree_node):
         """Delete the merge represented by `tree_node`.
@@ -1441,10 +1453,12 @@ class Rag(Graph):
             A node that may not be currently in the graph, but was at
             some point in its history.
         """
-        higher = self.tree.ancestors(tree_node)
-        if len(higher) > 0:
+        highest = self.tree.highest_ancestor(tree_node)
+        if highest != tree_node:
             leaves = self.tree.leaves(tree_node)
-            highest = higher[-1]
+            # the graph doesn't keep nodes in the history, only the
+            # most recent nodes. So, we only need to find that one and
+            # update its fragment list.
             self.node[highest]['fragments'].difference_update(leaves)
         self.tree.remove_node(tree_node)
 
