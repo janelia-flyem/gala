@@ -427,12 +427,13 @@ class Rag(Graph):
         try:
             ext = self.extents
             full_ext = [ext.indices[ext.indptr[f]:ext.indptr[f+1]]
-                        for f in self.node[nodeid]['watershed_ids']]
+                        for f in self.node[nodeid]['fragments']]
             return np.concatenate(full_ext).astype(np.intp)
         except AttributeError:
             extent_array = opt.flood_fill(self.watershed,
                                np.array(self.node[nodeid]['entrypoint']),
-                               np.array(self.node[nodeid]['watershed_ids']))
+                               np.fromiter(self.node[nodeid]['fragments'],
+                                           dtype=int))
             if len(extent_array) != self.node[nodeid]['size']:
                 sys.stderr.write('Flood fill fail - found %d voxels but size'
                                  'expected %d\n' % (len(extent_array),
@@ -516,7 +517,7 @@ class Rag(Graph):
             self.add_node(nodeid)
             node = self.node[nodeid]
             node['size'] = sizes[nodeid]
-            node['watershed_ids'] = [nodeid]
+            node['fragments'] = set([nodeid])
             node['entrypoint'] = (
                 np.array(np.unravel_index(self.extent(nodeid)[0],
                                           self.watershed.shape)))
@@ -1348,7 +1349,7 @@ class Rag(Graph):
             self.node[n1]['exclusions'].update(self.node[n2]['exclusions'])
         w = self[n1][n2].get('weight', merge_priority)
         self.node[n1]['size'] += self.node[n2]['size']
-        self.node[n1]['watershed_ids'] += self.node[n2]['watershed_ids']
+        self.node[n1]['fragments'] += self.node[n2]['fragments']
 
         self.feature_manager.update_node_cache(self, n1, n2,
                 self.node[n1]['feature-cache'], self.node[n2]['feature-cache'])
@@ -1390,7 +1391,6 @@ class Rag(Graph):
             for current_node in other_nodes:
                 source_node = self.merge_nodes(source_node, current_node)
 
-
     def split_node(self, u, n=2, **kwargs):
         """Use normalized cuts [1] to split a node/segment.
 
@@ -1416,6 +1416,37 @@ class Rag(Graph):
         self.build_graph_from_watershed(idxs=node_extent)
         self.ncut(num_clusters=n, nodes=labels, **kwargs)
 
+    def separate_fragments(self, f1, f2):
+        """Ensure fragments (watersheds) f1 and f2 are in different nodes.
+
+        If f1 and f2 are the same segment, split that segment at the
+        lowest common ancestor of f1 and f2 in the merge tree, then add an
+        exclusion. Otherwise, simply add an exclusion.
+
+        Parameters
+        ----------
+        f1, f2: int
+            The fragments to be separated.
+        """
+        lca = tree.lowest_common_ancestor(self.tree, f1, f2)
+        if lca is not None:
+            self.delete_merge(lca)
+
+    def delete_merge(self, tree_node):
+        """Delete the merge represented by `tree_node`.
+
+        Parameters
+        ----------
+        tree_node : int
+            A node that may not be currently in the graph, but was at
+            some point in its history.
+        """
+        higher = self.tree.ancestors(tree_node)
+        if len(higher) > 0:
+            leaves = self.tree.leaves(tree_node)
+            highest = higher[-1]
+            self.node[highest]['fragments'].difference_update(leaves)
+        self.tree.remove_node(tree_node)
 
     def merge_edge_properties(self, src, dst):
         """Merge the properties of edge src into edge dst.
