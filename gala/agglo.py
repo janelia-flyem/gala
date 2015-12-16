@@ -1349,7 +1349,7 @@ class Rag(Graph):
             self.node[n1]['exclusions'].update(self.node[n2]['exclusions'])
         w = self[n1][n2].get('weight', merge_priority)
         self.node[n1]['size'] += self.node[n2]['size']
-        self.node[n1]['fragments'] += self.node[n2]['fragments']
+        self.node[n1]['fragments'].update(self.node[n2]['fragments'])
 
         self.feature_manager.update_node_cache(self, n1, n2,
                 self.node[n1]['feature-cache'], self.node[n2]['feature-cache'])
