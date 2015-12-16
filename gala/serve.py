@@ -13,14 +13,6 @@ MERGE_LABEL = 0
 SEPAR_LABEL = 1
 
 
-def root(tree, n):  # speed this up by adding a function to viridis
-    anc = tree.ancestors(n)
-    if anc == []:
-        return n
-    else:
-        return anc[-1]
-
-
 class Solver(object):
     '''
     ZMQ-based interface between proofreading clients and gala RAGs.
@@ -85,7 +77,8 @@ class Solver(object):
                 return
 
     def learn_merge(self, segments):
-        segments = iter(set(root(self.rag.tree, s) for s in  segments))
+        segments = iter(set(self.rag.tree.highest_ancestor(s)
+                            for s in segments))
         s0 = next(segments)
         for s1 in segments:
             self.features.append(_feature_manager(self.rag, s0, s1))
