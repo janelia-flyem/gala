@@ -87,37 +87,6 @@ def sparse_csr_row_max(csr_mat):
     return ret
 
 
-def bin_values(a, bins=255):
-    """Return an array with its values discretised to the given number of bins.
-
-    Parameters
-    ----------
-    a : np.ndarray, arbitrary shape
-        The input array.
-    bins : int, optional
-        The number of bins in which to put the data. default: 255.
-
-    Returns
-    -------
-    b : np.ndarray, same shape as a
-        The output array, such that values in bin X are replaced by mean(X).
-    """
-    if len(np.unique(a)) < 2*bins:
-        return a.copy()
-    b = np.zeros_like(a)
-    m, M = a.min(), a.max()
-    r = M - m # the range of the data
-    step = r / bins
-    lows = np.arange(m, M, step)
-    highs = np.arange(m+step, M+step, step)
-    for low, high in zip(lows, highs):
-        locations = np.flatnonzero((low <= a) * (a < high))
-        if len(locations) > 0:
-            values = a.ravel()[locations]
-            b.ravel()[locations] = values.mean()
-    return b
-
-
 def pixel_wise_boundary_precision_recall(pred, gt):
     """Evaluate voxel prediction accuracy against a ground truth.
 
