@@ -87,37 +87,6 @@ def sparse_csr_row_max(csr_mat):
     return ret
 
 
-def bin_values(a, bins=255):
-    """Return an array with its values discretised to the given number of bins.
-
-    Parameters
-    ----------
-    a : np.ndarray, arbitrary shape
-        The input array.
-    bins : int, optional
-        The number of bins in which to put the data. default: 255.
-
-    Returns
-    -------
-    b : np.ndarray, same shape as a
-        The output array, such that values in bin X are replaced by mean(X).
-    """
-    if len(np.unique(a)) < 2*bins:
-        return a.copy()
-    b = np.zeros_like(a)
-    m, M = a.min(), a.max()
-    r = M - m # the range of the data
-    step = r / bins
-    lows = np.arange(m, M, step)
-    highs = np.arange(m+step, M+step, step)
-    for low, high in zip(lows, highs):
-        locations = np.flatnonzero((low <= a) * (a < high))
-        if len(locations) > 0:
-            values = a.ravel()[locations]
-            b.ravel()[locations] = values.mean()
-    return b
-
-
 def pixel_wise_boundary_precision_recall(pred, gt):
     """Evaluate voxel prediction accuracy against a ground truth.
 
@@ -362,16 +331,14 @@ def contingency_table(seg, gt, ignore_seg=[0], ignore_gt=[0], norm=True):
     """
     segr = seg.ravel() 
     gtr = gt.ravel()
-    ij = np.vstack((segr, gtr))
-    selector = np.ones(segr.shape, np.bool)
+    ignored = np.zeros(segr.shape, np.bool)
     data = np.ones(len(gtr))
     for i in ignore_seg:
-        selector[segr == i] = 0
+        ignored[segr == i] = True
     for j in ignore_gt:
-        selector[gtr == j] = 0
-    ij = ij[:, selector]
-    data = data[selector]
-    cont = sparse.coo_matrix((data, ij)).tocsc()
+        ignored[gtr == j] = True
+    data[ignored] = 0
+    cont = sparse.coo_matrix((data, (segr, gtr))).tocsc()
     if norm:
         cont /= float(cont.sum())
     return cont
