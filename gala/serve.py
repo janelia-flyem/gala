@@ -1,4 +1,5 @@
 import numpy as np
+import networkx as nx
 from sklearn.utils import check_random_state
 import zmq
 from . import agglo, features, classify, evaluate as ev
@@ -77,10 +78,12 @@ class Solver(object):
                 return
 
     def learn_merge(self, segments):
-        segments = iter(set(self.rag.tree.highest_ancestor(s)
-                            for s in segments))
-        s0 = next(segments)
-        for s1 in segments:
+        segments = set(self.rag.tree.highest_ancestor(s) for s in segments)
+        # ensure the segments are ordered such that every subsequent
+        # pair shares an edge
+        ordered = nx.dfs_preorder_nodes(nx.subgraph(self.rag, segments))
+        s0 = next(ordered)
+        for s1 in ordered:
             self.features.append(_feature_manager(self.rag, s0, s1))
             self.history.append((s0, s1))
             s0 = self.rag.merge_nodes(s0, s1)
