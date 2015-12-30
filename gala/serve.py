@@ -96,7 +96,12 @@ class Solver(object):
         s0, s1 = self.rag.separate_fragments(f0, f1)
         # trace the segments up to the current state of the RAG
         # don't use the segments directly
-        self.features.append(_feature_manager(self.rag, s0, s1))
+        try:
+            self.features.append(_feature_manager(self.rag, s0, s1))
+        except KeyError:
+            print('failed to split segments %i and %i, '
+                  'based on fragments %i and %i' % (s0, s1, f0, f1))
+            return
         self.targets.append(SEPAR_LABEL)
         self.separate.append((f0, f1))
 
