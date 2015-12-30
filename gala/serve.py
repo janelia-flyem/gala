@@ -91,6 +91,8 @@ class Solver(object):
 
     def learn_separation(self, fragments):
         f0, f1 = fragments
+        if self.rag.boundary_body in (f0, f1):
+            return
         s0, s1 = self.rag.separate_fragments(f0, f1)
         # trace the segments up to the current state of the RAG
         # don't use the segments directly
