@@ -1238,6 +1238,8 @@ class Rag(Graph):
         data = []
         while len(g.merge_queue) > 0:
             merge_priority, valid, n1, n2 = g.merge_queue.pop()
+            if g.boundary_body in (n1, n2):
+                continue
             dat = g.learn_edge((n1,n2), ctables, assignments, feature_map)
             data.append(dat)
             label = dat[1][label_type_keys[labeling_mode]]
@@ -1353,8 +1355,7 @@ class Rag(Graph):
 
         self.feature_manager.update_node_cache(self, n1, n2,
                 self.node[n1]['feature-cache'], self.node[n2]['feature-cache'])
-        new_neighbors = [n for n in self.neighbors(n2)
-                         if n not in [n1, self.boundary_body]]
+        new_neighbors = [n for n in self.neighbors(n2) if n != n1]
         for n in new_neighbors:
             self.merge_edge_properties((n2, n), (n1, n))
         try:
