@@ -118,7 +118,8 @@ class Solver(object):
 
 
 def proofread(fragments, true_segmentation, host='tcp://localhost', port=5556,
-              num_operations=10, mode='fast paint', random_state=None):
+              num_operations=10, mode='fast paint', stop_when_finished=False,
+              random_state=None):
     """Simulate a proofreader by sending and receiving messages to a Solver.
 
     Parameters
@@ -135,6 +136,9 @@ def proofread(fragments, true_segmentation, host='tcp://localhost', port=5556,
         How many proofreading operations to perform before returning.
     mode : string, optional
         The mode with which to simulate proofreading.
+    stop_when_finished : bool, optional
+        Send the solver a "stop" action when done proofreading. Useful
+        when running tests so we don't intend to continue proofreading.
     random_state : None or int or numpy.RandomState instance, optional
         Fix the random state for proofreading.
 
@@ -169,4 +173,6 @@ def proofread(fragments, true_segmentation, host='tcp://localhost', port=5556,
     response = comm.recv_json()
     src = response['data']['fragments']
     dst = response['data']['segments']
+    if stop_when_finished:
+        comm.send_json({'type': 'stop', 'data': {}})
     return src, dst
