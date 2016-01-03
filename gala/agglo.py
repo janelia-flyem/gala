@@ -13,9 +13,12 @@ from numpy import (array, mean, zeros, zeros_like, where, unique,
     flatnonzero, unravel_index, bincount)
 import numpy as np
 from scipy.stats import sem
+from scipy import sparse
 from scipy.sparse import lil_matrix
 from scipy.misc import comb as nchoosek
 from scipy.ndimage.measurements import label
+from scipy import ndimage as ndi
+import networkx as nx
 from networkx import Graph, biconnected_components
 from networkx.algorithms.traversal.depth_first_search import dfs_preorder_nodes
 from skimage.segmentation import relabel_sequential
@@ -1926,3 +1929,45 @@ def best_possible_segmentation(ws, gt):
         ws.merge_subgraph(where(assignment[:,gt_node])[0])
     return ws.get_segmentation()
 
+
+def fast_rag(labels, connectivity=1):
+    """Build a data-free region adjacency graph quickly.
+
+    Parameters
+    ----------
+    labels : array of int
+        Image pre-segmentation or segmentation
+    connectivity : int in {1, ..., labels.ndim}, optional
+        Use square connectivity equal to `connectivity`. See
+        `scipy.ndimage.generate_binary_structure` for more.
+
+    Returns
+    -------
+    g : networkx Graph
+        A graph where nodes represent regions in `labels` and edges
+        indicate adjacency.
+
+    Examples
+    --------
+    >>> labels = np.array([1, 1, 5, 5], dtype=np.int_)
+    >>> fast_rag(labels).edges()
+    [(1, 5)]
+    >>> labels = np.array([[1, 1, 1, 2, 2],
+    ...                    [1, 1, 1, 2, 2],
+    ...                    [3, 3, 4, 4, 4],
+    ...                    [3, 3, 4, 4, 4]], dtype=np.int_)
+    >>> sorted(fast_rag(labels).edges())
+    [(1, 2), (1, 3), (1, 4), (2, 4), (3, 4)]
+    """
+    conn = ndi.generate_binary_structure(labels.ndim, connectivity)
+    eroded = ndi.grey_erosion(labels, footprint=conn)
+    dilated = ndi.grey_dilation(labels, footprint=conn)
+    boundaries = (eroded != dilated)
+    labels_small = eroded[boundaries]
+    labels_large = dilated[boundaries]
+    n = np.max(labels_large) + 1
+    # use a dummy broadcast array as data for RAG
+    data = np.broadcast_to(np.ones((1,), dtype=np.int_), labels_small.shape)
+    sparse_graph = sparse.coo_matrix((data, (labels_small, labels_large)),
+                                     dtype=np.int_, shape=(n, n)).tocsr()
+    return nx.from_scipy_sparse_matrix(sparse_graph, edge_attribute='count')
