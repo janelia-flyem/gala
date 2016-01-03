@@ -166,6 +166,7 @@ def get_classifier(name='random forest', *args, **kwargs):
     name = name.lower()
     is_random_forest = name.find('random') > -1 and name.find('forest') > -1
     is_naive_bayes = name.find('naive') > -1
+    is_logistic = name.startswith('logis')
     if vigra_available and is_random_forest:
         return VigraRandomForest(*args, **kwargs)
     elif is_random_forest:
@@ -175,6 +176,9 @@ def get_classifier(name='random forest', *args, **kwargs):
         if 'random_state' in kwargs:
             del kwargs['random_state']
         return GaussianNB(*args, **kwargs)
+    elif is_logistic:
+        from sklearn.linear_model import LogisticRegression
+        return LogisticRegression(*args, **kwargs)
     else:
         raise NotImplementedError('Classifier "%s" is either not installed '
                                   'or not implemented in Gala.')
