@@ -87,8 +87,8 @@ class Rag(object):
         return label_map[self.labels]
 
 
-def best_segmentation(fragments: np.ndarray,
-                      ground_truth: np.ndarray) -> np.ndarray:
+def best_segmentation(fragments: np.ndarray, ground_truth: np.ndarray,
+                      random_seed: int = None) -> np.ndarray:
     """Return the best segmentation possible when only merging in `fragments`.
 
     Parameters
@@ -97,6 +97,8 @@ def best_segmentation(fragments: np.ndarray,
         An initial oversegmentation.
     ground_truth : array of int
         The true segmentation.
+    random_seed : int, optional
+        Seed `numpy.random` with this value.
 
     Returns
     -------
@@ -115,9 +117,15 @@ def best_segmentation(fragments: np.ndarray,
            [5, 5, 6, 6],
            [5, 6, 6, 6]])
     """
+    if random_seed is not None:
+        np.random.seed(random_seed)
     ctable = ev.contingency_table(fragments, ground_truth,
                                   ignore_seg=[], ignore_gt=[],
                                   norm=False)
+    # break ties randomly; since ctable is not normalised, it contains
+    # integer values, so adding noise of standard dev 0.01 will not change
+    # any existing ordering
+    ctable.data += np.random.randn(ctable.data.size) * 0.01
     maxes = ctable.max(axis=1).toarray()
     maxes_repeated = np.take(maxes, ctable.indices)
     assignments = sparse.csc_matrix((ctable.data == maxes_repeated,
