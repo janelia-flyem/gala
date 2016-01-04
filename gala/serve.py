@@ -2,7 +2,7 @@ import numpy as np
 import networkx as nx
 from sklearn.utils import check_random_state
 import zmq
-from . import agglo, features, classify, evaluate as ev
+from . import agglo, agglo2, features, classify, evaluate as ev
 
 
 _feature_manager = features.default.snemi3d()
@@ -150,7 +150,7 @@ def proofread(fragments, true_segmentation, host='tcp://localhost', port=5556,
         initial proofreading simulation.
     """
     true = agglo.best_possible_segmentation(fragments, true_segmentation)
-    base_graph = agglo.Rag(fragments)
+    base_graph = agglo2.fast_rag(fragments)
     comm = zmq.Context().socket(zmq.PAIR)
     comm.connect(host + ':' + str(port))
     ctable = ev.contingency_table(fragments, true).tocsc()
