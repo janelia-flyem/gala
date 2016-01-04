@@ -23,64 +23,13 @@ def tar_extract(fn):
 
 rundir = os.path.dirname(__file__)
 
-# prepare feature manager
-
-def _compute_delta_vi(ctable, fragments0, fragments1):
-    c0 = np.sum(ctable[list(fragments0)], axis=0)
-    c1 = np.sum(ctable[list(fragments1)], axis=0)
-    cr = c0 + c1
-    p0 = np.sum(c0)
-    p1 = np.sum(c1)
-    pr = np.sum(cr)
-    p0g = np.sum(ev.xlogx(c0))
-    p1g = np.sum(ev.xlogx(c1))
-    prg = np.sum(ev.xlogx(cr))
-    return (pr * np.log2(pr) - p0 * np.log2(p0) - p1 * np.log2(p1) -
-            2 * (prg - p0g - p1g))
-
-
-class _f_mock(features.base.Null):
-    '''
-    Mock feature manager to verify agglomerative learning works.
-
-    This manager learns a different feature map for fragments vs
-    agglomerated segments. It relies on knowing the ground truth for a
-    given fragmentation.
-
-    Parameters
-    ----------
-    frag, gt : array of int, same shape
-        The fragmentation and ground truth volumes. Must have same shape.
-    '''
-    def __init__(self, frag, gt):
-        self.ctable = ev.contingency_table(frag, gt, ignore_seg=[],
-                                           ignore_gt=[]).toarray()
-        self._std = 0.1  # standard deviation of feature computations
-
-    def eps(self):
-        return np.random.randn(2) * self._std
-
-    def compute_features(self, g, n1, n2=None):
-        if n2 is None:
-            return np.array([])
-        f1, f2 = g.node[n1]['fragments'], g.node[n2]['fragments']
-        should_merge = _compute_delta_vi(self.ctable, f1, f2) < 0
-        if should_merge:
-            return np.array([0., 0.]) + self.eps()
-        else:
-            if len(f1) + len(f2) == 2:  # single-fragment merge
-                return np.array([1., 0.]) + self.eps()
-            else:  # multi-fragment merge
-                return np.array([0., 1.]) + self.eps()
-
-
 ### fixtures
 
 @pytest.fixture
 def dummy_data():
     frag = np.arange(1, 17, dtype=int).reshape((4, 4))
     gt = np.array([[1, 1, 2, 2], [1, 1, 2, 2], [3] * 4, [3] * 4], dtype=int)
-    fman = _f_mock(frag, gt)
+    fman = features.base.Mock(frag, gt)
     g = agglo.Rag(frag, feature_manager=fman)
     return frag, gt, g, fman
 

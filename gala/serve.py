@@ -5,9 +5,6 @@ import zmq
 from . import agglo, agglo2, features, classify, evaluate as ev
 
 
-_feature_manager = features.default.snemi3d()
-
-
 # constants
 # labels for machine learning libs
 MERGE_LABEL = 0
@@ -24,11 +21,12 @@ class Solver(object):
     Attributes
     ----------
     '''
-    def __init__(self, labels, image, port=5556, host='tcp://*',
-                 relearn_threshold=20):
+    def __init__(self, labels, image=np.array([]),
+                 feature_manager=features.default.snemi3d(),
+                 port=5556, host='tcp://*', relearn_threshold=20):
         self.labels = labels
         self.image = image
-        self.policy = agglo.boundary_mean
+        self.feature_manager = feature_manager
         self.build_rag()
         self.comm = zmq.Context().socket(zmq.PAIR)
         self.addr = host + ':' + str(port)
@@ -42,8 +40,7 @@ class Solver(object):
 
     def build_rag(self):
         self.rag = agglo.Rag(self.labels, self.image,
-                             merge_priority_function=self.policy,
-                             feature_manager=_feature_manager,
+                             feature_manager=self.feature_manager,
                              normalize_probabilities=True)
         self.original_rag = self.rag.copy()
 
@@ -84,7 +81,7 @@ class Solver(object):
         ordered = nx.dfs_preorder_nodes(nx.subgraph(self.rag, segments))
         s0 = next(ordered)
         for s1 in ordered:
-            self.features.append(_feature_manager(self.rag, s0, s1))
+            self.features.append(self.feature_manager(self.rag, s0, s1))
             self.history.append((s0, s1))
             s0 = self.rag.merge_nodes(s0, s1)
             self.targets.append(MERGE_LABEL)
@@ -97,7 +94,7 @@ class Solver(object):
         # trace the segments up to the current state of the RAG
         # don't use the segments directly
         try:
-            self.features.append(_feature_manager(self.rag, s0, s1))
+            self.features.append(self.feature_manager(self.rag, s0, s1))
         except KeyError:
             print('failed to split segments %i and %i, '
                   'based on fragments %i and %i' % (s0, s1, f0, f1))
@@ -107,7 +104,7 @@ class Solver(object):
 
     def relearn(self):
         clf = classify.DefaultRandomForest().fit(self.features, self.targets)
-        self.policy = agglo.classifier_probability(_feature_manager, clf)
+        self.policy = agglo.classifier_probability(self.feature_manager, clf)
         self.rag = self.original_rag.copy()
         self.rag.merge_priority_function = self.policy
         self.rag.rebuild_merge_queue()
