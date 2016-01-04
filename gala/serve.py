@@ -149,7 +149,7 @@ def proofread(fragments, true_segmentation, host='tcp://localhost', port=5556,
         (second array), obtained by requesting it from the Solver after
         initial proofreading simulation.
     """
-    true = agglo.best_possible_segmentation(fragments, true_segmentation)
+    true = agglo2.best_segmentation(fragments, true_segmentation)
     base_graph = agglo2.fast_rag(fragments)
     comm = zmq.Context().socket(zmq.PAIR)
     comm.connect(host + ':' + str(port))
