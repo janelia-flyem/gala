@@ -40,9 +40,10 @@ def fast_rag(labels, connectivity=1):
     conn = ndi.generate_binary_structure(labels.ndim, connectivity)
     eroded = ndi.grey_erosion(labels, footprint=conn)
     dilated = ndi.grey_dilation(labels, footprint=conn)
-    boundaries = (eroded != dilated)
-    labels_small = eroded[boundaries]
-    labels_large = dilated[boundaries]
+    boundaries0 = (eroded != labels)
+    boundaries1 = (dilated != labels)
+    labels_small = np.concatenate((eroded[boundaries0], labels[boundaries1]))
+    labels_large = np.concatenate((labels[boundaries0], dilated[boundaries1]))
     n = np.max(labels_large) + 1
     # use a dummy broadcast array as data for RAG
     data = np.broadcast_to(np.ones((1,), dtype=np.int_),
