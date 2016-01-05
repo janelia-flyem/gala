@@ -46,6 +46,7 @@ def test_server(dummy_data):
     # test: resulting segmentation should be improvement over fragments alone
     assert (ev.vi(result, gt, ignore_x=[], ignore_y=[]) <
             ev.vi(frag, gt, ignore_x=[], ignore_y=[]))
+    thread.join()
 
 
 def test_server_imperfect_fragments(dummy_data2):
@@ -61,6 +62,7 @@ def test_server_imperfect_fragments(dummy_data2):
     # test: resulting segmentation should be improvement over fragments alone
     assert (ev.vi(result, gt, ignore_x=[], ignore_y=[]) <
             ev.vi(frag, gt, ignore_x=[], ignore_y=[]))
+    thread.join()
 
 
 @pytest.fixture
@@ -84,3 +86,4 @@ def test_server_long(data):
     # test: resulting segmentation should be improvement over fragments alone
     assert (ev.vi(result, gt, ignore_x=[], ignore_y=[]) <
             ev.vi(frag, gt, ignore_x=[], ignore_y=[]))
+    thread.join()
