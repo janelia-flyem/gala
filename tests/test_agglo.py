@@ -5,7 +5,7 @@ D = os.path.dirname(os.path.abspath(__file__)) + '/'
 import numpy as np
 from numpy.testing import assert_equal, assert_allclose
 
-from gala import agglo
+from gala import agglo, agglo2
 from gala import evaluate as ev
 
 
@@ -106,6 +106,11 @@ def test_traverse():
     assert g.traversing_bodies() == [1]
     assert g.non_traversing_bodies() == [0, 2]
 
+
+def test_thin_fragment_agglo2():
+    labels = np.array([[1, 2, 3]] * 3)
+    g = agglo2.Rag(labels)
+    assert (1, 3) not in g.graph.edges()
 
 if __name__ == '__main__':
     from numpy import testing
