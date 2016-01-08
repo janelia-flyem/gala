@@ -45,6 +45,15 @@ class Solver(object):
         self.original_rag = self.rag.copy()
 
     def send_segmentation(self):
+        """Send a segmentation to ZMQ as a fragment-to-segment lookup table.
+
+        The format of the lookup table (LUT) is specified in the BigCat
+        wiki [1]_.
+
+        References
+        ----------
+        .. [1] https://github.com/saalfeldlab/bigcat/wiki/Actors,-responsibilities,-and-inter-process-communication
+        """
         self.relearn()  # correct way to do it is to implement RAG splits
         self.rag.agglomerate(0.5)
         dst = [int(i) for i in self.rag.tree.get_map(0.5)]
@@ -54,6 +63,15 @@ class Solver(object):
         self.comm.send_json(message)
 
     def listen(self):
+        """Listen to ZMQ port for instructions and data.
+
+        The instructions conform to the proofreading protocol defined in the
+        BigCat wiki [1]_.
+
+        References
+        ----------
+        .. [1] https://github.com/saalfeldlab/bigcat/wiki/Actors,-responsibilities,-and-inter-process-communication
+        """
         while True:
             message = self.comm.recv_json()
             command = message['type']
