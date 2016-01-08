@@ -27,7 +27,7 @@ class Solver(object):
         self.labels = labels
         self.image = image
         self.feature_manager = feature_manager
-        self.build_rag()
+        self._build_rag()
         self.comm = zmq.Context().socket(zmq.PAIR)
         self.addr = host + ':' + str(port)
         self.comm.bind(self.addr)
@@ -38,7 +38,8 @@ class Solver(object):
         self.relearn_threshold = relearn_threshold
         self.relearn_trigger = relearn_threshold
 
-    def build_rag(self):
+    def _build_rag(self):
+        """Build the region-adjacency graph from the label image."""
         self.rag = agglo.Rag(self.labels, self.image,
                              feature_manager=self.feature_manager,
                              normalize_probabilities=True)
