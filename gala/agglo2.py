@@ -55,7 +55,17 @@ def fast_rag(labels, connectivity=1):
 
 
 class Rag(object):
-    def __init__(self, labels, connectivity=1):
+    """A minimal region adjacency graph class.
+
+    Parameters
+    ----------
+    labels : array of int
+        An n-dimensional array of integer-labeled regions.
+    connectivity : int in {1, ..., `labels.ndim`}, optional
+        The square connectivity, determining which nearby pixels are
+        considered neighbors.
+    """
+    def __init__(self, labels : np.ndarray, connectivity: int = 1):
         self.labels = labels
         self.graph = fast_rag(labels, connectivity)
         self.tree = tree.Ultrametric(init_nodes=self.graph.nodes())
@@ -84,6 +94,20 @@ class Rag(object):
 
     def current_segmentation(self,
                              cut_threshold: float = np.inf) -> np.ndarray:
+        """Return the segmentation implied by the graph and current merge tree.
+
+        Parameters
+        ----------
+        cut_threshold : float, optional
+            If provided, cut the merge tree at this threshold (virtually;
+            the tree is not modified) before calculating the segmentation.
+
+        Returns
+        -------
+        seg : array of int
+            The segmentation.
+
+        """
         label_map = self.tree.get_map(cut_threshold)
         return label_map[self.labels]
 
