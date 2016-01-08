@@ -12,15 +12,14 @@ SEPAR_LABEL = 1
 
 
 class Solver(object):
-    '''
-    ZMQ-based interface between proofreading clients and gala RAGs.
+    """ZMQ-based interface between proofreading clients and gala RAGs.
 
     Parameters
     ----------
 
     Attributes
     ----------
-    '''
+    """
     def __init__(self, labels, image=np.array([]),
                  feature_manager=features.default.snemi3d(),
                  port=5556, host='tcp://*', relearn_threshold=20):
