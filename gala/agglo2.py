@@ -64,6 +64,16 @@ class Rag(object):
     connectivity : int in {1, ..., `labels.ndim`}, optional
         The square connectivity, determining which nearby pixels are
         considered neighbors.
+
+    Attributes
+    ----------
+    labels : array of int
+        Reference to the input. (ie if the input array is modified, so will
+        the value in this attribute!)
+    graph : networkx.Graph
+        The region adjacency graph constructed from `labels`.
+    tree : viridis.tree.Ultrametric
+        The merge tree, for which the nodes in `graph` are leaves.
     """
     def __init__(self, labels : np.ndarray, connectivity: int = 1):
         self.labels = labels
