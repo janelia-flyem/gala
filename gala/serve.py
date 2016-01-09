@@ -93,6 +93,13 @@ class Solver(object):
                 return
 
     def learn_merge(self, segments):
+        """Learn that a pair of segments should be merged.
+
+        Parameters
+        ----------
+        segments : tuple of int
+            A pair of segment identifiers.
+        """
         segments = set(self.rag.tree.highest_ancestor(s) for s in segments)
         # ensure the segments are ordered such that every subsequent
         # pair shares an edge
@@ -105,6 +112,13 @@ class Solver(object):
             self.targets.append(MERGE_LABEL)
 
     def learn_separation(self, fragments):
+        """Learn that a pair of fragments should never be in the same segment.
+
+        Parameters
+        ----------
+        fragments : tuple of int
+            A pair of fragment identifiers.
+        """
         f0, f1 = fragments
         if self.rag.boundary_body in (f0, f1):
             return
@@ -121,6 +135,11 @@ class Solver(object):
         self.separate.append((f0, f1))
 
     def relearn(self):
+        """Learn a new merge policy using data gathered so far.
+
+        This resets the state of the RAG to contain only the merges and
+        separations received over the course of its history.
+        """
         clf = classify.DefaultRandomForest().fit(self.features, self.targets)
         self.policy = agglo.classifier_probability(self.feature_manager, clf)
         self.rag = self.original_rag.copy()
