@@ -14,6 +14,8 @@ SEPAR_LABEL = 1
 class Solver(object):
     """ZMQ-based interface between proofreading clients and gala RAGs.
 
+    This docstring is intentionally incomplete until the interface settles.
+
     Parameters
     ----------
 
