@@ -23,24 +23,24 @@ If you use or compare to the GALA algorithm in your research, please cite:
 
 Gala supports n-dimensional images (images, volumes, videos, videos of 
 volumes...) and multiple channels per image. It is compatible with
-Python 3.4 and 3.5.
+Python 3.5.
 
 [![Build Status](https://travis-ci.org/janelia-flyem/gala.png?branch=master)](https://travis-ci.org/janelia-flyem/gala)
 [![Coverage Status](https://img.shields.io/coveralls/janelia-flyem/gala.svg)](https://coveralls.io/r/janelia-flyem/gala)
 
 ## Requirements
 
-* Python 3.4 or 3.5
-* numpy 1.7+
-* scipy 0.10+
+* Python 3.5
+* numpy 1.10+
+* scipy 0.16+
 * Image (a.k.a. Python Imaging Library or PIL) 1.1.7 or Pillow 2.5+
 * networkx 1.6+
 * HDF5 and h5py 1.5+
 * cython 0.17+
 * scikit-learn 0.15
 * matplotlib 1.2+
-* scikit-image 0.9+
-* viridis 0.3+
+* scikit-image 0.11+
+* viridis 0.4+
 
 ### Optional dependencies
 

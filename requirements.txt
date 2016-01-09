@@ -1,11 +1,11 @@
-numpy>=1.6
+numpy>=1.10
 numpydoc>=0.5
 pillow>=2.7.0
 networkx>=1.6
 h5py>=1.5
-scipy>=0.9
+scipy>=0.16
 cython>=0.17
-viridis>=0.3
+viridis>=0.4
 scikit-image>=0.11
 scikit-learn>=0.15
 pyzmq>=14.7
