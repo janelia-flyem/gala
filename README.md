@@ -2,7 +2,7 @@
 
 Gala is a Python library for performing and evaluating image segmentation,
 distributed under the open-source, BSD-like
-[Janelia Farm license](http://janelia-flyem.github.com/janelia_farm_license.html).
+[Janelia Farm license](http://janelia-flyem.github.io/janelia_farm_license.html).
 It implements the algorithm described in
 [Nunez-Iglesias *et al*.](http://arxiv.org/abs/1303.6163), PLOS ONE, 2013.
 
