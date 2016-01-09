@@ -2,13 +2,13 @@ import os
 import glob
 from contextlib import contextmanager
 
-from numpy.testing import assert_allclose, assert_array_equal
+import pytest
+
+from numpy.testing import assert_allclose
 import numpy as np
-from sklearn.externals import joblib
-from sklearn.naive_bayes import GaussianNB
+from sklearn.linear_model import LogisticRegression as LR
 import subprocess as sp
-from gala import imio, classify, features, agglo, evaluate as ev
-import pickle
+from gala import imio, features, agglo, evaluate as ev
 
 
 @contextmanager
@@ -23,151 +23,123 @@ def tar_extract(fn):
 
 rundir = os.path.dirname(__file__)
 
-# load example data
+### fixtures
 
-train_list = ['example-data/train-gt.lzf.h5', 'example-data/train-p1.lzf.h5',
-              'example-data/train-p4.lzf.h5', 'example-data/train-ws.lzf.h5']
-train_list = [os.path.join(rundir, fn) for fn in train_list]
-gt_train, pr_train, p4_train, ws_train = map(imio.read_h5_stack, train_list)
-test_list = ['example-data/test-gt.lzf.h5', 'example-data/test-p1.lzf.h5',
-             'example-data/test-p4.lzf.h5', 'example-data/test-ws.lzf.h5']
-test_list = [os.path.join(rundir, fn) for fn in test_list]
-gt_test, pr_test, p4_test, ws_test = map(imio.read_h5_stack, test_list)
+@pytest.fixture
+def dummy_data():
+    frag = np.arange(1, 17, dtype=int).reshape((4, 4))
+    gt = np.array([[1, 1, 2, 2], [1, 1, 2, 2], [3] * 4, [3] * 4], dtype=int)
+    fman = features.base.Mock(frag, gt)
+    g = agglo.Rag(frag, feature_manager=fman)
+    return frag, gt, g, fman
 
-# prepare feature manager
-fm = features.moments.Manager()
-fh = features.histogram.Manager()
-fc = features.base.Composite(children=[fm, fh])
-
-### helper functions
-
-
-def load_pickle(fn):
-    with open(fn, 'rb') as fin:
-        return pickle.load(fin, encoding='bytes', fix_imports=True)
-
-
-def load_training_data(fn):
-    io = np.load(fn)
-    X, y = io['X'], io['y']
-    if y.ndim > 1:
-        y = y[:, 0]
-    return X, y
-
-def save_training_data(fn, X, y):
-    np.savez(fn, X=X, y=y)
-
-def train_and_save_classifier(training_data_file, filename,
-                              classifier_kind='random forest'):
-    X, y = load_training_data(training_data_file)
-    cl = classify.get_classifier(classifier_kind)
-    cl.fit(X, y)
-    classify.save_classifier(cl, filename, use_joblib=False)
 
 ### tests
 
-def test_generate_lash_examples_1_channel():
+def test_generate_flat_learning_edges(dummy_data):
+    """Run a flat epoch and ensure all edges are correctly represented."""
+    frag, gt, g, fman = dummy_data
+    feat, target, weights, edges = g.learn_flat(gt, fman)
+    assert feat.shape == (24, 2)
+    assert tuple(edges[0]) == (1, 2)
+    assert tuple(edges[-1]) == (15, 16)
+    assert np.sum(target[:, 0] == 1) == 6  # number of non-merge edges
+
+
+def test_generate_lash_examples(dummy_data):
     """Run a flat epoch and an active epoch of learning, compare learned sets.
 
-    The *order* of the edges learned by learn_flat is not guaranteed, so we
-    test the *set* of learned edges for the flat epoch. The learned epoch
-    *should* have a fixed order, so we test array equality.
+    The mock feature manager places all merge examples at (0, 0) in feature
+    space, and all non-merge examples at (1, 0), *in flat learning*. During
+    agglomeration, non-merge examples go to (0, 1), which confuses the flat
+    classifier (which has only learned the difference along the first feature
+    dimension).
 
-    Uses 1 channel probabilities.
+    This test checks for those differences in learning using a simple
+    logistic regression.
     """
-    g_train = agglo.Rag(ws_train, pr_train, feature_manager=fc)
-    _, alldata = g_train.learn_agglomerate(gt_train, fc,
-                                           learning_mode='permissive',
-                                           classifier='naive bayes')
-    testfn = 'example-data/train-naive-bayes-merges1-py3.pck'
-    exp0, exp1 = load_pickle(os.path.join(rundir, testfn))
-    expected_edges = set(map(tuple, exp0))
-    edges = set(map(tuple, alldata[0][3]))
-    merges = alldata[1][3]
-    assert edges == expected_edges
-    assert_array_equal(merges, exp1)
-    nb = GaussianNB().fit(alldata[0][0], alldata[0][1][:, 0])
-    nbexp = joblib.load(os.path.join(rundir,
-                                     'example-data/naive-bayes-1.joblib'))
-    assert_allclose(nb.theta_, nbexp.theta_, atol=1e-10)
-    assert_allclose(nb.sigma_, nbexp.sigma_, atol=1e-4)
-    assert_allclose(nb.class_prior_, nbexp.class_prior_, atol=1e-7)
+    frag, gt, g, fman = dummy_data
+    np.random.seed(5)
+    summary, allepochs = g.learn_agglomerate(gt, fman,
+                                             learning_mode='permissive',
+                                             classifier='logistic regression')
+    feat, target, weights, edges = summary
+    ffeat, ftarget, fweights, fedges = allepochs[0]  # flat
+    lr = LR().fit(feat, target[:, 0])
+    flr = LR().fit(ffeat, ftarget[:, 0])
+    def pred(v):
+        return lr.predict_proba([v])[0, 1]
+    def fpred(v):
+        return flr.predict_proba([v])[0, 1]
+    assert len(allepochs[1][0]) == 15  # number of merges is |nodes| - 1
+
+    # approx. same learning results at (0., 0.) and (1., 0.)
+    assert_allclose(fpred([0, 0]), 0.2, atol=0.025)
+    assert_allclose(pred([0, 0]), 0.2, atol=0.025)
+    assert_allclose(fpred([1, 0]), 0.64, atol=0.025)
+    assert_allclose(pred([1, 0]), 0.64, atol=0.025)
+
+    # difference between agglomerative and flat learning in point (0., 1.)
+    assert_allclose(fpred([0, 1]), 0.2, atol=0.025)
+    assert_allclose(pred([0, 1]), 0.6, atol=0.025)
 
 
-def test_generate_gala_examples_1_channel():
-    """As `test_generate_lash_examples_1_channel`, but using strict learning.
-    """
-    g_train = agglo.Rag(ws_train, pr_train, feature_manager=fc)
-    _, alldata = g_train.learn_agglomerate(gt_train, fc,
-                                           learning_mode='strict',
-                                           classifier='naive bayes')
-    testfn = 'example-data/train-naive-bayes-merges1-py3.pck'
-    exp0, exp1 = load_pickle(os.path.join(rundir, testfn))
-    expected_edges = set(map(tuple, exp0))
-    edges = set(map(tuple, alldata[0][3]))
-    merges = alldata[1][3]
-    # expect same edges in flat learning
-    assert edges == expected_edges  # flat learning epoch
-    # expect more edges in strict training than permissive
-    assert np.shape(merges)[0] > np.shape(exp1)[0]
+def test_generate_gala_examples(dummy_data):
+    """As `test_generate_lash_examples`, but using strict learning. """
+    frag, gt, g, fman = dummy_data
+    np.random.seed(5)
+    summary, allepochs = g.learn_agglomerate(gt, fman,
+                                             learning_mode='strict',
+                                             classifier='logistic regression')
+    feat, target, weights, edges = summary
+    ffeat, ftarget, fweights, fedges = allepochs[0]  # flat
+    lr = LR().fit(feat, target[:, 0])
+    flr = LR().fit(ffeat, ftarget[:, 0])
+    def pred(v):
+        return lr.predict_proba([v])[0, 1]
+    def fpred(v):
+        return flr.predict_proba([v])[0, 1]
+    assert len(allepochs[1][0]) == 21 # number of merges is more than LASH
+
+    # approx. same learning results at (0., 0.) and (1., 0.)
+    assert_allclose(fpred([0, 0]), 0.2, atol=0.025)
+    assert_allclose(pred([0, 0]), 0.2, atol=0.025)
+    assert_allclose(fpred([1, 0]), 0.64, atol=0.025)
+    assert_allclose(pred([1, 0]), 0.64, atol=0.025)
+
+    # difference between agglomerative and flat learning in point (0., 1.);
+    # greater separation than with LASH
+    assert_allclose(fpred([0, 1]), 0.2, atol=0.025)
+    assert_allclose(pred([0, 1]), 0.7, atol=0.025)
 
 
-def test_segment_with_classifer_1_channel():
-    fn = os.path.join(rundir, 'example-data/rf1-py3.joblib')
-    with tar_extract(fn) as fn:
-        rf = joblib.load(fn)
-    learned_policy = agglo.classifier_probability(fc, rf)
-    g_test = agglo.Rag(ws_test, pr_test, learned_policy, feature_manager=fc)
-    g_test.agglomerate(0.5)
-    seg_test = g_test.get_segmentation()
-    #imio.write_h5_stack(seg_test, 'example-data/test-seg-1.lzf.h5')
-    seg_expected = imio.read_h5_stack(
-        os.path.join(rundir, 'example-data/test-seg-1.lzf.h5'))
-    assert_allclose(ev.vi(seg_test, seg_expected), 0.0)
+def test_segment_with_gala_classifer(dummy_data):
+    frag, gt, g, fman = dummy_data
+    np.random.seed(5)
+    summary, allepochs = g.learn_agglomerate(gt, fman,
+                                             learning_mode='strict',
+                                             classifier='logistic regression')
+    feat, target, weights, edges = summary
+    ffeat, ftarget, fweights, fedges = allepochs[0]  # flat
+    lr = LR().fit(feat, target[:, 0])
+    gala_policy = agglo.classifier_probability(fman, lr)
+    flr = LR().fit(ffeat, ftarget[:, 0])
+    flat_policy = agglo.classifier_probability(fman, flr)
 
-
-def test_generate_examples_4_channel():
-    """Run a flat epoch and an active epoch of learning, compare learned sets.
-
-    The *order* of the edges learned by learn_flat is not guaranteed, so we
-    test the *set* of learned edges for the flat epoch. The learned epoch
-    *should* have a fixed order, so we test array equality.
-
-    Uses 4 channel probabilities.
-    """
-    g_train = agglo.Rag(ws_train, p4_train, feature_manager=fc)
-    _, alldata = g_train.learn_agglomerate(gt_train, fc,
-                                           learning_mode='permissive',
-                                           classifier='naive bayes')
-    testfn = 'example-data/train-naive-bayes-merges4-py3.pck'
-    exp0, exp1 = load_pickle(os.path.join(rundir, testfn))
-    expected_edges = set(map(tuple, exp0))
-    edges = set(map(tuple, alldata[0][3]))
-    merges = alldata[1][3]
-    assert edges == expected_edges
-    assert_array_equal(merges, exp1)
-    nb = GaussianNB().fit(alldata[0][0], alldata[0][1][:, 0])
-    nbexp = joblib.load(os.path.join(rundir,
-                                     'example-data/naive-bayes-4.joblib'))
-    assert_allclose(nb.theta_, nbexp.theta_, atol=1e-10)
-    assert_allclose(nb.sigma_, nbexp.sigma_, atol=1e-4)
-    assert_allclose(nb.class_prior_, nbexp.class_prior_, atol=1e-7)
-
-
-def test_segment_with_classifier_4_channel():
-    fn = os.path.join(rundir, 'example-data/rf4-py3.joblib')
-    with tar_extract(fn) as fn:
-        rf = joblib.load(fn)
-    learned_policy = agglo.classifier_probability(fc, rf)
-    g_test = agglo.Rag(ws_test, p4_test, learned_policy, feature_manager=fc)
-    g_test.agglomerate(0.5)
-    seg_test = g_test.get_segmentation()
-    seg_expected = imio.read_h5_stack(
-            os.path.join(rundir, 'example-data/test-seg-4.lzf.h5'))
-    assert_allclose(ev.vi(seg_test, seg_expected), 0.0)
+    gtest = agglo.Rag(frag, feature_manager=fman,
+                      merge_priority_function=gala_policy)
+    gtest.agglomerate(0.5)
+    assert ev.vi(gtest.get_segmentation(), gt) == 0
+    gtest_flat = agglo.Rag(frag, feature_manager=fman,
+                           merge_priority_function=flat_policy)
+    assert ev.vi(gtest_flat.get_segmentation(0.5), gt) == 1.5
 
 
 def test_split_vi():
+    ws_test = imio.read_h5_stack(
+            os.path.join(rundir, 'example-data/test-ws.lzf.h5'))
+    gt_test = imio.read_h5_stack(
+            os.path.join(rundir, 'example-data/test-gt.lzf.h5'))
     seg_test1 = imio.read_h5_stack(
             os.path.join(rundir, 'example-data/test-seg1.lzf.h5'))
     seg_test4 = imio.read_h5_stack(

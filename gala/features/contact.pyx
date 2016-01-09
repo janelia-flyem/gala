@@ -90,10 +90,11 @@ cdef _compute_contact_matrix(double[:,:,:] totals, double volume_ratio_1,
             scores[cc, tt, 3] = scores[cc, tt, 2] / volume_ratio_2
     return scores
 
-cdef _compute_edge_cache(long[:] edge_idxs, long[:] n1_idxs, long[:] n2_idxs,
-                    double[:,:] vals, double[:] thresholds):
+cdef _compute_edge_cache(Py_ssize_t[:] edge_idxs, Py_ssize_t[:] n1_idxs,
+                         Py_ssize_t[:] n2_idxs,
+                         double[:,:] vals, double[:] thresholds):
 
-    cdef int tt,cc, nchannels, nthresholds
+    cdef int tt, cc, nchannels, nthresholds
     nchannels = vals.shape[1]
     nthresholds = thresholds.shape[0]
     cdef np.ndarray[np.double_t, ndim=3] totals = np.ones([nchannels, nthresholds, 3], 

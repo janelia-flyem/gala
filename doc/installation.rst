@@ -4,7 +4,7 @@ Installation
 Requirements
 ------------
 
--  Python 3.4 or 2.7
+-  Python 3.4 or 3.5
 -  numpy 1.7+
 -  scipy 0.10+
 -  Image (a.k.a. Python Imaging Library or PIL) 1.1.7 or Pillow 2.5+
@@ -19,7 +19,7 @@ Requirements
 Optional dependencies
 ~~~~~~~~~~~~~~~~~~~~~
 
--  progressbar 2.3 (Python 2.7 only, currently)
+-  progressbar 2.3
 -  `vigra/vigranumpy <hci.iwr.uni-heidelberg.de/vigra/>`__ (1.9.0)
 -  libtiff 0.4+
 
