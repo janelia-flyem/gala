@@ -4,17 +4,17 @@ Installation
 Requirements
 ------------
 
--  Python 3.4 or 3.5
--  numpy 1.7+
--  scipy 0.10+
--  Image (a.k.a. Python Imaging Library or PIL) 1.1.7 or Pillow 2.5+
+-  Python 3.5
+-  numpy 1.10+
+-  scipy 0.16+
+-  Image (a.k.a. Python Imaging Library or PIL) 1.1.7 or Pillow 2.7+
 -  networkx 1.6+
 -  HDF5 and h5py 1.5+
 -  cython 0.17+
 -  scikit-learn 0.15+
 -  matplotlib 1.2+
 -  scikit-image 0.11+
--  viridis 0.3+
+-  viridis 0.4+
 
 Optional dependencies
 ~~~~~~~~~~~~~~~~~~~~~
