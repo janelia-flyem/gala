@@ -1919,12 +1919,12 @@ def is_mito(g, n, channel=2, threshold=0.5):
 
 def best_possible_segmentation(ws, gt):
     """Build the best possible segmentation given a superpixel map."""
-    cnt = contingency_table(ws, gt)
+    ws = Rag(ws)
+    cnt = contingency_table(ws.get_segmentation(), gt)
     assignment = cnt == cnt.max(axis=1)[:,newaxis]
     hard_assignment = where(assignment.sum(axis=1) > 1)[0]
     # currently ignoring hard assignment nodes
     assignment[hard_assignment,:] = 0
-    ws = Rag(ws)
     for gt_node in range(1,cnt.shape[1]):
         ws.merge_subgraph(where(assignment[:,gt_node])[0])
     return ws.get_segmentation()

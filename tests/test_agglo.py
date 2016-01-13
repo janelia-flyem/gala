@@ -112,6 +112,14 @@ def test_thin_fragment_agglo2():
     g = agglo2.Rag(labels)
     assert (1, 3) not in g.graph.edges()
 
+
+def test_best_possible_segmentation():
+    ws = np.array([[2,3],[4,5]], np.int32)
+    gt = np.array([[1,2],[1,2]], np.int32)
+    best = agglo.best_possible_segmentation(ws, gt)
+    assert np.all(best[0,:] == best[1,:])
+
+
 if __name__ == '__main__':
     from numpy import testing
     testing.run_module_suite()
