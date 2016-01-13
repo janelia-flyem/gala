@@ -1768,9 +1768,9 @@ class Rag(Graph):
         if self.gt is None and gt is None:
             return array([0,0])
         elif self.gt is not None:
-            return split_vi(None, None, self.rig)
+            return split_vi(self.rig)
         else:
-            return split_vi(self.get_segmentation(), gt, None, [0], [0])
+            return split_vi(self.get_segmentation(), gt, [0], [0])
 
 
     def boundary_indices(self, n1, n2):

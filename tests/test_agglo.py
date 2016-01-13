@@ -128,6 +128,17 @@ def test_set_ground_truth():
     g.set_ground_truth(np.array(labels))
 
 
+def test_split_vi():
+    labels = [[1, 0, 2],
+              [1, 0, 2],
+              [1, 0, 2]]
+    g = agglo.Rag(np.array(labels))
+    vi0 = g.split_vi(np.array(labels))
+    g.set_ground_truth(np.array(labels))
+    vi1 = g.split_vi()
+    assert np.all(vi0 == vi1)
+
+
 if __name__ == '__main__':
     from numpy import testing
     testing.run_module_suite()
