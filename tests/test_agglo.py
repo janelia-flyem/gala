@@ -120,6 +120,14 @@ def test_best_possible_segmentation():
     assert np.all(best[0,:] == best[1,:])
 
 
+def test_set_ground_truth():
+    labels = [[1, 0, 2],
+              [1, 0, 2],
+              [1, 0, 2]]
+    g = agglo.Rag(np.array(labels))
+    g.set_ground_truth(np.array(labels))
+
+
 if __name__ == '__main__':
     from numpy import testing
     testing.run_module_suite()

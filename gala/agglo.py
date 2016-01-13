@@ -41,8 +41,8 @@ from .classify import get_classifier, \
 from .dtypes import label_dtype
 
 
-def contingency_table(a, b):
-    ct = ev_contingency_table(a, b)
+def contingency_table(a, b, ignore_seg=[0], ignore_gt=[0]):
+    ct = ev_contingency_table(a, b, ignore_seg, ignore_gt)
     nx, ny = ct.shape
     ctout = np.zeros((2*nx + 1, ny), ct.dtype)
     ct.todense(out=ctout[:nx, :])
@@ -721,7 +721,7 @@ class Rag(Graph):
             gt_ignore = [0, gtm] if (gt==0).any() else [gtm]
             seg_ignore = [0, self.boundary_body] if \
                         (self.watershed==0).any() else [self.boundary_body]
-            self.gt = morpho.pad(gt, gt_ignore)
+            self.gt = morpho.pad(gt, gtm)
             self.rig = contingency_table(self.watershed, self.gt,
                                          ignore_seg=seg_ignore,
                                          ignore_gt=gt_ignore)
