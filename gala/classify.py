@@ -168,6 +168,8 @@ def get_classifier(name='random forest', *args, **kwargs):
     is_naive_bayes = name.find('naive') > -1
     is_logistic = name.startswith('logis')
     if vigra_available and is_random_forest:
+        if 'random_state' in kwargs:
+            del kwargs['random_state']
         return VigraRandomForest(*args, **kwargs)
     elif is_random_forest:
         return DefaultRandomForest(*args, **kwargs)
