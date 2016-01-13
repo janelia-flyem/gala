@@ -112,6 +112,33 @@ def test_thin_fragment_agglo2():
     g = agglo2.Rag(labels)
     assert (1, 3) not in g.graph.edges()
 
+
+def test_best_possible_segmentation():
+    ws = np.array([[2,3],[4,5]], np.int32)
+    gt = np.array([[1,2],[1,2]], np.int32)
+    best = agglo.best_possible_segmentation(ws, gt)
+    assert np.all(best[0,:] == best[1,:])
+
+
+def test_set_ground_truth():
+    labels = [[1, 0, 2],
+              [1, 0, 2],
+              [1, 0, 2]]
+    g = agglo.Rag(np.array(labels))
+    g.set_ground_truth(np.array(labels))
+
+
+def test_split_vi():
+    labels = [[1, 0, 2],
+              [1, 0, 2],
+              [1, 0, 2]]
+    g = agglo.Rag(np.array(labels))
+    vi0 = g.split_vi(np.array(labels))
+    g.set_ground_truth(np.array(labels))
+    vi1 = g.split_vi()
+    assert np.all(vi0 == vi1)
+
+
 if __name__ == '__main__':
     from numpy import testing
     testing.run_module_suite()

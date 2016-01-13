@@ -41,8 +41,8 @@ from .classify import get_classifier, \
 from .dtypes import label_dtype
 
 
-def contingency_table(a, b):
-    ct = ev_contingency_table(a, b)
+def contingency_table(a, b, ignore_seg=[0], ignore_gt=[0]):
+    ct = ev_contingency_table(a, b, ignore_seg, ignore_gt)
     nx, ny = ct.shape
     ctout = np.zeros((2*nx + 1, ny), ct.dtype)
     ct.todense(out=ctout[:nx, :])
@@ -721,7 +721,7 @@ class Rag(Graph):
             gt_ignore = [0, gtm] if (gt==0).any() else [gtm]
             seg_ignore = [0, self.boundary_body] if \
                         (self.watershed==0).any() else [self.boundary_body]
-            self.gt = morpho.pad(gt, gt_ignore)
+            self.gt = morpho.pad(gt, gtm)
             self.rig = contingency_table(self.watershed, self.gt,
                                          ignore_seg=seg_ignore,
                                          ignore_gt=gt_ignore)
@@ -1194,7 +1194,7 @@ class Rag(Graph):
                                                     for ctable in ctables]
         ]
         labels = [np.sign(mean(cont_label)) for cont_label in cont_labels]
-        if any(map(isnan, labels)) or any([label == 0 for l in labels]):
+        if any(map(isnan, labels)) or any([label == 0 for label in labels]):
             logging.debug('NaN or 0 labels found. ' +
                                     ' '.join(map(str, [labels, (n1, n2)])))
         labels = [1 if i==0 or isnan(i) or n1 in self.frozen_nodes or
@@ -1768,9 +1768,9 @@ class Rag(Graph):
         if self.gt is None and gt is None:
             return array([0,0])
         elif self.gt is not None:
-            return split_vi(None, None, self.rig)
+            return split_vi(self.rig)
         else:
-            return split_vi(self.get_segmentation(), gt, None, [0], [0])
+            return split_vi(self.get_segmentation(), gt, [0], [0])
 
 
     def boundary_indices(self, n1, n2):
@@ -1919,12 +1919,12 @@ def is_mito(g, n, channel=2, threshold=0.5):
 
 def best_possible_segmentation(ws, gt):
     """Build the best possible segmentation given a superpixel map."""
-    cnt = contingency_table(ws, gt)
+    ws = Rag(ws)
+    cnt = contingency_table(ws.get_segmentation(), gt)
     assignment = cnt == cnt.max(axis=1)[:,newaxis]
     hard_assignment = where(assignment.sum(axis=1) > 1)[0]
     # currently ignoring hard assignment nodes
     assignment[hard_assignment,:] = 0
-    ws = Rag(ws)
     for gt_node in range(1,cnt.shape[1]):
         ws.merge_subgraph(where(assignment[:,gt_node])[0])
     return ws.get_segmentation()
