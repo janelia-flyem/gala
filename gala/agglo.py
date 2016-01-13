@@ -1194,7 +1194,7 @@ class Rag(Graph):
                                                     for ctable in ctables]
         ]
         labels = [np.sign(mean(cont_label)) for cont_label in cont_labels]
-        if any(map(isnan, labels)) or any([l == 0 for l in labels]):
+        if any(map(isnan, labels)) or any([label == 0 for label in labels]):
             logging.debug('NaN or 0 labels found. ' +
                                     ' '.join(map(str, [labels, (n1, n2)])))
         labels = [1 if i==0 or isnan(i) or n1 in self.frozen_nodes or
