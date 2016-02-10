@@ -4,24 +4,13 @@ Installation
 Requirements
 ------------
 
--  Python 3.5
--  numpy 1.10+
--  scipy 0.16+
--  Image (a.k.a. Python Imaging Library or PIL) 1.1.7 or Pillow 2.7+
--  networkx 1.6+
--  HDF5 and h5py 1.5+
--  cython 0.17+
--  scikit-learn 0.15+
--  matplotlib 1.2+
--  scikit-image 0.11+
--  viridis 0.4+
+After version 0.3, Gala requires Python 3.5 to run. For a full list of
+dependencies, see the `requirements.txt` file.
 
 Optional dependencies
 ~~~~~~~~~~~~~~~~~~~~~
 
--  progressbar 2.3
 -  `vigra/vigranumpy <hci.iwr.uni-heidelberg.de/vigra/>`__ (1.9.0)
--  libtiff 0.4+
 
 In its original incarnation, this project used Vigra for the random
 forest classifier. Installation is less simple than scikit-learn, which
@@ -44,12 +33,12 @@ installed in two ways:
 Installing requirements
 ~~~~~~~~~~~~~~~~~~~~~~~
 
-Though you can install all the requirements yourself, as most are
-available in the Python Package Index (PyPI) and can be installed with
-simple commands, the easiest way to get up and running is to use the
-`Continuum Anaconda <http://www.continuum.io/downloads>`__ Python
-distribution. An example of installing all dependencies for gala on
-linux is shown in the ``.travis.yml`` test recipe.
+Though you can install all the requirements yourself, as most are available in
+the Python Package Index (PyPI) and can be installed with simple commands,
+the easiest way to get up and running is to use
+[miniconda](http://conda.pydata.org/miniconda.html). Once you have the `conda`
+command, you can create a fully-functional gala environment with
+`conda env create -f environment.yml` (inside the gala directory).
 
 Installing with Buildem
 ~~~~~~~~~~~~~~~~~~~~~~~
