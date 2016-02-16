@@ -10,15 +10,7 @@ import tempfile as tmp
 
 # libraries
 import h5py
-try:
-    import Image
-except:
-    from PIL import Image
-try:
-    from libtiff import TIFF
-except:
-    print("pylibtiff not available: http://www.lfd.uci.edu/~gohlke/pythonlibs/#pylibtiff")
-
+from PIL import Image
 
 from scipy.ndimage.measurements import label
 
@@ -84,7 +76,7 @@ def read_image_stack(fn, *args, **kwargs):
     if len(crop) == 4: crop.extend([None]*2)
     elif len(crop) == 2: crop = [None]*4 + crop
     kwargs['crop'] = crop
-    if any([fn.endswith(ext) for ext in supported_image_extensions]):
+    if any(fn.endswith(ext) for ext in supported_image_extensions):
         # image types, such as a set of pngs or a multi-page tiff
         xmin, xmax, ymin, ymax, zmin, zmax = crop
         if len(args) > 0 and type(args[0]) == str and args[0].endswith(fn[-3:]):
@@ -210,28 +202,6 @@ def read_multi_page_tif(fn, crop=[None]*6):
             eof = True
     return concatenate(pages, axis=-1)
 
-def read_multi_page_tif_libtiff(fn):
-    """Read a multi-page tif file into a numpy array.
-    
-    Parameters
-    ----------
-    fn : string
-        The filename of the image file being read.
-    
-    Returns
-    -------
-    ar : numpy ndarray
-        The image stack in array format.
-
-    Notes
-    -----
-        Currently, only grayscale images are supported.
-    """
-    pages = []
-    tif = TIFF.open(fn)
-    for img in tif.iter_images():
-        pages.append(img[..., newaxis])
-    return concatenate(pages, axis=-1)
 
 def write_png_image_stack(npy_vol, fn, axis=-1, bitdepth=None):
     """Write a numpy.ndarray 3D volume to a stack of .png images.
@@ -265,11 +235,11 @@ def write_png_image_stack(npy_vol, fn, axis=-1, bitdepth=None):
         bitdepth = 16 if None else bitdepth
         imdtype = uint16 if bitdepth == 16 else uint8
         npy_vol = ((2**bitdepth-1)*npy_vol).astype(imdtype)
-    if 1 < npy_vol.max() < 256 and bitdepth == None or bitdepth == 8:
+    if 1 < npy_vol.max() < 256 and bitdepth is None or bitdepth == 8:
         mode = 'L'
         mode_base = 'L'
         npy_vol = uint8(npy_vol)
-    elif 256 <= np.max(npy_vol) < 2**16 and bitdepth == None or \
+    elif 256 <= np.max(npy_vol) < 2**16 and bitdepth is None or \
                                                 bitdepth == 16:
         mode = 'I;16'
         mode_base = 'I'
