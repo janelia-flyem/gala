@@ -8,6 +8,7 @@ from viridis import tree
 
 from . import evaluate as ev
 
+
 def fast_rag(labels, connectivity=1):
     """Build a data-free region adjacency graph quickly.
 
