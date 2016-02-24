@@ -9,7 +9,40 @@ from viridis import tree
 from . import evaluate as ev
 
 
-def fast_rag(labels, connectivity=1):
+def edge_matrix(labels, connectivity=1):
+    """Generate a COO matrix containing the coordinates of edge pixels.
+
+    Parameters
+    ----------
+    labels : array of int
+        An array of labeled pixels (or voxels).
+    connectivity : int in {1, ..., labels.ndim}
+        The square connectivity for considering neighborhood.
+
+    Returns
+    -------
+    edges : sparse.coo_matrix
+        A COO matrix where (i, j) indicate neighboring labels and the
+        corresponding data element is the linear index of the edge pixel
+        in the labels array.
+    """
+    conn = ndi.generate_binary_structure(labels.ndim, connectivity)
+    eroded = ndi.grey_erosion(labels, footprint=conn).ravel()
+    dilated = ndi.grey_dilation(labels, footprint=conn).ravel()
+    labels = labels.ravel()
+    boundaries0 = np.flatnonzero(eroded != labels)
+    boundaries1 = np.flatnonzero(dilated != labels)
+    labels_small = np.concatenate((eroded[boundaries0], labels[boundaries1]))
+    labels_large = np.concatenate((labels[boundaries0], dilated[boundaries1]))
+    n = np.max(labels_large) + 1
+    # use a dummy broadcast array as data for RAG
+    data = np.concatenate((boundaries0, boundaries1))
+    sparse_graph = sparse.coo_matrix((data, (labels_small, labels_large)),
+                                     dtype=np.int_, shape=(n, n))
+    return sparse_graph
+
+
+def fast_rag(labels, connectivity=1, out=None):
     """Build a data-free region adjacency graph quickly.
 
     Parameters
@@ -19,6 +52,8 @@ def fast_rag(labels, connectivity=1):
     connectivity : int in {1, ..., labels.ndim}, optional
         Use square connectivity equal to `connectivity`. See
         `scipy.ndimage.generate_binary_structure` for more.
+    out : networkx.Graph, optional
+        Add edges into this graph object.
 
     Returns
     -------
@@ -28,30 +63,34 @@ def fast_rag(labels, connectivity=1):
 
     Examples
     --------
-    >>> labels = np.array([1, 1, 5, 5], dtype=np.int_)
-    >>> fast_rag(labels).edges()
-    [(1, 5)]
     >>> labels = np.array([[1, 1, 1, 2, 2],
     ...                    [1, 1, 1, 2, 2],
     ...                    [3, 3, 4, 4, 4],
     ...                    [3, 3, 4, 4, 4]], dtype=np.int_)
     >>> sorted(fast_rag(labels).edges())
     [(1, 2), (1, 3), (1, 4), (2, 4), (3, 4)]
+
+    Use the ``out`` parameter to build into an existing networkx graph.
+    Warning: the existing graph contents will be cleared!
+
+    >>> import networkx as nx
+    >>> g = nx.Graph()
+    >>> h = fast_rag(labels, out=g)
+    >>> g is h
+    True
+    >>> sorted(h.edges())
+    [(1, 2), (1, 3), (1, 4), (2, 4), (3, 4)]
+
+    ``fast_rag`` works on data of any dimension. For a 1D array:
+
+    >>> labels = np.array([1, 1, 5, 5], dtype=np.int_)
+    >>> fast_rag(labels).edges()
+    [(1, 5)]
     """
-    conn = ndi.generate_binary_structure(labels.ndim, connectivity)
-    eroded = ndi.grey_erosion(labels, footprint=conn)
-    dilated = ndi.grey_dilation(labels, footprint=conn)
-    boundaries0 = (eroded != labels)
-    boundaries1 = (dilated != labels)
-    labels_small = np.concatenate((eroded[boundaries0], labels[boundaries1]))
-    labels_large = np.concatenate((labels[boundaries0], dilated[boundaries1]))
-    n = np.max(labels_large) + 1
-    # use a dummy broadcast array as data for RAG
-    data = np.broadcast_to(np.ones((1,), dtype=np.int_),
-                           labels_small.shape)
-    sparse_graph = sparse.coo_matrix((data, (labels_small, labels_large)),
-                                     dtype=np.int_, shape=(n, n)).tocsr()
-    rag = nx.from_scipy_sparse_matrix(sparse_graph, edge_attribute='count')
+    sparse_graph = edge_matrix(labels, connectivity).tocsr()
+    rag = nx.Graph() if out is None else out
+    rag = nx.from_scipy_sparse_matrix(sparse_graph, create_using=rag,
+                                      edge_attribute='count')
     return rag
 
 
