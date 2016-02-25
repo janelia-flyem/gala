@@ -35,7 +35,6 @@ def edge_matrix(labels, connectivity=1):
     labels_small = np.concatenate((eroded[boundaries0], labels[boundaries1]))
     labels_large = np.concatenate((labels[boundaries0], dilated[boundaries1]))
     n = np.max(labels_large) + 1
-    # use a dummy broadcast array as data for RAG
     data = np.concatenate((boundaries0, boundaries1))
     sparse_graph = sparse.coo_matrix((data, (labels_small, labels_large)),
                                      dtype=np.int_, shape=(n, n))
@@ -81,13 +80,25 @@ def fast_rag(labels, connectivity=1, out=None):
     >>> sorted(h.edges())
     [(1, 2), (1, 3), (1, 4), (2, 4), (3, 4)]
 
+    The edges contain the number of pixels counted in the boundary:
+
+    >>> h[1][4]
+    {'count': 2}
+    >>> h[1][3]
+    {'count': 4}
+
     ``fast_rag`` works on data of any dimension. For a 1D array:
 
     >>> labels = np.array([1, 1, 5, 5], dtype=np.int_)
     >>> fast_rag(labels).edges()
     [(1, 5)]
     """
-    sparse_graph = edge_matrix(labels, connectivity).tocsr()
+    coo_graph = edge_matrix(labels, connectivity)
+    # use a broadcast array of ones as data; these will get aggregated
+    # into counts when the COO is converted to CSR
+    coo_graph.data = np.broadcast_to(np.ones((1,), dtype=np.int_),
+                                     coo_graph.row.shape)
+    sparse_graph = coo_graph.tocsr()
     rag = nx.Graph() if out is None else out
     rag = nx.from_scipy_sparse_matrix(sparse_graph, create_using=rag,
                                       edge_attribute='count')
