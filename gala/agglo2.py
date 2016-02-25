@@ -41,6 +41,24 @@ def edge_matrix(labels, connectivity=1):
     return sparse_graph
 
 
+def boundaries(coo_graph):
+    """Use a sparselol to map edges to boundary extents.
+
+    Parameters
+    ----------
+    coo_graph
+
+    Returns
+    -------
+
+    """
+    edge_to_idx = coo_graph.tocsr()
+    # edge_to_idx: CSR matrix that maps each edge to a unique integer
+    edge_to_idx.data = np.arange(len(edge_to_idx.data), dtype=np.int_)
+    for i in range(len(coo_graph)):
+        pass
+
+
 def fast_rag(labels, connectivity=1, out=None):
     """Build a data-free region adjacency graph quickly.
 
