@@ -13,4 +13,3 @@ def extents_count(label_dtype[::1] labels,
         label = labels[i]
         out[curr_loc[label]] = i
         curr_loc[label] += 1
-        i += 1
