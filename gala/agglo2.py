@@ -42,22 +42,22 @@ def edge_matrix(labels, connectivity=1):
     return sparse_graph
 
 
-def boundaries(coo_graph):
+def sparse_boundaries(coo_boundaries):
     """Use a sparselol to map edges to boundary extents.
 
     Parameters
     ----------
-    coo_graph
+    coo_boundaries
 
     Returns
     -------
 
     """
-    edge_to_idx = coo_graph.tocsr()
+    edge_to_idx = coo_boundaries.tocsr()
     # edge_to_idx: CSR matrix that maps each edge to a unique integer
     edge_to_idx.data = np.arange(len(edge_to_idx.data), dtype=np.int_)
-    edge_labels = np.ravel(edge_to_idx[coo_graph.row, coo_graph.col])
-    bounds = sparselol.extents(edge_labels, input_indices=coo_graph.data)
+    edge_labels = np.ravel(edge_to_idx[coo_boundaries.row, coo_boundaries.col])
+    bounds = sparselol.extents(edge_labels, input_indices=coo_boundaries.data)
     return edge_to_idx, bounds
 
 
