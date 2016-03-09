@@ -7,6 +7,7 @@ import networkx as nx
 from viridis import tree
 
 from . import evaluate as ev
+from . import sparselol
 
 
 def edge_matrix(labels, connectivity=1):
@@ -55,8 +56,9 @@ def boundaries(coo_graph):
     edge_to_idx = coo_graph.tocsr()
     # edge_to_idx: CSR matrix that maps each edge to a unique integer
     edge_to_idx.data = np.arange(len(edge_to_idx.data), dtype=np.int_)
-    for i in range(len(coo_graph)):
-        pass
+    edge_labels = np.ravel(edge_to_idx[coo_graph.row, coo_graph.col])
+    bounds = sparselol.extents(edge_labels, input_indices=coo_graph.data)
+    return edge_to_idx, bounds
 
 
 def fast_rag(labels, connectivity=1, out=None):
