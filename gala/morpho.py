@@ -228,8 +228,7 @@ def watershed(a, seeds=None, connectivity=1, mask=None, smooth_thresh=0.0,
     if not seeded:
         seeds = regional_minima(a, connectivity)
     if minimum_seed_size > 0:
-        seeds = remove_small_connected_components(seeds, minimum_seed_size,
-                                                  in_place=True)
+        seeds = remove_small_connected_components(seeds, minimum_seed_size)
         seeds = relabel_from_one(seeds)[0]
     if smooth_seeds:
         seeds = binary_opening(seeds, sel)
