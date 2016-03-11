@@ -47,11 +47,14 @@ def sparse_boundaries(coo_boundaries):
 
     Parameters
     ----------
-    coo_boundaries
+    coo_boundaries : sparse.coo_matrix
+        The boundary locations encoded in ``(i, j, loc)`` form in a sparse COO
+        matrix (scipy), where ``loc`` is the raveled index of a pixel that is
+        part of the boundary between segments ``i`` and ``j``.
 
     Returns
     -------
-
+    edge_to_idx : CSR matrix
     """
     edge_to_idx = coo_boundaries.tocsr()
     # edge_to_idx: CSR matrix that maps each edge to a unique integer
