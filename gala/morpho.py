@@ -26,6 +26,8 @@ from .evaluate import relabel_from_one
 from skimage import measure, util
 import skimage.morphology
 
+from sklearn.externals import joblib
+
 zero3d = array([0,0,0])
 
 def complement(a):
@@ -268,7 +270,7 @@ def watershed(a, seeds=None, connectivity=1, mask=None, smooth_thresh=0.0,
                                     (br[nidxs] == level)).astype(bool) ])
     return juicy_center(ws)
 
-def watershed_sequence(a, seeds=None, mask=None, axis=0, **kwargs):
+def watershed_sequence(a, seeds=None, mask=None, axis=0, n_jobs=1, **kwargs):
     """Perform a watershed on a plane-by-plane basis.
 
     See documentation for `watershed` for available kwargs.
@@ -293,6 +295,9 @@ def watershed_sequence(a, seeds=None, mask=None, axis=0, **kwargs):
         Which axis defines the plane sequence. For example, if the input image
         is 3D and axis=1, then the output will be the watershed on a[:, 0, :], 
         a[:, 1, :], a[:, 2, :], ... and so on.
+    n_jobs : int, optional
+        Use joblib to distribute each plane over given number of processing
+        cores. If -1, `multiprocessing.cpu_count` is used.
 
     Returns
     -------
@@ -313,8 +318,9 @@ def watershed_sequence(a, seeds=None, mask=None, axis=0, **kwargs):
         seeds = it.repeat(None)
     if mask is None:
         mask = it.repeat(None)
-    ws = [watershed(i, seeds=s, mask=m, **kwargs)
-                                        for i, s, m in zip(a, seeds, mask)]
+    ws = joblib.Parallel(n_jobs=n_jobs)(
+        joblib.delayed(watershed)(i, seeds=s, mask=m, **kwargs)
+        for i, s, m in zip(a, seeds, mask))
     counts = list(map(np.max, ws[:-1]))
     counts = np.concatenate((np.array([0]), counts))
     counts = np.cumsum(counts)
