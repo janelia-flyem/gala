@@ -344,6 +344,41 @@ def contingency_table(seg, gt, ignore_seg=[0], ignore_gt=[0], norm=True):
     return cont
 
 
+def assignment_table(seg, gt, *, dtype=np.bool_):
+    """Create an assignment table of value in `seg` to `gt`.
+
+    Parameters
+    ----------
+    seg : array of int
+        The segmentation to assign. Every value in `seg` will be
+        assigned to a single value in `gt`.
+    gt : array of int, same shape as seg
+        The segmentation to assign to.
+    dtype : numpy dtype specification
+        The desired data type for the assignment matrix
+
+    Returns
+    -------
+    assignments : sparse matrix
+        A matrix with `True` at position [i, j] if segment i in `seg`
+        is assigned to segment j in `gt`.
+    """
+    ctable = contingency_table(seg, gt,
+                               ignore_seg=[], ignore_gt=[],
+                               norm=False)
+    # break ties randomly; since ctable is not normalised, it contains
+    # integer values, so adding noise of standard dev 0.01 will not change
+    # any existing ordering
+    ctable.data += np.random.randn(ctable.data.size) * 0.01
+    maxes = ctable.max(axis=1).toarray()
+    maxes_repeated = np.take(maxes, ctable.indices)
+    assignments = sparse.csc_matrix((ctable.data == maxes_repeated,
+                                     ctable.indices, ctable.indptr),
+                                    dtype=dtype)
+    assignments.eliminate_zeros()
+    return assignments
+
+
 def xlogx(x, out=None, in_place=False):
     """Compute x * log_2(x).
 

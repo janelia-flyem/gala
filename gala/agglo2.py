@@ -228,19 +228,7 @@ def best_segmentation(fragments: np.ndarray, ground_truth: np.ndarray,
     """
     if random_seed is not None:
         np.random.seed(random_seed)
-    ctable = ev.contingency_table(fragments, ground_truth,
-                                  ignore_seg=[], ignore_gt=[],
-                                  norm=False)
-    # break ties randomly; since ctable is not normalised, it contains
-    # integer values, so adding noise of standard dev 0.01 will not change
-    # any existing ordering
-    ctable.data += np.random.randn(ctable.data.size) * 0.01
-    maxes = ctable.max(axis=1).toarray()
-    maxes_repeated = np.take(maxes, ctable.indices)
-    assignments = sparse.csc_matrix((ctable.data == maxes_repeated,
-                                     ctable.indices, ctable.indptr),
-                                    dtype=np.bool_)
-    assignments.eliminate_zeros()
+    assignments = ev.assignment_table(fragments, ground_truth)
     indptr = assignments.indptr
     rag = Rag(fragments)
     for i in range(len(indptr) - 1):
