@@ -362,6 +362,15 @@ def assignment_table(seg, gt, *, dtype=np.bool_):
     assignments : sparse matrix
         A matrix with `True` at position [i, j] if segment i in `seg`
         is assigned to segment j in `gt`.
+
+    Examples
+    --------
+    >>> seg = np.array([0, 1, 1, 1, 2, 2])
+    >>> gt = np.array([1, 1, 1, 2, 2, 2])
+    >>> assignment_table(seg, gt).toarray()
+    array([[False,  True, False],
+           [False,  True, False],
+           [False, False,  True]], dtype=bool)
     """
     ctable = contingency_table(seg, gt, norm=False)
     # break ties randomly; since ctable is not normalised, it contains
