@@ -42,7 +42,8 @@ from .dtypes import label_dtype
 
 
 def contingency_table(a, b, ignore_seg=[0], ignore_gt=[0]):
-    ct = ev_contingency_table(a, b, ignore_seg, ignore_gt)
+    ct = ev_contingency_table(a, b,
+                              ignore_seg=ignore_seg, ignore_gt=ignore_gt)
     nx, ny = ct.shape
     ctout = np.zeros((2*nx + 1, ny), ct.dtype)
     ct.todense(out=ctout[:nx, :])

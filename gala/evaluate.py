@@ -243,7 +243,7 @@ def raw_edit_distance(aseg, gt, size_threshold=1000):
     """
     aseg = relabel_from_one(aseg)[0]
     gt = relabel_from_one(gt)[0]
-    r = contingency_table(aseg, gt, [0], [0], norm=False)
+    r = contingency_table(aseg, gt, ignore_seg=[0], ignore_gt=[0], norm=False)
     r.data[r.data <= size_threshold] = 0
     # make each segment overlap count for 1, since it will be one
     # operation to fix (split or merge)
@@ -304,7 +304,7 @@ def relabel_from_one(label_field):
     return forward_map[label_field], forward_map, inverse_map
 
 
-def contingency_table(seg, gt, ignore_seg=[0], ignore_gt=[0], norm=True):
+def contingency_table(seg, gt, *, ignore_seg=(), ignore_gt=(), norm=True):
     """Return the contingency table for all regions in matched segmentations.
 
     Parameters
@@ -313,10 +313,10 @@ def contingency_table(seg, gt, ignore_seg=[0], ignore_gt=[0], norm=True):
         A candidate segmentation.
     gt : np.ndarray, int type, same shape as `seg`
         The ground truth segmentation.
-    ignore_seg : list of int, optional
+    ignore_seg : iterable of int, optional
         Values to ignore in `seg`. Voxels in `seg` having a value in this list
         will not contribute to the contingency table. (default: [0])
-    ignore_gt : list of int, optional
+    ignore_gt : iterable of int, optional
         Values to ignore in `gt`. Voxels in `gt` having a value in this list
         will not contribute to the contingency table. (default: [0])
     norm : bool, optional
@@ -363,9 +363,7 @@ def assignment_table(seg, gt, *, dtype=np.bool_):
         A matrix with `True` at position [i, j] if segment i in `seg`
         is assigned to segment j in `gt`.
     """
-    ctable = contingency_table(seg, gt,
-                               ignore_seg=[], ignore_gt=[],
-                               norm=False)
+    ctable = contingency_table(seg, gt, norm=False)
     # break ties randomly; since ctable is not normalised, it contains
     # integer values, so adding noise of standard dev 0.01 will not change
     # any existing ordering
@@ -948,7 +946,7 @@ def vi_tables(x, y=None, ignore_x=[0], ignore_y=[0]):
         per-segment conditional probability p log p.
     """
     if y is not None:
-        pxy = contingency_table(x, y, ignore_x, ignore_y)
+        pxy = contingency_table(x, y, ignore_seg=ignore_x, ignore_gt=ignore_y)
     else:
         cont = x
         total = float(cont.sum())
