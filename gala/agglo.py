@@ -33,21 +33,12 @@ from . import iterprogress as ip
 from . import optimized as opt
 from .ncut import ncutW
 from .mergequeue import MergeQueue
-from .evaluate import contingency_table as ev_contingency_table, split_vi, xlogx
+from .evaluate import merge_contingency_table, split_vi, xlogx
 from . import features
 from . import classify
 from .classify import get_classifier, \
     unique_learning_data_elements, concatenate_data_elements
 from .dtypes import label_dtype
-
-
-def contingency_table(a, b, ignore_seg=[0], ignore_gt=[0]):
-    ct = ev_contingency_table(a, b,
-                              ignore_seg=ignore_seg, ignore_gt=ignore_gt)
-    nx, ny = ct.shape
-    ctout = np.zeros((2*nx + 1, ny), ct.dtype)
-    ct.todense(out=ctout[:nx, :])
-    return ctout
 
 
 arguments = argparse.ArgumentParser(add_help=False)
@@ -723,9 +714,9 @@ class Rag(Graph):
             seg_ignore = [0, self.boundary_body] if \
                         (self.watershed==0).any() else [self.boundary_body]
             self.gt = morpho.pad(gt, gtm)
-            self.rig = contingency_table(self.watershed, self.gt,
-                                         ignore_seg=seg_ignore,
-                                         ignore_gt=gt_ignore)
+            self.rig = merge_contingency_table(self.watershed, self.gt,
+                                               ignore_seg=seg_ignore,
+                                               ignore_gt=gt_ignore)
         else:
             self.gt = None
             # null pattern to transparently allow merging of nodes.
@@ -1065,8 +1056,8 @@ class Rag(Graph):
         label_type_keys = {'assignment':0, 'vi-sign':1, 'rand-sign':2}
         if type(gts) != list:
             gts = [gts] # allow using single ground truth as input
-        master_ctables = \
-                [contingency_table(self.get_segmentation(), gt) for gt in gts]
+        master_ctables = [merge_contingency_table(self.get_segmentation(), gt)
+                          for gt in gts]
         alldata = []
         data = [[],[],[],[]]
         for num_epochs in range(max_num_epochs):
@@ -1142,7 +1133,8 @@ class Rag(Graph):
         """
         if type(gts) != list:
             gts = [gts] # allow using single ground truth as input
-        ctables = [contingency_table(self.get_segmentation(), gt) for gt in gts]
+        ctables = [merge_contingency_table(self.get_segmentation(), gt)
+                   for gt in gts]
         assignments = [(ct == ct.max(axis=1)[:,newaxis]) for ct in ctables]
         return list(map(array, zip(*[
                 self.learn_edge(e, ctables, assignments, feature_map)
@@ -1921,7 +1913,7 @@ def is_mito(g, n, channel=2, threshold=0.5):
 def best_possible_segmentation(ws, gt):
     """Build the best possible segmentation given a superpixel map."""
     ws = Rag(ws)
-    cnt = contingency_table(ws.get_segmentation(), gt)
+    cnt = merge_contingency_table(ws.get_segmentation(), gt)
     assignment = cnt == cnt.max(axis=1)[:,newaxis]
     hard_assignment = where(assignment.sum(axis=1) > 1)[0]
     # currently ignoring hard assignment nodes

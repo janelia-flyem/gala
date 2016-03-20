@@ -386,6 +386,28 @@ def assignment_table(seg, gt, *, dtype=np.bool_):
     return assignments
 
 
+def merge_contingency_table(a, b, ignore_seg=[0], ignore_gt=[0]):
+    """A contingency table that has additional rows for merging initial rows.
+
+    Parameters
+    ----------
+    a
+    b
+    ignore_seg
+    ignore_gt
+
+    Returns
+    -------
+    ct : array, shape (2M + 1, N)
+    """
+    ct = contingency_table(a, b,
+                           ignore_seg=ignore_seg, ignore_gt=ignore_gt)
+    nx, ny = ct.shape
+    ctout = np.zeros((2*nx + 1, ny), ct.dtype)
+    ct.todense(out=ctout[:nx, :])
+    return ctout
+
+
 def xlogx(x, out=None, in_place=False):
     """Compute x * log_2(x).
 
