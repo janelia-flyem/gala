@@ -386,6 +386,41 @@ def assignment_table(seg, gt, *, dtype=np.bool_):
     return assignments
 
 
+class csrRowExpandableCSR(sparse.csr_matrix):
+    """
+    """
+    def __init__(self, arg1, shape=None, dtype=None, copy=False,
+                 max_num_rows=None, max_nonzero=None,
+                 expansion_factor=2):
+        super().__init__(arg1, shape=shape, dtype=dtype, copy=copy)
+        if max_nonzero is None:
+            max_nonzero = self.nnz * expansion_factor
+        if max_num_rows is None:
+            max_num_rows = self.shape[0] * expansion_factor
+        self._expand_max_size('data', max_nonzero)
+        self._expand_max_size('indices', max_nonzero)
+        self._expand_max_size('indptr', max_num_rows)
+
+    def _expand_max_size(self, attr, newsize):
+        """Expand the total size of the array in self.attr while keeping data.
+
+        Parameters
+        ----------
+        attr : string
+            The attribute to expand. ``type(getattr(self, attr))`` must be
+            ``numpy.ndarray``.
+        newsize : int
+            The new size of the array.
+        """
+        arr = getattr(self, attr)
+        currsize = arr.size
+        newarr = np.zeros(newsize, dtype=arr.dtype)
+        np.copyto(dst=newarr[:currsize], src=arr)
+        setattr(self, attr, newarr)
+
+
+
+
 def merge_contingency_table(a, b, ignore_seg=[0], ignore_gt=[0]):
     """A contingency table that has additional rows for merging initial rows.
 
