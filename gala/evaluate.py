@@ -324,7 +324,7 @@ def contingency_table(seg, gt, *, ignore_seg=(), ignore_gt=(), norm=True):
 
     Returns
     -------
-    cont : scipy.sparse.csc_matrix
+    cont : scipy.sparse.csr_matrix
         A contingency table. `cont[i, j]` will equal the number of voxels
         labeled `i` in `seg` and `j` in `gt`. (Or the proportion of such voxels
         if `norm=True`.)
@@ -338,7 +338,7 @@ def contingency_table(seg, gt, *, ignore_seg=(), ignore_gt=(), norm=True):
     for j in ignore_gt:
         ignored[gtr == j] = True
     data[ignored] = 0
-    cont = sparse.coo_matrix((data, (segr, gtr))).tocsc()
+    cont = sparse.coo_matrix((data, (segr, gtr))).tocsr()
     if norm:
         cont /= float(cont.sum())
     return cont
