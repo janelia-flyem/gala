@@ -386,6 +386,10 @@ def assignment_table(seg, gt, *, dtype=np.bool_):
     return assignments
 
 
+# note: subclassing scipy sparse matrices requires that the class name
+# start with the same three letters as the given format. See:
+# https://stackoverflow.com/questions/24508214/inherit-from-scipy-sparse-csr-matrix-class
+# https://groups.google.com/d/msg/scipy-user/-1PIkEMFWd8/KX6idRoIqqkJ
 class csrRowExpandableCSR(sparse.csr_matrix):
     """
     """
