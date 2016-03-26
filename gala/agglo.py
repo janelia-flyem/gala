@@ -1295,7 +1295,7 @@ class Rag(Graph):
                 self.merge_nodes(n1, n2)
             elif errs == 0:
                 break
-        return count, nodes
+        return next(counter), nodes
 
 
     def rename_node(self, old, new):
