@@ -378,8 +378,8 @@ def assignment_table(seg, gt, *, dtype=np.bool_):
     # any existing ordering
     ctable.data += np.random.randn(ctable.data.size) * 0.01
     maxes = ctable.max(axis=1).toarray()
-    maxes_repeated = np.take(maxes, ctable.indices)
-    assignments = sparse.csc_matrix((ctable.data == maxes_repeated,
+    maxes_repeated = np.repeat(maxes, np.diff(ctable.indptr))
+    assignments = sparse.csr_matrix((ctable.data == maxes_repeated,
                                      ctable.indices, ctable.indptr),
                                     dtype=dtype)
     assignments.eliminate_zeros()

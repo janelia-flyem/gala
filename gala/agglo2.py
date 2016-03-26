@@ -228,7 +228,7 @@ def best_segmentation(fragments: np.ndarray, ground_truth: np.ndarray,
     """
     if random_seed is not None:
         np.random.seed(random_seed)
-    assignments = ev.assignment_table(fragments, ground_truth)
+    assignments = ev.assignment_table(fragments, ground_truth).tocsc()
     indptr = assignments.indptr
     rag = Rag(fragments)
     for i in range(len(indptr) - 1):
