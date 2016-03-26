@@ -433,37 +433,6 @@ class csrRowExpandableCSR(sparse.csr_matrix):
     def indptr(self, value):
         self._indptr[:self.curr_indptr] = value[:]
 
-    def _expand_max_size(self, attr, newsize, currsize_attr):
-        """Expand the total size of the array in self.attr while keeping data.
-
-        Parameters
-        ----------
-        attr : string
-            The attribute to expand. ``type(getattr(self, attr))`` must be
-            ``numpy.ndarray``.
-        newsize : int
-            The new size of the array.
-        currsize_attr : string
-            The attribute containing the current size of the array.
-
-        Returns
-        -------
-        expandable_arr_prop : property
-            A property that behaves like the original array.
-        """
-        arr = getattr(self, attr)
-        currsize = arr.size
-        newarr = np.empty(newsize, dtype=arr.dtype)
-        np.copyto(dst=newarr[:currsize], src=arr)
-        setattr(self, '_' + attr, newarr)
-        return self._expandable_array_property(newarr, currsize_attr)
-
-    def _expandable_array_property(self, buffer_array, currsize_attr):
-        def get_array(self):
-            currsize = getattr(self, currsize_attr)
-            return buffer_array[:currsize]
-        return property(fget=get_array)
-
     def __setitem__(self, index, value):
         if np.isscalar(index) and index >= self.shape[0]:
             if not sparse.isspmatrix_csr(value):
