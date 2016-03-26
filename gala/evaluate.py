@@ -437,7 +437,7 @@ class csrRowExpandableCSR(sparse.csr_matrix):
         if np.isscalar(index) and index >= self.shape[0]:
             if not sparse.isspmatrix_csr(value):
                 value = sparse.csr_matrix(value)
-            if index > self._indptr.size - 1:
+            if index + 2 > self._indptr.size:
                 self._double_indptr()
             num_values = value.nnz
             if self.curr_nonzero + num_values > self._data.size:
