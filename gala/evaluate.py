@@ -391,7 +391,55 @@ def assignment_table(seg, gt, *, dtype=np.bool_):
 # https://stackoverflow.com/questions/24508214/inherit-from-scipy-sparse-csr-matrix-class
 # https://groups.google.com/d/msg/scipy-user/-1PIkEMFWd8/KX6idRoIqqkJ
 class csrRowExpandableCSR(sparse.csr_matrix):
-    """
+    """Like a scipy CSR matrix, but rows can be appended.
+
+    Use `mat[i] = v` to append the row-vector v as row i to the matrix mat.
+    Any rows between the current last row and i are filled with zeros.
+
+    Parameters
+    ----------
+    arg1 :
+        Any valid instantiation of a sparse.csr_matrix. This includes a
+        dense matrix or 2D NumPy array, any SciPy sparse matrix, or a
+        tuple of the three defining values of a scipy sparse matrix,
+        (data, indices, indptr). See the documentation for
+        sparse.csr_matrix for more information.
+    dtype : numpy dtype specification, optional
+        The data type contained in the matrix, e.g. 'float32', np.float64,
+        np.complex128.
+    shape : tuple of two ints, optional
+        The number of rows and columns of the matrix.
+    copy : bool, optional
+        This argument does nothing, and is maintained for compatibility
+        with the csr_matrix constructor. Because we create bigger-than-
+        necessary buffer arrays, the data must always be copied.
+    max_num_rows : int, optional
+        The initial maximum number of rows. Note that more rows can
+        always be added; this is used only for efficiency. If None,
+        defaults to twice the initial number of rows.
+    max_nonzero : int, optional
+        The maximum number of nonzero elements. As with max_num_rows,
+        this is only necessary for efficiency.
+    expansion_factor : int or float, optional
+        The maximum number of rows or nonzero elements will be this
+        number times the initial number of rows or nonzero elements.
+        This is overridden if max_num_rows or max_nonzero are provided.
+
+    Examples
+    --------
+    >>> init = csrRowExpandableCSR([[0, 0, 2], [0, 4, 0]])
+    >>> init[2] = np.array([9, 0, 0])
+    >>> init[4] = sparse.csr_matrix([0, 0, 5])
+    >>> init.nnz
+    4
+    >>> init.data
+    array([2, 4, 9, 5], dtype=int64)
+    >>> init.toarray()
+    array([[0, 0, 2],
+           [0, 4, 0],
+           [9, 0, 0],
+           [0, 0, 0],
+           [0, 0, 5]], dtype=int64)
     """
     def __init__(self, arg1, shape=None, dtype=None, copy=False,
                  max_num_rows=None, max_nonzero=None,
@@ -466,6 +514,7 @@ class csrRowExpandableCSR(sparse.csr_matrix):
         old_indices = self._indices
         self._indices = np.empty(2 * n, old_indices.dtype)
         self._indices[:n] = old_indices[:]
+
 
 def merge_contingency_table(a, b, ignore_seg=[0], ignore_gt=[0]):
     """A contingency table that has additional rows for merging initial rows.
