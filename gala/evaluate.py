@@ -480,6 +480,7 @@ class csrRowExpandableCSR(sparse.csr_matrix):
             self._indices[i:j] = value.indices[:]
             self._data[i:j] = value.data[:]
             self.curr_nonzero += num_values
+            self._shape = (index + 1, self.shape[1])  # bypass shape property
         else:
             super().__setitem__(index, value)
 
