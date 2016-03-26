@@ -396,16 +396,44 @@ class csrRowExpandableCSR(sparse.csr_matrix):
     def __init__(self, arg1, shape=None, dtype=None, copy=False,
                  max_num_rows=None, max_nonzero=None,
                  expansion_factor=2):
-        super().__init__(arg1, shape=shape, dtype=dtype, copy=copy)
+        other = sparse.csr_matrix(arg1, shape=shape, dtype=dtype, copy=copy)
         if max_nonzero is None:
-            max_nonzero = self.nnz * expansion_factor
+            max_nonzero = other.nnz * expansion_factor
         if max_num_rows is None:
-            max_num_rows = self.shape[0] * expansion_factor
-        self._expand_max_size('data', max_nonzero)
-        self._expand_max_size('indices', max_nonzero)
-        self._expand_max_size('indptr', max_num_rows)
+            max_num_rows = other.shape[0] * expansion_factor
+        self.curr_nonzero = other.nnz
+        self.curr_indptr = other.shape[0] + 1
+        self._data = np.empty(max_nonzero, dtype=other.dtype)
+        self._indices = np.empty(max_nonzero, dtype=other.indices.dtype)
+        self._indptr = np.empty(max_num_rows + 1, dtype=other.indptr.dtype)
+        super().__init__((other.data, other.indices, other.indptr),
+                         shape=other.shape, dtype=other.dtype, copy=False)
 
-    def _expand_max_size(self, attr, newsize):
+    @property
+    def data(self):
+        return self._data[:self.curr_nonzero]
+
+    @data.setter
+    def data(self, value):
+        self._data[:self.curr_nonzero] = value[:]
+
+    @property
+    def indices(self):
+        return self._indices[:self.curr_nonzero]
+
+    @indices.setter
+    def indices(self, value):
+        self._indices[:self.curr_nonzero] = value[:]
+
+    @property
+    def indptr(self):
+        return self._indptr[:self.curr_indptr]
+
+    @indptr.setter
+    def indptr(self, value):
+        self._indptr[:self.curr_indptr] = value[:]
+
+    def _expand_max_size(self, attr, newsize, currsize_attr):
         """Expand the total size of the array in self.attr while keeping data.
 
         Parameters
@@ -415,15 +443,59 @@ class csrRowExpandableCSR(sparse.csr_matrix):
             ``numpy.ndarray``.
         newsize : int
             The new size of the array.
+        currsize_attr : string
+            The attribute containing the current size of the array.
+
+        Returns
+        -------
+        expandable_arr_prop : property
+            A property that behaves like the original array.
         """
         arr = getattr(self, attr)
         currsize = arr.size
-        newarr = np.zeros(newsize, dtype=arr.dtype)
+        newarr = np.empty(newsize, dtype=arr.dtype)
         np.copyto(dst=newarr[:currsize], src=arr)
-        setattr(self, attr, newarr)
+        setattr(self, '_' + attr, newarr)
+        return self._expandable_array_property(newarr, currsize_attr)
 
+    def _expandable_array_property(self, buffer_array, currsize_attr):
+        def get_array(self):
+            currsize = getattr(self, currsize_attr)
+            return buffer_array[:currsize]
+        return property(fget=get_array)
 
+    def __setitem__(self, index, value):
+        if np.isscalar(index) and index >= self.shape[0]:
+            if not sparse.isspmatrix_csr(value):
+                value = sparse.csr_matrix(value)
+            if index > self._indptr.size - 1:
+                self._double_indptr()
+            num_values = value.nnz
+            if self.curr_nonzero + num_values > self._data.size:
+                self._double_data_and_indices()
+            i, j = self.indptr[-1], self.indptr[-1] + num_values
+            self._indptr[self.curr_indptr:index + 1] = i
+            self._indptr[index + 1] = j
+            self.curr_indptr = index + 2
+            self._indices[i:j] = value.indices[:]
+            self._data[i:j] = value.data[:]
+            self.curr_nonzero += num_values
+        else:
+            super().__setitem__(index, value)
 
+    def _double_indptr(self):
+        old_indptr = self._indptr
+        self._indptr = np.empty(2 * old_indptr.size, old_indptr.dtype)
+        self._indptr[:old_indptr.size] = old_indptr[:]
+
+    def _double_data_and_indices(self):
+        n = self._data.size
+        old_data = self._data
+        self._data = np.empty(2 * n, old_data.dtype)
+        self._data[:n] = old_data[:]
+        old_indices = self._indices
+        self._indices = np.empty(2 * n, old_indices.dtype)
+        self._indices[:n] = old_indices[:]
 
 def merge_contingency_table(a, b, ignore_seg=[0], ignore_gt=[0]):
     """A contingency table that has additional rows for merging initial rows.
