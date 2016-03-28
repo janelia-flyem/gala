@@ -280,10 +280,14 @@ def compute_true_delta_rand(ctable, n1, n2, n):
 
     This function assumes ctable is normalized to sum to 1.
     """
-    localct = n*ctable[(n1,n2),]
-    delta_sxy = 1.0/2*((localct.sum(axis=0)**2).sum()-(localct**2).sum())
-    delta_sx = 1.0/2*(localct.sum()**2 - (localct.sum(axis=1)**2).sum())
-    return (2*delta_sxy - delta_sx) / nchoosek(n,2)
+    localct = n * ctable[(n1, n2), :]
+    total = localct.data.sum()
+    sqtotal = (localct.data ** 2).sum()
+    delta_sxy = 1. / 2 * ((np.array(localct.sum(axis=0)) ** 2).sum() -
+                          sqtotal)
+    delta_sx = 1. / 2 * (total ** 2 -
+                         (np.array(localct.sum(axis=1)) ** 2).sum())
+    return (2 * delta_sxy - delta_sx) / nchoosek(n, 2)
 
 
 def boundary_mean_ladder(g, n1, n2, threshold, strictness=1):
