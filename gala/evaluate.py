@@ -606,10 +606,10 @@ def xlogx(x, out=None, in_place=False):
         y = x.copy()
     else:
         y = out
-    if type(y) in [sparse.csc_matrix, sparse.csr_matrix]:
+    if isinstance(y, sparse.csc_matrix) or isinstance(y, sparse.csr_matrix):
         z = y.data
     else:
-        z = y
+        z = np.asarray(y)  # ensure np.matrix converted to np.array
     nz = z.nonzero()
     z[nz] *= np.log2(z[nz])
     return y
