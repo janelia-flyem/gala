@@ -344,18 +344,21 @@ def contingency_table(seg, gt, *, ignore_seg=(), ignore_gt=(), norm=True):
     return cont
 
 
-def assignment_table(seg, gt, *, dtype=np.bool_):
+def assignment_table(seg_or_ctable, gt=None, *, dtype=np.bool_):
     """Create an assignment table of value in `seg` to `gt`.
 
     Parameters
     ----------
-    seg : array of int
+    seg_or_ctable : array of int, or 2D array of float
         The segmentation to assign. Every value in `seg` will be
         assigned to a single value in `gt`.
+        Alternatively, pass a single, pre-computed contingency table
+        to be converted to an assignment table.
     gt : array of int, same shape as seg
-        The segmentation to assign to.
+        The segmentation to assign to. Don't pass if `seg_or_cont` is
+        a contingency matrix.
     dtype : numpy dtype specification
-        The desired data type for the assignment matrix
+        The desired data type for the assignment matrix.
 
     Returns
     -------
@@ -371,8 +374,16 @@ def assignment_table(seg, gt, *, dtype=np.bool_):
     array([[False,  True, False],
            [False,  True, False],
            [False, False,  True]], dtype=bool)
+    >>> cont = contingency_table(seg, gt)
+    >>> assignment_table(cont).toarray()
+    array([[False,  True, False],
+           [False,  True, False],
+           [False, False,  True]], dtype=bool)
     """
-    ctable = contingency_table(seg, gt, norm=False)
+    if gt is None:
+        ctable = seg_or_ctable
+    else:
+        ctable = contingency_table(seg_or_ctable, gt, norm=False)
     # break ties randomly; since ctable is not normalised, it contains
     # integer values, so adding noise of standard dev 0.01 will not change
     # any existing ordering
