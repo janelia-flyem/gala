@@ -34,6 +34,7 @@ from . import optimized as opt
 from .ncut import ncutW
 from .mergequeue import MergeQueue
 from .evaluate import merge_contingency_table, split_vi, xlogx
+from . import evaluate as ev
 from . import features
 from . import classify
 from .classify import get_classifier, \
@@ -1139,7 +1140,7 @@ class Rag(Graph):
             gts = [gts] # allow using single ground truth as input
         ctables = [merge_contingency_table(self.get_segmentation(), gt)
                    for gt in gts]
-        assignments = [(ct == ct.max(axis=1)[:,newaxis]) for ct in ctables]
+        assignments = [ev.assignment_table(ct) for ct in ctables]
         return list(map(array, zip(*[
                 self.learn_edge(e, ctables, assignments, feature_map)
                 for e in self.real_edges()])))
@@ -1185,7 +1186,7 @@ class Rag(Graph):
         # Get the fraction of times that n1 and n2 assigned to
         # same segment in the ground truths
         cont_labels = [
-            [(-1)**(a[n1,:]==a[n2,:]).all() for a in assignments],
+            [(-1)**(a[n1]==a[n2]).toarray().all() for a in assignments],
             [compute_true_delta_vi(ctable, n1, n2) for ctable in ctables],
             [-compute_true_delta_rand(ctable, n1, n2, self.volume_size)
                                                     for ctable in ctables]
@@ -1234,7 +1235,8 @@ class Rag(Graph):
                 - the list of merged edges ``(n_edges, 2)``.
         """
         label_type_keys = {'assignment':0, 'vi-sign':1, 'rand-sign':2}
-        assignments = [(ct == ct.max(axis=1)[:,newaxis]) for ct in ctables]
+        assignments = [ev.csrRowExpandableCSR(asst)
+                       for asst in map(ev.assignment_table, ctables)]
         g = self
         data = []
         while len(g.merge_queue) > 0:
