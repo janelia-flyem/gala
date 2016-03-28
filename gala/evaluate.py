@@ -575,9 +575,7 @@ def merge_contingency_table(a, b, ignore_seg=[0], ignore_gt=[0]):
     """
     ct = contingency_table(a, b,
                            ignore_seg=ignore_seg, ignore_gt=ignore_gt)
-    nx, ny = ct.shape
-    ctout = np.zeros((2*nx + 1, ny), ct.dtype)
-    ct.todense(out=ctout[:nx, :])
+    ctout = csrRowExpandableCSR(ct)
     return ctout
 
 
