@@ -511,24 +511,38 @@ class csrRowExpandableCSR(sparse.csr_matrix):
             self._indptr[:self.curr_indptr] = value
 
     def __setitem__(self, index, value):
-        if np.isscalar(index) and index >= self.shape[0]:
-            if not sparse.isspmatrix_csr(value):
-                value = sparse.csr_matrix(value)
-            if index + 2 > self._indptr.size:
-                self._double_indptr()
-            num_values = value.nnz
-            if self.curr_nonzero + num_values > self._data.size:
-                self._double_data_and_indices()
-            i, j = self.indptr[-1], self.indptr[-1] + num_values
-            self._indptr[self.curr_indptr:index + 1] = i
-            self._indptr[index + 1] = j
-            self.curr_indptr = index + 2
-            self._indices[i:j] = value.indices[:]
-            self._data[i:j] = value.data[:]
-            self.curr_nonzero += num_values
-            self._shape = (index + 1, self.shape[1])  # bypass shape property
+        if np.isscalar(index):
+            if index >= self.shape[0]:  # appending a row
+                self._append_row_at(index, value)
+            else:
+                if np.isscalar(value):
+                    if value == 0:  # zeroing out a row
+                        self._zero_row(index)
         else:
             super().__setitem__(index, value)
+
+    def _append_row_at(self, index, value):
+        if np.isscalar(value):
+            value = np.full(self.shape[1], value)  # make a full row if scalar
+        if not sparse.isspmatrix_csr(value):
+            value = sparse.csr_matrix(value)
+        if index + 2 > self._indptr.size:
+            self._double_indptr()
+        num_values = value.nnz
+        if self.curr_nonzero + num_values > self._data.size:
+            self._double_data_and_indices()
+        i, j = self.indptr[-1], self.indptr[-1] + num_values
+        self._indptr[self.curr_indptr:index + 1] = i
+        self._indptr[index + 1] = j
+        self.curr_indptr = index + 2
+        self._indices[i:j] = value.indices[:]
+        self._data[i:j] = value.data[:]
+        self.curr_nonzero += num_values
+        self._shape = (int(index + 1), self.shape[1])  # bypass shape property
+
+    def _zero_row(self, index):
+        i, j = self.indptr[index:index+2]
+        self.data[i:j] = 0
 
     def _double_indptr(self):
         old_indptr = self._indptr
