@@ -474,7 +474,13 @@ class csrRowExpandableCSR(sparse.csr_matrix):
 
     @data.setter
     def data(self, value):
-        self._data[:self.curr_nonzero] = value[:]
+        if np.isscalar(value) or len(value) == self.curr_nonzero:
+            self._data[:self.curr_nonzero] = value
+        else:  # len(value) > self.curr_nonzero
+            self.curr_nonzero = len(value)
+            while self._data.size < self.curr_nonzero:
+                self._double_data_and_indices()
+            self._data[:self.curr_nonzero] = value
 
     @property
     def indices(self):
@@ -482,7 +488,13 @@ class csrRowExpandableCSR(sparse.csr_matrix):
 
     @indices.setter
     def indices(self, value):
-        self._indices[:self.curr_nonzero] = value[:]
+        if np.isscalar(value) or len(value) == self.curr_nonzero:
+            self._indices[:self.curr_nonzero] = value
+        else:  # len(value) > self.curr_nonzero
+            self.curr_nonzero = len(value)
+            while self._indices.size < self.curr_nonzero:
+                self._double_data_and_indices()
+            self._indices[:self.curr_nonzero] = value
 
     @property
     def indptr(self):
@@ -490,7 +502,13 @@ class csrRowExpandableCSR(sparse.csr_matrix):
 
     @indptr.setter
     def indptr(self, value):
-        self._indptr[:self.curr_indptr] = value[:]
+        if np.isscalar(value) or len(value) == self.curr_indptr:
+            self._indptr[:self.curr_indptr] = value
+        else:  # len(value) > self.curr_indptr
+            self.curr_indptr = len(value)
+            while self._indptr.size < self.curr_indptr:
+                self._double_data_and_indices()
+            self._indptr[:self.curr_indptr] = value
 
     def __setitem__(self, index, value):
         if np.isscalar(index) and index >= self.shape[0]:
