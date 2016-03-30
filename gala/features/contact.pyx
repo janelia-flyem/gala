@@ -45,8 +45,9 @@ class Manager(base.Null):
         return json_fm
 
     def compute_edge_features(self, g, n1, n2, cache=None):
-        volume_ratio_1 = float(len(g[n1][n2]['boundary'])) / g.node[n1]['size']
-        volume_ratio_2 = float(len(g[n1][n2]['boundary'])) / g.node[n2]['size']
+        boundlen = len(g.boundary(n1, n2))
+        volume_ratio_1 = boundlen / g.node[n1]['size']
+        volume_ratio_2 = boundlen / g.node[n2]['size']
         if cache == None: cache = g[n1][n2][self.default_cache]
         contact_matrix = _compute_contact_matrix(cache, volume_ratio_1, 
                                                     volume_ratio_2)
@@ -60,7 +61,7 @@ class Manager(base.Null):
         return feature_vector
 
     def create_edge_cache(self, g, n1, n2):
-        edge_idxs = np.array(g[n1][n2]['boundary'])
+        edge_idxs = np.asarray(g.boundary(n1, n2))
         n1_idxs = np.array(list(g.extent(n1)))
         n2_idxs = np.array(list(g.extent(n2)))
         if self.oriented: ar = g.oriented_probabilities_r

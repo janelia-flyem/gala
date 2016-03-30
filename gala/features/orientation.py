@@ -35,7 +35,7 @@ class Manager(base.Null):
     def create_edge_cache(self, g, n1, n2):
         # Get subscripts of extent (morpho.unravel_index was slow)
         M = np.zeros_like(g.watershed); 
-        M.ravel()[g[n1][n2]['boundary']] = 1 
+        M.ravel()[g.boundary(n1, n2)] = 1
         ind = np.array(np.nonzero(M)).T
         # Get second moment matrix
         smm = np.cov(ind.T)/float(len(ind))

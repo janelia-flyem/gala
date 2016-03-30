@@ -30,7 +30,7 @@ class Manager(base.Null):
     def convex_hull_ind(self, g, n1, n2=None):
         m = np.zeros_like(g.watershed); 
         if n2 is not None:
-            m.ravel()[g[n1][n2]['boundary']]=1
+            m.ravel()[g.boundary(n1, n2)] = 1
         else:
             m.ravel()[list(g.extent(n1))] = 1
         m = m - nd.binary_erosion(m) #Only need border
@@ -99,7 +99,7 @@ class Manager(base.Null):
 
         features = []
         features.append(convex_vol)
-        features.append(convex_vol/float(len(g[n1][n2]['boundary'])))
+        features.append(convex_vol / len(g.boundary(n1, n2)))
         return np.array(features)
 
     def compute_difference_features(self,g, n1, n2, cache1=None, cache2=None):
@@ -120,7 +120,7 @@ class Manager(base.Null):
 
         vol1 = float(g.node[n1]['size'])
         vol2 = float(g.node[n2]['size'])
-        volborder = float(len(g[n1][n2]['boundary']))
+        volborder = float(len(g.boundary(n1, n2)))
         volboth = vol1+vol2
 
         features = []
