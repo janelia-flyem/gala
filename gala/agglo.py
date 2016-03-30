@@ -123,15 +123,15 @@ def conditional_countdown(seq, start=1, pred=bool):
 ############################
 
 def oriented_boundary_mean(g, n1, n2):
-    return mean(g.oriented_probabilities_r[g[n1][n2]['boundary']])
+    return mean(g.oriented_probabilities_r[g.boundary(n1, n2)])
 
 
 def boundary_mean(g, n1, n2):
-    return mean(g.probabilities_r[g[n1][n2]['boundary']])
+    return mean(g.probabilities_r[g.boundary(n1, n2)])
 
 
 def boundary_median(g, n1, n2):
-    return median(g.probabilities_r[g[n1][n2]['boundary']])
+    return median(g.probabilities_r[g.boundary(n1, n2)])
 
 
 def approximate_boundary_mean(g, n1, n2):
@@ -152,7 +152,7 @@ def make_ladder(priority_function, threshold, strictness=1):
         if strictness >= 2:
             ladder_condition &= ((s1 < threshold) != (s2 < threshold))
         if strictness >= 3:
-            ladder_condition &= len(g[n1][n2]['boundary']) > 2
+            ladder_condition &= len(g.boundary(n1, n2)) > 2
 
         if ladder_condition:
             return priority_function(g, n1, n2)
@@ -191,8 +191,8 @@ def mito_merge():
             if g.node[mito]['size'] > g.node[cyto]['size']:
                 return np.inf
             else:
-                return 1.0 - (float(len(g[mito][cyto]['boundary']))/
-                sum([len(g[mito][x]['boundary']) for x in g.neighbors(mito)]))
+                return 1.0 - (float(len(g.boundary(mito, cyto)))/
+                sum([len(g.boundary(mito, x)) for x in g.neighbors(mito)]))
     return predict
 
 
@@ -297,7 +297,7 @@ def boundary_mean_ladder(g, n1, n2, threshold, strictness=1):
 
 
 def boundary_mean_plus_sem(g, n1, n2, alpha=-6):
-    bvals = g.probabilities_r[g[n1][n2]['boundary']]
+    bvals = g.probabilities_r[g.boundary(n1, n2)]
     return mean(bvals) + alpha*sem(bvals)
 
 
@@ -442,6 +442,18 @@ class Rag(Graph):
             raveled_indices = np.ravel_multi_index(extent_array.T,
                                                    self.watershed.shape)
             return set(raveled_indices)
+
+    def boundary(self, u, v):
+        edge_dict = self[u][v]
+        try:
+            return edge_dict['boundary']
+        except KeyError:
+            pass  # not using old system
+        ids = edge_dict['boundary-ids']
+        b = self.boundaries
+        all_bounds = [b.indices[b.indptr[i]:b.indptr[i+1]] for i in ids]
+        return np.concatenate(all_bounds).astype(np.intp)
+
 
     def real_edges(self, *args, **kwargs):
         """Return edges internal to the volume.
@@ -1604,7 +1616,7 @@ class Rag(Graph):
             ebunch = self.real_edges_iter()
         ebunch = sorted([(self[u][v]['weight'], u, v) for u, v in ebunch])
         for w, u, v in ebunch:
-            b = self[u][v]['boundary']
+            b = self.boundary(u, v)
             mr[b] = w
         if hasattr(self, 'ignored_boundary'):
             m[self.ignored_boundary] = inf
@@ -1705,7 +1717,7 @@ class Rag(Graph):
         if not self.at_volume_boundary(n) or n == self.boundary_body:
             return False
         v = zeros(self.watershed.shape, 'uint8')
-        v.ravel()[self[n][self.boundary_body]['boundary']] = 1
+        v.ravel()[self.boundary(n, self.boundary_body)] = 1
         _, n = label(v, ones([3]*v.ndim))
         return n > 1
 
@@ -1745,7 +1757,7 @@ class Rag(Graph):
 
 
     def get_pixel_label(self, n1, n2):
-        boundary = array(self[n1][n2]['boundary'])
+        boundary = self.boundary(n1, n2)
         min_idx = boundary[self.probabilities_r[boundary,0].argmin()]
         if self.should_merge(n1, n2):
             return min_idx, 2
@@ -1770,11 +1782,6 @@ class Rag(Graph):
             return split_vi(self.rig)
         else:
             return split_vi(self.get_segmentation(), gt, [0], [0])
-
-
-    def boundary_indices(self, n1, n2):
-        return self[n1][n2]['boundary']
-
 
     def get_edge_coordinates(self, n1, n2, arbitrary=False):
         """Find where in the segmentation the edge (n1, n2) is most visible."""
@@ -1818,7 +1825,7 @@ class Rag(Graph):
         edge_list = [
             {'location': list(map(int, self.get_edge_coordinates(i, j)[-1::-1])),
             'node1': int(i), 'node2': int(j),
-            'edge_size': len(self[i][j]['boundary']),
+            'edge_size': len(self.boundary(i, j)),
             'size1': self.node[i]['size'],
             'size2': self.node[j]['size'],
             'weight': float(self[i][j]['weight'])}
@@ -1895,7 +1902,7 @@ class Rag(Graph):
 
 def get_edge_coordinates(g, n1, n2, arbitrary=False):
     """Find where in the segmentation the edge (n1, n2) is most visible."""
-    boundary = g[n1][n2]['boundary']
+    boundary = g.boundary(n1, n2)
     if arbitrary:
         # quickly get an arbitrary point on the boundary
         idx = boundary.pop(); boundary.append(idx)
@@ -1907,7 +1914,7 @@ def get_edge_coordinates(g, n1, n2, arbitrary=False):
 
 
 def is_mito_boundary(g, n1, n2, channel=2, threshold=0.5):
-    return max(np.mean(g.probabilities_r[g[n1][n2]['boundary'], c])
+    return max(np.mean(g.probabilities_r[g.boundary(n1, n2), c])
                for c in channel) > threshold
 
 
