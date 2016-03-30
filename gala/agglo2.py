@@ -58,7 +58,8 @@ def sparse_boundaries(coo_boundaries):
     """
     edge_to_idx = coo_boundaries.tocsr()
     # edge_to_idx: CSR matrix that maps each edge to a unique integer
-    edge_to_idx.data = np.arange(len(edge_to_idx.data), dtype=np.int_)
+    # we don't use the ID 0 so that empty spots can be used to mean "no ID".
+    edge_to_idx.data = np.arange(1, len(edge_to_idx.data) + 1, dtype=np.int_)
     edge_labels = np.ravel(edge_to_idx[coo_boundaries.row, coo_boundaries.col])
     bounds = sparselol.extents(edge_labels, input_indices=coo_boundaries.data)
     return edge_to_idx, bounds
