@@ -387,9 +387,11 @@ class Rag(Graph):
         self.merge_priority_function = merge_priority_function
         self.max_merge_score = -inf
         if mask is None:
-            self.mask = np.ones(self.watershed_r.shape, dtype=bool)
+            self.mask = np.broadcast_to([True], self.watershed_r.shape)
+            self.is_masked = False
         else:
             self.mask = morpho.pad(mask, True).ravel()
+            self.is_masked = True
         self.build_graph_from_watershed()
         self.set_feature_manager(feature_manager)
         self.set_ground_truth(gt_vol)
