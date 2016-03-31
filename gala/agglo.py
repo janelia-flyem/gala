@@ -537,10 +537,12 @@ class Rag(Graph):
                 np.array(np.unravel_index(self.extent(nodeid)[0],
                                           self.watershed.shape)))
         inner_idxs = idxs[self.watershed_r[idxs] != self.boundary_body]
+        self.build_graph_slow(inner_idxs)
+
+    def build_graph_slow(self, idxs):
         if self.show_progress:
-            inner_idxs = ip.with_progress(inner_idxs, title='Graph ',
-                                          pbar=self.pbar)
-        for idx in inner_idxs:
+            idxs = ip.with_progress(idxs, title='Graph ', pbar=self.pbar)
+        for idx in idxs:
             nodeid = self.watershed_r[idx]
             ns = idx + self.steps
             ns = ns[self.mask[ns]]
