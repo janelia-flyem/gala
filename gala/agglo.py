@@ -523,6 +523,11 @@ class Rag(Graph):
         if idxs is None:
             idxs = arange(self.watershed.size, dtype=self.steps.dtype)
         idxs = idxs[self.mask[idxs]]  # use only masked idxs
+        self.build_nodes(idxs)
+        inner_idxs = idxs[self.watershed_r[idxs] != self.boundary_body]
+        self.build_edges_slow(inner_idxs)
+
+    def build_nodes(self, idxs):
         self.add_node(self.boundary_body)
         labels = np.unique(self.watershed_r[idxs])
         sizes = np.bincount(self.watershed_r)
@@ -536,10 +541,8 @@ class Rag(Graph):
             node['entrypoint'] = (
                 np.array(np.unravel_index(self.extent(nodeid)[0],
                                           self.watershed.shape)))
-        inner_idxs = idxs[self.watershed_r[idxs] != self.boundary_body]
-        self.build_graph_slow(inner_idxs)
 
-    def build_graph_slow(self, idxs):
+    def build_edges_slow(self, idxs):
         if self.show_progress:
             idxs = ip.with_progress(idxs, title='Graph ', pbar=self.pbar)
         for idx in idxs:
