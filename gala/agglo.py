@@ -522,10 +522,12 @@ class Rag(Graph):
         if self.is_masked:
             idxs = idxs[self.mask[idxs]]  # use only masked idxs
         self.build_nodes(idxs)
-        if self.is_masked or idxs_is_none:
+        if self.is_masked or not idxs_is_none:
+            self.fast_edges = False
             inner_idxs = idxs[self.watershed_r[idxs] != self.boundary_body]
             self.build_edges_slow(inner_idxs)
         else:
+            self.fast_edges = True
             self.build_edges_fast()
 
     def build_nodes(self, idxs):
@@ -566,8 +568,10 @@ class Rag(Graph):
         edges_coo = agglo2.edge_matrix(self.watershed, self.connectivity)
         edge_map, self.boundaries = agglo2.sparse_boundaries(edges_coo)
         coo = edge_map.tocoo()
-        edges_iter = ((i, j, {'boundary-ids': {k}}) for i, j, k in
-                      zip(coo.row, coo.col, coo.data))
+        edges_iter = ((i, j, {'boundary-ids': {edge_map[i, j]}})
+                      for i in range(edge_map.shape[0])
+                      for j in edge_map.indices[edge_map.indptr[i]:
+                                                edge_map.indptr[i+1]])
         self.add_edges_from(edges_iter)
 
     def set_feature_manager(self, feature_manager):
@@ -1511,8 +1515,10 @@ class Rag(Graph):
         if not self.has_edge(u,v):
             self.add_edge(u, v, attr_dict=self[w][x])
         else:
-            self[u][v]['boundary-ids'].update(self[w][x]['boundary-ids'])
-            self[u][v]['boundary'].extend(self[w][x]['boundary'])
+            if self.fast_edges:
+                self[u][v]['boundary-ids'].update(self[w][x]['boundary-ids'])
+            else:
+                self[u][v]['boundary'].extend(self[w][x]['boundary'])
             self.feature_manager.update_edge_cache(self, (u, v), (w, x),
                     self[u][v]['feature-cache'], self[w][x]['feature-cache'])
         try:
