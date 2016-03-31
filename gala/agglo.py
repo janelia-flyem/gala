@@ -27,6 +27,7 @@ from skimage.segmentation import relabel_sequential
 from viridis import tree
 
 # local modules
+from . import agglo2
 from . import morpho
 from . import sparselol as lol
 from . import iterprogress as ip
@@ -429,8 +430,7 @@ class Rag(Graph):
     def extent(self, nodeid):
         try:
             ext = self.extents
-            full_ext = [ext.indices[ext.indptr[f]:ext.indptr[f+1]]
-                        for f in self.node[nodeid]['fragments']]
+            full_ext = [ext[f] for f in self.node[nodeid]['fragments']]
             return np.concatenate(full_ext).astype(np.intp)
         except AttributeError:
             extent_array = opt.flood_fill(self.watershed,
@@ -451,9 +451,7 @@ class Rag(Graph):
             return edge_dict['boundary']
         except KeyError:
             pass  # not using old system
-        ids = edge_dict['boundary-ids']
-        b = self.boundaries
-        all_bounds = [b.indices[b.indptr[i]:b.indptr[i+1]] for i in ids]
+        all_bounds = [self.boundaries[i] for i in edge_dict['boundary-ids']]
         return np.concatenate(all_bounds).astype(np.intp)
 
 
@@ -504,8 +502,6 @@ class Rag(Graph):
         return (e for e in super(Rag, self).edges_iter(*args, **kwargs) if
                                             self.boundary_body not in e[:2])
 
-
-
     def build_graph_from_watershed(self, idxs=None):
         """Build the graph object from the region labels.
 
@@ -520,19 +516,24 @@ class Rag(Graph):
         """
         if self.watershed.size == 0:
             return # stop processing for empty graphs
-        if idxs is None:
+        idxs_is_none = idxs is None
+        if idxs_is_none:
             idxs = arange(self.watershed.size, dtype=self.steps.dtype)
-        idxs = idxs[self.mask[idxs]]  # use only masked idxs
+        if self.is_masked:
+            idxs = idxs[self.mask[idxs]]  # use only masked idxs
         self.build_nodes(idxs)
-        inner_idxs = idxs[self.watershed_r[idxs] != self.boundary_body]
-        self.build_edges_slow(inner_idxs)
+        if self.is_masked or idxs_is_none:
+            inner_idxs = idxs[self.watershed_r[idxs] != self.boundary_body]
+            self.build_edges_slow(inner_idxs)
+        else:
+            self.build_edges_fast()
 
     def build_nodes(self, idxs):
         self.add_node(self.boundary_body)
         labels = np.unique(self.watershed_r[idxs])
         sizes = np.bincount(self.watershed_r)
         if not hasattr(self, 'extents'):
-            self.extents = lol.extents(self.watershed)
+            self.extents = lol.SparseLOL(lol.extents(self.watershed))
         for nodeid in labels:
             self.add_node(nodeid)
             node = self.node[nodeid]
@@ -559,6 +560,15 @@ class Rag(Graph):
                 else:
                     self.add_edge(nodeid, v, boundary=[idx])
 
+    def build_edges_fast(self):
+        """Build the graph edges using agglo2's sparse graph functions.
+        """
+        edges_coo = agglo2.edge_matrix(self.watershed, self.connectivity)
+        edge_map, self.boundaries = agglo2.sparse_boundaries(edges_coo)
+        coo = edge_map.tocoo()
+        edges_iter = ((i, j, {'boundary-ids': {k}}) for i, j, k in
+                      zip(coo.row, coo.col, coo.data))
+        self.add_edges_from(edges_iter)
 
     def set_feature_manager(self, feature_manager):
         """Set the feature manager and ensure feature caches are computed.
@@ -1501,6 +1511,7 @@ class Rag(Graph):
         if not self.has_edge(u,v):
             self.add_edge(u, v, attr_dict=self[w][x])
         else:
+            self[u][v]['boundary-ids'].update(self[w][x]['boundary-ids'])
             self[u][v]['boundary'].extend(self[w][x]['boundary'])
             self.feature_manager.update_edge_cache(self, (u, v), (w, x),
                     self[u][v]['feature-cache'], self[w][x]['feature-cache'])

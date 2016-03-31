@@ -4,6 +4,19 @@ from scipy import sparse
 from .sparselol_cy import extents_count
 from .dtypes import label_dtype
 
+class SparseLOL:
+    def __init__(self, csr):
+        self.indptr = csr.indptr
+        self.indices = csr.indices
+        self.data = csr.data
+
+    def __getitem__(self, item):
+        if np.isscalar(item):  # get the column indices for the given row
+            start, stop = self.indptr[item : item+2]
+            return self.indices[start:stop]
+        else:
+            raise ValueError('SparseLOL can only be indexed by an integer.')
+
 def extents(labels, input_indices=None):
     """Compute the extents of every integer value in ``arr``.
 

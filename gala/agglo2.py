@@ -55,6 +55,9 @@ def sparse_boundaries(coo_boundaries):
     Returns
     -------
     edge_to_idx : CSR matrix
+        Maps each edge `[i, j]` to a unique index `v`.
+    bounds : SparseLOL
+        A map of edge indices to locations in the volume.
     """
     edge_to_idx = coo_boundaries.tocsr()
     # edge_to_idx: CSR matrix that maps each edge to a unique integer
@@ -62,7 +65,7 @@ def sparse_boundaries(coo_boundaries):
     edge_to_idx.data = np.arange(1, len(edge_to_idx.data) + 1, dtype=np.int_)
     edge_labels = np.ravel(edge_to_idx[coo_boundaries.row, coo_boundaries.col])
     bounds = sparselol.extents(edge_labels, input_indices=coo_boundaries.data)
-    return edge_to_idx, bounds
+    return edge_to_idx, sparselol.SparseLOL(bounds)
 
 
 def fast_rag(labels, connectivity=1, out=None):
