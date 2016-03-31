@@ -532,7 +532,7 @@ class Rag(Graph):
             self.add_node(nodeid)
             node = self.node[nodeid]
             node['size'] = sizes[nodeid]
-            node['fragments'] = set([nodeid])
+            node['fragments'] = {nodeid}  # set literal
             node['entrypoint'] = (
                 np.array(np.unravel_index(self.extent(nodeid)[0],
                                           self.watershed.shape)))
