@@ -6,6 +6,7 @@ import pytest
 
 from numpy.testing import assert_allclose
 import numpy as np
+from scipy import ndimage as ndi
 from sklearn.linear_model import LogisticRegression as LR
 import subprocess as sp
 from gala import imio, features, agglo, evaluate as ev
@@ -34,11 +35,30 @@ def dummy_data():
     return frag, gt, g, fman
 
 
+@pytest.fixture
+def dummy_data_fast():
+    frag, gt, _, fman = dummy_data()
+    frag = ndi.zoom(frag, 2, order=0)
+    gt = ndi.zoom(gt, 2, order=0)
+    g = agglo.Rag(frag, feature_manager=fman)
+    return frag, gt, g, fman
+
+
 ### tests
 
 def test_generate_flat_learning_edges(dummy_data):
     """Run a flat epoch and ensure all edges are correctly represented."""
     frag, gt, g, fman = dummy_data
+    feat, target, weights, edges = g.learn_flat(gt, fman)
+    assert feat.shape == (24, 2)
+    assert tuple(edges[0]) == (1, 2)
+    assert tuple(edges[-1]) == (15, 16)
+    assert np.sum(target[:, 0] == 1) == 6  # number of non-merge edges
+
+
+def test_generate_flat_learning_edges_fast(dummy_data_fast):
+    """Run a flat epoch and ensure all edges are correctly represented."""
+    frag, gt, g, fman = dummy_data_fast
     feat, target, weights, edges = g.learn_flat(gt, fman)
     assert feat.shape == (24, 2)
     assert tuple(edges[0]) == (1, 2)
