@@ -179,6 +179,12 @@ def test_manual_agglo_fast_rag(dummy_data):
                                                     original_ids_2))
 
 
+def test_mean_agglo_fast_rag(dummy_data):
+    frag, gt, g = dummy_data
+    g.agglomerate(0.5)
+    assert ev.vi(g.get_segmentation(), gt) == 0
+
+
 if __name__ == '__main__':
     from numpy import testing
     testing.run_module_suite()
