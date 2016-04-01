@@ -173,6 +173,35 @@ def test_generate_gala_examples(dummy_data):
     assert_allclose(pred([0, 1]), 0.7, atol=0.025)
 
 
+def test_generate_gala_examples_fast(dummy_data_fast):
+    """As `test_generate_lash_examples`, but using strict learning. """
+    frag, gt, g, fman = dummy_data_fast
+    np.random.seed(99)
+    summary, allepochs = g.learn_agglomerate(gt, fman,
+                                             learning_mode='strict',
+                                             classifier='logistic regression')
+    feat, target, weights, edges = summary
+    ffeat, ftarget, fweights, fedges = allepochs[0]  # flat
+    lr = LR().fit(feat, target[:, 0])
+    flr = LR().fit(ffeat, ftarget[:, 0])
+    def pred(v):
+        return lr.predict_proba([v])[0, 1]
+    def fpred(v):
+        return flr.predict_proba([v])[0, 1]
+    assert len(allepochs[1][0]) > 15 # number of merges is more than LASH
+
+    # approx. same learning results at (0., 0.) and (1., 0.)
+    assert_allclose(fpred([0, 0]), 0.2, atol=0.2)
+    assert_allclose(pred([0, 0]), 0.2, atol=0.2)
+    assert_allclose(fpred([1, 0]), 0.65, atol=0.15)
+    assert_allclose(pred([1, 0]), 0.65, atol=0.15)
+
+    # difference between agglomerative and flat learning in point (0., 1.);
+    # greater separation than with LASH
+    assert_allclose(fpred([0, 1]), 0.2, atol=0.15)
+    assert_allclose(pred([0, 1]), 0.7, atol=0.15)
+
+
 def test_segment_with_gala_classifer(dummy_data):
     frag, gt, g, fman = dummy_data
     np.random.seed(5)
