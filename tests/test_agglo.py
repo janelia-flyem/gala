@@ -24,7 +24,7 @@ landscape = np.array([1,0,1,2,1,3,2,0,2,4,1,0])
 def test_2_connectivity():
     p = np.array([[1., 0.], [0., 1.]])
     ws = np.array([[1, 2], [3, 4]], np.uint32)
-    g = agglo.Rag(ws, p, connectivity=2)
+    g = agglo.Rag(ws, p, connectivity=2, use_slow=True)
     assert_equal(agglo.boundary_mean(g, 1, 2), 0.5)
     assert_equal(agglo.boundary_mean(g, 1, 4), 1.0)
 
@@ -32,7 +32,7 @@ def test_float_watershed():
     """Ensure float arrays passed as watersheds don't crash everything."""
     p = np.array([[1., 0.], [0., 1.]])
     ws = np.array([[1, 2], [3, 4]], np.float32)
-    g = agglo.Rag(ws, p, connectivity=2)
+    g = agglo.Rag(ws, p, connectivity=2, use_slow=True)
     assert_equal(agglo.boundary_mean(g, 1, 2), 0.5)
     assert_equal(agglo.boundary_mean(g, 1, 4), 1.0)
 
@@ -55,7 +55,7 @@ def test_agglomeration():
 def test_ladder_agglomeration():
     i = 2
     g = agglo.Rag(wss[i], probs[i], agglo.boundary_mean,
-        normalize_probabilities=True)
+                  normalize_probabilities=True, use_slow=True)
     g.agglomerate_ladder(3)
     g.agglomerate(0.51)
     assert_allclose(ev.vi(g.get_segmentation(), results[i]), 0.0,
@@ -76,7 +76,8 @@ def test_mito():
         "hardcoded frozen nodes representing mitochondria"
         return i in [3, 4]
     g = agglo.Rag(wss[i], probs[i], agglo.no_mito_merge(agglo.boundary_mean),
-                  normalize_probabilities=True, isfrozennode=frozen)
+                  normalize_probabilities=True, isfrozennode=frozen,
+                  use_slow=True)
     g.agglomerate(0.15)
     g.merge_priority_function = agglo.mito_merge()
     g.rebuild_merge_queue()
