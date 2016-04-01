@@ -366,6 +366,12 @@ class Rag(Graph):
     isfrozenedge : function, optional
         As `isfrozennode`, but the function should take the graph
         and *two* nodes, to specify an edge that cannot be merged.
+    use_slow : bool, optional
+        Use the slow Python machinery to build the RAG edges. This is
+        mainly for historical reasons, and for applications that
+        require pixel-perfect RAGs. (The fast version depends on
+        morphological operations that lose information when a single
+        pixel has more than one unique neighbor.)
     """
 
     def __init__(self, watershed=array([], label_dtype),
@@ -375,7 +381,7 @@ class Rag(Graph):
                  show_progress=False, connectivity=1,
                  channel_is_oriented=None, orientation_map=array([]),
                  normalize_probabilities=False, exclusions=array([]),
-                 isfrozennode=None, isfrozenedge=None):
+                 isfrozennode=None, isfrozenedge=None, use_slow=False):
 
         super(Rag, self).__init__(weighted=False)
         self.show_progress = show_progress
@@ -393,6 +399,7 @@ class Rag(Graph):
         else:
             self.mask = morpho.pad(mask, True).ravel()
             self.is_masked = True
+        self.use_slow = use_slow
         self.build_graph_from_watershed()
         self.set_feature_manager(feature_manager)
         self.set_ground_truth(gt_vol)
@@ -522,7 +529,7 @@ class Rag(Graph):
         if self.is_masked:
             idxs = idxs[self.mask[idxs]]  # use only masked idxs
         self.build_nodes(idxs)
-        if self.is_masked or not idxs_is_none:
+        if self.is_masked or not idxs_is_none or self.use_slow:
             self.fast_edges = False
             inner_idxs = idxs[self.watershed_r[idxs] != self.boundary_body]
             self.build_edges_slow(inner_idxs)
