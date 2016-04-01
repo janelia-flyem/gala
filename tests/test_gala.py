@@ -202,8 +202,8 @@ def test_generate_gala_examples_fast(dummy_data_fast):
     assert_allclose(pred([0, 1]), 0.7, atol=0.15)
 
 
-def test_segment_with_gala_classifer(dummy_data):
-    frag, gt, g, fman = dummy_data
+def test_segment_with_gala_classifer(dummy_data_fast):
+    frag, gt, g, fman = dummy_data_fast
     np.random.seed(5)
     summary, allepochs = g.learn_agglomerate(gt, fman,
                                              learning_mode='strict',
@@ -216,7 +216,7 @@ def test_segment_with_gala_classifer(dummy_data):
     flat_policy = agglo.classifier_probability(fman, flr)
 
     gtest = agglo.Rag(frag, feature_manager=fman,
-                      merge_priority_function=gala_policy, use_slow=True)
+                      merge_priority_function=gala_policy)
     gtest.agglomerate(0.5)
     assert ev.vi(gtest.get_segmentation(), gt) == 0
     gtest_flat = agglo.Rag(frag, feature_manager=fman,
