@@ -30,7 +30,7 @@ def dummy_data():
     frag = np.arange(1, 17, dtype=int).reshape((4, 4))
     gt = np.array([[1, 1, 2, 2], [1, 1, 2, 2], [3] * 4, [3] * 4], dtype=int)
     fman = features.base.Mock(frag, gt)
-    g = agglo.Rag(frag, feature_manager=fman)
+    g = agglo.Rag(frag, feature_manager=fman, use_slow=True)
     return frag, gt, g, fman
 
 
@@ -128,7 +128,7 @@ def test_segment_with_gala_classifer(dummy_data):
     flat_policy = agglo.classifier_probability(fman, flr)
 
     gtest = agglo.Rag(frag, feature_manager=fman,
-                      merge_priority_function=gala_policy)
+                      merge_priority_function=gala_policy, use_slow=True)
     gtest.agglomerate(0.5)
     assert ev.vi(gtest.get_segmentation(), gt) == 0
     gtest_flat = agglo.Rag(frag, feature_manager=fman,
