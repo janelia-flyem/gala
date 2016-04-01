@@ -1,4 +1,6 @@
 import os
+import pytest
+from scipy import ndimage as ndi
 
 D = os.path.dirname(os.path.abspath(__file__)) + '/'
 
@@ -138,6 +140,43 @@ def test_split_vi():
     g.set_ground_truth(np.array(labels))
     vi1 = g.split_vi()
     assert np.all(vi0 == vi1)
+
+
+@pytest.fixture
+def dummy_data():
+    frag = np.arange(1, 17, dtype=int).reshape((4, 4))
+    gt = np.array([[1, 1, 2, 2], [1, 1, 2, 2], [3] * 4, [3] * 4], dtype=int)
+    pr = 0.1 * np.array([[0, 1, 0, 9, 7, 0, 2, 0],
+                         [0, 1, 0, 9, 7, 0, 2, 0],
+                         [0, 1, 0, 9, 7, 0, 2, 0],
+                         [9, 8, 7, 9, 7, 8, 9, 9],
+                         [9, 8, 7, 9, 7, 8, 9, 9],
+                         [0, 0, 0, 0, 0, 0, 0, 0],
+                         [0, 0, 0, 0, 0, 0, 0, 0],
+                         [0, 0, 0, 0, 0, 0, 0, 0]])
+    frag = ndi.zoom(frag, 2, order=0)
+    gt = ndi.zoom(gt, 2, order=0)
+    g = agglo.Rag(frag, pr, merge_priority_function=agglo.boundary_mean)
+    return frag, gt, g
+
+
+def test_manual_agglo_fast_rag(dummy_data):
+    frag, gt, g = dummy_data
+    assert agglo.boundary_mean(g, 6, 7) == 0.8
+    assert agglo.boundary_mean(g, 6, 10) == 0.8
+    original_ids_0 = [g[u][v]['boundary-ids'] for u, v in [(5, 9), (6, 10)]]
+    original_ids_1 = [g[u][v]['boundary-ids'] for u, v in [(7, 11), (8, 12)]]
+    original_ids_2 = [g[u][v]['boundary-ids'] for u, v in [(2, 3), (6, 7)]]
+    g.merge_subgraph([1, 2, 5, 6])  # results in node ID 20
+    assert agglo.boundary_mean(g, 20, 10) == 0.8
+    g.merge_subgraph(range(9, 17))
+    assert g[20][27]['boundary-ids'] == set.union(*original_ids_0)
+    assert np.allclose(agglo.boundary_mean(g, 20, 27), 0.8, atol=0.02)
+    g.merge_subgraph([3, 4, 7, 8])
+    assert g[27][30]['boundary-ids'] == set.union(*original_ids_1)
+    g.merge_nodes(27, 30)
+    assert g[20][31]['boundary-ids'] == set.union(*(original_ids_0 +
+                                                    original_ids_2))
 
 
 if __name__ == '__main__':
