@@ -476,7 +476,7 @@ class csrRowExpandableCSR(sparse.csr_matrix):
     def data(self, value):
         if np.isscalar(value) or len(value) == self.curr_nonzero:
             self._data[:self.curr_nonzero] = value
-        else:  # len(value) > self.curr_nonzero
+        else:  # `value` is array-like of different length
             self.curr_nonzero = len(value)
             while self._data.size < self.curr_nonzero:
                 self._double_data_and_indices()
@@ -490,7 +490,7 @@ class csrRowExpandableCSR(sparse.csr_matrix):
     def indices(self, value):
         if np.isscalar(value) or len(value) == self.curr_nonzero:
             self._indices[:self.curr_nonzero] = value
-        else:  # len(value) > self.curr_nonzero
+        else:  # `value` is array-like of different length
             self.curr_nonzero = len(value)
             while self._indices.size < self.curr_nonzero:
                 self._double_data_and_indices()
@@ -504,7 +504,7 @@ class csrRowExpandableCSR(sparse.csr_matrix):
     def indptr(self, value):
         if np.isscalar(value) or len(value) == self.curr_indptr:
             self._indptr[:self.curr_indptr] = value
-        else:  # len(value) > self.curr_indptr
+        else:  # `value` is array-like of different length
             self.curr_indptr = len(value)
             while self._indptr.size < self.curr_indptr:
                 self._double_data_and_indices()
