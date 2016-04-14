@@ -470,10 +470,21 @@ class csrRowExpandableCSR(sparse.csr_matrix):
 
     @property
     def data(self):
+        """The data array is virtual, truncated from the data "buffer", _data.
+        """
         return self._data[:self.curr_nonzero]
 
     @data.setter
     def data(self, value):
+        """Setter for the data property.
+
+        We have to special-case for a few kinds of values.
+
+        When creating a new instance, the csr_matrix class removes some
+        zeros from the array and ends up setting data to a smaller array.
+        In that case, we need to make sure that we reset `self.curr_nonzero`
+        and copy the relevant part of the array.
+        """
         if np.isscalar(value) or len(value) == self.curr_nonzero:
             self._data[:self.curr_nonzero] = value
         else:  # `value` is array-like of different length
