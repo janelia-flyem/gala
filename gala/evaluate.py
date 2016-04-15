@@ -220,7 +220,7 @@ def get_stratified_sample(ar, n):
     if nu < 2*n:
         return u
     else:
-        step = nu / n
+        step = nu // n
         return u[0:nu:step]
 
 
