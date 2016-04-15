@@ -48,7 +48,8 @@ class Manager(base.Null):
         boundlen = len(g.boundary(n1, n2))
         volume_ratio_1 = boundlen / g.node[n1]['size']
         volume_ratio_2 = boundlen / g.node[n2]['size']
-        if cache == None: cache = g[n1][n2][self.default_cache]
+        if cache is None:
+            cache = g[n1][n2][self.default_cache]
         contact_matrix = _compute_contact_matrix(cache, volume_ratio_1, 
                                                     volume_ratio_2)
         conlen = contact_matrix.size
