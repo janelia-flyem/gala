@@ -1226,7 +1226,8 @@ class Rag(Graph):
         # Get the fraction of times that n1 and n2 assigned to
         # same segment in the ground truths
         cont_labels = [
-            [(-1)**(a[n1]==a[n2]).toarray().all() for a in assignments],
+            [(-1) ** (np.all(ev.nzcol(a, n1) == ev.nzcol(a, n2)))
+             for a in assignments],
             [compute_true_delta_vi(ctable, n1, n2) for ctable in ctables],
             [-compute_true_delta_rand(ctable, n1, n2, self.volume_size)
                                                     for ctable in ctables]

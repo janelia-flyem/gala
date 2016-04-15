@@ -14,6 +14,34 @@ from scipy.spatial.distance import pdist, squareform
 from sklearn.metrics import precision_recall_curve
 
 
+def nzcol(mat, row_idx):
+    """Return the nonzero elements of given row in a CSR matrix.
+
+    Parameters
+    ----------
+    mat : CSR matrix
+        Input matrix.
+    row_idx : int
+        The index of the row (if `mat` is CSR) for which the nonzero
+        elements are desired.
+
+    Returns
+    -------
+    nz : array of int
+        The location of nonzero elements of `mat[main_axis_idx]`.
+
+    Examples
+    --------
+    >>> mat = sparse.csr_matrix(np.array([[0, 1, 0, 0], [0, 5, 8, 0]]))
+    >>> nzcol(mat, 1)
+    np.array([1, 2], dtype=int32)
+    >>> mat[0, 1] = 0
+    >>> nzcol(mat, 1)
+    np.array([1], dtype=int32)
+    """
+    return mat[row_idx].nonzero()[1]
+
+
 def sparse_min(mat, axis=None):
     """Compute the minimum value in a sparse matrix (optionally over an axis).
 
