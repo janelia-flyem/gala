@@ -455,11 +455,13 @@ class Rag(Graph):
     def boundary(self, u, v):
         edge_dict = self[u][v]
         try:
-            return edge_dict['boundary']
-        except KeyError:
-            pass  # not using old system
-        all_bounds = [self.boundaries[i] for i in edge_dict['boundary-ids']]
-        return np.concatenate(all_bounds).astype(np.intp)
+            boundary_ids = edge_dict['boundary-ids']
+        except KeyError:  # RAG built using old, slow method
+            bound = edge_dict['boundary']
+        else:
+            all_bounds = [self.boundaries[i] for i in boundary_ids]
+            bound = np.concatenate(all_bounds).astype(np.intp)
+        return bound
 
 
     def real_edges(self, *args, **kwargs):
