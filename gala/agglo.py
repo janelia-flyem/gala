@@ -1399,7 +1399,14 @@ class Rag(Graph):
 
         self.feature_manager.update_node_cache(self, n1, n2,
                 self.node[n1]['feature-cache'], self.node[n2]['feature-cache'])
-        new_neighbors = [n for n in self.neighbors(n2) if n != n1]
+        common_neighbors = np.intersect1d(self.neighbors(n1),
+                                          self.neighbors(n2),
+                                          assume_unique=True)
+        for n in common_neighbors:
+            self.merge_edge_properties((n2, n), (n1, n))
+        new_neighbors = np.setdiff1d(self.neighbors(n2),
+                                     np.concatenate((common_neighbors, [n1])),
+                                     assume_unique=True)
         for n in new_neighbors:
             self.merge_edge_properties((n2, n), (n1, n))
         try:
