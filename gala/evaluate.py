@@ -561,10 +561,14 @@ class csrRowExpandableCSR(sparse.csr_matrix):
             super().__setitem__(index, value)
 
     def _append_row_at(self, index, value):
+        # first: normalize the input value. We want a sparse CSR matrix as
+        # input, to make data copying logic much simpler.
         if np.isscalar(value):
             value = np.full(self.shape[1], value)  # make a full row if scalar
         if not sparse.isspmatrix_csr(value):
             value = sparse.csr_matrix(value)
+
+        # Make sure we have sufficient room for the new row.
         if index + 2 > self._indptr.size:
             self._double_indptr()
         num_values = value.nnz
@@ -577,18 +581,32 @@ class csrRowExpandableCSR(sparse.csr_matrix):
         self._indices[i:j] = value.indices[:]
         self._data[i:j] = value.data[:]
         self.curr_nonzero += num_values
-        self._shape = (int(index + 1), self.shape[1])  # bypass shape property
+        # It turns out that the `shape` attribute is a property in SciPy
+        # sparse matrices, and can't be set directly. So, we bypass it and
+        # set the corresponding tuple directly, interfaces be damned.
+        self._shape = (int(index + 1), self.shape[1])
 
     def _zero_row(self, index):
+        """Set all elements of row `index` to 0."""
         i, j = self.indptr[index:index+2]
         self.data[i:j] = 0
 
     def _double_indptr(self):
+        """Double the size of the array backing `indptr`.
+
+        Doubling on demand gives amortized constant time append.
+        """
         old_indptr = self._indptr
         self._indptr = np.empty(2 * old_indptr.size, old_indptr.dtype)
         self._indptr[:old_indptr.size] = old_indptr[:]
 
     def _double_data_and_indices(self):
+        """Double size of the arrays backing `indices` and `data` attributes.
+
+        Doubling on demand gives amortized constant time append. Since these
+        two arrays are always the same size in the CSR format, they are
+        doubled together in the same function.
+        """
         n = self._data.size
         old_data = self._data
         self._data = np.empty(2 * n, old_data.dtype)
