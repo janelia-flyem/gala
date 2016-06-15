@@ -372,6 +372,12 @@ class Rag(Graph):
         require pixel-perfect RAGs. (The fast version depends on
         morphological operations that lose information when a single
         pixel has more than one unique neighbor.)
+    update_unchanged_edges : bool, optional
+        If True, recompute merge probabilities when merging two nodes,
+        even though only the node information has changed. This option
+        is present for historical reasons, but should make little
+        difference to merge probabilites, at least when strong edge
+        features are used.
     """
 
     def __init__(self, watershed=array([], label_dtype),
@@ -381,7 +387,8 @@ class Rag(Graph):
                  show_progress=False, connectivity=1,
                  channel_is_oriented=None, orientation_map=array([]),
                  normalize_probabilities=False, exclusions=array([]),
-                 isfrozennode=None, isfrozenedge=None, use_slow=False):
+                 isfrozennode=None, isfrozenedge=None, use_slow=False,
+                 update_unchanged_edges=False):
 
         super(Rag, self).__init__(weighted=False)
         self.show_progress = show_progress
@@ -416,6 +423,8 @@ class Rag(Graph):
             for n1, n2 in self.edges():
                 if isfrozenedge(self, n1, n2):
                     self.frozen_edges.add((n1,n2))
+        if update_unchanged_edges:
+            self.move_edge = self.merge_edge_properties
 
 
     def __copy__(self):
@@ -1410,10 +1419,10 @@ class Rag(Graph):
                                      np.concatenate((common_neighbors, [n1])),
                                      assume_unique=True)
         for n in new_neighbors:
-            self.merge_edge_properties((n2, n), (n1, n))
+            self.move_edge((n2, n), (n1, n))
         try:
             self.merge_queue.invalidate(self[n1][n2]['qlink'])
-        except KeyError:
+        except KeyError:  # no edge or no queue link
             pass
         node_id = self.tree.merge(n1, n2, w)
         self.remove_node(n2)
@@ -1514,6 +1523,21 @@ class Rag(Graph):
             # update its fragment list.
             self.node[highest]['fragments'].difference_update(leaves)
         self.tree.remove_node(tree_node)
+
+    def move_edge(self, src, dst):
+        """Move edge `src` to `dst`. If `dst` exists it is clobbered.
+
+        Parameters
+        ----------
+        src, dst : (int, int)
+            The edges being merged.
+        """
+        u, v = dst
+        w, x = src
+        self.add_edge(u, v, attr_dict=self[w][x])
+        if 'qlink' in self[u][v]:
+            qelem = self[u][v]['qlink']
+            qelem[2:] = u, v
 
     def merge_edge_properties(self, src, dst):
         """Merge the properties of edge src into edge dst.
