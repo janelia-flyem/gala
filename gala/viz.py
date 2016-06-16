@@ -1,15 +1,10 @@
 from .annotefinder import AnnotationFinder
 from math import ceil
 import numpy as np
-import scipy
 from . import evaluate
 from skimage import color
-import matplotlib
-plt = matplotlib.pyplot
-cm = plt.cm
+from matplotlib import cm, pyplot as plt
 import itertools as it
-
-center_of_mass=scipy.ndimage.measurements.center_of_mass
 
 ###########################
 # VISUALIZATION FUNCTIONS #
@@ -70,7 +65,7 @@ def imshow_rand(im, labrandom=True):
         rand_colors = color.lab2rgb(rand_colors[np.newaxis, ...])[0]
         rand_colors[rand_colors < 0] = 0
         rand_colors[rand_colors > 1] = 1
-    rcmap = matplotlib.colors.ListedColormap(np.concatenate(
+    rcmap = cm.colors.ListedColormap(np.concatenate(
         (np.zeros((1,3)), rand_colors)
     ))
     return plt.imshow(im, cmap=rcmap, interpolation='nearest')
@@ -225,7 +220,7 @@ def plot_vi_breakdown_panel(px, h, title, xlab, ylab, hlines, scatter_size,
     -------
     None
     """
-    x = scipy.arange(max(min(px),1e-10), max(px), (max(px)-min(px))/100.0)
+    x = np.arange(max(min(px),1e-10), max(px), (max(px)-min(px))/100.0)
     for val in hlines:
         plt.plot(x, val/x, color='gray', ls=':', **kwargs) 
     plt.scatter(px, h, label=title, s=scatter_size, **kwargs)
