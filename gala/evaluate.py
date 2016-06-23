@@ -409,13 +409,11 @@ def assignment_table(seg_or_ctable, gt=None, *, dtype=np.bool_):
            [False, False,  True]], dtype=bool)
     """
     if gt is None:
-        ctable = seg_or_ctable
+        ctable = seg_or_ctable.copy()
     else:
         ctable = contingency_table(seg_or_ctable, gt, norm=False)
-    # break ties randomly; since ctable is not normalised, it contains
-    # integer values, so adding noise of standard dev 0.01 will not change
-    # any existing ordering
-    ctable.data += np.random.randn(ctable.data.size) * 0.01
+    minval = _mindiff(ctable.data)
+    ctable.data += np.random.randn(ctable.data.size) * 0.01 * minval
     maxes = ctable.max(axis=1).toarray()
     maxes_repeated = np.repeat(maxes, np.diff(ctable.indptr))
     assignments = sparse.csr_matrix((ctable.data == maxes_repeated,
@@ -423,6 +421,33 @@ def assignment_table(seg_or_ctable, gt=None, *, dtype=np.bool_):
                                     dtype=dtype)
     assignments.eliminate_zeros()
     return assignments
+
+
+def _mindiff(arr):
+    """Compute the smallest nonzero difference between elements in arr
+
+    Parameters
+    ----------
+    arr : array
+        Array of *positive* numeric values.
+
+    Returns
+    -------
+    mindiff : float
+        The smallest nonzero difference between any two elements in arr.
+
+    Examples
+    --------
+    >>> arr = np.array([5, 2.5, 7, 9.2])
+    >>> _mindiff(arr)
+    2.0
+    """
+    arr = np.sort(arr)  # this *must* be a copy!
+    mindiff = np.min(np.diff(arr))
+    if arr[0] != 0:
+        mindiff = min(mindiff, arr[0])
+    return mindiff
+
 
 
 # note: subclassing scipy sparse matrices requires that the class name
