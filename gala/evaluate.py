@@ -360,7 +360,7 @@ def contingency_table(seg, gt, *, ignore_seg=(), ignore_gt=(), norm=True):
     segr = seg.ravel() 
     gtr = gt.ravel()
     ignored = np.zeros(segr.shape, np.bool)
-    data = np.ones(len(gtr))
+    data = np.broadcast_to(1., gtr.shape)
     for i in ignore_seg:
         ignored[segr == i] = True
     for j in ignore_gt:
@@ -368,7 +368,7 @@ def contingency_table(seg, gt, *, ignore_seg=(), ignore_gt=(), norm=True):
     data[ignored] = 0
     cont = sparse.coo_matrix((data, (segr, gtr))).tocsr()
     if norm:
-        cont /= float(cont.sum())
+        cont /= gtr.size
     return cont
 
 
