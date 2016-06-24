@@ -1,8 +1,13 @@
 import os
 
 from contextlib import contextmanager
+from collections import OrderedDict
+
+import numpy as np
+
 from gala import imio, features, agglo, classify
 from asv.extern.asizeof import asizeof
+
 
 rundir = os.path.dirname(__file__)
 ## dd: the data directory
@@ -79,8 +84,8 @@ def tsgraph_queue():
     return g
 
 def bench_suite():
-    times = {}
-    memory = {}
+    times = OrderedDict()
+    memory = OrderedDict()
     wstr, prtr, gttr = trdata()
     with timer() as t_build_rag:
         g = agglo.Rag(wstr, prtr)
@@ -91,8 +96,41 @@ def bench_suite():
     times['build feature caches'] = t_features[0]
     memory['feature caches'] = asizeof(g) - memory['base RAG']
     with timer() as t_flat:
-        g.learn_flat(gttr, em)
+        _ignore = g.learn_flat(gttr, em)
     times['learn flat'] = t_flat[0]
+    with timer() as t_gala:
+        (X, y, w, e), allepochs = g.learn_agglomerate(gttr, em,
+                                                      min_num_epochs=5)
+        y = y[:, 0]  # ignore rand-sign and vi-sign schemes
+    memory['training data'] = asizeof((X, y, w, e))
+    times['learn agglo'] = t_gala[0]
+    with timer() as t_train_classifier:
+        cl = classify.DefaultRandomForest()
+        cl.fit(X, y)
+    times['classifier training'] = t_train_classifier[0]
+    memory['classifier training'] = asizeof(cl)
+    policy = agglo.classifier_probability(em, cl)
+    wsts, prts, gtts = tsdata()
+    gtest = agglo.Rag(wsts, prts, merge_priority_function=policy,
+                      feature_manager=em)
+    with timer() as t_segment:
+        gtest.agglomerate(np.inf)
+    times['segment test volume'] = t_segment[0]
+    memory['segment test volume'] = asizeof(gtest)
     return times, memory
 
 
+def print_bench_results(times=None, memory=None):
+    if times is not None:
+        print('Timing results:')
+        for key in times:
+            print('--- ', key, times[key])
+    if memory is not None:
+        print('Memory results:')
+        for key in memory:
+            print('--- ', key, '%.3f MB' % memory[key] / 1e6)
+
+
+if __name__ == '__main__':
+    times, memory = bench_suite()
+    print_bench_results(times, memory)
