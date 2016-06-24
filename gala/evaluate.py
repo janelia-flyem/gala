@@ -360,7 +360,7 @@ def contingency_table(seg, gt, *, ignore_seg=(), ignore_gt=(), norm=True):
     segr = seg.ravel() 
     gtr = gt.ravel()
     ignored = np.zeros(segr.shape, np.bool)
-    data = np.broadcast_to(1., gtr.shape)
+    data = np.ones(gtr.shape)
     for i in ignore_seg:
         ignored[segr == i] = True
     for j in ignore_gt:
