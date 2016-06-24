@@ -128,7 +128,7 @@ def print_bench_results(times=None, memory=None):
     if memory is not None:
         print('Memory results:')
         for key in memory:
-            print('--- ', key, '%.3f MB' % memory[key] / 1e6)
+            print('--- ', key, '%.3f MB' % (memory[key] / 1e6))
 
 
 if __name__ == '__main__':
