@@ -368,7 +368,7 @@ def contingency_table(seg, gt, *, ignore_seg=(), ignore_gt=(), norm=True):
     data[ignored] = 0
     cont = sparse.coo_matrix((data, (segr, gtr))).tocsr()
     if norm:
-        cont /= gtr.size
+        cont /= cont.sum()
     return cont
 
 
