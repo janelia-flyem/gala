@@ -441,13 +441,16 @@ def _mindiff(arr):
     >>> arr = np.array([5, 5, 2.5, 7, 9.2])
     >>> _mindiff(arr)
     2.0
+    >>> arr = np.array([0.5, 0.5])
+    >>> _mindiff(arr)
+    0.5
     """
     arr = np.sort(arr)  # this *must* be a copy!
     diffs = np.diff(arr)
     diffs = diffs[diffs != 0]
-    mindiff = np.min(diffs)
     if arr[0] != 0:
-        mindiff = min(mindiff, arr[0])
+        diffs = np.concatenate((diffs, [arr[0]]))
+    mindiff = np.min(diffs)
     return mindiff
 
 
