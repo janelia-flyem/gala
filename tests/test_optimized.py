@@ -1,6 +1,8 @@
+import os
 import numpy as np
 from numpy.testing import assert_equal
 from gala import optimized as opt
+import pytest
 
 def _flood_fill_example():
     return    np.array([[[0,1,2,5],
@@ -48,6 +50,9 @@ def test_flood_fill_whole():
     assert_equal(len(t7), (example2==0).sum(), fail_message)
 
 
+@pytest.mark.skipif('GALA_TEST_FULL' not in os.environ,
+                    reason=("Test takes too long; "
+                            "set GALA_TEST_FULL env variable to run this."))
 def test_flood_fill_pipes():
     fail_message = 'Flood fill failed with thin columns in large volume.'
     example3 = np.random.randint(6, size=(200,200,200))

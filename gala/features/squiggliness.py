@@ -23,7 +23,7 @@ class Manager(base.Null):
 
     # cache is min and max coordinates of bounding box
     def create_edge_cache(self, g, n1, n2):
-        edge_idxs = g[n1][n2]['boundary']
+        edge_idxs = g.boundary(n1, n2)
         return np.concatenate(
             compute_bounding_box(edge_idxs, g.watershed.shape))
 
@@ -40,5 +40,5 @@ class Manager(base.Null):
             cache = g[n1][n2][self.default_cache]
         m, M = cache[:self.ndim], cache[self.ndim:]
         plane_surface = np.sort(M-m)[1:].prod() * (3.0-g.pad_thickness)
-        return np.array([len(set(g[n1][n2]['boundary'])) / plane_surface])
+        return np.array([len(set(g.boundary(n1, n2))) / plane_surface])
 

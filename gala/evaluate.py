@@ -14,6 +14,34 @@ from scipy.spatial.distance import pdist, squareform
 from sklearn.metrics import precision_recall_curve
 
 
+def nzcol(mat, row_idx):
+    """Return the nonzero elements of given row in a CSR matrix.
+
+    Parameters
+    ----------
+    mat : CSR matrix
+        Input matrix.
+    row_idx : int
+        The index of the row (if `mat` is CSR) for which the nonzero
+        elements are desired.
+
+    Returns
+    -------
+    nz : array of int
+        The location of nonzero elements of `mat[main_axis_idx]`.
+
+    Examples
+    --------
+    >>> mat = sparse.csr_matrix(np.array([[0, 1, 0, 0], [0, 5, 8, 0]]))
+    >>> nzcol(mat, 1)
+    array([1, 2], dtype=int32)
+    >>> mat[1, 2] = 0
+    >>> nzcol(mat, 1)
+    array([1], dtype=int32)
+    """
+    return mat[row_idx].nonzero()[1]
+
+
 def sparse_min(mat, axis=None):
     """Compute the minimum value in a sparse matrix (optionally over an axis).
 
@@ -192,7 +220,7 @@ def get_stratified_sample(ar, n):
     if nu < 2*n:
         return u
     else:
-        step = nu / n
+        step = nu // n
         return u[0:nu:step]
 
 
@@ -243,7 +271,7 @@ def raw_edit_distance(aseg, gt, size_threshold=1000):
     """
     aseg = relabel_from_one(aseg)[0]
     gt = relabel_from_one(gt)[0]
-    r = contingency_table(aseg, gt, [0], [0], norm=False)
+    r = contingency_table(aseg, gt, ignore_seg=[0], ignore_gt=[0], norm=False)
     r.data[r.data <= size_threshold] = 0
     # make each segment overlap count for 1, since it will be one
     # operation to fix (split or merge)
@@ -304,7 +332,7 @@ def relabel_from_one(label_field):
     return forward_map[label_field], forward_map, inverse_map
 
 
-def contingency_table(seg, gt, ignore_seg=[0], ignore_gt=[0], norm=True):
+def contingency_table(seg, gt, *, ignore_seg=(), ignore_gt=(), norm=True):
     """Return the contingency table for all regions in matched segmentations.
 
     Parameters
@@ -313,10 +341,10 @@ def contingency_table(seg, gt, ignore_seg=[0], ignore_gt=[0], norm=True):
         A candidate segmentation.
     gt : np.ndarray, int type, same shape as `seg`
         The ground truth segmentation.
-    ignore_seg : list of int, optional
+    ignore_seg : iterable of int, optional
         Values to ignore in `seg`. Voxels in `seg` having a value in this list
         will not contribute to the contingency table. (default: [0])
-    ignore_gt : list of int, optional
+    ignore_gt : iterable of int, optional
         Values to ignore in `gt`. Voxels in `gt` having a value in this list
         will not contribute to the contingency table. (default: [0])
     norm : bool, optional
@@ -324,7 +352,7 @@ def contingency_table(seg, gt, ignore_seg=[0], ignore_gt=[0], norm=True):
 
     Returns
     -------
-    cont : scipy.sparse.csc_matrix
+    cont : scipy.sparse.csr_matrix
         A contingency table. `cont[i, j]` will equal the number of voxels
         labeled `i` in `seg` and `j` in `gt`. (Or the proportion of such voxels
         if `norm=True`.)
@@ -332,16 +360,310 @@ def contingency_table(seg, gt, ignore_seg=[0], ignore_gt=[0], norm=True):
     segr = seg.ravel() 
     gtr = gt.ravel()
     ignored = np.zeros(segr.shape, np.bool)
-    data = np.ones(len(gtr))
+    data = np.ones(gtr.shape)
     for i in ignore_seg:
         ignored[segr == i] = True
     for j in ignore_gt:
         ignored[gtr == j] = True
     data[ignored] = 0
-    cont = sparse.coo_matrix((data, (segr, gtr))).tocsc()
+    cont = sparse.coo_matrix((data, (segr, gtr))).tocsr()
     if norm:
-        cont /= float(cont.sum())
+        cont /= cont.sum()
     return cont
+
+
+def assignment_table(seg_or_ctable, gt=None, *, dtype=np.bool_):
+    """Create an assignment table of value in `seg` to `gt`.
+
+    Parameters
+    ----------
+    seg_or_ctable : array of int, or 2D array of float
+        The segmentation to assign. Every value in `seg` will be
+        assigned to a single value in `gt`.
+        Alternatively, pass a single, pre-computed contingency table
+        to be converted to an assignment table.
+    gt : array of int, same shape as seg
+        The segmentation to assign to. Don't pass if `seg_or_cont` is
+        a contingency matrix.
+    dtype : numpy dtype specification
+        The desired data type for the assignment matrix.
+
+    Returns
+    -------
+    assignments : sparse matrix
+        A matrix with `True` at position [i, j] if segment i in `seg`
+        is assigned to segment j in `gt`.
+
+    Examples
+    --------
+    >>> seg = np.array([0, 1, 1, 1, 2, 2])
+    >>> gt = np.array([1, 1, 1, 2, 2, 2])
+    >>> assignment_table(seg, gt).toarray()
+    array([[False,  True, False],
+           [False,  True, False],
+           [False, False,  True]], dtype=bool)
+    >>> cont = contingency_table(seg, gt)
+    >>> assignment_table(cont).toarray()
+    array([[False,  True, False],
+           [False,  True, False],
+           [False, False,  True]], dtype=bool)
+    """
+    if gt is None:
+        ctable = seg_or_ctable.copy()
+    else:
+        ctable = contingency_table(seg_or_ctable, gt, norm=False)
+    minval = _mindiff(ctable.data)
+    ctable.data += np.random.randn(ctable.data.size) * 0.01 * minval
+    maxes = ctable.max(axis=1).toarray()
+    maxes_repeated = np.repeat(maxes, np.diff(ctable.indptr))
+    assignments = sparse.csr_matrix((ctable.data == maxes_repeated,
+                                     ctable.indices, ctable.indptr),
+                                    dtype=dtype)
+    assignments.eliminate_zeros()
+    return assignments
+
+
+def _mindiff(arr):
+    """Compute the smallest nonzero difference between elements in arr
+
+    Parameters
+    ----------
+    arr : array
+        Array of *positive* numeric values.
+
+    Returns
+    -------
+    mindiff : float
+        The smallest nonzero difference between any two elements in arr.
+
+    Examples
+    --------
+    >>> arr = np.array([5, 5, 2.5, 7, 9.2])
+    >>> _mindiff(arr)
+    2.0
+    >>> arr = np.array([0.5, 0.5])
+    >>> _mindiff(arr)
+    0.5
+    """
+    arr = np.sort(arr)  # this *must* be a copy!
+    diffs = np.diff(arr)
+    diffs = diffs[diffs != 0]
+    if arr[0] != 0:
+        diffs = np.concatenate((diffs, [arr[0]]))
+    mindiff = np.min(diffs)
+    return mindiff
+
+
+
+# note: subclassing scipy sparse matrices requires that the class name
+# start with the same three letters as the given format. See:
+# https://stackoverflow.com/questions/24508214/inherit-from-scipy-sparse-csr-matrix-class
+# https://groups.google.com/d/msg/scipy-user/-1PIkEMFWd8/KX6idRoIqqkJ
+class csrRowExpandableCSR(sparse.csr_matrix):
+    """Like a scipy CSR matrix, but rows can be appended.
+
+    Use `mat[i] = v` to append the row-vector v as row i to the matrix mat.
+    Any rows between the current last row and i are filled with zeros.
+
+    Parameters
+    ----------
+    arg1 :
+        Any valid instantiation of a sparse.csr_matrix. This includes a
+        dense matrix or 2D NumPy array, any SciPy sparse matrix, or a
+        tuple of the three defining values of a scipy sparse matrix,
+        (data, indices, indptr). See the documentation for
+        sparse.csr_matrix for more information.
+    dtype : numpy dtype specification, optional
+        The data type contained in the matrix, e.g. 'float32', np.float64,
+        np.complex128.
+    shape : tuple of two ints, optional
+        The number of rows and columns of the matrix.
+    copy : bool, optional
+        This argument does nothing, and is maintained for compatibility
+        with the csr_matrix constructor. Because we create bigger-than-
+        necessary buffer arrays, the data must always be copied.
+    max_num_rows : int, optional
+        The initial maximum number of rows. Note that more rows can
+        always be added; this is used only for efficiency. If None,
+        defaults to twice the initial number of rows.
+    max_nonzero : int, optional
+        The maximum number of nonzero elements. As with max_num_rows,
+        this is only necessary for efficiency.
+    expansion_factor : int or float, optional
+        The maximum number of rows or nonzero elements will be this
+        number times the initial number of rows or nonzero elements.
+        This is overridden if max_num_rows or max_nonzero are provided.
+
+    Examples
+    --------
+    >>> init = csrRowExpandableCSR([[0, 0, 2], [0, 4, 0]])
+    >>> init[2] = np.array([9, 0, 0])
+    >>> init[4] = sparse.csr_matrix([0, 0, 5])
+    >>> init.nnz
+    4
+    >>> init.data
+    array([2, 4, 9, 5], dtype=int64)
+    >>> init.toarray()
+    array([[0, 0, 2],
+           [0, 4, 0],
+           [9, 0, 0],
+           [0, 0, 0],
+           [0, 0, 5]], dtype=int64)
+    """
+    def __init__(self, arg1, shape=None, dtype=None, copy=False,
+                 max_num_rows=None, max_nonzero=None,
+                 expansion_factor=2):
+        other = sparse.csr_matrix(arg1, shape=shape, dtype=dtype, copy=copy)
+        if max_nonzero is None:
+            max_nonzero = other.nnz * expansion_factor
+        if max_num_rows is None:
+            max_num_rows = other.shape[0] * expansion_factor
+        self.curr_nonzero = other.nnz
+        self.curr_indptr = other.shape[0] + 1
+        self._data = np.empty(max_nonzero, dtype=other.dtype)
+        self._indices = np.empty(max_nonzero, dtype=other.indices.dtype)
+        self._indptr = np.empty(max_num_rows + 1, dtype=other.indptr.dtype)
+        super().__init__((other.data, other.indices, other.indptr),
+                         shape=other.shape, dtype=other.dtype, copy=False)
+
+    @property
+    def data(self):
+        """The data array is virtual, truncated from the data "buffer", _data.
+        """
+        return self._data[:self.curr_nonzero]
+
+    @data.setter
+    def data(self, value):
+        """Setter for the data property.
+
+        We have to special-case for a few kinds of values.
+
+        When creating a new instance, the csr_matrix class removes some
+        zeros from the array and ends up setting data to a smaller array.
+        In that case, we need to make sure that we reset `self.curr_nonzero`
+        and copy the relevant part of the array.
+        """
+        if np.isscalar(value) or len(value) == self.curr_nonzero:
+            self._data[:self.curr_nonzero] = value
+        else:  # `value` is array-like of different length
+            self.curr_nonzero = len(value)
+            while self._data.size < self.curr_nonzero:
+                self._double_data_and_indices()
+            self._data[:self.curr_nonzero] = value
+
+    @property
+    def indices(self):
+        return self._indices[:self.curr_nonzero]
+
+    @indices.setter
+    def indices(self, value):
+        if np.isscalar(value) or len(value) == self.curr_nonzero:
+            self._indices[:self.curr_nonzero] = value
+        else:  # `value` is array-like of different length
+            self.curr_nonzero = len(value)
+            while self._indices.size < self.curr_nonzero:
+                self._double_data_and_indices()
+            self._indices[:self.curr_nonzero] = value
+
+    @property
+    def indptr(self):
+        return self._indptr[:self.curr_indptr]
+
+    @indptr.setter
+    def indptr(self, value):
+        if np.isscalar(value) or len(value) == self.curr_indptr:
+            self._indptr[:self.curr_indptr] = value
+        else:  # `value` is array-like of different length
+            self.curr_indptr = len(value)
+            while self._indptr.size < self.curr_indptr:
+                self._double_data_and_indices()
+            self._indptr[:self.curr_indptr] = value
+
+    def __setitem__(self, index, value):
+        if np.isscalar(index):
+            if index >= self.shape[0]:  # appending a row
+                self._append_row_at(index, value)
+            else:
+                if np.isscalar(value):
+                    if value == 0:  # zeroing out a row
+                        self._zero_row(index)
+        else:
+            super().__setitem__(index, value)
+
+    def _append_row_at(self, index, value):
+        # first: normalize the input value. We want a sparse CSR matrix as
+        # input, to make data copying logic much simpler.
+        if np.isscalar(value):
+            value = np.full(self.shape[1], value)  # make a full row if scalar
+        if not sparse.isspmatrix_csr(value):
+            value = sparse.csr_matrix(value)
+
+        # Make sure we have sufficient room for the new row.
+        if index + 2 > self._indptr.size:
+            self._double_indptr()
+        num_values = value.nnz
+        if self.curr_nonzero + num_values > self._data.size:
+            self._double_data_and_indices()
+        i, j = self.indptr[-1], self.indptr[-1] + num_values
+        self._indptr[self.curr_indptr:index + 1] = i
+        self._indptr[index + 1] = j
+        self.curr_indptr = index + 2
+        self._indices[i:j] = value.indices[:]
+        self._data[i:j] = value.data[:]
+        self.curr_nonzero += num_values
+        # It turns out that the `shape` attribute is a property in SciPy
+        # sparse matrices, and can't be set directly. So, we bypass it and
+        # set the corresponding tuple directly, interfaces be damned.
+        self._shape = (int(index + 1), self.shape[1])
+
+    def _zero_row(self, index):
+        """Set all elements of row `index` to 0."""
+        i, j = self.indptr[index:index+2]
+        self.data[i:j] = 0
+
+    def _double_indptr(self):
+        """Double the size of the array backing `indptr`.
+
+        Doubling on demand gives amortized constant time append.
+        """
+        old_indptr = self._indptr
+        self._indptr = np.empty(2 * old_indptr.size, old_indptr.dtype)
+        self._indptr[:old_indptr.size] = old_indptr[:]
+
+    def _double_data_and_indices(self):
+        """Double size of the arrays backing `indices` and `data` attributes.
+
+        Doubling on demand gives amortized constant time append. Since these
+        two arrays are always the same size in the CSR format, they are
+        doubled together in the same function.
+        """
+        n = self._data.size
+        old_data = self._data
+        self._data = np.empty(2 * n, old_data.dtype)
+        self._data[:n] = old_data[:]
+        old_indices = self._indices
+        self._indices = np.empty(2 * n, old_indices.dtype)
+        self._indices[:n] = old_indices[:]
+
+
+def merge_contingency_table(a, b, ignore_seg=[0], ignore_gt=[0]):
+    """A contingency table that has additional rows for merging initial rows.
+
+    Parameters
+    ----------
+    a
+    b
+    ignore_seg
+    ignore_gt
+
+    Returns
+    -------
+    ct : array, shape (2M + 1, N)
+    """
+    ct = contingency_table(a, b,
+                           ignore_seg=ignore_seg, ignore_gt=ignore_gt)
+    ctout = csrRowExpandableCSR(ct)
+    return ctout
 
 
 def xlogx(x, out=None, in_place=False):
@@ -369,10 +691,10 @@ def xlogx(x, out=None, in_place=False):
         y = x.copy()
     else:
         y = out
-    if type(y) in [sparse.csc_matrix, sparse.csr_matrix]:
+    if isinstance(y, sparse.csc_matrix) or isinstance(y, sparse.csr_matrix):
         z = y.data
     else:
-        z = y
+        z = np.asarray(y)  # ensure np.matrix converted to np.array
     nz = z.nonzero()
     z[nz] *= np.log2(z[nz])
     return y
@@ -913,7 +1235,7 @@ def vi_tables(x, y=None, ignore_x=[0], ignore_y=[0]):
         per-segment conditional probability p log p.
     """
     if y is not None:
-        pxy = contingency_table(x, y, ignore_x, ignore_y)
+        pxy = contingency_table(x, y, ignore_seg=ignore_x, ignore_gt=ignore_y)
     else:
         cont = x
         total = float(cont.sum())

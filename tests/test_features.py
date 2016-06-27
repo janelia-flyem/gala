@@ -63,7 +63,7 @@ def run_matched(f, fn, c=1,
                 edges=[(1, 2), (6, 3), (7, 4)],
                 merges=[(1, 2), (6, 3)]):
     p = probs1 if c == 1 else probs2
-    g = agglo.Rag(wss1, p, feature_manager=f)
+    g = agglo.Rag(wss1, p, feature_manager=f, use_slow=True)
     o = list_of_feature_arrays(g, f, edges, merges)
     with open(fn, 'rb') as fin:
         r = pck.load(fin, encoding='bytes')
@@ -111,7 +111,7 @@ def test_convex_hull():
                    [1, 1, 2],
                    [1, 2, 2]], dtype=np.uint8)
     chull = features.convex_hull.Manager()
-    g = agglo.Rag(ws, feature_manager=chull)
+    g = agglo.Rag(ws, feature_manager=chull, use_slow=True)
     expected = np.array([0.5, 0.125, 0.5, 0.1, 1., 0.167, 0.025, 0.069,
                          0.44, 0.056, 1.25, 1.5, 1.2, 0.667])
     assert_allclose(chull(g, 1, 2), expected, atol=0.01, rtol=1.)

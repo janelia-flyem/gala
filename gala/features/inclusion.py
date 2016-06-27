@@ -18,7 +18,7 @@ class Manager(base.Null):
         return json_fm
 
     def compute_node_features(self, g, n, cache=None):
-        bd_lengths = sorted([len(g[n][x]['boundary']) for x in g.neighbors(n)])
+        bd_lengths = sorted([len(g.boundary(n, x)) for x in g.neighbors(n)])
         ratio1 = float(bd_lengths[-1])/float(sum(bd_lengths))
         try:
             ratio2 = float(bd_lengths[-2])/float(bd_lengths[-1])
@@ -27,15 +27,14 @@ class Manager(base.Null):
         return np.array([ratio1, ratio2])
 
     def compute_edge_features(self, g, n1, n2, cache=None):
-        bd_lengths1 = sorted([len(g[n1][x]['boundary'])
+        bd_lengths1 = sorted([len(g.boundary(n1, x))
                               for x in g.neighbors(n1)])
-        bd_lengths2 = sorted([len(g[n2][x]['boundary'])
+        bd_lengths2 = sorted([len(g.boundary(n2, x))
                               for x in g.neighbors(n2)])
-        ratios1 = [float(len(g[n1][n2]['boundary']))/float(sum(bd_lengths1)),
-                   float(len(g[n1][n2]['boundary']))/float(sum(bd_lengths2))]
+        boundlen = len(g.boundary(n1, n2))
+        ratios1 = [boundlen / sum(bd_lengths1), boundlen / sum(bd_lengths2)]
         ratios1.sort()
-        ratios2 = [float(len(g[n1][n2]['boundary']))/float(max(bd_lengths1)),
-                   float(len(g[n1][n2]['boundary']))/float(max(bd_lengths2))]
+        ratios2 = [boundlen / max(bd_lengths1), boundlen / max(bd_lengths2)]
         ratios2.sort()
         return np.concatenate((ratios1, ratios2))
 

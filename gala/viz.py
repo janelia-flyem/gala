@@ -1,15 +1,10 @@
 from .annotefinder import AnnotationFinder
 from math import ceil
 import numpy as np
-import scipy
 from . import evaluate
 from skimage import color
-import matplotlib
-plt = matplotlib.pyplot
-cm = plt.cm
+from matplotlib import cm, pyplot as plt
 import itertools as it
-
-center_of_mass=scipy.ndimage.measurements.center_of_mass
 
 ###########################
 # VISUALIZATION FUNCTIONS #
@@ -70,7 +65,7 @@ def imshow_rand(im, labrandom=True):
         rand_colors = color.lab2rgb(rand_colors[np.newaxis, ...])[0]
         rand_colors[rand_colors < 0] = 0
         rand_colors[rand_colors > 1] = 1
-    rcmap = matplotlib.colors.ListedColormap(np.concatenate(
+    rcmap = cm.colors.ListedColormap(np.concatenate(
         (np.zeros((1,3)), rand_colors)
     ))
     return plt.imshow(im, cmap=rcmap, interpolation='nearest')
@@ -225,7 +220,7 @@ def plot_vi_breakdown_panel(px, h, title, xlab, ylab, hlines, scatter_size,
     -------
     None
     """
-    x = scipy.arange(max(min(px),1e-10), max(px), (max(px)-min(px))/100.0)
+    x = np.arange(max(min(px),1e-10), max(px), (max(px)-min(px))/100.0)
     for val in hlines:
         plt.plot(x, val/x, color='gray', ls=':', **kwargs) 
     plt.scatter(px, h, label=title, s=scatter_size, **kwargs)
@@ -433,4 +428,61 @@ def plot_split_vi(ars, best=None, colors='k', linespecs='-', **kwargs):
             c=kwargs.get('best-color', 'k'), marker=(5,3,0), **kwargs)
         )
     return lines
+
+
+def plot_decision_function(clf, data_range=None,
+                           features=None, labels=None, feature_columns=[0, 1],
+                           n_gridpoints=201):
+    """Plot the decision function of a classifier in 2D.
+
+    Parameters
+    ----------
+    clf : scikit-learn classifier
+        The classifier to be evaluated.
+    data_range : tuple of int, optional
+        The range of values to be evaluated.
+    features : 2D array of float, optional
+        The features of the training data.
+    labels : 1D array of int, optional
+        The labels of the training data.
+    feature_columns : tuple of int, optional
+        Which feature columns to plot, if there are more than two.
+    n_gridpoints : int, optional
+        The number of points to place on each dimension of the 2D grid.
+    """
+    if features is not None:
+        features = features[:, feature_columns]
+        minfeat, maxfeat = np.min(features), np.max(features)
+        featrange = maxfeat - minfeat
+
+    if data_range is None:
+        if features is None:
+            data_range = (0, 1)
+        else:
+            data_range = (minfeat - 0.05 * featrange,
+                          maxfeat + 0.05 * featrange)
+
+    data_range = np.array(data_range)
+
+    grid = np.linspace(*data_range, num=n_gridpoints, endpoint=True)
+    rr, cc = np.meshgrid(grid, grid, sparse=False)
+    feature_space = np.hstack((np.reshape(rr, (-1, 1)),
+                               np.reshape(cc, (-1, 1))))
+    prediction = clf.predict_proba(feature_space)[:, 1]  # Pr(class(X)=1)
+    prediction = np.reshape(prediction, (n_gridpoints, n_gridpoints))
+
+    fig, ax = plt.subplots()
+    ax.imshow(prediction, cmap='RdBu')
+    ax.set_xticks([])
+    ax.set_yticks([])
+
+    features = (features - data_range[0]) / (data_range[1] - data_range[0])
+
+    if features is not None:
+        if labels is not None:
+            label_colors = cm.viridis(labels)
+        else:
+            label_colors = cm.viridis(np.zeros(features.shape[0]))
+        ax.scatter(*(features.T * n_gridpoints), c=label_colors)
+    plt.show()
 

@@ -41,13 +41,13 @@ contact = np.array(
 
 def test_paper_em():
     feat = default.paper_em()
-    g = agglo.Rag(ws, prob, feature_manager=feat)
+    g = agglo.Rag(ws, prob, feature_manager=feat, use_slow=True)
     assert_allclose(feat(g, 1, 2), ans12, atol=0.01)
 
 
 def test_snemi():
     feat = default.snemi3d()
-    g = agglo.Rag(ws, prob, feature_manager=feat)
+    g = agglo.Rag(ws, prob, feature_manager=feat, use_slow=True)
     # contact are edge features, so they are inserted just before the 8
     # difference features in the base paper_em vector.
     expected = np.concatenate((ans12[:-8], contact, ans12[-8:]))

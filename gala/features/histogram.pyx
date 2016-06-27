@@ -110,7 +110,7 @@ class Manager(base.Null):
         return self.histogram(ar[node_idxs,:])
 
     def create_edge_cache(self, g, n1, n2):
-        edge_idxs = g[n1][n2]['boundary']
+        edge_idxs = g.boundary(n1, n2)
         if self.oriented:
             ar = g.oriented_probabilities_r
         else:
