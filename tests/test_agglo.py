@@ -59,7 +59,8 @@ def test_agglomeration():
 def test_ladder_agglomeration():
     i = 2
     g = agglo.Rag(wss[i], probs[i], agglo.boundary_mean,
-                  normalize_probabilities=True, use_slow=True)
+                  normalize_probabilities=True, use_slow=True,
+                  update_unchanged_edges=True)
     g.agglomerate_ladder(3)
     g.agglomerate(0.51)
     assert_allclose(ev.vi(g.get_segmentation(), results[i]), 0.0,
@@ -83,7 +84,7 @@ def test_mito():
                   normalize_probabilities=True, isfrozennode=frozen,
                   use_slow=True)
     g.agglomerate(0.15)
-    g.merge_priority_function = agglo.mito_merge()
+    g.merge_priority_function = agglo.mito_merge
     g.rebuild_merge_queue()
     g.agglomerate(1.0)
     assert_allclose(ev.vi(g.get_segmentation(), results[i]), 0.0,
@@ -164,13 +165,13 @@ def dummy_data():
 
 def test_manual_agglo_fast_rag(dummy_data):
     frag, gt, g = dummy_data
-    assert agglo.boundary_mean(g, [[6, 7]]) == 0.8
-    assert agglo.boundary_mean(g, [[6, 10]]) == 0.8
+    assert agglo.boundary_mean(g, [[6, 7]])[0] == 0.8
+    assert agglo.boundary_mean(g, [[6, 10]])[0] == 0.8
     original_ids_0 = [g[u][v]['boundary-ids'] for u, v in [(5, 9), (6, 10)]]
     original_ids_1 = [g[u][v]['boundary-ids'] for u, v in [(7, 11), (8, 12)]]
     original_ids_2 = [g[u][v]['boundary-ids'] for u, v in [(2, 3), (6, 7)]]
     g.merge_subgraph([1, 2, 5, 6])  # results in node ID 20
-    assert agglo.boundary_mean(g, ((20, 10))) == 0.8
+    assert agglo.boundary_mean(g, [[20, 10]])[0] == 0.8
     g.merge_subgraph(range(9, 17))
     assert g[20][27]['boundary-ids'] == set.union(*original_ids_0)
     assert np.allclose(agglo.boundary_mean(g, [[20, 27]])[0], 0.8, atol=0.02)
