@@ -27,16 +27,18 @@ def test_2_connectivity():
     p = np.array([[1., 0.], [0., 1.]])
     ws = np.array([[1, 2], [3, 4]], np.uint32)
     g = agglo.Rag(ws, p, connectivity=2, use_slow=True)
-    assert_equal(agglo.boundary_mean(g, 1, 2), 0.5)
-    assert_equal(agglo.boundary_mean(g, 1, 4), 1.0)
+    assert_equal(agglo.boundary_mean(g, [[1, 2]]), [0.5])
+    assert_equal(agglo.boundary_mean(g, [[1, 4]]), [1.0])
+    assert_equal(agglo.boundary_mean(g, [[1, 2], [1, 4]]), [0.5, 1.0])
 
 def test_float_watershed():
     """Ensure float arrays passed as watersheds don't crash everything."""
     p = np.array([[1., 0.], [0., 1.]])
     ws = np.array([[1, 2], [3, 4]], np.float32)
     g = agglo.Rag(ws, p, connectivity=2, use_slow=True)
-    assert_equal(agglo.boundary_mean(g, 1, 2), 0.5)
-    assert_equal(agglo.boundary_mean(g, 1, 4), 1.0)
+    assert_equal(agglo.boundary_mean(g, [[1, 2]])[0], 0.5)
+    assert_equal(agglo.boundary_mean(g, [[1, 4]])[0], 1.0)
+    assert_equal(agglo.boundary_mean(g, [[1, 2], [1, 4]]), [0.5, 1.0])
 
 
 def test_empty_rag():
@@ -162,16 +164,16 @@ def dummy_data():
 
 def test_manual_agglo_fast_rag(dummy_data):
     frag, gt, g = dummy_data
-    assert agglo.boundary_mean(g, 6, 7) == 0.8
-    assert agglo.boundary_mean(g, 6, 10) == 0.8
+    assert agglo.boundary_mean(g, [[6, 7]]) == 0.8
+    assert agglo.boundary_mean(g, [[6, 10]]) == 0.8
     original_ids_0 = [g[u][v]['boundary-ids'] for u, v in [(5, 9), (6, 10)]]
     original_ids_1 = [g[u][v]['boundary-ids'] for u, v in [(7, 11), (8, 12)]]
     original_ids_2 = [g[u][v]['boundary-ids'] for u, v in [(2, 3), (6, 7)]]
     g.merge_subgraph([1, 2, 5, 6])  # results in node ID 20
-    assert agglo.boundary_mean(g, 20, 10) == 0.8
+    assert agglo.boundary_mean(g, ((20, 10))) == 0.8
     g.merge_subgraph(range(9, 17))
     assert g[20][27]['boundary-ids'] == set.union(*original_ids_0)
-    assert np.allclose(agglo.boundary_mean(g, 20, 27), 0.8, atol=0.02)
+    assert np.allclose(agglo.boundary_mean(g, [[20, 27]])[0], 0.8, atol=0.02)
     g.merge_subgraph([3, 4, 7, 8])
     assert g[27][30]['boundary-ids'] == set.union(*original_ids_1)
     g.merge_nodes(27, 30)

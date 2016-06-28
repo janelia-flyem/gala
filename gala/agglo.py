@@ -140,7 +140,6 @@ def batchify(func):
     batch_func : function
         A batch merge priority function with signature (g, [(n1, n2)]) -> [f].
     """
-    @functools.wraps
     def batch_func(g, edges):
         result = []
         for n1, n2 in edges:
@@ -216,7 +215,7 @@ def make_ladder(priority_function, threshold, strictness=1):
                 ladder_condition &= len(g.boundary(n1, n2)) > 2
             pass_ladder[i] = ladder_condition
         priority = np.empty(len(edges), dtype=float)
-        priority[pass_ladder] = priority_function(edges[pass_ladder])
+        priority[pass_ladder] = priority_function(g, edges[pass_ladder])
         priority[~pass_ladder] = np.inf
         return priority
     return ladder_function
@@ -289,11 +288,12 @@ def classifier_probability(feature_map, classifier):
         result[boundary] = np.inf
         features = np.atleast_2d([feature_map(g, n1, n2)
                                   for n1, n2 in edges[~boundary]])
-        try:
+        if features.size > 0:
             prediction = classifier.predict_proba(features)[:, 1]
-        except AttributeError:
-            prediction = classifier.predict(features)
-        return prediction
+        else:
+            prediction = np.array([])
+        result[~boundary] = prediction
+        return result
     return predict
 
 
@@ -511,8 +511,8 @@ class Rag(Graph):
             for n1, n2 in self.edges():
                 if isfrozenedge(self, n1, n2):
                     self.frozen_edges.add((n1,n2))
+        self.update_unchanged_edges = update_unchanged_edges
         if update_unchanged_edges:
-            self.update_unchanged_edges = update_unchanged_edges
             self.move_edge = self.merge_edge_properties
 
 
@@ -1521,9 +1521,10 @@ class Rag(Graph):
             self.merge_queue.invalidate(self[n1][n2]['qlink'])
         except KeyError:  # no edge or no queue link
             pass
-        weights = self.merge_priority_function(edges_to_update)
-        for w, (u, v) in zip(weights, edges_to_update):
-            self.merge_queue.push([w, u, v, True])
+        if edges_to_update:
+            weights = self.merge_priority_function(self, edges_to_update)
+            for w, (u, v) in zip(weights, edges_to_update):
+                self.merge_queue.push([w, True, u, v])
         node_id = self.tree.merge(n1, n2, w)
         self.remove_node(n2)
         self.rename_node(n1, node_id)
