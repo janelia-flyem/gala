@@ -2046,7 +2046,7 @@ class Rag(Graph):
                 i, j = nodes2ind[u], nodes2ind[v]
             except KeyError:
                 continue
-            w = merge_priority_function(self,u,v)
+            w = merge_priority_function(self, ((u, v)))
             W[i,j] = W[j,i] = np.exp(-w**2/sigma)
         return W
 
