@@ -225,77 +225,74 @@ def make_ladder(priority_function, threshold, strictness=1):
 def no_mito_merge(priority_function):
     """Convert priority function to avoid merging mitochondria.
 
-    Mitochondria are super annoying in segmentation
+    Mitochondria are super annoying in segmentation. This uses pre-
+    -computed mitochondrion labels for the segments to avoid merging
+    anything that looks like a mitochondrion, in the beginning. These
+    can be dealt with later when the bulk of the segmentation is
+    correct.
+
     Parameters
     ----------
     priority_function : function (g, [e]) -> [f]
         The merge priority function to convert.
-    threshold : int or float
-        The minimum size to be considered for merging.
-    strictness : int in {1, 2, 3}
-        How hard to check for segment size:
-          - 1: only merge small nodes that are not at the volume boundary.
-          - 2: only merge small nodes not at the volume boundary, *but not
-               to each other.*
-          - 3: conditions 1 and 2 but also ensure that the boundary shared
-               between segments is bigger than 2 voxels.
 
     Returns
     -------
-    ladder_priority_function : function (g, [e]) -> [f]
-        Same as priority function but only for small segments, otherwise
-        returns infinity.
+    mito_priority_function : function (g, [e]) -> [f]
+        Same as priority function, but avoids merging frozen nodes/edges.
+        Freezing can be defined using any property, not just mitochondria!
+
+    See Also
+    --------
+    mito_merge
     """
-    def predict(g, n1, n2):
-        frozen = (n1 in g.frozen_nodes or
-                  n2 in g.frozen_nodes or
-                  (n1, n2) in g.frozen_edges)
-        if frozen:
-            return np.inf
-        else:
-            return priority_function(g, n1, n2)
+    def predict(g, edges):
+        priorities = priority_function(g, edges)
+        for i, (n1, n2) in enumerate(edges):
+            frozen = (n1 in g.frozen_nodes or
+                      n2 in g.frozen_nodes or
+                      (n1, n2) in g.frozen_edges)
+            if frozen:
+                priorities[i] = np.inf
+        return priorities
     return predict
 
 
-def mito_merge():
-    def predict(g, n1, n2):
-        if n1 in g.frozen_nodes and n2 in g.frozen_nodes:
-            return np.inf
-        elif (n1, n2) in g.frozen_edges:
-            return np.inf
-        elif n1 not in g.frozen_nodes and n2 not in g.frozen_nodes:
+@batchify
+def mito_merge(g, n1, n2):
+    """Simple priority funct to merge segments previously labeled as mito."""
+    if n1 in g.frozen_nodes and n2 in g.frozen_nodes:
+        return np.inf
+    elif (n1, n2) in g.frozen_edges:
+        return np.inf
+    elif n1 not in g.frozen_nodes and n2 not in g.frozen_nodes:
+        return np.inf
+    else:
+        if n1 in g.frozen_nodes:
+            mito = n1
+            cyto = n2
+        else:
+            mito = n2
+            cyto = n1
+        if g.node[mito]['size'] > g.node[cyto]['size']:
             return np.inf
         else:
-            if n1 in g.frozen_nodes:
-                mito = n1
-                cyto = n2
-            else:
-                mito = n2
-                cyto = n1
-            if g.node[mito]['size'] > g.node[cyto]['size']:
-                return np.inf
-            else:
-                return 1.0 - (float(len(g.boundary(mito, cyto)))/
-                sum([len(g.boundary(mito, x)) for x in g.neighbors(mito)]))
-    return predict
+            return 1.0 - (float(len(g.boundary(mito, cyto)))/
+            sum([len(g.boundary(mito, x)) for x in g.neighbors(mito)]))
 
 
-def classifier_probability(feature_extractor, classifier):
-    def predict(g, n1, n2):
-        if n1 == g.boundary_body or n2 == g.boundary_body:
-            return inf
-        features = np.atleast_2d(feature_extractor(g, n1, n2))
+def classifier_probability(feature_map, classifier):
+    def predict(g, edges):
+        edges = np.atleast_2d(edges)
+        boundary = np.sum(edges == g.boundary_body, axis=1).astype(bool)
+        result = np.empty(len(edges))
+        result[boundary] = np.inf
+        features = np.atleast_2d([feature_map(g, n1, n2)
+                                  for n1, n2 in edges[~boundary]])
         try:
-            prediction = classifier.predict_proba(features)
-            prediction_arr = np.array(prediction, copy=False)
-            if prediction_arr.ndim > 2:
-                prediction_arr = prediction_arr[0]
-            try:
-                prediction = prediction_arr[0][1]
-            except (TypeError, IndexError):
-                prediction = prediction_arr[0]
+            prediction = classifier.predict_proba(features)[:, 1]
         except AttributeError:
-            prediction = classifier.predict(features)[0]
+            prediction = classifier.predict(features)
         return prediction
     return predict
 
@@ -305,31 +302,34 @@ def ordered_priority(edges):
     n = len(edges)
     for i, (n1, n2) in enumerate(edges):
         score = float(i)/n
-        d[(n1,n2)] = score
-        d[(n2,n1)] = score
-    def ord(g, n1, n2):
-        return d.get((n1,n2), inf)
+        d[(n1, n2)] = score
+        d[(n2, n1)] = score
+
+    def ord(g, edges):
+        return [d.get(e, inf) for e in edges]
     return ord
 
 
-def expected_change_vi(feature_extractor, classifier, alpha=1.0, beta=1.0):
-    prob_func = classifier_probability(feature_extractor, classifier)
-    def predict(g, n1, n2):
-        p = prob_func(g, n1, n2) # Prediction from the classifier
+def expected_change_vi(feature_map, classifier, alpha=1.0, beta=1.0):
+    prob_func = classifier_probability(feature_map, classifier)
+    def predict(g, edges):
+        p = prob_func(g, edges)  # Prediction from the classifier
         # Calculate change in VI if n1 and n2 should not be merged
-        v = compute_local_vi_change(
-            g.node[n1]['size'], g.node[n2]['size'], g.volume_size
-        )
+        n1_sizes = np.fromiter((g.node[n1]['size'] for n1, n2 in edges),
+                               dtype=float, count=len(edges))
+        n2_sizes = np.fromiter((g.node[n2]['size'] for n1, n2 in edges),
+                               dtype=float, count=len(edges))
+        v = compute_local_vi_change(n1_sizes, n2_sizes, g.volume_size)
         # Return expected change
-        return  (p*alpha*v + (1.0-p)*(-beta*v))
+        return  p*alpha*v - (1-p)*beta*v
     return predict
 
 
 def compute_local_vi_change(s1, s2, n):
     """Compute change in VI if we merge disjoint sizes s1,s2 in a volume n."""
-    py1 = float(s1)/n
-    py2 = float(s2)/n
-    py = py1+py2
+    py1 = s1 / n
+    py2 = s2 / n
+    py = py1 + py2
     return -(py1*np.log2(py1) + py2*np.log2(py2) - py*np.log2(py))
 
 
@@ -344,20 +344,22 @@ def compute_true_delta_vi(ctable, n1, n2):
                                 2*(p3g_log_p3g - p1g_log_p1g - p2g_log_p2g)
 
 
-def expected_change_rand(feature_extractor, classifier, alpha=1.0, beta=1.0):
-    prob_func = classifier_probability(feature_extractor, classifier)
-    def predict(g, n1, n2):
-        p = float(prob_func(g, n1, n2)) # Prediction from the classifier
-        v = compute_local_rand_change(
-            g.node[n1]['size'], g.node[n2]['size'], g.volume_size
-        )
-        return p*v*alpha + (1.0-p)*(-beta*v)
+def expected_change_rand(feature_map, classifier, alpha=1.0, beta=1.0):
+    prob_func = classifier_probability(feature_map, classifier)
+    def predict(g, edges):
+        p = prob_func(g, edges) # Prediction from the classifier
+        n1_sizes = np.fromiter((g.node[n1]['size'] for n1, n2 in edges),
+                               dtype=float, count=len(edges))
+        n2_sizes = np.fromiter((g.node[n2]['size'] for n1, n2 in edges),
+                               dtype=float, count=len(edges))
+        v = compute_local_rand_change(n1_sizes, n2_sizes, g.volume_size)
+        return p*v*alpha - (1-p)*beta*v
     return predict
 
 
 def compute_local_rand_change(s1, s2, n):
     """Compute change in rand if we merge disjoint sizes s1,s2 in volume n."""
-    return float(s1*s2)/nchoosek(n,2)
+    return s1 * s2 / nchoosek(n, 2)
 
 
 def compute_true_delta_rand(ctable, n1, n2, n):
@@ -375,20 +377,23 @@ def compute_true_delta_rand(ctable, n1, n2, n):
     return (2 * delta_sxy - delta_sx) / nchoosek(n, 2)
 
 
-def boundary_mean_ladder(g, n1, n2, threshold, strictness=1):
+def boundary_mean_ladder(g, edges, threshold, strictness=1):
     f = make_ladder(boundary_mean, threshold, strictness)
-    return f(g, n1, n2)
+    return f(g, edges)
 
 
-def boundary_mean_plus_sem(g, n1, n2, alpha=-6):
-    bvals = g.probabilities_r[g.boundary(n1, n2)]
-    return mean(bvals) + alpha*sem(bvals)
+def boundary_mean_plus_sem(g, edges, alpha=-6):
+    bvals = [g.probabilities_r[g.boundary(n1, n2)] for n1, n2 in edges]
+    means = np.fromiter(map(mean, bvals), dtype=float, count=len(edges))
+    sems = np.fromiter(map(sem, bvals), dtype=float, count=len(edges))
+    return means + alpha*sems
 
 
-def random_priority(g, n1, n2):
-    if n1 == g.boundary_body or n2 == g.boundary_body:
-        return inf
-    return random.random()
+def random_priority(g, edges):
+    edges = np.atleast_2d(edges)
+    result = np.random.rand(len(edges))
+    result[np.sum(edges == g.boundary_body, axis=1).astype(bool)] = np.inf
+    return result
 
 
 class Rag(Graph):
