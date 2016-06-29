@@ -1534,6 +1534,7 @@ class Rag(Graph):
                 qitem = [w, True, u, v]
                 self[u][v]['qlink'] = qitem
                 self.merge_queue.push(qitem)
+                self[u][v]['weight'] = w
         node_id = self.tree.merge(n1, n2, w)
         self.remove_node(n2)
         self.rename_node(n1, node_id)
