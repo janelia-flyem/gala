@@ -1521,20 +1521,7 @@ class Rag(Graph):
             self.merge_queue.invalidate(self[n1][n2]['qlink'])
         except KeyError:  # no edge or no queue link
             pass
-        edges_to_update = [e for e in edges_to_update
-                           if self.boundary_body not in e]
-        if edges_to_update and not self.merge_queue.is_null_queue:
-            weights = self.merge_priority_function(self, edges_to_update)
-            for w, (u, v) in zip(weights, edges_to_update):
-                try:
-                    self.merge_queue.invalidate(self[u][v]['qlink'])
-                except KeyError as e:
-                    if 'qlink' not in e.args:
-                        raise e
-                qitem = [w, True, u, v]
-                self[u][v]['qlink'] = qitem
-                self.merge_queue.push(qitem)
-                self[u][v]['weight'] = w
+        self.update_merge_queue(edges_to_update)
         node_id = self.tree.merge(n1, n2, w)
         self.remove_node(n2)
         self.rename_node(n1, node_id)
@@ -1691,7 +1678,8 @@ class Rag(Graph):
         -------
         None
         """
-        if not self.merge_queue.is_null_queue:
+        edges = [e for e in edges if self.boundary_body not in e]
+        if not self.merge_queue.is_null_queue and edges:
             weights = self.merge_priority_function(self, edges)
             for w, (u, v) in zip(weights, edges):
                 if 'qlink' in self[u][v]:
