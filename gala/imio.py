@@ -1113,3 +1113,51 @@ def read_prediction_from_ilastik_batch(fn, **kwargs):
     if kwargs.get('single_channel', True):
         a = a[..., 0]
     return a
+
+def read_cremi(fn):
+    """Read volume formatted as described in CREMI data challenge [1]_.
+
+    The format is HDF5, with:
+        - raw image data (uint8) in: /volumes/raw
+        - synaptic cleft annotations in: /volumes/labels/clefts
+        - neuron ids (uint64) in: volumes/labels/neuron_ids
+
+    We currently ignore the synaptic cleft annotations, and return only
+    the raw image and the neuron ids.
+
+    Parameters
+    ----------
+    fn : string
+        The input filename.
+
+    Returns
+    -------
+    im : array of uint8
+        The raw image data.
+    labels : array of uint64
+        The neuron IDs.
+
+    References
+    ----------
+    .. [1]: https://cremi.org/data/
+    """
+    im = read_h5_stack(fn, group='/volumes/raw')
+    labels = read_h5_stack(fn, group='/volumes/labels/neuron_ids')
+    return im, labels
+
+
+def write_cremi(im, labels, fn):
+    """Write a volume formatted as described in CREMI data challenge [1]_.
+
+    Parameters
+    ----------
+    im : array of uint8
+        Raw image data.
+    labels : array of uint64
+        Neuron-ID label volume, same shape as ``im``.
+    fn : string
+        The filename to write to.
+    """
+    write_h5_stack(im, fn, group='/volumes/raw')
+    write_h5_stack(labels, fn, group='/volumes/labels/neuron_ids',
+                   compression='gzip')
