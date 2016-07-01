@@ -14,8 +14,9 @@ install:
   - conda config --set always_yes yes --set changeps1 no
   - conda update -q conda
 
-  # try to activate cached env, or create if cache misses
-  - source activate gala || { conda env create; source activate gala; }
+  # try to create env, but ignore if it fails -- probably cached.
+  - conda env create || true
+  - source activate gala 
   - conda info -a
 
   # custom package not available from conda
