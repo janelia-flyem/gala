@@ -569,7 +569,7 @@ def write_h5_stack(npy_vol, fn, group='stack', compression=None, chunks=None,
                         chunks=chunks, shuffle=shuffle)
     if attrs is not None:
         for attr, value in attrs.items():
-            fout['group'].attrs[attr] = value
+            fout[group].attrs[attr] = value
     fout.close()
 
 ### Raveler format
@@ -1162,5 +1162,5 @@ def write_cremi(data_dict, fn, resolution=(40., 4., 4.)):
         is the same for each dataset written.
     """
     for group, data in data_dict.items():
-        write_h5_stack(data, group=group, compression='gzip',
+        write_h5_stack(data, fn, group=group, compression='gzip',
                        attrs={'resolution': resolution})
