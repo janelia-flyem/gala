@@ -5,17 +5,19 @@ python:
 virtualenv:
   system_site_packages: false
 install:
-  # all installing is now handled by conda as it is faster and more robust
-  - wget http://repo.continuum.io/miniconda/Miniconda-latest-Linux-x86_64.sh -O miniconda.sh;
-  - bash miniconda.sh -b -p $HOME/miniconda
-  - export PATH="$HOME/miniconda/bin:$PATH"
-  - hash -r
+  - export CONDA=$HOME/miniconda
+  - export PATH="$CONDA/bin:$PATH"
+  # install conda, but only if it doesn't already exist
+  - command -v conda > /dev/null || {
+        wget http://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -O miniconda.sh;
+        bash miniconda.sh -b -f -p $CONDA; }
   - conda config --set always_yes yes --set changeps1 no
   - conda update -q conda
-  - conda info -a
 
-  - conda env create
-  - source activate gala
+  # try to create env, but ignore if it fails -- probably cached.
+  - conda env create || true
+  - source activate gala 
+  - conda info -a
 
   # custom package not available from conda
   - pip install viridis
@@ -35,3 +37,8 @@ script:
 
 after_success:
   - if [[ $TRAVIS_PYTHON_VERSION == 3.5 ]]; then coveralls; fi
+
+cache:
+    directories:
+        - $HOME/miniconda
+        - $HOME/.matplotlib

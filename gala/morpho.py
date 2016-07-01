@@ -270,6 +270,7 @@ def watershed(a, seeds=None, connectivity=1, mask=None, smooth_thresh=0.0,
                                     (br[nidxs] == level)).astype(bool) ])
     return juicy_center(ws)
 
+
 def watershed_sequence(a, seeds=None, mask=None, axis=0, n_jobs=1, **kwargs):
     """Perform a watershed on a plane-by-plane basis.
 
@@ -330,6 +331,7 @@ def watershed_sequence(a, seeds=None, mask=None, axis=0, n_jobs=1, **kwargs):
     if axis != 0:
         ws = ws.swapaxes(0, axis).copy()
     return ws
+
 
 def manual_split(probs, seg, body, seeds, connectivity=1, boundary_seeds=None):
     """Manually split a body from a segmentation using seeded watershed.
