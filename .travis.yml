@@ -9,14 +9,14 @@ install:
   - export PATH="$CONDA/bin:$PATH"
   # install conda, but only if it doesn't already exist
   - command -v conda > /dev/null || {
-        wget http://repo.continuum.io/miniconda/Miniconda-latest-Linux-x86_64.sh -O miniconda.sh;
+        wget http://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -O miniconda.sh;
         bash miniconda.sh -b -f -p $CONDA; }
   - conda config --set always_yes yes --set changeps1 no
   - conda update -q conda
-  - conda info -a
 
   # try to activate cached env, or create if cache misses
   - source activate gala || { conda env create; source activate gala; }
+  - conda info -a
 
   # custom package not available from conda
   - pip install viridis
