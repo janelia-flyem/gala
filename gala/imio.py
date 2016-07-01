@@ -533,7 +533,7 @@ def read_mapped_segmentation_raw(fn,
 
 
 def write_h5_stack(npy_vol, fn, group='stack', compression=None, chunks=None,
-                   shuffle=None):
+                   shuffle=None, attrs=None):
     """Write a numpy.ndarray 3D volume to an HDF5 file.
 
     Parameters
@@ -558,10 +558,8 @@ def write_h5_stack(npy_vol, fn, group='stack', compression=None, chunks=None,
         inefficient I/O."
     shuffle : bool, optional
         Shuffle the bytes on disk to improve compression efficiency.
-
-    Returns
-    -------
-    None
+    attrs : dict, optional
+        A dictionary, keyed by string, of attributes to append to the dataset.
     """
     fn = os.path.expanduser(fn)
     fout = h5py.File(fn, 'a')
@@ -569,6 +567,9 @@ def write_h5_stack(npy_vol, fn, group='stack', compression=None, chunks=None,
         del fout[group]
     fout.create_dataset(group, data=npy_vol, compression=compression,
                         chunks=chunks, shuffle=shuffle)
+    if attrs is not None:
+        for attr, value in attrs.items():
+            fout['group'].attrs[attr] = value
     fout.close()
 
 ### Raveler format
@@ -1114,13 +1115,17 @@ def read_prediction_from_ilastik_batch(fn, **kwargs):
         a = a[..., 0]
     return a
 
-def read_cremi(fn):
+
+def read_cremi(fn, datasets=['/volumes/raw', '/volumes/labels/neuron_ids']):
     """Read volume formatted as described in CREMI data challenge [1]_.
 
     The format is HDF5, with:
         - raw image data (uint8) in: /volumes/raw
+        - (optional) membrane prediction data (uint8, inverted) in:
+          /volumes/membrane
         - synaptic cleft annotations in: /volumes/labels/clefts
-        - neuron ids (uint64) in: volumes/labels/neuron_ids
+        - neuron ids (uint64) in: /volumes/labels/neuron_ids
+        - (optional) fragment data (uint64) in: /volumes/labels/fragments
 
     We currently ignore the synaptic cleft annotations, and return only
     the raw image and the neuron ids.
@@ -1132,32 +1137,30 @@ def read_cremi(fn):
 
     Returns
     -------
-    im : array of uint8
-        The raw image data.
-    labels : array of uint64
-        The neuron IDs.
+    datasets : list of array
+        The arrays corresponding to the requested datasets.
 
     References
     ----------
     .. [1]: https://cremi.org/data/
     """
-    im = read_h5_stack(fn, group='/volumes/raw')
-    labels = read_h5_stack(fn, group='/volumes/labels/neuron_ids')
-    return im, labels
+    out = [read_h5_stack(fn, group=ds) for ds in datasets]
+    return out
 
 
-def write_cremi(im, labels, fn):
+def write_cremi(data_dict, fn, resolution=(40., 4., 4.)):
     """Write a volume formatted as described in CREMI data challenge [1]_.
 
     Parameters
     ----------
-    im : array of uint8
-        Raw image data.
-    labels : array of uint64
-        Neuron-ID label volume, same shape as ``im``.
+    data_dict : dictionary of string to arrays
+        The data dictionary mapping HDF groups to arrays.
     fn : string
         The filename to write to.
+    resolution : tuple of float, optional
+        The resolution along each axis of the datasets. Currently, this
+        is the same for each dataset written.
     """
-    write_h5_stack(im, fn, group='/volumes/raw')
-    write_h5_stack(labels, fn, group='/volumes/labels/neuron_ids',
-                   compression='gzip')
+    for group, data in data_dict.items():
+        write_h5_stack(data, group=group, compression='gzip',
+                       attrs={'resolution': resolution})
