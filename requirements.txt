@@ -11,6 +11,6 @@ h5py>=1.5
 scipy>=0.16
 cython>=0.17
 viridis>=0.4
-scikit-image>=0.11
+scikit-image>=0.12
 scikit-learn>=0.15
 pyzmq>=14.7
