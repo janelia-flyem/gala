@@ -11,15 +11,13 @@ from numpy import   reshape, \
                     minimum, bincount, dot, nonzero, concatenate, \
                     setdiff1d, flatnonzero
 import itertools as it
-import logging
 from collections import defaultdict, deque as queue
 from scipy.ndimage import grey_dilation, generate_binary_structure, \
         maximum_filter, minimum_filter
-from scipy import ndimage as nd
+from scipy import ndimage as ndi
 from scipy.ndimage import distance_transform_cdt
 from scipy.ndimage.measurements import label, find_objects
-from scipy.ndimage.morphology import binary_opening, binary_closing, \
-    binary_dilation, grey_closing, iterate_structure
+from scipy.ndimage.morphology import binary_opening, binary_dilation
 from . import iterprogress as ip
 from .evaluate import relabel_from_one
 
@@ -64,9 +62,9 @@ def remove_merged_boundaries(labels, connectivity=1):
     is_boundary = (labels == boundary)
     labels_complement = labels.copy()
     labels_complement[is_boundary] = labels.max() + 1
-    se = nd.generate_binary_structure(labels.ndim, connectivity)
-    smaller_labels = nd.grey_erosion(labels_complement, footprint=se)
-    bigger_labels = nd.grey_dilation(labels, footprint=se)
+    se = ndi.generate_binary_structure(labels.ndim, connectivity)
+    smaller_labels = ndi.grey_erosion(labels_complement, footprint=se)
+    bigger_labels = ndi.grey_dilation(labels, footprint=se)
     merged = is_boundary & (smaller_labels == bigger_labels)
     labels_out[merged] = smaller_labels[merged]
     return labels_out
@@ -402,8 +400,8 @@ def relabel_connected(im, connectivity=1):
         labels = labels[1:]
     for label in labels:
         segment = (im == label)
-        n_segments = nd.label(segment, structure,
-                              output=contiguous_segments)
+        n_segments = ndi.label(segment, structure,
+                               output=contiguous_segments)
         seg = segment.nonzero()
         contiguous_segments[seg] += curr_label
         im_out[seg] += contiguous_segments[seg]
