@@ -269,6 +269,41 @@ def watershed(a, seeds=None, connectivity=1, mask=None, smooth_thresh=0.0,
     return juicy_center(ws)
 
 
+def _euclid_dist(a, b):
+    return np.sqrt(np.sum((a - b) ** 2))
+
+
+def compact_watershed(a, seeds, compactness=0.1, connectivity=0.01):
+    from .mergequeue import MergeQueue
+    visiting_queue = MergeQueue()
+    seeds = pad(seeds, 0).ravel()
+    seed_coords = np.flatnonzero(seeds)
+    visited = np.zeros(a.shape, dtype=bool)
+    visited = pad(visited, True).ravel()
+    ap = pad(a.astype(float), np.inf)
+    apr = ap.ravel()
+    neigh_sum = raveled_steps_to_neighbors(ap.shape, connectivity)
+    result = np.zeros_like(seeds)
+    for c in seed_coords:
+        visiting_queue.push([0, True, c, seeds[c],
+                             np.unravel_index(c, ap.shape)])
+    while len(visiting_queue) > 0:
+        _, _, next_coord, next_label, next_origin = visiting_queue.pop()
+        if not visited[next_coord]:
+            visited[next_coord] = True
+            result[next_coord] = next_label
+            neighbor_coords = next_coord + neigh_sum
+            for coord in neighbor_coords:
+                if not visited[coord]:
+                    full_coord = np.array(np.unravel_index(coord, ap.shape))
+                    cost = (apr[coord] +
+                            compactness*_euclid_dist(full_coord, next_origin))
+                    visiting_queue.push([cost, True, coord, next_label,
+                                         next_origin])
+    return juicy_center(result.reshape(ap.shape))
+
+
+
 def watershed_sequence(a, seeds=None, mask=None, axis=0, n_jobs=1, **kwargs):
     """Perform a watershed on a plane-by-plane basis.
 
