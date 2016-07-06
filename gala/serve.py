@@ -27,15 +27,13 @@ class Solver(object):
                  feature_manager=features.default.snemi3d(),
                  address=None, relearn_threshold=20,
                  config_file=None):
-        self._configure_from_file(config_file)
         self.labels = labels
         self.image = image
         self.feature_manager = feature_manager
         self._build_rag()
-        if not hasattr(self, 'address') or address is not None:
-            # not set from config file, or overridden in constructor
-            self.address = address
-            self._connect_to_client(self.address)
+        config_address, id_address = self._configure_from_file(config_file)
+        self.id_service = self._connect_to_id_service(id_address)
+        self._connect_to_client(address or config_address)
         self.history = []
         self.separate = []
         self.features = []
@@ -57,33 +55,47 @@ class Solver(object):
 
         ```
         {'id_service_url': 'tcp://localhost:5555',
-         'client_url': 'tcp://localhost:9001',
-         'solver_url': 'tcp://localhost:9002'}
+         'client_url': 'tcp://*:9001',
+         'solver_url': 'tcp://localhost:9001'}
         ```
 
         Parameters
         ----------
         filename : str
             The input filename.
+
+        Returns
+        -------
+        address : str
+            The URL to bind a ZMQ socket to.
+        id_address : str
+            The URL to bind an ID service to
         """
         if filename is None:
-            return
+            return None, None
         with open(filename, 'r') as fin:
             config = json.load(fin)
-        self.id_service = self._connect_to_id_service(config['id_service_url'])
+        return (config.get('client_url', None),
+                config.get('id_service_url', None))
 
     def _connect_to_client(self, address):
         self.comm = zmq.Context().socket(zmq.PAIR)
         self.comm.bind(address)
 
     def _connect_to_id_service(self, url):
-        service_comm = zmq.Context().socket(zmq.REQ)
-        service_comm.connect(url)
-        def get_ids(count):
-            service_comm.send_json({'count': count})
-            received = service_comm.recv_json()
-            id_range = received['begin'], received['end']
-            return id_range
+        if url is not None:
+            service_comm = zmq.Context().socket(zmq.REQ)
+            service_comm.connect(url)
+
+            def get_ids(count):
+                service_comm.send_json({'count': count})
+                received = service_comm.recv_json()
+                id_range = received['begin'], received['end']
+                return id_range
+        else:
+            def get_ids(count):
+                start = np.max(self.labels) + 2
+                return start, start + count
         return get_ids
 
     def send_segmentation(self):
