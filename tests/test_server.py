@@ -37,7 +37,7 @@ def test_server(dummy_data):
     frag, gt, fman = dummy_data
     host, port = 'tcp://localhost', 5588
     solver = serve.Solver(frag, feature_manager=fman,
-                          port=port, host='tcp://*')
+                          address='tcp://*:' + str(port))
     thread = threading.Thread(target=solver.listen, name='solver')
     thread.start()
     _, dst = serve.proofread(frag, gt, host=host, port=port, num_operations=2,
@@ -53,7 +53,7 @@ def test_server_imperfect_fragments(dummy_data2):
     frag, gt, fman = dummy_data2
     host, port = 'tcp://localhost', 5589
     solver = serve.Solver(frag, feature_manager=fman,
-                          port=port, host='tcp://*')
+                          address='tcp://*:' + str(port))
     thread = threading.Thread(target=solver.listen, name='solver')
     thread.start()
     _, dst = serve.proofread(frag, gt, host=host, port=port, num_operations=2,

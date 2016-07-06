@@ -1,5 +1,6 @@
 import numpy as np
 import networkx as nx
+import json
 from sklearn.utils import check_random_state
 import zmq
 from . import agglo, agglo2, features, classify, evaluate as ev
@@ -24,14 +25,17 @@ class Solver(object):
     """
     def __init__(self, labels, image=np.array([]),
                  feature_manager=features.default.snemi3d(),
-                 port=5556, host='tcp://*', relearn_threshold=20):
+                 address=None, relearn_threshold=20,
+                 config_file=None):
+        self._configure_from_file(config_file)
         self.labels = labels
         self.image = image
         self.feature_manager = feature_manager
         self._build_rag()
-        self.comm = zmq.Context().socket(zmq.PAIR)
-        self.addr = host + ':' + str(port)
-        self.comm.bind(self.addr)
+        if not hasattr(self, 'address') or address is not None:
+            # not set from config file, or overridden in constructor
+            self.address = address
+            self._connect_to_client(self.address)
         self.history = []
         self.separate = []
         self.features = []
@@ -45,6 +49,42 @@ class Solver(object):
                              feature_manager=self.feature_manager,
                              normalize_probabilities=True)
         self.original_rag = self.rag.copy()
+
+    def _configure_from_file(self, filename):
+        """Get all configuration parameters from a JSON file.
+
+        The file specification is currently in flux, but looks like:
+
+        ```
+        {'id_service_url': 'tcp://localhost:5555',
+         'client_url': 'tcp://localhost:9001',
+         'solver_url': 'tcp://localhost:9002'}
+        ```
+
+        Parameters
+        ----------
+        filename : str
+            The input filename.
+        """
+        if filename is None:
+            return
+        with open(filename, 'r') as fin:
+            config = json.load(fin)
+        self.id_service = self._connect_to_id_service(config['id_service_url'])
+
+    def _connect_to_client(self, address):
+        self.comm = zmq.Context().socket(zmq.PAIR)
+        self.comm.bind(address)
+
+    def _connect_to_id_service(self, url):
+        service_comm = zmq.Context().socket(zmq.REQ)
+        service_comm.connect(url)
+        def get_ids(count):
+            service_comm.send_json({'count': count})
+            received = service_comm.recv_json()
+            id_range = received['begin'], received['end']
+            return id_range
+        return get_ids
 
     def send_segmentation(self):
         """Send a segmentation to ZMQ as a fragment-to-segment lookup table.
@@ -82,8 +122,9 @@ class Solver(object):
                 segments = data['segments']
                 self.learn_merge(segments)
             elif command == 'separate':
-                segments = data['segments']
-                self.learn_separation(segments)
+                fragment = data['fragment']
+                separate_from = data['from']
+                self.learn_separation(fragment, separate_from)
             elif command == 'request':
                 what = data['what']
                 if what == 'fragment-segment-lut':
@@ -113,7 +154,7 @@ class Solver(object):
             s0 = self.rag.merge_nodes(s0, s1)
             self.targets.append(MERGE_LABEL)
 
-    def learn_separation(self, fragments):
+    def learn_separation(self, fragment, separate_from):
         """Learn that a pair of fragments should never be in the same segment.
 
         Parameters
@@ -121,20 +162,23 @@ class Solver(object):
         fragments : tuple of int
             A pair of fragment identifiers.
         """
-        f0, f1 = fragments
-        if self.rag.boundary_body in (f0, f1):
-            return
-        s0, s1 = self.rag.separate_fragments(f0, f1)
-        # trace the segments up to the current state of the RAG
-        # don't use the segments directly
-        try:
-            self.features.append(self.feature_manager(self.rag, s0, s1))
-        except KeyError:
-            print('failed to split segments %i and %i, '
-                  'based on fragments %i and %i' % (s0, s1, f0, f1))
-            return
-        self.targets.append(SEPAR_LABEL)
-        self.separate.append((f0, f1))
+        f0 = fragment
+        if not separate_from:
+            separate_from = self.original_rag.neighbors(f0)
+        for f1 in separate_from:
+            if self.rag.boundary_body in (f0, f1):
+                return
+            s0, s1 = self.rag.separate_fragments(f0, f1)
+            # trace the segments up to the current state of the RAG
+            # don't use the segments directly
+            try:
+                self.features.append(self.feature_manager(self.rag, s0, s1))
+            except KeyError:
+                print('failed to split segments %i and %i, '
+                      'based on fragments %i and %i' % (s0, s1, f0, f1))
+                return
+            self.targets.append(SEPAR_LABEL)
+            self.separate.append((f0, f1))
 
     def relearn(self):
         """Learn a new merge policy using data gathered so far.
@@ -198,11 +242,11 @@ def proofread(fragments, true_segmentation, host='tcp://localhost', port=5556,
         comm.send_json({'type': 'merge',
                         'data': {'segments': components}})
         for fragment in components:
-            for neighbor in base_graph[fragment]:
-                if neighbor not in components:
-                    edge = [int(fragment), int(neighbor)]
-                    comm.send_json({'type': 'separate',
-                                    'data': {'segments': edge}})
+            others = [int(neighbor) for neighbor in base_graph[fragment]
+                      if neighbor not in components]
+            comm.send_json({'type': 'separate',
+                            'data': {'fragment': int(fragment),
+                                     'from': others}})
 
     comm.send_json({'type': 'request',
                     'data': {'what': 'fragment-segment-lut'}})
