@@ -110,7 +110,11 @@ class Solver(object):
         """
         self.relearn()  # correct way to do it is to implement RAG splits
         self.rag.agglomerate(0.5)
-        dst = [int(i) for i in self.rag.tree.get_map(0.5)]
+        dst_tree = [int(i) for i in self.rag.tree.get_map(0.5)]
+        unique = set(dst_tree)
+        start, end = self.id_service(len(unique))
+        remap = dict(zip(unique, range(start, end)))
+        dst = list(map(remap.__getitem__, dst_tree))
         src = list(range(len(dst)))
         message = {'type': 'fragment-segment-lut',
                    'data': {'fragments': src, 'segments': dst}}
