@@ -167,7 +167,7 @@ class Solver(object):
             separate_from = self.original_rag.neighbors(f0)
         for f1 in separate_from:
             if self.rag.boundary_body in (f0, f1):
-                return
+                continue
             s0, s1 = self.rag.separate_fragments(f0, f1)
             # trace the segments up to the current state of the RAG
             # don't use the segments directly
@@ -239,14 +239,16 @@ def proofread(fragments, true_segmentation, host='tcp://localhost', port=5556,
     random.shuffle(true_labels)
     for _, label in zip(range(num_operations), true_labels):
         components = [int(i) for i in ctable.getcol(int(label)).indices]
-        comm.send_json({'type': 'merge',
-                        'data': {'segments': components}})
+        merge_msg = {'type': 'merge', 'data': {'segments': components}}
+        comm.send_json(merge_msg)
         for fragment in components:
             others = [int(neighbor) for neighbor in base_graph[fragment]
                       if neighbor not in components]
-            comm.send_json({'type': 'separate',
-                            'data': {'fragment': int(fragment),
-                                     'from': others}})
+            if not others:
+                continue
+            split_msg = {'type': 'separate',
+                         'data': {'fragment': int(fragment), 'from': others}}
+            comm.send_json(split_msg)
 
     comm.send_json({'type': 'request',
                     'data': {'what': 'fragment-segment-lut'}})
