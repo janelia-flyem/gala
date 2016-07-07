@@ -54,7 +54,7 @@ def test_server(dummy_data):
     host, port = 'tcp://localhost', 5588
     solver = serve.Solver(frag, feature_manager=fman,
                           address='tcp://*:' + str(port))
-    thread = threading.Thread(target=solver.listen, name='solver', daemon=True)
+    thread = threading.Thread(target=solver.listen, name='solver')
     thread.start()
     _, dst = serve.proofread(frag, gt, host=host, port=port, num_operations=2,
                              stop_when_finished=True, random_state=0)
@@ -62,6 +62,7 @@ def test_server(dummy_data):
     # test: resulting segmentation should be improvement over fragments alone
     assert (ev.vi(result, gt, ignore_x=[], ignore_y=[]) <
             ev.vi(frag, gt, ignore_x=[], ignore_y=[]))
+    thread.join()
 
 
 def test_server_imperfect_fragments(dummy_data2):
@@ -69,7 +70,7 @@ def test_server_imperfect_fragments(dummy_data2):
     host, port = 'tcp://localhost', 5589
     solver = serve.Solver(frag, feature_manager=fman,
                           address='tcp://*:' + str(port))
-    thread = threading.Thread(target=solver.listen, name='solver', daemon=True)
+    thread = threading.Thread(target=solver.listen, name='solver')
     thread.start()
     _, dst = serve.proofread(frag, gt, host=host, port=port, num_operations=2,
                              stop_when_finished=True, random_state=0)
@@ -77,6 +78,7 @@ def test_server_imperfect_fragments(dummy_data2):
     # test: resulting segmentation should be improvement over fragments alone
     assert (ev.vi(result, gt, ignore_x=[], ignore_y=[]) <
             ev.vi(frag, gt, ignore_x=[], ignore_y=[]))
+    thread.join()
 
 
 def test_server_with_id_service(dummy_data):
@@ -96,7 +98,7 @@ def test_server_with_id_service(dummy_data):
                                  kwargs=dict(port=id_service_port,
                                              curr_id=starting_id))
     id_thread.start()
-    thread = threading.Thread(target=solver.listen, name='solver', daemon=True)
+    thread = threading.Thread(target=solver.listen, name='solver')
     thread.start()
     host, port = config['solver_url'].rsplit(':', maxsplit=1)
     _, dst = serve.proofread(frag, gt, host=host, port=int(port),
@@ -109,6 +111,7 @@ def test_server_with_id_service(dummy_data):
     # test 2: make sure ID service worked: starting ID should be as above
     # should be equal but boundary ID messes things up
     assert np.min(result) == starting_id + 1
+    thread.join()
 
 
 def test_server_with_periodic_send(dummy_data):
@@ -157,7 +160,7 @@ def test_server_long(data):
     frag, gt, pr = data
     host, port = 'tcp://localhost', 5590
     solver = serve.Solver(frag, pr, port=port, host='tcp://*')
-    thread = threading.Thread(target=solver.listen, name='solver', daemon=True)
+    thread = threading.Thread(target=solver.listen, name='solver')
     thread.start()
     _, dst = serve.proofread(frag, gt, host=host, port=port,
                              stop_when_finished=True, random_state=0)
@@ -165,3 +168,4 @@ def test_server_long(data):
     # test: resulting segmentation should be improvement over fragments alone
     assert (ev.vi(result, gt, ignore_x=[], ignore_y=[]) <
             ev.vi(frag, gt, ignore_x=[], ignore_y=[]))
+    thread.join()
