@@ -171,7 +171,7 @@ class Solver(object):
                 return
             else:
                 print('command %s not recognized.' % command)
-                return
+                continue
 
     def learn_merge(self, segments):
         """Learn that a pair of segments should be merged.
