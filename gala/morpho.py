@@ -21,7 +21,7 @@ from scipy.ndimage.morphology import binary_opening, binary_dilation
 from . import iterprogress as ip
 from .evaluate import relabel_from_one
 
-from skimage import measure, util
+from skimage import measure, util, feature
 import skimage.morphology
 
 from sklearn.externals import joblib
@@ -267,6 +267,64 @@ def watershed(a, seeds=None, connectivity=1, mask=None, smooth_thresh=0.0,
                 idxs_adjacent_to_labels.extend(nidxs[((wsr[nidxs] == 0) * 
                                     (br[nidxs] == level)).astype(bool) ])
     return juicy_center(ws)
+
+
+def multiscale_regular_seeds(off_limits, num_seeds):
+    """Return evenly-spaced seeds, but thinned in areas with no boundaries.
+
+    Parameters
+    ----------
+    off_limits : array of bool, shape (M, N)
+        A binary array where `True` indicates the position of a boundary,
+        and thus where we don't want to place seeds.
+    num_seeds : int
+        The desired number of seeds.
+
+    Returns
+    -------
+    seeds : array of int, shape (M, N)
+        An array of seed points. Each seed gets its own integer ID,
+        starting from 1.
+    """
+    seeds_binary = np.zeros(off_limits.shape, dtype=bool)
+    grid = util.regular_grid(off_limits.shape, num_seeds)
+    seeds_binary[grid] = True
+    seeds_binary &= ~off_limits
+    seeds_img = seeds_binary[grid]
+    thinned_equal = False
+    step = 2
+    while not thinned_equal:
+        thinned = _thin_seeds(seeds_img, step)
+        thinned_equal = np.all(seeds_img == thinned)
+        seeds_img = thinned
+        step *= 2
+    seeds_binary[grid] = seeds_img
+    return ndi.label(seeds_binary)[0]
+
+
+def _thin_seeds(seeds_img, step):
+    out = np.copy(seeds_img)
+    m, n = seeds_img.shape
+    for r in range(0, m, step):
+        for c in range(0, n, step):
+            window = (slice(r, min(r + 5 * step // 2, m), step // 2),
+                      slice(c, min(c + 5 * step // 2, n), step // 2))
+            if np.all(seeds_img[window]):
+                out[window][1::2, :] = False
+                out[window][:, 1::2] = False
+    return out
+
+
+def multiscale_seed_sequence(prob, l1_threshold=0, grid_density=10):
+    npoints = ((prob.shape[1] // grid_density) *
+               (prob.shape[2] // grid_density))
+    seeds = np.zeros(prob.shape, dtype=int)
+    for seed, p in zip(seeds, prob):
+        hm = feature.hessian_matrix(p, sigma=3)
+        l1, l2 = feature.hessian_matrix_eigvals(*hm)
+        curvy = (l1 > l1_threshold)
+        seed[:] = multiscale_regular_seeds(curvy, npoints)
+    return seeds
 
 
 def _euclid_dist(a, b):
