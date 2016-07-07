@@ -273,7 +273,7 @@ def _euclid_dist(a, b):
     return np.sqrt(np.sum((a - b) ** 2))
 
 
-def compact_watershed(a, seeds, compactness=0.1, connectivity=0.01):
+def compact_watershed(a, seeds, *, compactness=0.01, connectivity=1):
     from .mergequeue import MergeQueue
     visiting_queue = MergeQueue()
     seeds = pad(seeds, 0).ravel()
@@ -301,7 +301,6 @@ def compact_watershed(a, seeds, compactness=0.1, connectivity=0.01):
                     visiting_queue.push([cost, True, coord, next_label,
                                          next_origin])
     return juicy_center(result.reshape(ap.shape))
-
 
 
 def watershed_sequence(a, seeds=None, mask=None, axis=0, n_jobs=1, **kwargs):
