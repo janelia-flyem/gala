@@ -111,6 +111,39 @@ def test_server_with_id_service(dummy_data):
     assert np.min(result) == starting_id + 1
 
 
+def test_server_with_periodic_send(dummy_data):
+    frag, gt, fman = dummy_data
+    id_service_port = 5601
+    config = {'client_url': 'tcp://*:5591',
+              'id_service_url': 'tcp://localhost:%i' % id_service_port,
+              'solver_url': 'tcp://localhost:5591'}
+    with temporary_file('.json') as config_filename:
+        with open(config_filename, 'w') as fout:
+            json.dump(config, fout)
+        solver = serve.Solver(frag, feature_manager=fman,
+                              config_file=config_filename)
+    starting_id = 23461
+    id_thread = threading.Thread(target=id_serve, name='id-service',
+                                 daemon=True,
+                                 kwargs=dict(port=id_service_port,
+                                             curr_id=starting_id))
+    id_thread.start()
+    thread = threading.Thread(target=solver.listen, name='solver', daemon=True,
+                              kwargs=dict(send_every=10))
+    thread.start()
+    host, port = config['solver_url'].rsplit(':', maxsplit=1)
+    _, dst = serve.proofread(frag, gt, host=host, port=int(port),
+                             num_operations=2, stop_when_finished=True,
+                             request_seg=False, random_state=0)
+    result = np.array(dst)[frag]
+    # test: resulting segmentation should be improvement over fragments alone
+    assert (ev.vi(result, gt, ignore_x=[], ignore_y=[]) <
+            ev.vi(frag, gt, ignore_x=[], ignore_y=[]))
+    # test 2: make sure ID service worked: starting ID should be as above
+    # should be equal but boundary ID messes things up
+    assert np.min(result) == starting_id + 1
+
+
 @pytest.fixture
 def data():
     frag, gt, pr = map(io.imread, sorted(os.listdir('.')))

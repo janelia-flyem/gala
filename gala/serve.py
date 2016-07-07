@@ -1,3 +1,4 @@
+import time
 import numpy as np
 import networkx as nx
 import json
@@ -40,6 +41,7 @@ class Solver(object):
         self.targets = []
         self.relearn_threshold = relearn_threshold
         self.relearn_trigger = relearn_threshold
+        self.recently_solved = True
 
     def _build_rag(self):
         """Build the region-adjacency graph from the label image."""
@@ -110,6 +112,7 @@ class Solver(object):
         """
         self.relearn()  # correct way to do it is to implement RAG splits
         self.rag.agglomerate(0.5)
+        self.recently_solved = True
         dst_tree = [int(i) for i in self.rag.tree.get_map(0.5)]
         unique = set(dst_tree)
         start, end = self.id_service(len(unique))
@@ -120,18 +123,37 @@ class Solver(object):
                    'data': {'fragments': src, 'segments': dst}}
         self.comm.send_json(message)
 
-    def listen(self):
+    def listen(self, send_every=None):
         """Listen to ZMQ port for instructions and data.
 
         The instructions conform to the proofreading protocol defined in the
         BigCat wiki [1]_.
 
+        Parameters
+        ----------
+        send_every : int or float, optional
+            Send a new segmentation every `send_every` seconds.
+
         References
         ----------
         .. [1] https://github.com/saalfeldlab/bigcat/wiki/Actors,-responsibilities,-and-inter-process-communication
         """
+        start_time = time.time()
+        recv_flags = zmq.NOBLOCK
         while True:
-            message = self.comm.recv_json()
+            if send_every is not None:
+                elapsed_time = time.time() - start_time
+                if elapsed_time > send_every:
+                    self.send_segmentation()
+                    start_time = time.time()
+            try:
+                message = self.comm.recv_json(flags=recv_flags)
+                recv_flags = zmq.NOBLOCK
+            except zmq.error.Again:  # no message received
+                recv_flags = zmq.NULL
+                if not self.recently_solved:
+                    self.send_segmentation()
+                continue
             command = message['type']
             data = message['data']
             if command == 'merge':
@@ -169,6 +191,7 @@ class Solver(object):
             self.history.append((s0, s1))
             s0 = self.rag.merge_nodes(s0, s1)
             self.targets.append(MERGE_LABEL)
+        self.recently_solved = False
 
     def learn_separation(self, fragment, separate_from):
         """Learn that a pair of fragments should never be in the same segment.
@@ -195,6 +218,7 @@ class Solver(object):
                 return
             self.targets.append(SEPAR_LABEL)
             self.separate.append((f0, f1))
+        self.recently_solved = False
 
     def relearn(self):
         """Learn a new merge policy using data gathered so far.
@@ -215,7 +239,7 @@ class Solver(object):
 
 def proofread(fragments, true_segmentation, host='tcp://localhost', port=5556,
               num_operations=10, mode='fast paint', stop_when_finished=False,
-              random_state=None):
+              request_seg=True, random_state=None):
     """Simulate a proofreader by sending and receiving messages to a Solver.
 
     Parameters
@@ -265,9 +289,9 @@ def proofread(fragments, true_segmentation, host='tcp://localhost', port=5556,
             split_msg = {'type': 'separate',
                          'data': {'fragment': int(fragment), 'from': others}}
             comm.send_json(split_msg)
-
-    comm.send_json({'type': 'request',
-                    'data': {'what': 'fragment-segment-lut'}})
+    if request_seg:  # if no request, assume server sends periodic updates
+        comm.send_json({'type': 'request',
+                        'data': {'what': 'fragment-segment-lut'}})
     response = comm.recv_json()
     src = response['data']['fragments']
     dst = response['data']['segments']
