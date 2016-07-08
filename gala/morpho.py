@@ -335,7 +335,6 @@ def pipeline_compact_watershed(prob, *,
                                n_jobs=1):
     if invert_prob:
         prob = np.max(prob) - prob
-    joblib.Parallel(n_jobs=n_jobs)()
     seeds = joblib.Parallel(n_jobs=n_jobs)(
             joblib.delayed(multiscale_seed_sequence)(p,
                                                      l1_threshold=l1_threshold,
