@@ -90,7 +90,9 @@ class Solver(object):
             service_comm.connect(url)
 
             def get_ids(count):
+                print('requesting %i ids...' % count)
                 service_comm.send_json({'count': count})
+                print('receiving %i ids...' % count)
                 received = service_comm.recv_json()
                 id_range = received['begin'], received['end']
                 return id_range
@@ -110,6 +112,9 @@ class Solver(object):
         ----------
         .. [1] https://github.com/saalfeldlab/bigcat/wiki/Actors,-responsibilities,-and-inter-process-communication
         """
+        if len(self.targets) < self.relearn_threshold:
+            print('server has insufficient data to resolve')
+            return
         self.relearn()  # correct way to do it is to implement RAG splits
         self.rag.agglomerate(0.5)
         self.recently_solved = True
