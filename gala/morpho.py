@@ -327,6 +327,31 @@ def multiscale_seed_sequence(prob, l1_threshold=0, grid_density=10):
     return seeds
 
 
+def pipeline_compact_watershed(prob, *,
+                               invert_prob=True,
+                               l1_threshold=0,
+                               grid_density=10,
+                               compactness=0.01,
+                               n_jobs=1):
+    if invert_prob:
+        prob = np.max(prob) - prob
+    joblib.Parallel(n_jobs=n_jobs)()
+    seeds = joblib.Parallel(n_jobs=n_jobs)(
+            joblib.delayed(multiscale_seed_sequence)(p,
+                                                     l1_threshold=l1_threshold,
+                                                     grid_density=grid_density)
+            for p in prob)
+    fragments = joblib.Parallel(n_jobs=n_jobs)(
+        joblib.delayed(compact_watershed)(p, s, compactness=compactness)
+        for p, s in zip(prob, seeds)
+    )
+    fragments = np.array(fragments)
+    max_ids = fragments.max(axis=-1).max(axis=-1)
+    to_add = np.concatenate(([0], np.cumsum(max_ids)[:-1]))
+    fragments += to_add[:, np.newaxis, np.newaxis]
+    return fragments
+
+
 def _euclid_dist(a, b):
     return np.sqrt(np.sum((a - b) ** 2))
 
