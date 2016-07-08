@@ -208,7 +208,7 @@ class Solver(object):
             self.history.append((s0, s1))
             s0 = self.rag.merge_nodes(s0, s1)
             self.targets.append(MERGE_LABEL)
-        self.recently_solved = False
+        self.recently_solved = False or len(set(self.targets)) < 2
 
     def learn_separation(self, fragment, separate_from):
         """Learn that a pair of fragments should never be in the same segment.
@@ -234,7 +234,7 @@ class Solver(object):
                                                           f0, f1))
                 self.targets.append(SEPAR_LABEL)
             self.separate.append((f0, f1))
-        self.recently_solved = False
+        self.recently_solved = False or len(set(self.targets)) < 2
 
     def relearn(self):
         """Learn a new merge policy using data gathered so far.
