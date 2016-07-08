@@ -21,3 +21,4 @@ dependencies:
   - viridis>=0.4
   - memory_profiler>=0.41
   - line_profiler>=1.0
+  - tqdm>=4.7

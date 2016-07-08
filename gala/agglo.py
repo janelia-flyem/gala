@@ -12,6 +12,7 @@ from copy import deepcopy
 from numpy import (array, mean, zeros, zeros_like, where, unique,
     newaxis, nonzero, median, float, ones, arange, inf, isnan,
     flatnonzero, unravel_index, bincount)
+from tqdm import tqdm
 import numpy as np
 from scipy.stats import sem
 from scipy import sparse
@@ -978,6 +979,8 @@ class Rag(Graph):
         if self.merge_queue.is_empty():
             self.merge_queue = self.build_merge_queue()
         history, scores, evaluation = [], [], []
+        # total merges is number of nodes minus boundary_node minus one.
+        progress = tqdm(total=self.number_of_nodes() - 2)
         while len(self.merge_queue) > 0 and \
                                         self.merge_queue.peek()[0] < threshold:
             merge_priority, _, n1, n2 = self.merge_queue.pop()
@@ -989,6 +992,8 @@ class Rag(Graph):
                 evaluation.append(
                     (self.number_of_nodes()-1, self.split_vi())
                 )
+            progress.update(1)
+        progress.close()
         if save_history:
             return history, scores, evaluation
 

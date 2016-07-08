@@ -13,3 +13,4 @@ dependencies:
 - pyzmq=15.*
 - pip:
   - viridis>=0.4
+  - tqdm>=4.7
