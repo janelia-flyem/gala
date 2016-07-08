@@ -216,18 +216,16 @@ class Solver(object):
         f0 = fragment
         if not separate_from:
             separate_from = self.original_rag.neighbors(f0)
+        s0 = self.rag.tree.highest_ancestor(f0)
         for f1 in separate_from:
             if self.rag.boundary_body in (f0, f1):
                 continue
-            s0, s1 = self.rag.separate_fragments(f0, f1)
-            # trace the segments up to the current state of the RAG
-            # don't use the segments directly
-            try:
+            s1 = self.rag.tree.highest_ancestor(f1)
+            if self.rag.has_edge(s0, s1):
                 self.features.append(self.feature_manager(self.rag, s0, s1))
-            except KeyError:
-                print('SERVER FAILED to split segments %i and %i, '
-                      'based on fragments %i and %i' % (s0, s1, f0, f1))
-                return
+                self.targets.append(SEPAR_LABEL)
+            self.features.append(self.feature_manager(self.original_rag,
+                                                      f0, f1))
             self.targets.append(SEPAR_LABEL)
             self.separate.append((f0, f1))
         self.recently_solved = False
