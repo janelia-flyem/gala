@@ -122,7 +122,10 @@ class Solver(object):
         message = {'type': 'fragment-segment-lut',
                    'data': {'fragments': src, 'segments': dst}}
         print('server sending:', message)
-        self.comm.send_json(message)
+        try:
+            self.comm.send_json(message, flags=zmq.NOBLOCK)
+        except zmq.error.Again:
+            return
 
     def listen(self, send_every=None):
         """Listen to ZMQ port for instructions and data.
