@@ -244,7 +244,6 @@ class Solver(object):
         for i, (s0, s1) in enumerate(self.separate):
             self.rag.node[s0]['exclusions'].add(i)
             self.rag.node[s1]['exclusions'].add(i)
-        self.rag.replay_merge_history(self.history)
 
 
 def proofread(fragments, true_segmentation, host='tcp://localhost', port=5556,
