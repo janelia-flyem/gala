@@ -287,6 +287,7 @@ def proofread(fragments, true_segmentation, host='tcp://localhost', port=5556,
     random = check_random_state(random_state)
     random.shuffle(true_labels)
     for _, label in zip(range(num_operations), true_labels):
+        time.sleep(3)
         components = [int(i) for i in ctable.getcol(int(label)).indices]
         merge_msg = {'type': 'merge', 'data': {'segments': components}}
         print('proofreader sends:', merge_msg)
