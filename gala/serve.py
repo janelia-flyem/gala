@@ -224,9 +224,10 @@ class Solver(object):
             if self.rag.has_edge(s0, s1):
                 self.features.append(self.feature_manager(self.rag, s0, s1))
                 self.targets.append(SEPAR_LABEL)
-            self.features.append(self.feature_manager(self.original_rag,
-                                                      f0, f1))
-            self.targets.append(SEPAR_LABEL)
+            if self.original_rag.has_edge(f0, f1):
+                self.features.append(self.feature_manager(self.original_rag,
+                                                          f0, f1))
+                self.targets.append(SEPAR_LABEL)
             self.separate.append((f0, f1))
         self.recently_solved = False
 
