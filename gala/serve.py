@@ -174,7 +174,7 @@ class Solver(object):
             command = message['type']
             data = message['data']
             if command == 'merge':
-                segments = data['segments']
+                segments = data['fragments']
                 self.learn_merge(segments)
             elif command == 'separate':
                 fragment = data['fragment']
