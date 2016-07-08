@@ -486,3 +486,10 @@ def plot_decision_function(clf, data_range=None,
         ax.scatter(*(features.T * n_gridpoints), c=label_colors)
     plt.show()
 
+
+def plot_seeds(raw_image, seed_image, ax=None):
+    if ax is None:
+        fig, ax = plt.subplots(1, 1)
+    ax.imshow(raw_image, cmap='gray', interpolation='nearest')
+    plt.autoscale = False
+    ax.plot(*np.nonzero(seed_image)[::-1], 'r.')
