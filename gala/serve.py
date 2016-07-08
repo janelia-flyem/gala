@@ -295,7 +295,7 @@ def proofread(fragments, true_segmentation, host='tcp://localhost', port=5556,
     for _, label in zip(range(num_operations), true_labels):
         time.sleep(3)
         components = [int(i) for i in ctable.getcol(int(label)).indices]
-        merge_msg = {'type': 'merge', 'data': {'segments': components}}
+        merge_msg = {'type': 'merge', 'data': {'fragments': components}}
         print('proofreader sends:', merge_msg)
         comm.send_json(merge_msg)
         for fragment in components:
