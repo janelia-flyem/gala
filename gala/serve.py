@@ -121,6 +121,7 @@ class Solver(object):
         src = list(range(len(dst)))
         message = {'type': 'fragment-segment-lut',
                    'data': {'fragments': src, 'segments': dst}}
+        print('server sending:', message)
         self.comm.send_json(message)
 
     def listen(self, send_every=None):
@@ -144,14 +145,22 @@ class Solver(object):
             if send_every is not None:
                 elapsed_time = time.time() - start_time
                 if elapsed_time > send_every:
+                    print('server resolving')
                     self.send_segmentation()
                     start_time = time.time()
             try:
+                if recv_flags == zmq.NOBLOCK:
+                    print('server receiving no blocking...')
+                else:
+                    print('server receiving blocking...')
                 message = self.comm.recv_json(flags=recv_flags)
+                print('server received:', message)
                 recv_flags = zmq.NOBLOCK
             except zmq.error.Again:  # no message received
                 recv_flags = zmq.NULL
+                print('server: no message received in time')
                 if not self.recently_solved:
+                    print('server resolving')
                     self.send_segmentation()
                 continue
             command = message['type']
@@ -213,7 +222,7 @@ class Solver(object):
             try:
                 self.features.append(self.feature_manager(self.rag, s0, s1))
             except KeyError:
-                print('failed to split segments %i and %i, '
+                print('SERVER FAILED to split segments %i and %i, '
                       'based on fragments %i and %i' % (s0, s1, f0, f1))
                 return
             self.targets.append(SEPAR_LABEL)
@@ -280,6 +289,7 @@ def proofread(fragments, true_segmentation, host='tcp://localhost', port=5556,
     for _, label in zip(range(num_operations), true_labels):
         components = [int(i) for i in ctable.getcol(int(label)).indices]
         merge_msg = {'type': 'merge', 'data': {'segments': components}}
+        print('proofreader sends:', merge_msg)
         comm.send_json(merge_msg)
         for fragment in components:
             others = [int(neighbor) for neighbor in base_graph[fragment]
@@ -288,13 +298,19 @@ def proofread(fragments, true_segmentation, host='tcp://localhost', port=5556,
                 continue
             split_msg = {'type': 'separate',
                          'data': {'fragment': int(fragment), 'from': others}}
+            print('proofreader sends:', split_msg)
             comm.send_json(split_msg)
     if request_seg:  # if no request, assume server sends periodic updates
-        comm.send_json({'type': 'request',
-                        'data': {'what': 'fragment-segment-lut'}})
+        req_msg = {'type': 'request', 'data': {'what': 'fragment-segment-lut'}}
+        print('proofreader sends:', req_msg)
+        comm.send_json(req_msg)
+    print('proofreader receiving...')
     response = comm.recv_json()
+    print('proofreader received:', response)
     src = response['data']['fragments']
     dst = response['data']['segments']
     if stop_when_finished:
-        comm.send_json({'type': 'stop', 'data': {}})
+        stop_msg = {'type': 'stop', 'data': {}}
+        print('proofreader sends: ', stop_msg)
+        comm.send_json(stop_msg)
     return src, dst
