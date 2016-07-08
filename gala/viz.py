@@ -480,7 +480,7 @@ def plot_decision_function(clf, data_range=None,
 
     if features is not None:
         if labels is not None:
-            label_colors = cm.viridis(labels)
+            label_colors = cm.viridis(labels.astype(float) / np.max(labels))
         else:
             label_colors = cm.viridis(np.zeros(features.shape[0]))
         ax.scatter(*(features.T * n_gridpoints), c=label_colors)
