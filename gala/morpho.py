@@ -336,10 +336,11 @@ def pipeline_compact_watershed(prob, *,
     if invert_prob:
         prob = np.max(prob) - prob
     seeds = joblib.Parallel(n_jobs=n_jobs)(
-            joblib.delayed(multiscale_seed_sequence)(p,
+            joblib.delayed(multiscale_seed_sequence)(p[np.newaxis, :],
                                                      l1_threshold=l1_threshold,
                                                      grid_density=grid_density)
             for p in prob)
+    seeds = np.reshape(seeds, prob.shape)
     fragments = joblib.Parallel(n_jobs=n_jobs)(
         joblib.delayed(compact_watershed)(p, s, compactness=compactness)
         for p, s in zip(prob, seeds)
