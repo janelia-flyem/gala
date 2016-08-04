@@ -357,6 +357,16 @@ def _euclid_dist(a, b):
 
 
 def compact_watershed(a, seeds, *, compactness=0.01, connectivity=1):
+    try:
+        a = np.copy(a)
+        a[np.nonzero(seeds)] = np.min(a)
+        result = skimage.morphology.watershed(a, seeds,
+                                              connectivity=connectivity,
+                                              compactness=compactness)
+        return result
+    except TypeError:  # old version of skimage
+        import warnings
+        warnings.warn('skimage prior to 0.13; compact watershed will be slow.')
     from .mergequeue import MergeQueue
     visiting_queue = MergeQueue()
     seeds = pad(seeds, 0).ravel()
