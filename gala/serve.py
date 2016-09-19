@@ -20,9 +20,24 @@ class Solver:
 
     Parameters
     ----------
+    labels : array-like of int, shape (..., P, R, C)
+        The fragment map.
+    image : array-like of float, shape (..., P, R, C[, Ch]), optional
+        The image, from which to compute intensity features.
+    feature_manager : gala.features.Manager object
+        Object exposing the feature manager interface, to compute the
+        feature caches and features of the RAG.
+    address : string, optional
+        URL of client.
+    relearn_threshold : int, optional
+        Minimum batch size to trigger a new learning round.
+    config_file : string, optional
+        A JSON file specifying the URLs of the Solver, Client, and ID service.
+        See `Solver._configure_from_file` for the file specification.
 
     Attributes
     ----------
+    This section intentionally left blank.
     """
     def __init__(self, labels, image=np.array([]),
                  feature_manager=features.default.snemi3d(),
