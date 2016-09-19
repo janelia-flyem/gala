@@ -2006,12 +2006,20 @@ class Rag(Graph):
 
     def ncut(self, num_clusters=10, kmeans_iters=5, sigma=255.0*20, nodes=None,
             **kwargs):
-        """Run normalized cuts on the current set of superpixels.
-           Keyword arguments:
-               num_clusters -- number of clusters to compute
-               kmeans_iters -- # iterations to run kmeans when clustering
-               sigma -- sigma value when setting up weight matrix
-           Return value: None
+        """Run normalized cuts on the current set of fragments.
+
+        Parameters
+        ----------
+        num_clusters : int, optional
+            The desired number of clusters
+        kmeans_iters : int, optional
+            The maximum number of iterations for the kmeans clustering
+            of the Laplacian eigenvectors.
+        sigma : float, optional
+            The damping factor on the edge weights. The higher this value,
+            the closer to 1 (the maximum) edges with large weights will be.
+        nodes : collection of int, optional
+            Restrict the ncut to the listed nodes.
         """
         if nodes is None:
             nodes = self.nodes()
@@ -2038,21 +2046,24 @@ class Rag(Graph):
                 self.merge_nodes(node1, node)
 
 
-    def compute_W(self, merge_priority_function, sigma=255.0*20, nodes=None):
-        """ Computes the weight matrix for clustering"""
+    def compute_W(self, distance_function, sigma=255.0*20, nodes=None):
+        """Compute the weight matrix for n-cut clustering.
+
+        See `ncut` for parameters.
+        """
         if nodes is None:
             nodes = array(self.nodes())
         n = len(nodes)
         nodes2ind = dict(zip(nodes, range(n)))
-        W = lil_matrix((n,n))
+        W = lil_matrix((n, n))
         for u, v in self.real_edges(nodes):
             try:
                 i, j = nodes2ind[u], nodes2ind[v]
             except KeyError:
                 continue
-            w = merge_priority_function(self, ((u, v)))
-            W[i,j] = W[j,i] = np.exp(-w**2/sigma)
-        return W
+            w = distance_function(self, (u, v))
+            W[i, j] = W[j, i] = np.exp(-w**2 / sigma)
+        return W.tocsr()
 
 
     def update_frozen_sets(self, n1, n2):

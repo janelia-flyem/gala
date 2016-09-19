@@ -1,61 +1,80 @@
-import numpy
-import scipy.sparse
-import scipy.sparse.linalg
-import scipy.cluster.vq
- 
-def ncutW(W, num_eigs=10, kmeans_iters=10, offset = 0.5, **kwargs):
-    """Run the normalized cut algorithm
-    
+import numpy as np
+from scipy import sparse
+from scipy.sparse.linalg import norm, eigs
+from scipy.cluster import vq
+
+
+def ncutW(W, num_eigs=10, kmeans_iters=10, offset = 0.5):
+    """Run the normalized cut algorithm on the affinity matrix, W.
+
     (as implemented in Ng, Jordan, and Weiss, 2002)
-    
-    Return value: labels, eigenvectors, and eigenvalues
+
+    Parameters
+    ----------
+    W : scipy sparse matrix
+        Square matrix with high values for edges to be preserved, and low
+        values for edges to be cut.
+    num_eigs : int, optional
+        Number of eigenvectors of the affinity matrix to use for clustering.
+    kmeans_iters : int, optional
+        Number of iterations of the k-means algorithm to run when clustering
+        eigenvectors.
+    offset : float, optional
+        Diagonal offset used to stabilise the eigenvector computation.
+
+    Returns
+    -------
+    labels : array of int
+        `labels[i]` is an integer value mapping node/row `i` to the cluster
+        ID `labels[i]`.
+    eigenvectors : list of array of float
+        The computed eigenvectors of `W + offset * I`, where `I` is the
+        identity matrix of same size as `W`.
+    eigenvalues : array of float
+        The corresponding eigenvalues.
     """
     
-    n,m = numpy.shape(W)
+    n, m = W.shape
     # Add an offset in case some rows are zero
     # We also add the offset below to the diagonal matrix. See (Yu, 2001),
-    #    "Understanding Popout through Repulsion" for more information.  This 
-    #    helps to stabalize the eigenvector computation.
-    W = W + scipy.sparse.spdiags(offset*numpy.ones(n),0,n,n)
+    # "Understanding Popout through Repulsion" for more information.  This
+    # helps to stabilize the eigenvector computation.
+    W = W + sparse.diags(np.full(n, offset))
     
-    # Calculate matrix to take eigenvectors of
-    rows, cols = W.nonzero()
-    d = W.sum(1).transpose()
-    Dinv2 = scipy.sparse.spdiags(1./(numpy.sqrt(d) + offset*numpy.ones(n)), 0, n, n)
-    P = Dinv2*W*Dinv2;
+    d = np.ravel(W.sum(axis=1))
+    Dinv2 = sparse.diags(1 / (np.sqrt(d) + offset*np.ones(n)))
+    P = Dinv2 @ W @ Dinv2
     
     # Get the eigenvectors and sort by eigenvalue
-    eval,U = scipy.sparse.linalg.eigs(P, num_eigs, which='LR')
-    eval = numpy.real(eval) # it should be real anyway
-    U = numpy.real(U)
-    ind = numpy.argsort(eval)[::-1]
-    eval = eval[ind]
-    U = U[:,ind]
+    eigvals, U = eigs(P, num_eigs, which='LR')
+    eigvals = np.real(eigvals)  # it should be real anyway
+    U = np.real(U)
+    ind = np.argsort(eigvals)[::-1]
+    eigvals = eigvals[ind]
+    U = U[:, ind]
     
     # Normalize
     for i in range(n):
-        u = U[i,:]
-        U[i,:] = U[i,:]/scipy.linalg.norm(u)
+        U[i, :] /= norm(U[i, :])
     
     # Cluster them into labels, running k-means multiple times
     labels_list = []
     distortion_list = []
-    for iter in range(kmeans_iters):
+    for _iternum in range(kmeans_iters):
         # Cluster
-        centroid, labels = scipy.cluster.vq.kmeans2(U, num_eigs, minit='points')
+        centroid, labels = vq.kmeans2(U, num_eigs, minit='points')
         # Calculate distortion
         distortion = 0
         for j in range(num_eigs):
-            numvals = (sum(labels==j))
-            if numvals==0: continue
-            distortion = distortion + \
-                1.0/float(numvals)* \
-                sum([scipy.linalg.norm(v - centroid[j])**2 \
-                    for (i,v) in enumerate(U) if labels[i]==j])
+            numvals = np.sum(labels == j)
+            if numvals == 0:
+                continue
+            distortion += np.mean([norm(v - centroid[j])**2 for (i, v) in
+                                   enumerate(U) if labels[i] == j])
         # Save values
         labels_list.append(labels)
         distortion_list.append(distortion)
     # Use lowest distortion
-    labels = labels_list[numpy.argmin(distortion_list)]
+    labels = labels_list[np.argmin(distortion_list)]
     
-    return labels, U, eval
+    return labels, U, eigvals
