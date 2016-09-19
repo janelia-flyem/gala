@@ -13,7 +13,7 @@ MERGE_LABEL = 0
 SEPAR_LABEL = 1
 
 
-class Solver(object):
+class Solver:
     """ZMQ-based interface between proofreading clients and gala RAGs.
 
     This docstring is intentionally incomplete until the interface settles.
