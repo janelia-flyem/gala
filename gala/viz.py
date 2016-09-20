@@ -1,4 +1,3 @@
-from math import ceil
 import numpy as np
 from . import evaluate
 from skimage import color
@@ -56,7 +55,7 @@ def imshow_rand(im, labrandom=True):
     fig : plt.Figure
         The image shown.
     """
-    rand_colors = np.random.rand(ceil(im.max()), 3)
+    rand_colors = np.random.rand(np.ceil(im.max()), 3)
     if labrandom:
         rand_colors[:, 0] = rand_colors[:, 0] * 60 + 20
         rand_colors[:, 1] = rand_colors[:, 1] * 185 - 85
