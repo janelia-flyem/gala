@@ -1,16 +1,17 @@
 name: gala
+channels:
+- conda-forge
 dependencies:
-- python=3.5*
-- setuptools=19.6*
-- cython=0.23*
-- numpy=1.11*
-- h5py=2.6*
-- matplotlib=1.5*
-- scipy=0.17*
-- scikit-learn=0.17*
-- scikit-image=0.12*
-- networkx=1.10*
-- pyzmq=15.*
-- pip:
-  - viridis>=0.4
-  - tqdm>=4.7
+- python>=3.5*
+- setuptools>=19.6*
+- cython>=0.23*
+- numpy>=1.11*
+- h5py>=2.6*
+- matplotlib>=1.5*
+- scipy>=0.17*
+- scikit-learn>=0.17*
+- scikit-image>=0.12*
+- networkx>=1.10*
+- pyzmq>=15.*
+- viridis>=0.4
+- tqdm>=4.7
