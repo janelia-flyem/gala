@@ -19,11 +19,7 @@ install:
   - source activate gala 
   - conda info -a
 
-  # custom package not available from conda
-  - pip install viridis
-
-  # install testing and coverage packages
-  - pip install pytest pytest-cov
+  # install coveralls for reporting
   - pip install coveralls
 
   # Install gala
