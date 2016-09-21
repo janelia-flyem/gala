@@ -1,5 +1,7 @@
+import time
 import numpy as np
 import networkx as nx
+import json
 from sklearn.utils import check_random_state
 import zmq
 from . import agglo, agglo2, features, classify, evaluate as ev
@@ -11,33 +13,50 @@ MERGE_LABEL = 0
 SEPAR_LABEL = 1
 
 
-class Solver(object):
+class Solver:
     """ZMQ-based interface between proofreading clients and gala RAGs.
 
     This docstring is intentionally incomplete until the interface settles.
 
     Parameters
     ----------
+    labels : array-like of int, shape (..., P, R, C)
+        The fragment map.
+    image : array-like of float, shape (..., P, R, C[, Ch]), optional
+        The image, from which to compute intensity features.
+    feature_manager : gala.features.Manager object
+        Object exposing the feature manager interface, to compute the
+        feature caches and features of the RAG.
+    address : string, optional
+        URL of client.
+    relearn_threshold : int, optional
+        Minimum batch size to trigger a new learning round.
+    config_file : string, optional
+        A JSON file specifying the URLs of the Solver, Client, and ID service.
+        See `Solver._configure_from_file` for the file specification.
 
     Attributes
     ----------
+    This section intentionally left blank.
     """
     def __init__(self, labels, image=np.array([]),
                  feature_manager=features.default.snemi3d(),
-                 port=5556, host='tcp://*', relearn_threshold=20):
+                 address=None, relearn_threshold=20,
+                 config_file=None):
         self.labels = labels
         self.image = image
         self.feature_manager = feature_manager
         self._build_rag()
-        self.comm = zmq.Context().socket(zmq.PAIR)
-        self.addr = host + ':' + str(port)
-        self.comm.bind(self.addr)
+        config_address, id_address = self._configure_from_file(config_file)
+        self.id_service = self._connect_to_id_service(id_address)
+        self._connect_to_client(address or config_address)
         self.history = []
         self.separate = []
         self.features = []
         self.targets = []
         self.relearn_threshold = relearn_threshold
         self.relearn_trigger = relearn_threshold
+        self.recently_solved = True
 
     def _build_rag(self):
         """Build the region-adjacency graph from the label image."""
@@ -45,6 +64,58 @@ class Solver(object):
                              feature_manager=self.feature_manager,
                              normalize_probabilities=True)
         self.original_rag = self.rag.copy()
+
+    def _configure_from_file(self, filename):
+        """Get all configuration parameters from a JSON file.
+
+        The file specification is currently in flux, but looks like:
+
+        ```
+        {'id_service_url': 'tcp://localhost:5555',
+         'client_url': 'tcp://*:9001',
+         'solver_url': 'tcp://localhost:9001'}
+        ```
+
+        Parameters
+        ----------
+        filename : str
+            The input filename.
+
+        Returns
+        -------
+        address : str
+            The URL to bind a ZMQ socket to.
+        id_address : str
+            The URL to bind an ID service to
+        """
+        if filename is None:
+            return None, None
+        with open(filename, 'r') as fin:
+            config = json.load(fin)
+        return (config.get('client_url', None),
+                config.get('id_service_url', None))
+
+    def _connect_to_client(self, address):
+        self.comm = zmq.Context().socket(zmq.PAIR)
+        self.comm.bind(address)
+
+    def _connect_to_id_service(self, url):
+        if url is not None:
+            service_comm = zmq.Context().socket(zmq.REQ)
+            service_comm.connect(url)
+
+            def get_ids(count):
+                print('requesting %i ids...' % count)
+                service_comm.send_json({'count': count})
+                print('receiving %i ids...' % count)
+                received = service_comm.recv_json()
+                id_range = received['begin'], received['end']
+                return id_range
+        else:
+            def get_ids(count):
+                start = np.max(self.labels) + 2
+                return start, start + count
+        return get_ids
 
     def send_segmentation(self):
         """Send a segmentation to ZMQ as a fragment-to-segment lookup table.
@@ -56,34 +127,74 @@ class Solver(object):
         ----------
         .. [1] https://github.com/saalfeldlab/bigcat/wiki/Actors,-responsibilities,-and-inter-process-communication
         """
+        if len(self.targets) < self.relearn_threshold:
+            print('server has insufficient data to resolve')
+            return
         self.relearn()  # correct way to do it is to implement RAG splits
         self.rag.agglomerate(0.5)
-        dst = [int(i) for i in self.rag.tree.get_map(0.5)]
+        self.recently_solved = True
+        dst_tree = [int(i) for i in self.rag.tree.get_map(0.5)]
+        unique = set(dst_tree)
+        start, end = self.id_service(len(unique))
+        remap = dict(zip(unique, range(start, end)))
+        dst = list(map(remap.__getitem__, dst_tree))
         src = list(range(len(dst)))
         message = {'type': 'fragment-segment-lut',
                    'data': {'fragments': src, 'segments': dst}}
-        self.comm.send_json(message)
+        print('server sending:', message)
+        try:
+            self.comm.send_json(message, flags=zmq.NOBLOCK)
+        except zmq.error.Again:
+            return
 
-    def listen(self):
+    def listen(self, send_every=None):
         """Listen to ZMQ port for instructions and data.
 
         The instructions conform to the proofreading protocol defined in the
         BigCat wiki [1]_.
 
+        Parameters
+        ----------
+        send_every : int or float, optional
+            Send a new segmentation every `send_every` seconds.
+
         References
         ----------
         .. [1] https://github.com/saalfeldlab/bigcat/wiki/Actors,-responsibilities,-and-inter-process-communication
         """
+        start_time = time.time()
+        recv_flags = zmq.NOBLOCK
         while True:
-            message = self.comm.recv_json()
+            if send_every is not None:
+                elapsed_time = time.time() - start_time
+                if elapsed_time > send_every:
+                    print('server resolving')
+                    self.send_segmentation()
+                    start_time = time.time()
+            try:
+                if recv_flags == zmq.NOBLOCK:
+                    print('server receiving no blocking...')
+                else:
+                    print('server receiving blocking...')
+                message = self.comm.recv_json(flags=recv_flags)
+                print('server received:', message)
+                recv_flags = zmq.NOBLOCK
+            except zmq.error.Again:  # no message received
+                recv_flags = zmq.NULL
+                print('server: no message received in time')
+                if not self.recently_solved:
+                    print('server resolving')
+                    self.send_segmentation()
+                continue
             command = message['type']
             data = message['data']
             if command == 'merge':
-                segments = data['segments']
+                segments = data['fragments']
                 self.learn_merge(segments)
             elif command == 'separate':
-                segments = data['segments']
-                self.learn_separation(segments)
+                fragment = data['fragment']
+                separate_from = data['from']
+                self.learn_separation(fragment, separate_from)
             elif command == 'request':
                 what = data['what']
                 if what == 'fragment-segment-lut':
@@ -92,7 +203,7 @@ class Solver(object):
                 return
             else:
                 print('command %s not recognized.' % command)
-                return
+                continue
 
     def learn_merge(self, segments):
         """Learn that a pair of segments should be merged.
@@ -112,8 +223,9 @@ class Solver(object):
             self.history.append((s0, s1))
             s0 = self.rag.merge_nodes(s0, s1)
             self.targets.append(MERGE_LABEL)
+        self.recently_solved = False or len(set(self.targets)) < 2
 
-    def learn_separation(self, fragments):
+    def learn_separation(self, fragment, separate_from):
         """Learn that a pair of fragments should never be in the same segment.
 
         Parameters
@@ -121,20 +233,23 @@ class Solver(object):
         fragments : tuple of int
             A pair of fragment identifiers.
         """
-        f0, f1 = fragments
-        if self.rag.boundary_body in (f0, f1):
-            return
-        s0, s1 = self.rag.separate_fragments(f0, f1)
-        # trace the segments up to the current state of the RAG
-        # don't use the segments directly
-        try:
-            self.features.append(self.feature_manager(self.rag, s0, s1))
-        except KeyError:
-            print('failed to split segments %i and %i, '
-                  'based on fragments %i and %i' % (s0, s1, f0, f1))
-            return
-        self.targets.append(SEPAR_LABEL)
-        self.separate.append((f0, f1))
+        f0 = fragment
+        if not separate_from:
+            separate_from = self.original_rag.neighbors(f0)
+        s0 = self.rag.tree.highest_ancestor(f0)
+        for f1 in separate_from:
+            if self.rag.boundary_body in (f0, f1):
+                continue
+            s1 = self.rag.tree.highest_ancestor(f1)
+            if self.rag.has_edge(s0, s1):
+                self.features.append(self.feature_manager(self.rag, s0, s1))
+                self.targets.append(SEPAR_LABEL)
+            if self.original_rag.has_edge(f0, f1):
+                self.features.append(self.feature_manager(self.original_rag,
+                                                          f0, f1))
+                self.targets.append(SEPAR_LABEL)
+            self.separate.append((f0, f1))
+        self.recently_solved = False or len(set(self.targets)) < 2
 
     def relearn(self):
         """Learn a new merge policy using data gathered so far.
@@ -150,12 +265,11 @@ class Solver(object):
         for i, (s0, s1) in enumerate(self.separate):
             self.rag.node[s0]['exclusions'].add(i)
             self.rag.node[s1]['exclusions'].add(i)
-        self.rag.replay_merge_history(self.history)
 
 
 def proofread(fragments, true_segmentation, host='tcp://localhost', port=5556,
               num_operations=10, mode='fast paint', stop_when_finished=False,
-              random_state=None):
+              request_seg=True, random_state=None):
     """Simulate a proofreader by sending and receiving messages to a Solver.
 
     Parameters
@@ -194,21 +308,31 @@ def proofread(fragments, true_segmentation, host='tcp://localhost', port=5556,
     random = check_random_state(random_state)
     random.shuffle(true_labels)
     for _, label in zip(range(num_operations), true_labels):
+        time.sleep(3)
         components = [int(i) for i in ctable.getcol(int(label)).indices]
-        comm.send_json({'type': 'merge',
-                        'data': {'segments': components}})
+        merge_msg = {'type': 'merge', 'data': {'fragments': components}}
+        print('proofreader sends:', merge_msg)
+        comm.send_json(merge_msg)
         for fragment in components:
-            for neighbor in base_graph[fragment]:
-                if neighbor not in components:
-                    edge = [int(fragment), int(neighbor)]
-                    comm.send_json({'type': 'separate',
-                                    'data': {'segments': edge}})
-
-    comm.send_json({'type': 'request',
-                    'data': {'what': 'fragment-segment-lut'}})
+            others = [int(neighbor) for neighbor in base_graph[fragment]
+                      if neighbor not in components]
+            if not others:
+                continue
+            split_msg = {'type': 'separate',
+                         'data': {'fragment': int(fragment), 'from': others}}
+            print('proofreader sends:', split_msg)
+            comm.send_json(split_msg)
+    if request_seg:  # if no request, assume server sends periodic updates
+        req_msg = {'type': 'request', 'data': {'what': 'fragment-segment-lut'}}
+        print('proofreader sends:', req_msg)
+        comm.send_json(req_msg)
+    print('proofreader receiving...')
     response = comm.recv_json()
+    print('proofreader received:', response)
     src = response['data']['fragments']
     dst = response['data']['segments']
     if stop_when_finished:
-        comm.send_json({'type': 'stop', 'data': {}})
+        stop_msg = {'type': 'stop', 'data': {}}
+        print('proofreader sends: ', stop_msg)
+        comm.send_json(stop_msg)
     return src, dst

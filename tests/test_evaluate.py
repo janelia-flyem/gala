@@ -13,3 +13,9 @@ def test_contingency_table():
                                 [0.   , 0.   , 0.375],
                                 [0.125, 0.   , 0.   ]]))
     assert ct.shape == ct0.shape
+
+
+def test_vi():
+    seg = np.array([1, 2, 3, 4])
+    gt = np.array([1, 1, 8, 8])
+    assert_equal(ev.vi(seg, gt), 1)

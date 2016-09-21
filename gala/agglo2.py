@@ -59,7 +59,7 @@ def sparse_boundaries(coo_boundaries):
     bounds : SparseLOL
         A map of edge indices to locations in the volume.
     """
-    edge_to_idx = coo_boundaries.tocsr()
+    edge_to_idx = coo_boundaries.copy().tocsr()
     # edge_to_idx: CSR matrix that maps each edge to a unique integer
     # we don't use the ID 0 so that empty spots can be used to mean "no ID".
     edge_to_idx.data = np.arange(1, len(edge_to_idx.data) + 1, dtype=np.int_)

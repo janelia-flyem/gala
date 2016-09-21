@@ -11,19 +11,17 @@ from numpy import   reshape, \
                     minimum, bincount, dot, nonzero, concatenate, \
                     setdiff1d, flatnonzero
 import itertools as it
-import logging
 from collections import defaultdict, deque as queue
 from scipy.ndimage import grey_dilation, generate_binary_structure, \
         maximum_filter, minimum_filter
-from scipy import ndimage as nd
+from scipy import ndimage as ndi
 from scipy.ndimage import distance_transform_cdt
 from scipy.ndimage.measurements import label, find_objects
-from scipy.ndimage.morphology import binary_opening, binary_closing, \
-    binary_dilation, grey_closing, iterate_structure
+from scipy.ndimage.morphology import binary_opening, binary_dilation
 from . import iterprogress as ip
 from .evaluate import relabel_from_one
 
-from skimage import measure, util
+from skimage import measure, util, feature
 import skimage.morphology
 
 from sklearn.externals import joblib
@@ -64,9 +62,9 @@ def remove_merged_boundaries(labels, connectivity=1):
     is_boundary = (labels == boundary)
     labels_complement = labels.copy()
     labels_complement[is_boundary] = labels.max() + 1
-    se = nd.generate_binary_structure(labels.ndim, connectivity)
-    smaller_labels = nd.grey_erosion(labels_complement, footprint=se)
-    bigger_labels = nd.grey_dilation(labels, footprint=se)
+    se = ndi.generate_binary_structure(labels.ndim, connectivity)
+    smaller_labels = ndi.grey_erosion(labels_complement, footprint=se)
+    bigger_labels = ndi.grey_dilation(labels, footprint=se)
     merged = is_boundary & (smaller_labels == bigger_labels)
     labels_out[merged] = smaller_labels[merged]
     return labels_out
@@ -271,6 +269,133 @@ def watershed(a, seeds=None, connectivity=1, mask=None, smooth_thresh=0.0,
     return juicy_center(ws)
 
 
+def multiscale_regular_seeds(off_limits, num_seeds):
+    """Return evenly-spaced seeds, but thinned in areas with no boundaries.
+
+    Parameters
+    ----------
+    off_limits : array of bool, shape (M, N)
+        A binary array where `True` indicates the position of a boundary,
+        and thus where we don't want to place seeds.
+    num_seeds : int
+        The desired number of seeds.
+
+    Returns
+    -------
+    seeds : array of int, shape (M, N)
+        An array of seed points. Each seed gets its own integer ID,
+        starting from 1.
+    """
+    seeds_binary = np.zeros(off_limits.shape, dtype=bool)
+    grid = util.regular_grid(off_limits.shape, num_seeds)
+    seeds_binary[grid] = True
+    seeds_binary &= ~off_limits
+    seeds_img = seeds_binary[grid]
+    thinned_equal = False
+    step = 2
+    while not thinned_equal:
+        thinned = _thin_seeds(seeds_img, step)
+        thinned_equal = np.all(seeds_img == thinned)
+        seeds_img = thinned
+        step *= 2
+    seeds_binary[grid] = seeds_img
+    return ndi.label(seeds_binary)[0]
+
+
+def _thin_seeds(seeds_img, step):
+    out = np.copy(seeds_img)
+    m, n = seeds_img.shape
+    for r in range(0, m, step):
+        for c in range(0, n, step):
+            window = (slice(r, min(r + 5 * step // 2, m), step // 2),
+                      slice(c, min(c + 5 * step // 2, n), step // 2))
+            if np.all(seeds_img[window]):
+                out[window][1::2, :] = False
+                out[window][:, 1::2] = False
+    return out
+
+
+def multiscale_seed_sequence(prob, l1_threshold=0, grid_density=10):
+    npoints = ((prob.shape[1] // grid_density) *
+               (prob.shape[2] // grid_density))
+    seeds = np.zeros(prob.shape, dtype=int)
+    for seed, p in zip(seeds, prob):
+        hm = feature.hessian_matrix(p, sigma=3)
+        l1, l2 = feature.hessian_matrix_eigvals(*hm)
+        curvy = (l1 > l1_threshold)
+        seed[:] = multiscale_regular_seeds(curvy, npoints)
+    return seeds
+
+
+def pipeline_compact_watershed(prob, *,
+                               invert_prob=True,
+                               l1_threshold=0,
+                               grid_density=10,
+                               compactness=0.01,
+                               n_jobs=1):
+    if invert_prob:
+        prob = np.max(prob) - prob
+    seeds = joblib.Parallel(n_jobs=n_jobs)(
+            joblib.delayed(multiscale_seed_sequence)(p[np.newaxis, :],
+                                                     l1_threshold=l1_threshold,
+                                                     grid_density=grid_density)
+            for p in prob)
+    seeds = np.reshape(seeds, prob.shape)
+    fragments = joblib.Parallel(n_jobs=n_jobs)(
+        joblib.delayed(compact_watershed)(p, s, compactness=compactness)
+        for p, s in zip(prob, seeds)
+    )
+    fragments = np.array(fragments)
+    max_ids = fragments.max(axis=-1).max(axis=-1)
+    to_add = np.concatenate(([0], np.cumsum(max_ids)[:-1]))
+    fragments += to_add[:, np.newaxis, np.newaxis]
+    return fragments
+
+
+def _euclid_dist(a, b):
+    return np.sqrt(np.sum((a - b) ** 2))
+
+
+def compact_watershed(a, seeds, *, compactness=0.01, connectivity=1):
+    try:
+        a = np.copy(a)
+        a[np.nonzero(seeds)] = np.min(a)
+        result = skimage.morphology.watershed(a, seeds,
+                                              connectivity=connectivity,
+                                              compactness=compactness)
+        return result
+    except TypeError:  # old version of skimage
+        import warnings
+        warnings.warn('skimage prior to 0.13; compact watershed will be slow.')
+    from .mergequeue import MergeQueue
+    visiting_queue = MergeQueue()
+    seeds = pad(seeds, 0).ravel()
+    seed_coords = np.flatnonzero(seeds)
+    visited = np.zeros(a.shape, dtype=bool)
+    visited = pad(visited, True).ravel()
+    ap = pad(a.astype(float), np.inf)
+    apr = ap.ravel()
+    neigh_sum = raveled_steps_to_neighbors(ap.shape, connectivity)
+    result = np.zeros_like(seeds)
+    for c in seed_coords:
+        visiting_queue.push([0, True, c, seeds[c],
+                             np.unravel_index(c, ap.shape)])
+    while len(visiting_queue) > 0:
+        _, _, next_coord, next_label, next_origin = visiting_queue.pop()
+        if not visited[next_coord]:
+            visited[next_coord] = True
+            result[next_coord] = next_label
+            neighbor_coords = next_coord + neigh_sum
+            for coord in neighbor_coords:
+                if not visited[coord]:
+                    full_coord = np.array(np.unravel_index(coord, ap.shape))
+                    cost = (apr[coord] +
+                            compactness*_euclid_dist(full_coord, next_origin))
+                    visiting_queue.push([cost, True, coord, next_label,
+                                         next_origin])
+    return juicy_center(result.reshape(ap.shape))
+
+
 def watershed_sequence(a, seeds=None, mask=None, axis=0, n_jobs=1, **kwargs):
     """Perform a watershed on a plane-by-plane basis.
 
@@ -402,8 +527,8 @@ def relabel_connected(im, connectivity=1):
         labels = labels[1:]
     for label in labels:
         segment = (im == label)
-        n_segments = nd.label(segment, structure,
-                              output=contiguous_segments)
+        n_segments = ndi.label(segment, structure,
+                               output=contiguous_segments)
         seg = segment.nonzero()
         contiguous_segments[seg] += curr_label
         im_out[seg] += contiguous_segments[seg]

@@ -1,9 +1,9 @@
-#from distutils.core import setup
 import sys
 import os
 from setuptools import setup
 from Cython.Build import cythonize
 import numpy
+
 
 descr = """Graph-based active learning of agglomeration
 

@@ -1,5 +1,3 @@
-from .annotefinder import AnnotationFinder
-from math import ceil
 import numpy as np
 from . import evaluate
 from skimage import color
@@ -57,7 +55,7 @@ def imshow_rand(im, labrandom=True):
     fig : plt.Figure
         The image shown.
     """
-    rand_colors = np.random.rand(ceil(im.max()), 3)
+    rand_colors = np.random.rand(np.ceil(im.max()), 3)
     if labrandom:
         rand_colors[:, 0] = rand_colors[:, 0] * 60 + 20
         rand_colors[:, 1] = rand_colors[:, 1] * 185 - 85
@@ -225,8 +223,6 @@ def plot_vi_breakdown_panel(px, h, title, xlab, ylab, hlines, scatter_size,
         plt.plot(x, val/x, color='gray', ls=':', **kwargs) 
     plt.scatter(px, h, label=title, s=scatter_size, **kwargs)
     # Make points clickable to identify ID. This section needs work.
-    af = AnnotationFinder(px, h, [str(i) for i in range(len(px))])
-    plt.connect('button_press_event', af)
     plt.xlim(xmin=-0.05*max(px), xmax=1.05*max(px))
     plt.ylim(ymin=-0.05*max(h), ymax=1.05*max(h))
     plt.xlabel(xlab)
@@ -480,9 +476,16 @@ def plot_decision_function(clf, data_range=None,
 
     if features is not None:
         if labels is not None:
-            label_colors = cm.viridis(labels)
+            label_colors = cm.viridis(labels.astype(float) / np.max(labels))
         else:
             label_colors = cm.viridis(np.zeros(features.shape[0]))
         ax.scatter(*(features.T * n_gridpoints), c=label_colors)
     plt.show()
 
+
+def plot_seeds(raw_image, seed_image, ax=None):
+    if ax is None:
+        fig, ax = plt.subplots(1, 1)
+    ax.imshow(raw_image, cmap='gray', interpolation='nearest')
+    plt.autoscale = False
+    ax.plot(*np.nonzero(seed_image)[::-1], 'r.')
