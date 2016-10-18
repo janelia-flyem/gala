@@ -69,7 +69,7 @@ if __name__ == '__main__':
                  "bin/gala-segmentation-pipeline",
                  "bin/gala-train", "bin/gala-test-package",
                  "bin/gala-pixel", "bin/comparestacks",
-                 "bin/gala-valprob", "bin/gala-auto"],
+                 "bin/gala-valprob", "bin/gala-auto", "bin/gala-serve"],
         ext_modules = cythonize(["gala/*.pyx","gala/features/*.pyx"],
                                 annotate=True),
         include_dirs=[numpy.get_include()]
