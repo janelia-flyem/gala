@@ -342,7 +342,7 @@ def proofread(fragments, true_segmentation, host='tcp://localhost', port=5556,
 def main():
     parser = argparse.ArgumentParser('gala-serve')
     parser.add_argument('-f', '--config-file', help='JSON configuration file')
-    parser.add_argument('input-file', help='Input image file')
+    parser.add_argument('input_file', help='Input image file')
     parser.add_argument('-F', '--fragment-group',
                         default='volumes/labels/fragments',
                         help='Group path in HDF file for fragments')
