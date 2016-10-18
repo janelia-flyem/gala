@@ -1,3 +1,4 @@
+import argparse
 import time
 import numpy as np
 import networkx as nx
@@ -336,3 +337,22 @@ def proofread(fragments, true_segmentation, host='tcp://localhost', port=5556,
         print('proofreader sends: ', stop_msg)
         comm.send_json(stop_msg)
     return src, dst
+
+
+def main():
+    parser = argparse.ArgumentParser('gala-serve')
+    parser.add_argument('-f', '--config-file', help='JSON configuration file')
+    parser.add_argument('input-file', help='Input image file')
+    parser.add_argument('-F', '--fragment-group',
+                        default='volumes/labels/fragments',
+                        help='Group path in HDF file for fragments')
+    parser.add_argument('-p', '--membrane-probabilities',
+                        default='volumes/membrane',
+                        help='Group path in HDF file for membrane prob map')
+    args = parser.parse_args()
+    from . import imio
+    frags, probs = imio.read_cremi(args.input_file,
+                                   [args.fragment_group,
+                                    args.membrane_probabilities])
+    solver = Solver(frags, probs, config_file=args.config_file)
+    solver.listen()
