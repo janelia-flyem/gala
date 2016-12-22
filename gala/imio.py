@@ -321,24 +321,26 @@ def write_vtk(ar, fn, spacing=[1.0, 1.0, 1.0]):
         This function does not have a return value.
     """
     # write header
-    f = open(fn, 'w')
-    f.write('# vtk DataFile Version 3.0\n')
-    f.write('created by write_vtk (Python implementation by JNI)\n')
-    f.write('BINARY\n')
-    f.write('DATASET STRUCTURED_POINTS\n')
-    f.write(' '.join(['DIMENSIONS'] + list(map(str, ar.shape[-1::-1]))) + '\n')
-    f.write(' '.join(['ORIGIN'] + list(map(str, zeros(3)))) + '\n')
-    f.write(' '.join(['SPACING'] + list(map(str, spacing))) + '\n')
-    f.write('POINT_DATA ' + str(ar.size) + '\n')
-    f.write('SCALARS image_data ' +
-                            numpy_type_to_vtk_string[ar.dtype.type] + '\n')
-    f.write('LOOKUP_TABLE default\n');
+    f = open(fn, 'wb')
+    f.write(b'# vtk DataFile Version 3.0\n')
+    f.write(b'created by write_vtk (Python implementation by JNI)\n')
+    f.write(b'BINARY\n')
+    f.write(b'DATASET STRUCTURED_POINTS\n')
+    f.write(str.encode(' '.join(['DIMENSIONS'] +
+                                list(map(str, ar.shape[-1::-1]))) + '\n'))
+    f.write(str.encode(' '.join(['ORIGIN'] + list(map(str, zeros(3)))) + '\n'))
+    f.write(str.encode(' '.join(['SPACING'] + list(map(str, spacing))) + '\n'))
+    f.write(str.encode('POINT_DATA ' + str(ar.size) + '\n'))
+    f.write(str.encode('SCALARS image_data ' +
+                       numpy_type_to_vtk_string[ar.dtype.type] + '\n'))
+    f.write(b'LOOKUP_TABLE default\n');
     f.close()
 
     # write data as binary
     f = open(fn, 'ab')
-    f.write(ar.data)
+    f.write(ar.tobytes())
     f.close()
+
 
 def read_vtk(fin):
     """Read a numpy volume from a VTK structured points file.
