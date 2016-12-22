@@ -11,4 +11,4 @@ __author__ = 'Juan Nunez-Iglesias <juan.n@unimelb.edu.au>, '+\
 __all__ = ['agglo', 'morpho', 'evaluate', 'viz', 'imio', 'classify',
     'stack_np', 'app_logger', 'option_manager', 'features', 'filter']
 
-__version__ = '0.4dev'
+__version__ = '0.5dev'
