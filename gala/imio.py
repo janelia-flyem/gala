@@ -365,7 +365,9 @@ def read_vtk(fin):
         if line.startswith('SCALARS') or line.startswith('VECTORS')][0]
     ar_shape = [int(b) for b in shape_line.rstrip().split(' ')[-1:0:-1]]
     ar_type = vtk_string_to_numpy_type[type_line.rstrip().split(' ')[2]]
-    ar = np.squeeze(fromstring(f.read(), ar_type).reshape(ar_shape+[-1]))
+    if type_line.startswith('VECTORS'):
+        ar_shape.append(-1)
+    ar = fromstring(f.read(), ar_type).reshape(ar_shape)
     return ar
 
 ### HDF5 format
