@@ -357,15 +357,15 @@ def read_vtk(fin):
     ar : numpy ndarray
         The array contained in the file.
     """
-    f = open(fin, 'r')
+    f = open(fin, 'rb')
     num_lines_in_header = 10
-    lines = [f.readline() for i in range(num_lines_in_header)]
+    lines = [bytes.decode(f.readline()) for i in range(num_lines_in_header)]
     shape_line = [line for line in lines if line.startswith('DIMENSIONS')][0]
     type_line = [line for line in lines 
         if line.startswith('SCALARS') or line.startswith('VECTORS')][0]
-    ar_shape = map(int, shape_line.rstrip('\n').split(' ')[1:])[-1::-1]
-    ar_type = vtk_string_to_numpy_type[type_line.rstrip('\n').split(' ')[2]]
-    ar = squeeze(fromstring(f.read(), ar_type).reshape(ar_shape+[-1]))
+    ar_shape = [int(b) for b in shape_line.rstrip().split(' ')[-1:0:-1]]
+    ar_type = vtk_string_to_numpy_type[type_line.rstrip().split(' ')[2]]
+    ar = np.squeeze(fromstring(f.read(), ar_type).reshape(ar_shape+[-1]))
     return ar
 
 ### HDF5 format
