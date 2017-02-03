@@ -19,3 +19,18 @@ def test_cremi_roundtrip():
     np.testing.assert_equal(stored_resolution, (40, 4, 4))
     np.testing.assert_equal(raw_in, raw_image)
     np.testing.assert_equal(lab_in, labels)
+
+
+def test_vtk_roundtrip():
+    for i in range(4):
+        ar_shape = np.random.randint(1, 50, size=3)
+        dtypes = list(imio.numpy_type_to_vtk_string.keys())
+        cur_dtype = np.random.choice(dtypes)
+        if np.issubdtype(cur_dtype, np.integer):
+            ar = np.random.randint(0, 127, size=ar_shape).astype(cur_dtype)
+        else:
+            ar = np.random.rand(*ar_shape).astype(cur_dtype)
+        with temporary_file('.vtk') as fout:
+            imio.write_vtk(ar, fout)
+            ar_in = imio.read_vtk(fout)
+        np.testing.assert_equal(ar, ar_in)
