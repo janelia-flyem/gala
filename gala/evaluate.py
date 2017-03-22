@@ -1002,8 +1002,10 @@ def adapted_rand_error(seg, gt, all_stats=False):
     #sumB = np.sum(b_i * b_i) + (np.sum(c) / n)
     #sumAB = np.sum(d) + (np.sum(c) / n)
 
-    precision = sumAB / sumB
-    recall = sumAB / sumA
+    #precision = sumAB / sumB
+    #recall = sumAB / sumA
+
+    
 
     fScore = 2.0 * precision * recall / (precision + recall)
     are = 1.0 - fScore
