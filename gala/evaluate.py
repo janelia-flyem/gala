@@ -984,6 +984,10 @@ def adapted_rand_error(seg, gt, all_stats=False):
     # this is a count
     num_B_zero = B_zero.sum()
 
+    # This is the new code, removing the divides by n because they cancel.
+    # sum of the joint distribution
+    #   separate sum of B>0 and B=0 parts
+    
 
     a = p_ij[1:n_labels_A,:]
     b = p_ij[1:n_labels_A,1:n_labels_B]
