@@ -978,6 +978,11 @@ def adapted_rand_error(seg, gt, all_stats=False):
     # pixel in segB as a different value (i.e., unique label for each pixel).
     # To do this, we sum them differently than others
 
+    B_nonzero = p_ij[:, 1:]
+    B_zero = p_ij[:, 0]
+
+    # this is a count
+    num_B_zero = B_zero.sum()
 
 
     a = p_ij[1:n_labels_A,:]
