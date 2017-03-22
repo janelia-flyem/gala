@@ -993,6 +993,8 @@ def adapted_rand_error(seg, gt, all_stats=False):
     a_i = p_ij.sum(1)
     b_i = B_nonzero.sum(0)
 
+    sum_a = np.power(a_i, 2).sum()
+    sum_b = np.power(b_i, 2).sum() + num_B_zero
 
     sumA = np.sum(a_i * a_i)
     sumB = np.sum(b_i * b_i) + (np.sum(c) / n)
