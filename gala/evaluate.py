@@ -996,9 +996,11 @@ def adapted_rand_error(seg, gt, all_stats=False):
     sum_a = np.power(a_i, 2).sum()
     sum_b = np.power(b_i, 2).sum() + num_B_zero
 
-    sumA = np.sum(a_i * a_i)
-    sumB = np.sum(b_i * b_i) + (np.sum(c) / n)
-    sumAB = np.sum(d) + (np.sum(c) / n)
+    # This is old code no longer required for this version of the adapted
+    # Rand error. It has been commented out
+    #sumA = np.sum(a_i * a_i)
+    #sumB = np.sum(b_i * b_i) + (np.sum(c) / n)
+    #sumAB = np.sum(d) + (np.sum(c) / n)
 
     precision = sumAB / sumB
     recall = sumAB / sumA
