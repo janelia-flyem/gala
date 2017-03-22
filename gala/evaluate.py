@@ -974,6 +974,12 @@ def adapted_rand_error(seg, gt, all_stats=False):
 
     p_ij = sparse.csr_matrix((ones_data, (segA[:], segB[:])), shape=(n_labels_A, n_labels_B), dtype=np.uint64)
 
+    # In the paper where adapted rand is proposed, they treat each background
+    # pixel in segB as a different value (i.e., unique label for each pixel).
+    # To do this, we sum them differently than others
+
+
+
     a = p_ij[1:n_labels_A,:]
     b = p_ij[1:n_labels_A,1:n_labels_B]
     c = p_ij[1:n_labels_A,0].todense()
