@@ -993,13 +993,6 @@ def adapted_rand_error(seg, gt, all_stats=False):
     a_i = p_ij.sum(1)
     b_i = B_nonzero.sum(0)
 
-    a = p_ij[1:n_labels_A,:]
-    b = p_ij[1:n_labels_A,1:n_labels_B]
-    c = p_ij[1:n_labels_A,0].todense()
-    d = np.array(b.todense()) ** 2
-
-    a_i = np.array(a.sum(1))
-    b_i = np.array(b.sum(0))
 
     sumA = np.sum(a_i * a_i)
     sumB = np.sum(b_i * b_i) + (np.sum(c) / n)
