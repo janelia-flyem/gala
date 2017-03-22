@@ -972,7 +972,7 @@ def adapted_rand_error(seg, gt, all_stats=False):
 
     ones_data = np.ones(n)
 
-    p_ij = sparse.csr_matrix((ones_data, (segA[:], segB[:])), shape=(n_labels_A, n_labels_B))
+    p_ij = sparse.csr_matrix((ones_data, (segA[:], segB[:])), shape=(n_labels_A, n_labels_B), dtype=np.uint64)
 
     a = p_ij[1:n_labels_A,:]
     b = p_ij[1:n_labels_A,1:n_labels_B]
