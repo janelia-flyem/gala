@@ -989,6 +989,10 @@ def adapted_rand_error(seg, gt, all_stats=False):
     # sum of the joint distribution ,separate sum of B>0 and B=0 parts
     sum_p_ij = (B_nonzero).power(2).sum() + num_B_zero
 
+    # these are marginal probabilities
+    a_i = p_ij.sum(1)
+    b_i = B_nonzero.sum(0)
+
     a = p_ij[1:n_labels_A,:]
     b = p_ij[1:n_labels_A,1:n_labels_B]
     c = p_ij[1:n_labels_A,0].todense()
