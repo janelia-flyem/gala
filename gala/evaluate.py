@@ -284,7 +284,7 @@ def contingency_table(seg, gt, *, ignore_seg=(), ignore_gt=(), norm=True):
         labeled `i` in `seg` and `j` in `gt`. (Or the proportion of such voxels
         if `norm=True`.)
     """
-    segr = seg.ravel() 
+    segr = seg.ravel()
     gtr = gt.ravel()
     ignored = np.zeros(segr.shape, np.bool)
     data = np.ones(gtr.shape)
@@ -740,7 +740,7 @@ def vi(x, y=None, weights=np.ones(2), ignore_x=[0], ignore_y=[0]):
 
     References
     ----------
-    [1] Meila, M. (2007). Comparing clusterings - an information based 
+    [1] Meila, M. (2007). Comparing clusterings - an information based
     distance. Journal of Multivariate Analysis 98, 873-895.
     """
     return np.dot(weights, split_vi(x, y, ignore_x, ignore_y))
@@ -786,7 +786,7 @@ def split_vi(x, y=None, ignore_x=[0], ignore_y=[0]):
 def vi_pairwise_matrix(segs, split=False):
     """Compute the pairwise VI distances within a set of segmentations.
 
-    If 'split' is set to True, two matrices are returned, one for each 
+    If 'split' is set to True, two matrices are returned, one for each
     direction of the conditional entropy.
 
     0-labeled pixels are ignored.
@@ -886,7 +886,7 @@ def vi_by_threshold(ucm, gt, ignore_seg=[], ignore_gt=[], npoints=None,
                 for t in ts]
     else:
         p = multiprocessing.Pool(nprocessors)
-        result = p.map(split_vi_threshold, 
+        result = p.map(split_vi_threshold,
             ((ucm, gt, ignore_seg, ignore_gt, t) for t in ts))
     return np.concatenate((ts[np.newaxis, :], np.array(result).T), axis=0)
 
@@ -929,8 +929,8 @@ def rand_by_threshold(ucm, gt, npoints=None):
 def adapted_rand_error(seg, gt, all_stats=False):
     """Compute Adapted Rand error as defined by the SNEMI3D contest [1]
 
-    Formula is given as 1 - the maximal F-score of the Rand index 
-    (excluding the zero component of the original labels). Adapted 
+    Formula is given as 1 - the maximal F-score of the Rand index
+    (excluding the zero component of the original labels). Adapted
     from the SNEMI3D MATLAB script, hence the strange style.
 
     Parameters
@@ -959,6 +959,12 @@ def adapted_rand_error(seg, gt, all_stats=False):
     # segA is truth, segB is query
     segA = np.ravel(gt)
     segB = np.ravel(seg)
+
+    # mask to foreground in A
+    mask = (segA > 0)
+    segA = segA[mask]
+    segB = segB[mask]
+
     n = segA.size
 
     n_labels_A = np.amax(segA) + 1
@@ -985,7 +991,7 @@ def adapted_rand_error(seg, gt, all_stats=False):
 
     fScore = 2.0 * precision * recall / (precision + recall)
     are = 1.0 - fScore
-    
+
     if all_stats:
         return (are, precision, recall)
     else:
@@ -994,15 +1000,15 @@ def adapted_rand_error(seg, gt, all_stats=False):
 
 def calc_entropy(split_vals, count):
     col_count = 0
-    for key, val in split_vals.items(): 
+    for key, val in split_vals.items():
         col_count += val
-    col_prob = float(col_count) / count 
+    col_prob = float(col_count) / count
 
     ent_val = 0
-    for key, val in split_vals.items(): 
+    for key, val in split_vals.items():
         val_norm = float(val)/count
         temp = (val_norm / col_prob)
-        ent_val += temp * np.log2(temp) 
+        ent_val += temp * np.log2(temp)
     return -(col_prob * ent_val)
 
 
@@ -1011,7 +1017,7 @@ def split_vi_mem(x, y):
     y_labels = np.unique(y)
     x_labels0 = x_labels[x_labels != 0]
     y_labels0 = y_labels[y_labels != 0]
- 
+
     x_map = {}
     y_map = {}
 
@@ -1204,10 +1210,10 @@ def sorted_vi_components(s1, s2, ignore1=[0], ignore2=[0], compress=False):
         Labels in these lists are ignored in computing the VI. 0-labels are
         ignored by default; pass empty lists to use all labels.
     compress : bool, optional
-        The 'compress' flag performs a remapping of the labels before doing 
+        The 'compress' flag performs a remapping of the labels before doing
         the VI computation, resulting in memory savings when many labels are
         not used in the volume. (For example, if you have just two labels, 1
-        and 1,000,000, 'compress=False' will give a vector of length 
+        and 1,000,000, 'compress=False' will give a vector of length
         1,000,000, whereas with 'compress=True' it will have just size 2.)
 
     Returns
@@ -1249,7 +1255,7 @@ def split_components(idx, cont, num_elems=4, axis=0):
         The axis along which to perform the calculations. Assuming `cont` has
         the automatic segmentation as the rows and the gold standard as the
         columns, `axis=0` will return the segment IDs in the gold standard of
-        the worst merges comprising `idx`, while `axis=1` will return the 
+        the worst merges comprising `idx`, while `axis=1` will return the
         segment IDs in the automatic segmentation of the worst splits
         comprising `idx`.
 
@@ -1370,7 +1376,7 @@ def fm_index(x, y=None):
 
     References
     ----------
-    [1] EB Fowlkes & CL Mallows. (1983) A method for comparing two 
+    [1] EB Fowlkes & CL Mallows. (1983) A method for comparing two
     hierarchical clusterings. J Am Stat Assoc 78: 553
     """
     cont = x if y is None else contingency_table(x, y, norm=False)
@@ -1415,7 +1421,7 @@ def reduce_vi(fn_pattern='testing/%i/flat-single-channel-tr%i-%i-%.2f.lzf.h5',
                 try:
                     current_vi = np.array(f['vi'])[:, 0]
                 except IOError:
-                    logging.warning('IOError: could not open file %s' 
+                    logging.warning('IOError: could not open file %s'
                         % current_fn)
                 except KeyError:
                     logging.warning('KeyError: could not find vi in file %s'
