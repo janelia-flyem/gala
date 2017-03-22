@@ -1005,7 +1005,8 @@ def adapted_rand_error(seg, gt, all_stats=False):
     #precision = sumAB / sumB
     #recall = sumAB / sumA
 
-    
+    precision = float(sum_p_ij) / sum_b
+    recall = float(sum_p_ij) / sum_a
 
     fScore = 2.0 * precision * recall / (precision + recall)
     are = 1.0 - fScore
