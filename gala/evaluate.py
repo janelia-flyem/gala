@@ -951,6 +951,9 @@ def adapted_rand_error(seg, gt, all_stats=False, count_zeros=False):
         The adapted Rand precision. (Only returned when `all_stats` is ``True``.)
     rec : float, optional
         The adapted Rand recall.  (Only returned when `all_stats` is ``True``.)
+    count_zeros : boolean, optional
+        Formal parameter that includes the calculation of background pixels
+        labeled a zero in the ARE (disabled by default)
 
     References
     ----------
