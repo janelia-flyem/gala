@@ -926,7 +926,7 @@ def rand_by_threshold(ucm, gt, npoints=None):
         result[1, i] = adj_rand_index(seg, gt)
     return np.concatenate((ts[np.newaxis, :], result), axis=0)
 
-def adapted_rand_error(seg, gt, all_stats=False, count_zeros=False):
+def adapted_rand_error(seg, gt, all_stats=False, count_zeros=True):
     """Compute Adapted Rand error as defined by the SNEMI3D contest [1]
 
     Formula is given as 1 - the maximal F-score of the Rand index
@@ -953,7 +953,7 @@ def adapted_rand_error(seg, gt, all_stats=False, count_zeros=False):
         The adapted Rand recall.  (Only returned when `all_stats` is ``True``.)
     count_zeros : boolean, optional
         Formal parameter that includes the calculation of background pixels
-        labeled a zero in the ARE (disabled by default)
+        labeled a zero in the ARE (enabled by default)
 
     References
     ----------
