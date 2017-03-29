@@ -953,7 +953,7 @@ def adapted_rand_error(seg, gt, all_stats=False, count_zeros=True):
         The adapted Rand recall.  (Only returned when `all_stats` is ``True``.)
     count_zeros : boolean, optional
         Formal parameter that includes the calculation of background pixels
-        labeled a zero in the ARE (enabled by default)
+        labeled a zero in the ARE (set True by default)
 
     References
     ----------
@@ -997,7 +997,10 @@ def adapted_rand_error(seg, gt, all_stats=False, count_zeros=True):
     b_i = B_nonzero.sum(0)
 
     sum_a = np.power(a_i, 2).sum()
-    sum_b = np.power(b_i, 2).sum() + num_B_zero
+    if count_zeros is False:
+        sum_b = np.power(b_i, 2).sum()
+    else:
+        sum_b = np.power(b_i, 2).sum() + num_B_zero
 
     # This is old code no longer required for this version of the adapted
     # Rand error. It has been commented out
