@@ -941,6 +941,8 @@ def adapted_rand_error(seg, gt, all_stats=False, count_zeros=True):
         the groundtruth to score against, where each value is a label
     all_stats : boolean, optional
         whether to also return precision and recall as a 3-tuple with rand_error
+    count_zeros : boolean, optional
+        whether to include the pixels labeled a zero in the groundtruth or not
 
     Returns
     -------
