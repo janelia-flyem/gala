@@ -979,14 +979,14 @@ def adapted_rand_error(seg, gt, all_stats=False, count_zeros=True):
 
     p_ij = sparse.csr_matrix((ones_data, (segA[:], segB[:])), shape=(n_labels_A, n_labels_B), dtype=np.uint64)
 
-    # In the paper where adapted rand is proposed, they treat each background
+    # In the paper where adapted rand error is proposed, they treat each background
     # pixel in segB as a different value (i.e., unique label for each pixel).
-    # To do this, we sum them differently than others
+    # To do this, we sum them differently than others.
 
     B_nonzero = p_ij[:, 1:]
     B_zero = p_ij[:, 0]
 
-    # this is a count
+    # This is a count of pixels labelled a zero in segment B.
     num_B_zero = B_zero.sum()
 
     # This is the new code, removing the divides by n because they cancel.
@@ -1008,13 +1008,13 @@ def adapted_rand_error(seg, gt, all_stats=False, count_zeros=True):
         sum_b = np.power(b_i, 2).sum() + num_B_zero
 
     # This is old code no longer required for this version of the adapted
-    # Rand error. It has been commented out
-    #sumA = np.sum(a_i * a_i)
-    #sumB = np.sum(b_i * b_i) + (np.sum(c) / n)
-    #sumAB = np.sum(d) + (np.sum(c) / n)
+    # Rand error. It has been commented out.
+    # sumA = np.sum(a_i * a_i)
+    # sumB = np.sum(b_i * b_i) + (np.sum(c) / n)
+    # sumAB = np.sum(d) + (np.sum(c) / n)
 
-    #precision = sumAB / sumB
-    #recall = sumAB / sumA
+    # precision = sumAB / sumB
+    # recall = sumAB / sumA
 
     precision = float(sum_p_ij) / sum_b
     recall = float(sum_p_ij) / sum_a
