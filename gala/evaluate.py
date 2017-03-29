@@ -926,7 +926,7 @@ def rand_by_threshold(ucm, gt, npoints=None):
         result[1, i] = adj_rand_index(seg, gt)
     return np.concatenate((ts[np.newaxis, :], result), axis=0)
 
-def adapted_rand_error(seg, gt, all_stats=False):
+def adapted_rand_error(seg, gt, all_stats=False, count_zeros=False):
     """Compute Adapted Rand error as defined by the SNEMI3D contest [1]
 
     Formula is given as 1 - the maximal F-score of the Rand index
