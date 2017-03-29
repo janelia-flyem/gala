@@ -942,7 +942,7 @@ def adapted_rand_error(seg, gt, all_stats=False, count_zeros=True):
     all_stats : boolean, optional
         whether to also return precision and recall as a 3-tuple with rand_error
     count_zeros : boolean, optional
-        whether to include the pixels labeled a zero in the groundtruth or not
+        whether to include the pixels labeled a zero in the segment B or not
 
     Returns
     -------
@@ -999,8 +999,11 @@ def adapted_rand_error(seg, gt, all_stats=False, count_zeros=True):
     b_i = B_nonzero.sum(0)
 
     sum_a = np.power(a_i, 2).sum()
+    # If user has explicitly set parameter to false, then non-zero
+    # pixels in seg B labeled a zero will not be included.
     if count_zeros is False:
         sum_b = np.power(b_i, 2).sum()
+    # Otherwise, include the non-zero pixels found in seg B in calculation.
     else:
         sum_b = np.power(b_i, 2).sum() + num_B_zero
 
