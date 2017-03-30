@@ -19,3 +19,9 @@ def test_vi():
     seg = np.array([1, 2, 3, 4])
     gt = np.array([1, 1, 8, 8])
     assert_equal(ev.vi(seg, gt), 1)
+
+def test_are():
+    seg = np.eye(3)
+    gt = np.eye(3)
+    seg[1][1] = 0
+    assert seg.shape == gt.shape
