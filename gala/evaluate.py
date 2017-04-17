@@ -977,39 +977,37 @@ def adapted_rand_error(seg, gt, all_stats=False, count_zeros=True):
     n_labels_B = np.amax(segB) + 1
 
     ones_data = np.ones(n)
-
+    # This is the contingency table obtained from segA and segB
     p_ij = sparse.csr_matrix((ones_data, (segA[:], segB[:])), shape=(n_labels_A, n_labels_B), dtype=np.uint64)
 
     # In the paper where adapted rand error is proposed, they treat each background
     # pixel in segB as a different value (i.e., unique label for each pixel).
     # To do this, we sum them differently than others.
 
-    B_nonzero = p_ij[:, 1:]
-    B_zero = p_ij[:, 0]
 
     # This is a count of pixels labelled a zero in segment B.
-    num_B_zero = B_zero.sum()
+
 
     # This is the new code, removing the divides by n because they cancel.
 
     # sum of the joint distribution ,separate sum of B>0 and B=0 parts
-    sum_p_ij = (B_nonzero).power(2).sum() + num_B_zero
+    sum_p_ij = (p_ij).power(2).sum()
 
     # these are marginal probabilities
+    # these are the axix-wise sums (np.sumaxis)
     a_i = p_ij.sum(1)
-    b_i = B_nonzero.sum(0)
+    b_i = p_ij.sum(0)
 
     sum_a = np.power(a_i, 2).sum()
     # If user has explicitly set the count_zeros parameter to false, then
     # non-zero pixels in seg B labeled a zero will not be included.
-    if count_zeros is False:
-        sum_b = np.power(b_i, 2).sum()
-    # Otherwise, include the non-zero pixels found in seg B in calculation.
-    else:
-        sum_b = np.power(b_i, 2).sum() + num_B_zero
 
-    precision = float(sum_p_ij) / sum_b
-    recall = float(sum_p_ij) / sum_a
+    # Otherwise, include the non-zero pixels found in seg B in calculation.
+
+    sum_b = np.power(b_i, 2).sum()
+
+    precision = (sum_p_ij - n )/ (sum_b - n)
+    recall = (sum_p_ij -n )/ (sum_a - n)
 
     fScore = 2.0 * precision * recall / (precision + recall)
     are = 1.0 - fScore
