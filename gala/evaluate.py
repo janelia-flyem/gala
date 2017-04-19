@@ -927,6 +927,7 @@ def rand_by_threshold(ucm, gt, npoints=None):
     return np.concatenate((ts[np.newaxis, :], result), axis=0)
 
 def adapted_rand_error(seg, gt, all_stats=False, count_zeros=True):
+    from gala import evaluate as ev
     """Compute Adapted Rand error as defined by the SNEMI3D contest [1]
 
     Formula is given as 1 - the maximal F-score of the Rand index
@@ -966,19 +967,13 @@ def adapted_rand_error(seg, gt, all_stats=False, count_zeros=True):
     segA = np.ravel(gt)
     segB = np.ravel(seg)
 
-    # mask to foreground in A
-    mask = (segA > 0)
-    segA = segA[mask]
-    segB = segB[mask]
 
     n = segA.size
 
-    n_labels_A = np.amax(segA) + 1
-    n_labels_B = np.amax(segB) + 1
-
-    ones_data = np.ones(n)
     # This is the contingency table obtained from segA and segB
-    p_ij = sparse.csr_matrix((ones_data, (segA[:], segB[:])), shape=(n_labels_A, n_labels_B), dtype=np.uint64)
+    p_ij = ev.contingency_table(segA, segB, norm=False)
+    contingency_table = p_ij.A
+
 
     # In the paper where adapted rand error is proposed, they treat each background
     # pixel in segB as a different value (i.e., unique label for each pixel).
@@ -991,13 +986,14 @@ def adapted_rand_error(seg, gt, all_stats=False, count_zeros=True):
     # This is the new code, removing the divides by n because they cancel.
 
     # sum of the joint distribution ,separate sum of B>0 and B=0 parts
-    sum_p_ij = (p_ij).power(2).sum()
+    a_sum_p_ij = sum(contingency_table)**2
+    sum_p_ij = sum(a_sum_p_ij)
+
 
     # these are marginal probabilities
     # these are the axix-wise sums (np.sumaxis)
-    a_i = p_ij.sum(1)
-    b_i = p_ij.sum(0)
-
+    a_i = np.sum(contingency_table, axis=0)
+    b_i = np.sum(contingency_table, axis=1)
     sum_a = np.power(a_i, 2).sum()
     # If user has explicitly set the count_zeros parameter to false, then
     # non-zero pixels in seg B labeled a zero will not be included.
