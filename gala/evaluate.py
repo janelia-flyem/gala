@@ -926,7 +926,7 @@ def rand_by_threshold(ucm, gt, npoints=None):
         result[1, i] = adj_rand_index(seg, gt)
     return np.concatenate((ts[np.newaxis, :], result), axis=0)
 
-def adapted_rand_error(seg, gt, all_stats=False, count_zeros=True):
+def adapted_rand_error(seg, gt, all_stats=False):
     from gala import evaluate as ev
     """Compute Adapted Rand error as defined by the SNEMI3D contest [1]
 
@@ -942,8 +942,7 @@ def adapted_rand_error(seg, gt, all_stats=False, count_zeros=True):
         the groundtruth to score against, where each value is a label
     all_stats : boolean, optional
         whether to also return precision and recall as a 3-tuple with rand_error
-    count_zeros : boolean, optional
-        whether to include the pixels labeled a zero in the segment B or not
+
 
     Returns
     -------
@@ -954,10 +953,7 @@ def adapted_rand_error(seg, gt, all_stats=False, count_zeros=True):
         The adapted Rand precision. (Only returned when `all_stats` is ``True``.)
     rec : float, optional
         The adapted Rand recall.  (Only returned when `all_stats` is ``True``.)
-    count_zeros : boolean, optional
-        Formal parameter that sets whether to include the calculation of
-        background pixels labeled a zero in the segment or not
-        (set True by default)
+
 
     References
     ----------
@@ -967,46 +963,33 @@ def adapted_rand_error(seg, gt, all_stats=False, count_zeros=True):
     segA = np.ravel(gt)
     segB = np.ravel(seg)
 
-
     n = segA.size
 
-    # This is the contingency table obtained from segA and segB
+    # This is the contingency table obtained from segA and segB, we obtain
+    # the marginal probabilities from the table.
     p_ij = ev.contingency_table(segA, segB, norm=False)
     contingency_table = p_ij.A
 
+    # Sum of the joint distribution squared
+    sum_p_ij = np.sum(contingency_table**2)
 
-    # In the paper where adapted rand error is proposed, they treat each background
-    # pixel in segB as a different value (i.e., unique label for each pixel).
-    # To do this, we sum them differently than others.
-
-
-    # This is a count of pixels labelled a zero in segment B.
-
-
-    # This is the new code, removing the divides by n because they cancel.
-
-    # sum of the joint distribution ,separate sum of B>0 and B=0 parts
-    a_sum_p_ij = sum(contingency_table)**2
-    sum_p_ij = sum(a_sum_p_ij)
-
-
-    # these are marginal probabilities
-    # these are the axix-wise sums (np.sumaxis)
+    # These are the axix-wise sums (np.sumaxis)
     a_i = np.sum(contingency_table, axis=0)
     b_i = np.sum(contingency_table, axis=1)
+
+    # Sum of the segment labeled 'A'
     sum_a = np.power(a_i, 2).sum()
-    # If user has explicitly set the count_zeros parameter to false, then
-    # non-zero pixels in seg B labeled a zero will not be included.
-
-    # Otherwise, include the non-zero pixels found in seg B in calculation.
-
+    # Sum of the segment labeled 'B'
     sum_b = np.power(b_i, 2).sum()
 
-    precision = (sum_p_ij - n )/ (sum_b - n)
-    recall = (sum_p_ij -n )/ (sum_a - n)
+    # This is the new code, wherein 'n' is subtacted from the numerator
+    # and the denominator.
+
+    precision = (sum_p_ij - n )/ (sum_a - n)
+    recall = (sum_p_ij -n )/ (sum_b - n)
 
     fScore = 2.0 * precision * recall / (precision + recall)
-    are = 1.0 - fScore
+    are = abs(1.0 - fScore)
 
     if all_stats:
         return (are, precision, recall)
