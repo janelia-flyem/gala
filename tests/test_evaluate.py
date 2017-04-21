@@ -1,5 +1,5 @@
 import numpy as np
-from numpy.testing import assert_equal
+from numpy.testing import assert_equal, assert_almost_equal
 from gala import evaluate as ev
 
 def test_contingency_table():
