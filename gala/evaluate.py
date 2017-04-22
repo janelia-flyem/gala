@@ -927,7 +927,6 @@ def rand_by_threshold(ucm, gt, npoints=None):
     return np.concatenate((ts[np.newaxis, :], result), axis=0)
 
 def adapted_rand_error(seg, gt, all_stats=False):
-    from gala import evaluate as ev
     """Compute Adapted Rand error as defined by the SNEMI3D contest [1]
 
     Formula is given as 1 - the maximal F-score of the Rand index
@@ -943,7 +942,6 @@ def adapted_rand_error(seg, gt, all_stats=False):
     all_stats : boolean, optional
         whether to also return precision and recall as a 3-tuple with rand_error
 
-
     Returns
     -------
     are : float
@@ -954,42 +952,40 @@ def adapted_rand_error(seg, gt, all_stats=False):
     rec : float, optional
         The adapted Rand recall.  (Only returned when `all_stats` is ``True``.)
 
-
     References
     ----------
     [1]: http://brainiac2.mit.edu/SNEMI3D/evaluation
     """
-    # segA is truth, segB is query
-    segA = np.ravel(gt)
-    segB = np.ravel(seg)
+    # segA is query, segB is truth
+    segA = seg
+    segB = gt
 
     n = segA.size
 
     # This is the contingency table obtained from segA and segB, we obtain
     # the marginal probabilities from the table.
-    p_ij = ev.contingency_table(segA, segB, norm=False)
-    contingency_table = p_ij.A
+    p_ij = contingency_table(segA, segB, norm=False)
 
     # Sum of the joint distribution squared
-    sum_p_ij = np.sum(contingency_table**2)
+    sum_p_ij = p_ij.data @ p_ij.data
 
     # These are the axix-wise sums (np.sumaxis)
-    a_i = np.sum(contingency_table, axis=0)
-    b_i = np.sum(contingency_table, axis=1)
+    a_i = p_ij.sum(axis=0).A.ravel()
+    b_i = p_ij.sum(axis=1).A.ravel()
 
     # Sum of the segment labeled 'A'
-    sum_a = np.power(a_i, 2).sum()
+    sum_a = a_i @ a_i
     # Sum of the segment labeled 'B'
-    sum_b = np.power(b_i, 2).sum()
+    sum_b = b_i @ b_i
 
     # This is the new code, wherein 'n' is subtacted from the numerator
     # and the denominator.
 
-    precision = (sum_p_ij - n )/ (sum_a - n)
-    recall = (sum_p_ij -n )/ (sum_b - n)
+    precision = (sum_p_ij - n)/ (sum_a - n)
+    recall = (sum_p_ij - n)/ (sum_b - n)
 
-    fScore = 2.0 * precision * recall / (precision + recall)
-    are = abs(1.0 - fScore)
+    f_Score = 2.0 * precision * recall / (precision + recall)
+    are = 1 - f_Score
 
     if all_stats:
         return (are, precision, recall)
