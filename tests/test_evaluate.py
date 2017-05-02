@@ -21,6 +21,6 @@ def test_vi():
     assert_equal(ev.vi(seg, gt), 1)
 
 def test_are():
-    seg = np.array([[0, 1], [1, 0]])
-    gt = np.array([[1, 2],[0, 1]])
+    seg = np.array([[2, 1], [1, 2]])
+    gt = np.array([[1, 2],[3, 1]])
     assert_almost_equal((ev.adapted_rand_error(seg, gt)), 0.3333333)
