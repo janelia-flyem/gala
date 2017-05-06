@@ -40,7 +40,7 @@ def imshow_jet(im):
     return plt.imshow(im, cmap=plt.cm.jet, interpolation='nearest')
 
 
-def imshow_rand(im, labrandom=True):
+def imshow_rand(*im, labrandom=True):
     """Show a segmentation using a random colormap.
 
     Parameters
@@ -49,6 +49,8 @@ def imshow_rand(im, labrandom=True):
         The segmentation to be displayed.
     labrandom : bool, optional
         Use random points in the Lab colorspace instead of RGB.
+    axes: bool, optional
+        Allows for use of multiple axes to plot on, default set to False
 
     Returns
     -------
@@ -66,6 +68,11 @@ def imshow_rand(im, labrandom=True):
     rcmap = cm.colors.ListedColormap(np.concatenate(
         (np.zeros((1,3)), rand_colors)
     ))
+
+    if im > 1:
+        fig, ax = plt.subplots(len(im), sharex=True, sharey=True)
+        for images in im:
+            ax[images].imshow(images)
     return plt.imshow(im, cmap=rcmap, interpolation='nearest')
 
 
@@ -162,7 +169,7 @@ def display_3d_segmentations(segs, image=None, probability_map=None, axis=0,
 
 def plot_vi(g, history, gt, fig=None):
     """Plot the VI from segmentations based on Rag and sequence of merges.
-    
+
     Parameters
     ----------
     g : agglo.Rag object
@@ -220,7 +227,7 @@ def plot_vi_breakdown_panel(px, h, title, xlab, ylab, hlines, scatter_size,
     """
     x = np.arange(max(min(px),1e-10), max(px), (max(px)-min(px))/100.0)
     for val in hlines:
-        plt.plot(x, val/x, color='gray', ls=':', **kwargs) 
+        plt.plot(x, val/x, color='gray', ls=':', **kwargs)
     plt.scatter(px, h, label=title, s=scatter_size, **kwargs)
     # Make points clickable to identify ID. This section needs work.
     plt.xlim(xmin=-0.05*max(px), xmax=1.05*max(px))
@@ -230,10 +237,10 @@ def plot_vi_breakdown_panel(px, h, title, xlab, ylab, hlines, scatter_size,
     plt.title(title)
 
 
-def plot_vi_breakdown(seg, gt, ignore_seg=[], ignore_gt=[], 
+def plot_vi_breakdown(seg, gt, ignore_seg=[], ignore_gt=[],
                       hlines=None, subplot=False, figsize=None, **kwargs):
     """Plot conditional entropy H(Y|X) vs P(X) for both seg|gt and gt|seg.
-    
+
     Parameters
     ----------
     seg : np.ndarray of int, shape (M, [N, ..., P])
@@ -275,12 +282,12 @@ def plot_vi_breakdown(seg, gt, ignore_seg=[], ignore_gt=[],
         hlines = np.arange(maxc/hlines, maxc, maxc/hlines)
     plt.figure(figsize=figsize)
     if subplot: plt.subplot(1,2,1)
-    plot_vi_breakdown_panel(px, -lpygx, 
-        'False merges', 'p(S=seg)', 'H(G|S=seg)', 
+    plot_vi_breakdown_panel(px, -lpygx,
+        'False merges', 'p(S=seg)', 'H(G|S=seg)',
         hlines, c='blue', **kwargs)
     if subplot: plt.subplot(1,2,2)
-    plot_vi_breakdown_panel(py, -lpxgy, 
-        'False splits', 'p(G=gt)', 'H(S|G=gt)', 
+    plot_vi_breakdown_panel(py, -lpxgy,
+        'False splits', 'p(G=gt)', 'H(S|G=gt)',
         hlines, c='orange', **kwargs)
     if not subplot:
         plt.title('vi contributions by body.')
@@ -420,7 +427,7 @@ def plot_split_vi(ars, best=None, colors='k', linespecs='-', **kwargs):
         lines.append(plt.plot(ar[0], ar[1], c=color, ls=linespec, **kwargs))
     if best is not None:
         lines.append(plt.scatter(
-            best[0], best[1], 
+            best[0], best[1],
             c=kwargs.get('best-color', 'k'), marker=(5,3,0), **kwargs)
         )
     return lines
