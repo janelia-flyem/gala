@@ -40,7 +40,7 @@ def imshow_jet(im):
     return plt.imshow(im, cmap=plt.cm.jet, interpolation='nearest')
 
 
-def imshow_rand(*im, labrandom=True):
+def imshow_rand(im, labrandom=True):
     """Show a segmentation using a random colormap.
 
     Parameters
@@ -49,8 +49,6 @@ def imshow_rand(*im, labrandom=True):
         The segmentation to be displayed.
     labrandom : bool, optional
         Use random points in the Lab colorspace instead of RGB.
-    axes: bool, optional
-        Allows for use of multiple axes to plot on, default set to False
 
     Returns
     -------
@@ -68,13 +66,17 @@ def imshow_rand(*im, labrandom=True):
     rcmap = cm.colors.ListedColormap(np.concatenate(
         (np.zeros((1,3)), rand_colors)
     ))
-
-    if im > 1:
-        fig, ax = plt.subplots(len(im), sharex=True, sharey=True)
-        for images in im:
-            ax[images].imshow(images)
     return plt.imshow(im, cmap=rcmap, interpolation='nearest')
 
+def multiple_images(*images):
+    """Returns subplots containing multiple images"""
+
+    number_of_im = len(images)
+    fig, ax = plt.subplots(number_of_im)
+    for i in range(number_of_im):
+        ax[i].imshow(images)
+        fig.show()
+    # use a generator containing the 'yield' word to generate images
 
 def draw_seg(seg, im):
     """Return a segmentation map matching the original image color.
