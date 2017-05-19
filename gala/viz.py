@@ -75,6 +75,7 @@ def multiple_images(*images):
     fig, ax = plt.subplots(number_of_im)
     for i in range(number_of_im):
         ax[i].imshow(images)
+        ax[i].imshow_rand(images)
         fig.show()
     # use a generator containing the 'yield' word to generate images
 
