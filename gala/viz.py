@@ -69,15 +69,15 @@ def imshow_rand(im, labrandom=True):
     return plt.imshow(im, cmap=rcmap, interpolation='nearest')
 
 def multiple_images(*images):
-    """Returns subplots containing multiple images"""
+    """Returns a figure with subplots containing multiple images."""
 
     number_of_im = len(images)
-    fig, ax = plt.subplots(number_of_im)
-    for i in range(number_of_im):
-        ax[i].imshow(images)
-        ax[i].imshow_rand(images)
-        fig.show()
-    # use a generator containing the 'yield' word to generate images
+    figure = plt.figure()
+    for i in range(1, number_of_im+1):
+        figure.add_subplot(1, 2, i)
+        imshow_rand(images[i-1])
+    return figure
+
 
 def draw_seg(seg, im):
     """Return a segmentation map matching the original image color.
