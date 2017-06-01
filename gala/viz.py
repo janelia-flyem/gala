@@ -68,14 +68,34 @@ def imshow_rand(im, labrandom=True):
     ))
     return plt.imshow(im, cmap=rcmap, interpolation='nearest')
 
-def multiple_images(*images):
-    """Returns a figure with subplots containing multiple images."""
+
+def multiple_images(*images, image_type='rand'):
+    """Returns a figure with subplots containing multiple images.
+
+    Parameters
+    ----------
+    images : np.ndarray of int, shape (M, N)
+        The multiple images to be displayed.
+    image_type : string, optional
+        Displays the images with different colormaps. Set to display
+        'imshow_rand' by default.
+
+    Returns
+    -------
+    fig : plt.Figure
+        The image shown.
+    """
 
     number_of_im = len(images)
     figure = plt.figure()
     for i in range(1, number_of_im+1):
-        figure.add_subplot(1, 2, i)
-        imshow_rand(images[i-1])
+        figure.add_subplot(1, number_of_im, i)
+        if image_type == 'grey':
+            imshow_grey(images[i-1])
+        elif image_type == 'jet':
+            imshow_jet(images[i-1])
+        else:
+            imshow_rand(images[i-1])
     return figure
 
 
