@@ -3,6 +3,7 @@ from . import evaluate
 from skimage import color
 from matplotlib import cm, pyplot as plt
 import itertools as it
+from math import ceil
 
 ###########################
 # VISUALIZATION FUNCTIONS #
@@ -21,11 +22,11 @@ def imshow_grey(im):
     fig : plt.Figure
         The image shown.
     """
-    return plt.imshow(im, cmap=plt.cm.gray, interpolation='nearest')
+    return plt.imshow(im, cmap='gray', interpolation='nearest')
 
 
-def imshow_jet(im):
-    """Show a segmentation using a jet colormap.
+def imshow_magma(im):
+    """Show a segmentation using a magma colormap.
 
     Parameters
     ----------
@@ -37,7 +38,7 @@ def imshow_jet(im):
     fig : plt.Figure
         The image shown.
     """
-    return plt.imshow(im, cmap=plt.cm.jet, interpolation='nearest')
+    return plt.imshow(im, cmap='magma', interpolation='nearest')
 
 
 def imshow_rand(im, labrandom=True):
@@ -55,7 +56,7 @@ def imshow_rand(im, labrandom=True):
     fig : plt.Figure
         The image shown.
     """
-    rand_colors = np.random.rand(int(np.ceil(im.max())), 3)
+    rand_colors = np.random.random(size=(ceil(np.max(im)), 3))
     if labrandom:
         rand_colors[:, 0] = rand_colors[:, 0] * 60 + 20
         rand_colors[:, 1] = rand_colors[:, 1] * 185 - 85
@@ -68,7 +69,7 @@ def imshow_rand(im, labrandom=True):
     return plt.imshow(im, cmap=rcmap, interpolation='nearest')
 
 
-def multiple_images(*images, raw=False, image_type='rand'):
+def show_multiple_images(*images, raw=False, image_type='rand'):
     """Returns a figure with subplots containing multiple images.
 
     Parameters
@@ -81,32 +82,30 @@ def multiple_images(*images, raw=False, image_type='rand'):
     image_type : string, optional
         Displays the images with different colormaps. Set to display
         'imshow_rand' by default. Other options that are accepted
-        are 'grey' and 'jet'.
+        are 'grey' and 'magma'.
 
     Returns
     -------
     fig : plt.Figure
         The image shown.
     """
-
     number_of_im = len(images)
     figure = plt.figure()
-    for i in range(1, number_of_im+1):
-        ax = figure.add_subplot(1, number_of_im, i)
+    for i in range(number_of_im):
+        ax = figure.add_subplot(0, number_of_im, i)
         if image_type == 'grey' or image_type == 'gray':
-            imshow_grey(images[i-1])
-        elif image_type == 'jet':
-            imshow_jet(images[i-1])
+            imshow_grey(images[i])
+        elif image_type == 'magma':
+            imshow_magma(images[i])
         elif image_type == 'rand':
             try:
-                imshow_rand(images[i-1])
+                imshow_rand(images[i])
             except ValueError:
-                plt.imshow(images[i-1])
-        ax.set_title("Image no. {} with a ''{}'' colormap.".
-                     format(i, image_type))
+                plt.imshow(images[i])
+        ax.set_title(f'Image no. {i} with a ''{image_type}'' colormap.')
         if raw:
-            plt.imshow(images[i-1])
-            ax.set_title("Image no. ''{}'' .".format(i))
+            ax.imshow(images[i])
+            ax.set_title(f'Image number {i}.')
     return figure
 
 
