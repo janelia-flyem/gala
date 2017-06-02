@@ -63,19 +63,21 @@ def imshow_rand(im, labrandom=True):
         rand_colors = color.lab2rgb(rand_colors[np.newaxis, ...])[0]
         rand_colors[rand_colors < 0] = 0
         rand_colors[rand_colors > 1] = 1
-    rcmap = cm.colors.ListedColormap(np.concatenate(
-        (np.zeros((1,3)), rand_colors)
-    ))
+    rcmap = cm.colors.ListedColormap(np.concatenate((np.zeros((1, 3)),
+                                                     rand_colors)))
     return plt.imshow(im, cmap=rcmap, interpolation='nearest')
 
 
-def multiple_images(*images, image_type='rand'):
+def multiple_images(*images, raw=False, image_type='rand'):
     """Returns a figure with subplots containing multiple images.
 
     Parameters
     ----------
     images : np.ndarray of int, shape (M, N)
         The input images to be displayed.
+    raw: boolean, optional
+        Whether to output the raw images without a randomised colormap.
+        Set to false by default.
     image_type : string, optional
         Displays the images with different colormaps. Set to display
         'imshow_rand' by default. Other options that are accepted
@@ -91,13 +93,17 @@ def multiple_images(*images, image_type='rand'):
     figure = plt.figure()
     for i in range(1, number_of_im+1):
         ax = figure.add_subplot(1, number_of_im, i)
-        if image_type == 'grey' or image_type == 'gray':
+        if raw:
+            plt.imshow(images[i-1])
+            ax.set_title("Image no. ''{}'' .".format(i))
+        elif image_type == 'grey' or image_type == 'gray':
             imshow_grey(images[i-1])
         elif image_type == 'jet':
             imshow_jet(images[i-1])
-        else:
+        elif image_type == 'rand':
             imshow_rand(images[i-1])
-        ax.set_title("Image {} with a ''{}'' colormap.".format(i, image_type))
+        ax.set_title("Image no. {} with a ''{}'' colormap.".
+                     format(i, image_type))
     return figure
 
 
