@@ -9,7 +9,7 @@ from math import ceil
 # VISUALIZATION FUNCTIONS #
 ###########################
 
-def imshow_grey(im):
+def imshow_grey(im, axis=''):
     """Show a segmentation using a gray colormap.
 
     Parameters
@@ -25,7 +25,7 @@ def imshow_grey(im):
     return plt.imshow(im, cmap='gray', interpolation='nearest')
 
 
-def imshow_magma(im):
+def imshow_magma(im, axis=''):
     """Show a segmentation using a magma colormap.
 
     Parameters
@@ -41,7 +41,7 @@ def imshow_magma(im):
     return plt.imshow(im, cmap='magma', interpolation='nearest')
 
 
-def imshow_rand(im, labrandom=True):
+def imshow_rand(im, axis='', labrandom=True):
     """Show a segmentation using a random colormap.
 
     Parameters
@@ -94,14 +94,14 @@ def show_multiple_images(*images, raw=False, image_type='rand'):
     for i in range(number_of_im):
         ax = figure.add_subplot(0, number_of_im, i)
         if image_type == 'grey' or image_type == 'gray':
-            imshow_grey(images[i])
+            imshow_grey(images[i], axis=ax)
         elif image_type == 'magma':
-            imshow_magma(images[i])
+            imshow_magma(images[i], axis=ax)
         elif image_type == 'rand':
             try:
                 imshow_rand(images[i])
             except ValueError:
-                plt.imshow(images[i])
+                plt.imshow(images[i], axis=ax)
         ax.set_title(f'Image no. {i} with a ''{image_type}'' colormap.')
         if raw:
             ax.imshow(images[i])
