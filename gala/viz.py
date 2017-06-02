@@ -75,10 +75,11 @@ def multiple_images(*images, image_type='rand'):
     Parameters
     ----------
     images : np.ndarray of int, shape (M, N)
-        The multiple images to be displayed.
+        The input images to be displayed.
     image_type : string, optional
         Displays the images with different colormaps. Set to display
-        'imshow_rand' by default.
+        'imshow_rand' by default. Other options that are accepted
+        are 'grey' and 'jet'.
 
     Returns
     -------
@@ -89,13 +90,14 @@ def multiple_images(*images, image_type='rand'):
     number_of_im = len(images)
     figure = plt.figure()
     for i in range(1, number_of_im+1):
-        figure.add_subplot(1, number_of_im, i)
-        if image_type == 'grey':
+        ax = figure.add_subplot(1, number_of_im, i)
+        if image_type == 'grey' or image_type == 'gray':
             imshow_grey(images[i-1])
         elif image_type == 'jet':
             imshow_jet(images[i-1])
         else:
             imshow_rand(images[i-1])
+        ax.set_title("Image {} with a ''{}'' colormap.".format(i, image_type))
     return figure
 
 
