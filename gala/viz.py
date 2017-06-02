@@ -93,17 +93,20 @@ def multiple_images(*images, raw=False, image_type='rand'):
     figure = plt.figure()
     for i in range(1, number_of_im+1):
         ax = figure.add_subplot(1, number_of_im, i)
-        if raw:
-            plt.imshow(images[i-1])
-            ax.set_title("Image no. ''{}'' .".format(i))
-        elif image_type == 'grey' or image_type == 'gray':
+        if image_type == 'grey' or image_type == 'gray':
             imshow_grey(images[i-1])
         elif image_type == 'jet':
             imshow_jet(images[i-1])
         elif image_type == 'rand':
-            imshow_rand(images[i-1])
+            try:
+                imshow_rand(images[i-1])
+            except ValueError:
+                plt.imshow(images[i-1])
         ax.set_title("Image no. {} with a ''{}'' colormap.".
                      format(i, image_type))
+        if raw:
+            plt.imshow(images[i-1])
+            ax.set_title("Image no. ''{}'' .".format(i))
     return figure
 
 
