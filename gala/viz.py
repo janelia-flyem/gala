@@ -59,7 +59,7 @@ def imshow_rand(im, axis='', labrandom=True):
     rand_colors = np.random.random(size=(ceil(np.max(im)), 3))
     if labrandom:
         rand_colors[:, 0] = rand_colors[:, 0] * 60 + 20
-        rand_colors[:, 1] = rand_colors[:, 1] * 185 - 88
+        rand_colors[:, 1] = rand_colors[:, 1] * 185 - 85
         rand_colors[:, 2] = rand_colors[:, 2] * 198 - 106
         rand_colors = color.lab2rgb(rand_colors[np.newaxis, ...])[0]
         rand_colors[rand_colors < 0] = 0
@@ -94,17 +94,17 @@ def show_multiple_images(*images, raw=False, image_type='rand'):
     for i in range(number_of_im):
         ax = figure.add_subplot(1, number_of_im, i+1)
         if image_type == 'grey' or image_type == 'gray':
-            imshow_grey(images[i-1], axis=ax)
+            imshow_grey(images[i], axis=ax)
         elif image_type == 'magma':
-            imshow_magma(images[i-1], axis=ax)
+            imshow_magma(images[i], axis=ax)
         elif image_type == 'rand':
             try:
-                imshow_rand(images[i-1])
+                imshow_rand(images[i])
             except ValueError:
-                plt.imshow(images[i-1], axis=ax)
+                plt.imshow(images[i], axis=ax)
         ax.set_title(f'Image number {i+1} with a {image_type} colormap')
         if raw:
-            ax.imshow(images[i-1])
+            ax.imshow(images[i])
             ax.set_title(f'Image number {i+1}')
     return figure
 

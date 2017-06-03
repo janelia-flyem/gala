@@ -1,7 +1,7 @@
 language: python
 sudo: false
 python:
-  - "3.5"
+  - "3.6"
 virtualenv:
   system_site_packages: false
 install:
@@ -16,7 +16,7 @@ install:
 
   # try to create env, but ignore if it fails -- probably cached.
   - conda env create -q || true
-  - source activate gala 
+  - source activate gala
   - conda info -a
 
   # install coveralls for reporting
@@ -32,7 +32,7 @@ script:
   - py.test
 
 after_success:
-  - if [[ $TRAVIS_PYTHON_VERSION == 3.5 ]]; then coveralls; fi
+  - if [[ $TRAVIS_PYTHON_VERSION == 3.6 ]]; then coveralls; fi
 
 cache:
     directories:
