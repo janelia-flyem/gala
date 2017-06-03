@@ -102,10 +102,10 @@ def show_multiple_images(*images, raw=False, image_type='rand'):
                 imshow_rand(images[i-1])
             except ValueError:
                 plt.imshow(images[i-1], axis=ax)
-        ax.set_title(f'Image number {i} with a {image_type} colormap')
+        ax.set_title(f'Image number {i+1} with a {image_type} colormap')
         if raw:
             ax.imshow(images[i-1])
-            ax.set_title(f'Image number {i}')
+            ax.set_title(f'Image number {i+1}')
     return figure
 
 
