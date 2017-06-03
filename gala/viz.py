@@ -58,9 +58,9 @@ def imshow_rand(im, axis='', labrandom=True):
     """
     rand_colors = np.random.random(size=(ceil(np.max(im)), 3))
     if labrandom:
-        rand_colors[:, 0] = rand_colors[:, 0] * 60 + 20
-        rand_colors[:, 1] = rand_colors[:, 1] * 185 - 85
-        rand_colors[:, 2] = rand_colors[:, 2] * 198 - 106
+        rand_colors[:, 0] = rand_colors[:, 0] * 81 + 39
+        rand_colors[:, 1] = rand_colors[:, 1] * 185 - 86
+        rand_colors[:, 2] = rand_colors[:, 2] * 198 - 108
         rand_colors = color.lab2rgb(rand_colors[np.newaxis, ...])[0]
         rand_colors[rand_colors < 0] = 0
         rand_colors[rand_colors > 1] = 1
