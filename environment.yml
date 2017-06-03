@@ -2,7 +2,7 @@ name: gala
 channels:
 - conda-forge
 dependencies:
-- python>=3.5*
+- python>=3.6*
 - setuptools>=19.6*
 - cython>=0.25*
 - pytest>=3*
