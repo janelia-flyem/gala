@@ -24,7 +24,7 @@ URL                 = 'https://gala.readthedocs.org'
 LICENSE             = 'Janelia (BSD-like)'
 DOWNLOAD_URL        = 'https://github.com/janelia-flyem/gala'
 VERSION             = '0.5dev'
-PYTHON_VERSION      = (3, 5)
+PYTHON_VERSION      = (3, 6)
 INST_DEPENDENCIES   = {} 
 
 
@@ -51,7 +51,7 @@ if __name__ == '__main__':
             'Intended Audience :: Healthcare Industry',
             'Intended Audience :: Science/Research',
             'Programming Language :: Cython',
-            'Programming Language :: Python :: 3.5',
+            'Programming Language :: Python :: 3.6',
             'Topic :: Scientific/Engineering',
             'Topic :: Scientific/Engineering :: Bio-Informatics',
             'Topic :: Scientific/Engineering :: Image Recognition',
