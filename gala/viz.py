@@ -198,7 +198,7 @@ def display_3d_segmentations(segs, image=None, probability_map=None, axis=0,
         current_subplot += 1
     if probability_map is not None:
         plt.subplot(*plot_arrangement + (current_subplot,))
-        imshow_jet(np.rollaxis(probability_map, axis)[z])
+        imshow_magma(np.rollaxis(probability_map, axis)[z])
         current_subplot += 1
     for i, j in enumerate(range(current_subplot, numplots + 1)):
         plt.subplot(*plot_arrangement + (j,))
