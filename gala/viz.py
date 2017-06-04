@@ -9,7 +9,7 @@ from math import ceil
 # VISUALIZATION FUNCTIONS #
 ###########################
 
-def imshow_grey(im, axis=''):
+def imshow_grey(im, axis=None):
     """Show a segmentation using a gray colormap.
 
     Parameters
@@ -22,10 +22,12 @@ def imshow_grey(im, axis=''):
     fig : plt.Figure
         The image shown.
     """
-    return plt.imshow(im, cmap='gray', interpolation='nearest')
+    if axis is None:
+        fig, axis = plt.subplots()
+    return axis.imshow(im, cmap='gray')
 
 
-def imshow_magma(im, axis=''):
+def imshow_magma(im, axis=None):
     """Show a segmentation using a magma colormap.
 
     Parameters
@@ -38,10 +40,12 @@ def imshow_magma(im, axis=''):
     fig : plt.Figure
         The image shown.
     """
-    return plt.imshow(im, cmap='magma', interpolation='nearest')
+    if axis is None:
+        fig, axis = plt.subplots()
+    return axis.imshow(im, cmap='magma')
 
 
-def imshow_rand(im, axis='', labrandom=True):
+def imshow_rand(im, axis=None, labrandom=True):
     """Show a segmentation using a random colormap.
 
     Parameters
@@ -56,6 +60,8 @@ def imshow_rand(im, axis='', labrandom=True):
     fig : plt.Figure
         The image shown.
     """
+    if axis is None:
+        fig, axis = plt.subplots()
     rand_colors = np.random.random(size=(ceil(np.max(im)), 3))
     if labrandom:
         rand_colors[:, 0] = rand_colors[:, 0] * 81 + 39
@@ -66,23 +72,23 @@ def imshow_rand(im, axis='', labrandom=True):
         rand_colors[rand_colors > 1] = 1
     rcmap = cm.colors.ListedColormap(np.concatenate((np.zeros((1, 3)),
                                                      rand_colors)))
-    return plt.imshow(im, cmap=rcmap, interpolation='nearest')
+    return axis.imshow(im, cmap=rcmap)
 
 
-def show_multiple_images(*images, ax='', raw=False, image_type='rand'):
+def show_multiple_images(*images, axes=None, image_type='raw'):
     """Returns a figure with subplots containing multiple images.
 
     Parameters
     ----------
     images : np.ndarray of int, shape (M, N)
         The input images to be displayed.
-    raw: boolean, optional
-        Whether to output the raw images without a randomised colormap.
-        Set to false by default.
+    axes: matplotlib.AxesImage, optional
+        Whether to pass in multiple axes. Must be equal to the number of
+        input images.
     image_type : string, optional
         Displays the images with different colormaps. Set to display
-        'imshow_rand' by default. Other options that are accepted
-        are 'grey' and 'magma'.
+        'raw' by default. Other options that are accepted
+        are 'grey' and 'magma', or 'rand'.
 
     Returns
     -------
@@ -92,20 +98,20 @@ def show_multiple_images(*images, ax='', raw=False, image_type='rand'):
     number_of_im = len(images)
     figure = plt.figure()
     for i in range(number_of_im):
-        ax = figure.add_subplot(1, number_of_im, i+1)
+        ax = (figure.add_subplot(1, number_of_im, i+1) if axes is None
+              else axes[i])
         if image_type == 'grey' or image_type == 'gray':
             imshow_grey(images[i], axis=ax)
         elif image_type == 'magma':
             imshow_magma(images[i], axis=ax)
         elif image_type == 'rand':
-            try:
-                imshow_rand(images[i])
-            except ValueError:
-                ax.imshow(images[i], axis=ax)
-        ax.set_title(f'Image number {i+1} with a {image_type} colormap.')
-        if raw:
+            imshow_rand(images[i], axis=ax)
+        elif image_type == 'raw':
             ax.imshow(images[i])
-            ax.set_title(f'Image number {i+1}')
+        else:
+            print("not a valid image type.")
+            return None
+        ax.set_title(f'Image number {i+1} with a {image_type} colormap.')
     return figure
 
 
