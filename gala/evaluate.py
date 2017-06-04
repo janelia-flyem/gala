@@ -1218,7 +1218,7 @@ def sorted_vi_components(s1, s2, ignore1=[0], ignore2=[0], compress=False):
         segmentation, these are the worst false merges.
     h2g1 : np.ndarray of float
         The conditional entropy corresponding to the labels in `ii1`.
-    ii2 : np.ndarray of int
+    ii2 : np.ndarray of int (seg)
         The labels in `s1` having the most entropy. These correspond to the
         worst false splits.
     h2g1 : np.ndarray of float

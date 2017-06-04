@@ -112,7 +112,7 @@ def show_multiple_images(*images, axes=None, image_type='raw'):
             print("not a valid image type.")
             return None
         ax.set_title(f'Image number {i+1} with a {image_type} colormap.')
-    return figure
+    return ax
 
 
 def draw_seg(seg, im):
