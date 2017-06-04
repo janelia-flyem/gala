@@ -49,7 +49,7 @@ def test_empty_rag():
 
 def test_agglomeration():
     i = 1
-    g = agglo.Rag(wss[i], probs[i], agglo.boundary_mean, 
+    g = agglo.Rag(wss[i], probs[i], agglo.boundary_mean,
                   normalize_probabilities=True)
     g.agglomerate(0.51)
     assert_allclose(ev.vi(g.get_segmentation(), results[i]), 0.0,
@@ -68,7 +68,7 @@ def test_ladder_agglomeration():
 
 def test_no_dam_agglomeration():
     i = 3
-    g = agglo.Rag(wss[i], probs[i], agglo.boundary_mean, 
+    g = agglo.Rag(wss[i], probs[i], agglo.boundary_mean,
         normalize_probabilities=True)
     g.agglomerate(0.75)
     assert_allclose(ev.vi(g.get_segmentation(), results[i]), 0.0,
@@ -100,7 +100,7 @@ def test_mask():
     g = agglo.Rag(wss[i], probs[i], mask=mask)
     assert 3 not in g
     assert (1, 2) in g.edges()
-    assert (1, 5) in g.edges()
+    assert (1, 5) in g.edges() or (5, 1) in g.edges()
     assert (2, 4) in g.edges()
 
 
@@ -191,4 +191,3 @@ def test_mean_agglo_fast_rag(dummy_data):
 if __name__ == '__main__':
     from numpy import testing
     testing.run_module_suite()
-
