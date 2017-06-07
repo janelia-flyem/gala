@@ -984,8 +984,8 @@ def adapted_rand_error(seg, gt, all_stats=False):
     precision = (sum_p_ij - n)/ (sum_a - n)
     recall = (sum_p_ij - n)/ (sum_b - n)
 
-    f_Score = 2.0 * precision * recall / (precision + recall)
-    are = 1 - f_Score
+    fscore = 2. * precision * recall / (precision + recall)
+    are = 1. - fscore
 
     if all_stats:
         return (are, precision, recall)
@@ -1284,6 +1284,19 @@ def rand_values(cont_table):
     -------
     a, b, c, d : float
         The values necessary for computing Rand Index and related values. [1, 2]
+    a : float
+        Refers to the number of pairs of elements in the input image that are
+        both the same in seg1 and in seg2,
+    b : float
+        Refers to the number of pairs of elements in the input image that are
+        different in both seg1 and in seg2.
+    c : float
+        Refers to the number of pairs of elements in the input image that are
+        the same in seg1 but different in seg2.
+    d : float
+        Refers to the number of pairs of elements in the input image that are
+        different in seg1 but the same in seg2.
+
 
     References
     ----------
