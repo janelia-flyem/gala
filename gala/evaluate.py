@@ -956,35 +956,36 @@ def adapted_rand_error(seg, gt, all_stats=False):
     ----------
     [1]: http://brainiac2.mit.edu/SNEMI3D/evaluation
     """
-    # segA is truth, segB is query
-    segA = np.ravel(gt)
-    segB = np.ravel(seg)
+    # segA is query, segB is truth
+    segA = seg
+    segB = gt
+
     n = segA.size
 
-    n_labels_A = np.amax(segA) + 1
-    n_labels_B = np.amax(segB) + 1
+    # This is the contingency table obtained from segA and segB, we obtain
+    # the marginal probabilities from the table.
+    p_ij = contingency_table(segA, segB, norm=False)
 
-    ones_data = np.ones(n)
+    # Sum of the joint distribution squared
+    sum_p_ij = p_ij.data @ p_ij.data
 
-    p_ij = sparse.csr_matrix((ones_data, (segA[:], segB[:])), shape=(n_labels_A, n_labels_B))
+    # These are the axix-wise sums (np.sumaxis)
+    a_i = p_ij.sum(axis=0).A.ravel()
+    b_i = p_ij.sum(axis=1).A.ravel()
 
-    a = p_ij[1:n_labels_A,:]
-    b = p_ij[1:n_labels_A,1:n_labels_B]
-    c = p_ij[1:n_labels_A,0].todense()
-    d = np.array(b.todense()) ** 2
+    # Sum of the segment labeled 'A'
+    sum_a = a_i @ a_i
+    # Sum of the segment labeled 'B'
+    sum_b = b_i @ b_i
 
-    a_i = np.array(a.sum(1))
-    b_i = np.array(b.sum(0))
+    # This is the new code, wherein 'n' is subtacted from the numerator
+    # and the denominator.
 
-    sumA = np.sum(a_i * a_i)
-    sumB = np.sum(b_i * b_i) + (np.sum(c) / n)
-    sumAB = np.sum(d) + (np.sum(c) / n)
+    precision = (sum_p_ij - n)/ (sum_a - n)
+    recall = (sum_p_ij - n)/ (sum_b - n)
 
-    precision = sumAB / sumB
-    recall = sumAB / sumA
-
-    fScore = 2.0 * precision * recall / (precision + recall)
-    are = 1.0 - fScore
+    fscore = 2. * precision * recall / (precision + recall)
+    are = 1. - fscore
 
     if all_stats:
         return (are, precision, recall)
