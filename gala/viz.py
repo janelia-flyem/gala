@@ -3,12 +3,13 @@ from . import evaluate
 from skimage import color
 from matplotlib import cm, pyplot as plt
 import itertools as it
+from math import ceil
 
 ###########################
 # VISUALIZATION FUNCTIONS #
 ###########################
 
-def imshow_grey(im):
+def imshow_grey(im, axis=None):
     """Show a segmentation using a gray colormap.
 
     Parameters
@@ -21,11 +22,13 @@ def imshow_grey(im):
     fig : plt.Figure
         The image shown.
     """
-    return plt.imshow(im, cmap=plt.cm.gray, interpolation='nearest')
+    if axis is None:
+        fig, axis = plt.subplots()
+    return axis.imshow(im, cmap='gray')
 
 
-def imshow_jet(im):
-    """Show a segmentation using a jet colormap.
+def imshow_magma(im, axis=None):
+    """Show a segmentation using a magma colormap.
 
     Parameters
     ----------
@@ -37,10 +40,12 @@ def imshow_jet(im):
     fig : plt.Figure
         The image shown.
     """
-    return plt.imshow(im, cmap=plt.cm.jet, interpolation='nearest')
+    if axis is None:
+        fig, axis = plt.subplots()
+    return axis.imshow(im, cmap='magma')
 
 
-def imshow_rand(im, labrandom=True):
+def imshow_rand(im, axis=None, labrandom=True):
     """Show a segmentation using a random colormap.
 
     Parameters
@@ -55,18 +60,59 @@ def imshow_rand(im, labrandom=True):
     fig : plt.Figure
         The image shown.
     """
-    rand_colors = np.random.rand(np.ceil(im.max()), 3)
+    if axis is None:
+        fig, axis = plt.subplots()
+    rand_colors = np.random.random(size=(ceil(np.max(im)), 3))
     if labrandom:
-        rand_colors[:, 0] = rand_colors[:, 0] * 60 + 20
-        rand_colors[:, 1] = rand_colors[:, 1] * 185 - 85
-        rand_colors[:, 2] = rand_colors[:, 2] * 198 - 106
+        rand_colors[:, 0] = rand_colors[:, 0] * 81 + 39
+        rand_colors[:, 1] = rand_colors[:, 1] * 185 - 86
+        rand_colors[:, 2] = rand_colors[:, 2] * 198 - 108
         rand_colors = color.lab2rgb(rand_colors[np.newaxis, ...])[0]
         rand_colors[rand_colors < 0] = 0
         rand_colors[rand_colors > 1] = 1
-    rcmap = cm.colors.ListedColormap(np.concatenate(
-        (np.zeros((1,3)), rand_colors)
-    ))
-    return plt.imshow(im, cmap=rcmap, interpolation='nearest')
+    rcmap = cm.colors.ListedColormap(np.concatenate((np.zeros((1, 3)),
+                                                     rand_colors)))
+    return axis.imshow(im, cmap=rcmap)
+
+
+def show_multiple_images(*images, axes=None, image_type='raw'):
+    """Returns a figure with subplots containing multiple images.
+
+    Parameters
+    ----------
+    images : np.ndarray of int, shape (M, N)
+        The input images to be displayed.
+    axes: matplotlib.AxesImage, optional
+        Whether to pass in multiple axes. Must be equal to the number of
+        input images.
+    image_type : string, optional
+        Displays the images with different colormaps. Set to display
+        'raw' by default. Other options that are accepted
+        are 'grey' and 'magma', or 'rand'.
+
+    Returns
+    -------
+    fig : plt.Figure
+        The image shown.
+    """
+    number_of_im = len(images)
+    figure = plt.figure()
+    for i in range(number_of_im):
+        ax = (figure.add_subplot(1, number_of_im, i+1) if axes is None
+              else axes[i])
+        if image_type == 'grey' or image_type == 'gray':
+            imshow_grey(images[i], axis=ax)
+        elif image_type == 'magma':
+            imshow_magma(images[i], axis=ax)
+        elif image_type == 'rand':
+            imshow_rand(images[i], axis=ax)
+        elif image_type == 'raw':
+            ax.imshow(images[i])
+        else:
+            print("not a valid image type.")
+            return None
+        ax.set_title(f'Image number {i+1} with a {image_type} colormap.')
+    return ax
 
 
 def draw_seg(seg, im):
@@ -152,7 +198,7 @@ def display_3d_segmentations(segs, image=None, probability_map=None, axis=0,
         current_subplot += 1
     if probability_map is not None:
         plt.subplot(*plot_arrangement + (current_subplot,))
-        imshow_jet(np.rollaxis(probability_map, axis)[z])
+        imshow_magma(np.rollaxis(probability_map, axis)[z])
         current_subplot += 1
     for i, j in enumerate(range(current_subplot, numplots + 1)):
         plt.subplot(*plot_arrangement + (j,))
@@ -162,7 +208,7 @@ def display_3d_segmentations(segs, image=None, probability_map=None, axis=0,
 
 def plot_vi(g, history, gt, fig=None):
     """Plot the VI from segmentations based on Rag and sequence of merges.
-    
+
     Parameters
     ----------
     g : agglo.Rag object
@@ -220,7 +266,7 @@ def plot_vi_breakdown_panel(px, h, title, xlab, ylab, hlines, scatter_size,
     """
     x = np.arange(max(min(px),1e-10), max(px), (max(px)-min(px))/100.0)
     for val in hlines:
-        plt.plot(x, val/x, color='gray', ls=':', **kwargs) 
+        plt.plot(x, val/x, color='gray', ls=':', **kwargs)
     plt.scatter(px, h, label=title, s=scatter_size, **kwargs)
     # Make points clickable to identify ID. This section needs work.
     plt.xlim(xmin=-0.05*max(px), xmax=1.05*max(px))
@@ -230,10 +276,10 @@ def plot_vi_breakdown_panel(px, h, title, xlab, ylab, hlines, scatter_size,
     plt.title(title)
 
 
-def plot_vi_breakdown(seg, gt, ignore_seg=[], ignore_gt=[], 
+def plot_vi_breakdown(seg, gt, ignore_seg=[], ignore_gt=[],
                       hlines=None, subplot=False, figsize=None, **kwargs):
     """Plot conditional entropy H(Y|X) vs P(X) for both seg|gt and gt|seg.
-    
+
     Parameters
     ----------
     seg : np.ndarray of int, shape (M, [N, ..., P])
@@ -275,12 +321,12 @@ def plot_vi_breakdown(seg, gt, ignore_seg=[], ignore_gt=[],
         hlines = np.arange(maxc/hlines, maxc, maxc/hlines)
     plt.figure(figsize=figsize)
     if subplot: plt.subplot(1,2,1)
-    plot_vi_breakdown_panel(px, -lpygx, 
-        'False merges', 'p(S=seg)', 'H(G|S=seg)', 
+    plot_vi_breakdown_panel(px, -lpygx,
+        'False merges', 'p(S=seg)', 'H(G|S=seg)',
         hlines, c='blue', **kwargs)
     if subplot: plt.subplot(1,2,2)
-    plot_vi_breakdown_panel(py, -lpxgy, 
-        'False splits', 'p(G=gt)', 'H(S|G=gt)', 
+    plot_vi_breakdown_panel(py, -lpxgy,
+        'False splits', 'p(G=gt)', 'H(S|G=gt)',
         hlines, c='orange', **kwargs)
     if not subplot:
         plt.title('vi contributions by body.')
@@ -420,7 +466,7 @@ def plot_split_vi(ars, best=None, colors='k', linespecs='-', **kwargs):
         lines.append(plt.plot(ar[0], ar[1], c=color, ls=linespec, **kwargs))
     if best is not None:
         lines.append(plt.scatter(
-            best[0], best[1], 
+            best[0], best[1],
             c=kwargs.get('best-color', 'k'), marker=(5,3,0), **kwargs)
         )
     return lines

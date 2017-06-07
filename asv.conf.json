@@ -46,7 +46,7 @@
     //
     "matrix": {
         "environment_type": "conda",
-        "python": "3.5",
+        "python": "3.6",
         "numpy": [],
         "scipy": [],
         "pip+numpydoc": [],

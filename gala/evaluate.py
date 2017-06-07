@@ -1214,11 +1214,11 @@ def sorted_vi_components(s1, s2, ignore1=[0], ignore2=[0], compress=False):
     Returns
     -------
     ii1 : np.ndarray of int
-        The labels in `s1` having the most entropy. If `s1` is the automatic
+        The labels in `s2` having the most entropy. If `s1` is the automatic
         segmentation, these are the worst false merges.
     h2g1 : np.ndarray of float
         The conditional entropy corresponding to the labels in `ii1`.
-    ii2 : np.ndarray of int
+    ii2 : np.ndarray of int (seg)
         The labels in `s1` having the most entropy. These correspond to the
         worst false splits.
     h2g1 : np.ndarray of float
@@ -1228,11 +1228,11 @@ def sorted_vi_components(s1, s2, ignore1=[0], ignore2=[0], compress=False):
         s1, forw1, back1 = relabel_from_one(s1)
         s2, forw2, back2 = relabel_from_one(s2)
     _, _, _, h1g2, h2g1, _, _ = vi_tables(s1, s2, ignore1, ignore2)
-    i1 = (-h2g1).argsort()
-    i2 = (-h1g2).argsort()
+    i1 = (-h1g2).argsort()
+    i2 = (-h2g1).argsort()
     ii1 = back1[i1] if compress else i1
     ii2 = back2[i2] if compress else i2
-    return ii1, h2g1[i1], ii2, h1g2[i2]
+    return ii1, h1g2[i1], ii2, h2g1[i2]
 
 
 def split_components(idx, cont, num_elems=4, axis=0):
