@@ -832,11 +832,16 @@ class Rag(Graph):
         if ws.size > 0:
             ws, _, inv = relabel_sequential(ws)
             self.inverse_watershed_map = inv  # translates to original labels
+            self.forward_map = dict(zip(inv, np.arange(inv.size)))
         self.watershed = morpho.pad(ws, self.boundary_body)
         self.watershed_r = self.watershed.ravel()
         self.pad_thickness = 1
         self.steps = morpho.raveled_steps_to_neighbors(self.watershed.shape,
                                                        connectivity)
+
+    def __contains__(self, value):
+        new_value = self.forward_map(value)
+        return super().__contains__(new_value)
 
 
     def set_ground_truth(self, gt=None):
