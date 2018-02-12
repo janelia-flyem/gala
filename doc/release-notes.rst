@@ -5,6 +5,13 @@ Release notes
 0.4
 ===
 
+0.4.2
+-----
+
+This release updates setup.py to conform to a new requirement in setuptools
+38.0 that package requirements listings should be ordered (list or tuple, but
+not set).
+
 0.4.1
 -----
 
