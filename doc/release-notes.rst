@@ -2,6 +2,38 @@
 Release notes
 =============
 
+0.4
+===
+
+0.4.1
+-----
+
+This release provides initial support for an interactive proofreading service.
+`(#64) <https://github.com/janelia-flyem/gala/pull/68>`__.
+
+Gala's performance, while still slow, is much improved:
+
+- 30x speedup in RAG building
+- 5x speedup in flat learning
+- 6x speedup in agglomerative learning
+- 7x speedup in test segmentation
+- 30% reduction in RAM usage by the RAG class
+
+Some of these improvements are thanks to Michal Janusz's (@mjanusz) idea of
+batching calls to scikit-learn.
+
+This release also includes many bug fixes (thanks to Tobias Maier!):
+
+- Broken ``best_possible_segmentation`` when labels were not continuous (`(#71)
+  <https://github.com/janelia-flyem/gala/issues/71>`__).
+- Broken ``split_vi`` and ``set_ground_truth`` functions (`(#72)
+  <https://github.com/janelia-flyem/gala/issues/72>`__ and `(#73)
+  <https://github.com/janelia-flyem/gala/issues/71>`__).
+
+Finally, we also made a `conda environment file
+<https://conda.io/docs/user-guide/tasks/manage-environments.html>`__ to make it
+easy to get started with gala and dependencies.
+
 0.3
 ===
 
