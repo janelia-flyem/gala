@@ -25,7 +25,7 @@ LICENSE             = 'Janelia (BSD-like)'
 DOWNLOAD_URL        = 'https://github.com/janelia-flyem/gala'
 VERSION             = '0.4dev'
 PYTHON_VERSION      = (3, 5)
-INST_DEPENDENCIES   = {} 
+INST_DEPENDENCIES   = ['cython']
 
 
 if __name__ == '__main__':
