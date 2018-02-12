@@ -12,6 +12,9 @@ This release updates setup.py to conform to a new requirement in setuptools
 38.0 that package requirements listings should be ordered (list or tuple, but
 not set).
 
+Additionally, NetworkX is pinned below version 2.0, which significantly changed
+the interface and broke gala's use of nodes and edges.
+
 0.4.1
 -----
 
