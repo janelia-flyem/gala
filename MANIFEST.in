@@ -1,1 +1,8 @@
 recursive-include gala *.pxd *.pyx *.pxi
+
+CITATION.bib
+CITATION.md
+
+LICENSE.txt
+
+README.md
