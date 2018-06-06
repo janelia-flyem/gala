@@ -1,1 +1,1 @@
-recursive-include gala *.pyx
+recursive-include gala *.pxd *.pyx *.pxi
