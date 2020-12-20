@@ -12,7 +12,7 @@ import numpy as np
 np.seterr(divide='ignore')
 
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.externals import joblib
+import joblib
 
 try:
     from vigra.learning import RandomForest as BaseVigraRandomForest

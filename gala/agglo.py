@@ -17,7 +17,7 @@ import numpy as np
 from scipy.stats import sem
 from scipy import sparse
 from scipy.sparse import lil_matrix
-from scipy.misc import comb as nchoosek
+from scipy.special import comb as nchoosek
 from scipy.ndimage.measurements import label
 from scipy import ndimage as ndi
 import networkx as nx

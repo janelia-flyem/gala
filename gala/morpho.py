@@ -24,7 +24,7 @@ from .evaluate import relabel_from_one
 from skimage import measure, util, feature
 import skimage.morphology
 
-from sklearn.externals import joblib
+import joblib
 
 zero3d = array([0,0,0])
 

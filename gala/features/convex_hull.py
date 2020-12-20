@@ -5,7 +5,7 @@ import itertools as it
 # numpy/scipy
 import numpy as np
 from scipy import ndimage as nd
-from scipy.misc import factorial
+from scipy.special import factorial
 from numpy.linalg import det
 try:
     from scipy.spatial import Delaunay
