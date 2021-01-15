@@ -1,5 +1,6 @@
 import os
 import glob
+import functools
 from contextlib import contextmanager
 
 import pytest
@@ -7,9 +8,12 @@ import pytest
 from numpy.testing import assert_allclose
 import numpy as np
 from scipy import ndimage as ndi
-from sklearn.linear_model import LogisticRegression as LR
+from sklearn.linear_model import LogisticRegression
 import subprocess as sp
 from gala import imio, features, agglo, evaluate as ev
+
+
+LR = functools.partial(LogisticRegression, solver='liblinear')
 
 
 @contextmanager
