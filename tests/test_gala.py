@@ -26,8 +26,7 @@ rundir = os.path.dirname(__file__)
 
 ### fixtures
 
-@pytest.fixture
-def dummy_data():
+def dummy_data_source():
     frag = np.arange(1, 17, dtype=int).reshape((4, 4))
     gt = np.array([[1, 1, 2, 2], [1, 1, 2, 2], [3] * 4, [3] * 4], dtype=int)
     fman = features.base.Mock(frag, gt)
@@ -36,8 +35,13 @@ def dummy_data():
 
 
 @pytest.fixture
-def dummy_data_fast():
-    frag, gt, _, fman = dummy_data()
+def dummy_data():
+    return dummy_data_source()
+
+
+@pytest.fixture
+def dummy_data_fast(dummy_data):
+    frag, gt, _, fman = dummy_data
     frag = ndi.zoom(frag, 2, order=0)
     gt = ndi.zoom(gt, 2, order=0)
     g = agglo.Rag(frag, feature_manager=fman)
