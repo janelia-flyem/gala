@@ -9,6 +9,7 @@ import logging
 import h5py
 import scipy.ndimage as nd
 import scipy.sparse as sparse
+from skimage.segmentation import relabel_sequential
 from scipy.ndimage.measurements import label
 from scipy.spatial.distance import pdist, squareform
 from sklearn.metrics import precision_recall_curve
@@ -196,8 +197,8 @@ def raw_edit_distance(aseg, gt, size_threshold=1000):
     (false_merges, false_splits) : float
         The number of splits and merges required to convert aseg to gt.
     """
-    aseg = relabel_from_one(aseg)[0]
-    gt = relabel_from_one(gt)[0]
+    aseg = relabel_sequential(aseg)[0]
+    gt = relabel_sequential(gt)[0]
     r = contingency_table(aseg, gt, ignore_seg=[0], ignore_gt=[0], norm=False)
     r.data[r.data <= size_threshold] = 0
     # make each segment overlap count for 1, since it will be one
@@ -206,57 +207,6 @@ def raw_edit_distance(aseg, gt, size_threshold=1000):
     false_splits = (r.sum(axis=0)-1)[1:].sum()
     false_merges = (r.sum(axis=1)-1)[1:].sum()
     return (false_merges, false_splits)
-
-
-def relabel_from_one(label_field):
-    """Convert labels in an arbitrary label field to {1, ... number_of_labels}.
-
-    This function also returns the forward map (mapping the original labels to
-    the reduced labels) and the inverse map (mapping the reduced labels back
-    to the original ones).
-
-    Parameters
-    ----------
-    label_field : numpy ndarray (integer type)
-
-    Returns
-    -------
-    relabeled : numpy array of same shape as ar
-    forward_map : 1d numpy array of length np.unique(ar) + 1
-    inverse_map : 1d numpy array of length len(np.unique(ar))
-        The length is len(np.unique(ar)) + 1 if 0 is not in np.unique(ar)
-
-    Examples
-    --------
-    >>> import numpy as np
-    >>> label_field = np.array([1, 1, 5, 5, 8, 99, 42])
-    >>> relab, fw, inv = relabel_from_one(label_field)
-    >>> relab
-    array([1, 1, 2, 2, 3, 5, 4])
-    >>> fw
-    array([0, 1, 0, 0, 0, 2, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-           0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0,
-           0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-           0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-           0, 0, 0, 0, 0, 0, 0, 5])
-    >>> inv
-    array([ 0,  1,  5,  8, 42, 99])
-    >>> (fw[label_field] == relab).all()
-    True
-    >>> (inv[relab] == label_field).all()
-    True
-    """
-    labels = np.unique(label_field)
-    labels0 = labels[labels != 0]
-    m = labels.max()
-    if m == len(labels0): # nothing to do, already 1...n labels
-        return label_field, labels, labels
-    forward_map = np.zeros(m+1, int)
-    forward_map[labels0] = np.arange(1, len(labels0) + 1)
-    if not (labels == 0).any():
-        labels = np.concatenate(([0], labels))
-    inverse_map = labels
-    return forward_map[label_field], forward_map, inverse_map
 
 
 def contingency_table(seg, gt, *, ignore_seg=(), ignore_gt=(), norm=True):
@@ -328,12 +278,12 @@ def assignment_table(seg_or_ctable, gt=None, *, dtype=np.bool_):
     >>> assignment_table(seg, gt).toarray()
     array([[False,  True, False],
            [False,  True, False],
-           [False, False,  True]], dtype=bool)
+           [False, False,  True]])
     >>> cont = contingency_table(seg, gt)
     >>> assignment_table(cont).toarray()
     array([[False,  True, False],
            [False,  True, False],
-           [False, False,  True]], dtype=bool)
+           [False, False,  True]])
     """
     if gt is None:
         ctable = seg_or_ctable.copy()
@@ -429,13 +379,13 @@ class csrRowExpandableCSR(sparse.csr_matrix):
     >>> init.nnz
     4
     >>> init.data
-    array([2, 4, 9, 5], dtype=int64)
+    array([2, 4, 9, 5])
     >>> init.toarray()
     array([[0, 0, 2],
            [0, 4, 0],
            [9, 0, 0],
            [0, 0, 0],
-           [0, 0, 5]], dtype=int64)
+           [0, 0, 5]])
     """
     def __init__(self, arg1, shape=None, dtype=None, copy=False,
                  max_num_rows=None, max_nonzero=None,
@@ -1225,8 +1175,8 @@ def sorted_vi_components(s1, s2, ignore1=[0], ignore2=[0], compress=False):
         The conditional entropy corresponding to the labels in `ii2`.
     """
     if compress:
-        s1, forw1, back1 = relabel_from_one(s1)
-        s2, forw2, back2 = relabel_from_one(s2)
+        s1, forw1, back1 = relabel_sequential(s1)
+        s2, forw2, back2 = relabel_sequential(s2)
     _, _, _, h1g2, h2g1, _, _ = vi_tables(s1, s2, ignore1, ignore2)
     i1 = (-h1g2).argsort()
     i2 = (-h2g1).argsort()
