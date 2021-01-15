@@ -2,24 +2,20 @@
 import itertools as it
 import sys
 import argparse
-import random
 import logging
 import json
-import functools
 from copy import deepcopy
 
 # libraries
-from numpy import (array, mean, zeros, zeros_like, where, unique,
+from numpy import (array, mean, zeros, zeros_like, unique,
     newaxis, nonzero, median, float, ones, arange, inf, isnan,
     flatnonzero, unravel_index, bincount)
 from tqdm import tqdm
 import numpy as np
 from scipy.stats import sem
-from scipy import sparse
 from scipy.sparse import lil_matrix
 from scipy.special import comb as nchoosek
 from scipy.ndimage.measurements import label
-from scipy import ndimage as ndi
 import networkx as nx
 from networkx import Graph, biconnected_components
 from networkx.algorithms.traversal.depth_first_search import dfs_preorder_nodes
