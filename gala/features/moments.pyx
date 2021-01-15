@@ -59,7 +59,7 @@ class Manager(base.Null):
 
     def compute_node_features(self, g, n, cache=None):
         if cache is None: 
-            cache = g.node[n][self.default_cache]
+            cache = g.nodes[n][self.default_cache]
         feat = central_moments_from_noncentral_sums(cache)
         if self.normalize:
             feat = ith_root(feat)
@@ -68,7 +68,7 @@ class Manager(base.Null):
 
     def compute_edge_features(self, g, n1, n2, cache=None):
         if cache is None: 
-            cache = g[n1][n2][self.default_cache]
+            cache = g.edges[n1, n2][self.default_cache]
         feat = central_moments_from_noncentral_sums(cache)
         if self.normalize:
             feat = ith_root(feat)

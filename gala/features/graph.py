@@ -22,7 +22,7 @@ class Manager(base.Null):
         return np.array([deg, ndeg])
 
     def compute_edge_features(self, g, n1, n2, cache=None):
-        nn1, nn2 = g.neighbors(n1), g.neighbors(n2)
+        nn1, nn2 = list(g.neighbors(n1)), list(g.neighbors(n2))
         common_neighbors = float(len(np.intersect1d(nn1, nn2)))
         return np.array([common_neighbors])
 
