@@ -18,7 +18,7 @@ probs = list(map(np.loadtxt, fns))
 fns = [D + 'toy-data/test-%02i-watershed.txt' % i for i in test_idxs]
 wss = [np.loadtxt(fn, dtype=np.uint32) for fn in fns]
 fns = [D + 'toy-data/test-%02i-groundtruth.txt' % i for i in test_idxs]
-results = list(map(np.loadtxt, fns))
+results = [np.loadtxt(fn, dtype=np.uint32) for fn in fns]
 
 landscape = np.array([1,0,1,2,1,3,2,0,2,4,1,0])
 
@@ -43,8 +43,8 @@ def test_float_watershed():
 
 def test_empty_rag():
     g = agglo.Rag()
-    assert_equal(g.nodes(), [])
-    assert_equal(g.copy().nodes(), [])
+    assert_equal(list(g.nodes()), [])
+    assert_equal(list(g.copy().nodes()), [])
 
 
 def test_agglomeration():
