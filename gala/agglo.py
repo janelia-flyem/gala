@@ -1514,17 +1514,21 @@ class Rag(Graph):
         self.nodes[n1]['fragments'].update(self.nodes[n2]['fragments'])
 
         self.feature_manager.update_node_cache(self, n1, n2,
-                self.node[n1]['feature-cache'], self.node[n2]['feature-cache'])
-        common_neighbors = np.intersect1d(self.neighbors(n1),
-                                          self.neighbors(n2),
-                                          assume_unique=True)
+                self.nodes[n1]['feature-cache'], self.nodes[n2]['feature-cache'])
+        nn1 = list(self.neighbors(n1))
+        nn2 = list(self.neighbors(n2))
+        common_neighbors = np.intersect1d(
+                np.array(nn1), np.array(nn2), assume_unique=True
+                )
         edges_to_update = []
         for n in common_neighbors:
             self.merge_edge_properties((n2, n), (n1, n))
             edges_to_update.append((n1, n))
-        new_neighbors = np.setdiff1d(self.neighbors(n2),
-                                     np.concatenate((common_neighbors, [n1])),
-                                     assume_unique=True)
+        new_neighbors = np.setdiff1d(
+                nn2,
+                np.concatenate((common_neighbors, [n1])),
+                assume_unique=True,
+                )
         for n in new_neighbors:
             self.move_edge((n2, n), (n1, n))
             if self.update_unchanged_edges:
@@ -1556,7 +1560,10 @@ class Rag(Graph):
             subgraph = self.subgraph(subgraph)
         if len(subgraph) == 0:
             return
-        for subsubgraph in nx.connected_component_subgraphs(subgraph):
+        for subsubgraph in (
+                self.subgraph(list(c))
+                for c in list(nx.connected_components(subgraph))
+                ):
             node_dfs = list(dfs_preorder_nodes(subsubgraph, source))
             # dfs_preorder_nodes returns iter, convert to list
             source_node, other_nodes = node_dfs[0], node_dfs[1:]
