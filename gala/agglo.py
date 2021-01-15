@@ -517,15 +517,22 @@ class Rag(Graph):
     def __copy__(self):
         """Return a copy of the object and attributes.
         """
+        mask = (
+            morpho.juicy_center(self.mask.reshape(self.probabilities.shape))
+            if self.is_masked
+            else None
+        )
         return Rag(
             watershed=morpho.juicy_center(self.watershed),
             probabilities=morpho.juicy_center(self.probabilities),
             merge_priority_function=self.merge_priority_function,
             gt_vol=morpho.juicy_center(self.gt) if self.gt else None,
             feature_manager=self.feature_manager,
-            mask=morpho.juicy_center(self.mask),
+            mask=mask,
             show_progress=self.show_progress,
+            connectivity=self.connectivity,
             use_slow=self.use_slow,
+            update_unchanged_edges=self.update_unchanged_edges,
         )
 
 
