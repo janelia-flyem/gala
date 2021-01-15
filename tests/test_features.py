@@ -15,9 +15,9 @@ from gala import agglo, features
 
 def feature_profile(g, f, n1=1, n2=2):
     out = []
-    out.append(copy(g[n1][n2]['feature-cache']))
-    out.append(copy(g.node[n1]['feature-cache']))
-    out.append(copy(g.node[n2]['feature-cache']))
+    out.append(copy(g.edges[n1, n2]['feature-cache']))
+    out.append(copy(g.nodes[n1]['feature-cache']))
+    out.append(copy(g.nodes[n2]['feature-cache']))
     out.append(f(g, n1, n2))
     out.append(f(g, n1))
     out.append(f(g, n2))
