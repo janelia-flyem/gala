@@ -2,24 +2,20 @@
 import itertools as it
 import sys
 import argparse
-import random
 import logging
 import json
-import functools
 from copy import deepcopy
 
 # libraries
-from numpy import (array, mean, zeros, zeros_like, where, unique,
+from numpy import (array, mean, zeros, zeros_like, unique,
     newaxis, nonzero, median, float, ones, arange, inf, isnan,
     flatnonzero, unravel_index, bincount)
 from tqdm import tqdm
 import numpy as np
 from scipy.stats import sem
-from scipy import sparse
 from scipy.sparse import lil_matrix
-from scipy.misc import comb as nchoosek
+from scipy.special import comb as nchoosek
 from scipy.ndimage.measurements import label
-from scipy import ndimage as ndi
 import networkx as nx
 from networkx import Graph, biconnected_components
 from networkx.algorithms.traversal.depth_first_search import dfs_preorder_nodes
@@ -205,8 +201,8 @@ def make_ladder(priority_function, threshold, strictness=1):
         edges = np.array(edges)
         pass_ladder = np.empty(len(edges), dtype=bool)
         for i, (n1, n2) in enumerate(edges):
-            s1 = g.node[n1]['size']
-            s2 = g.node[n2]['size']
+            s1 = g.nodes[n1]['size']
+            s2 = g.nodes[n2]['size']
             ladder_condition = \
                     (s1 < threshold and not g.at_volume_boundary(n1)) or \
                     (s2 < threshold and not g.at_volume_boundary(n2))
@@ -274,7 +270,7 @@ def mito_merge(g, n1, n2):
         else:
             mito = n2
             cyto = n1
-        if g.node[mito]['size'] > g.node[cyto]['size']:
+        if g.nodes[mito]['size'] > g.nodes[cyto]['size']:
             return np.inf
         else:
             return 1.0 - (float(len(g.boundary(mito, cyto)))/
@@ -515,16 +511,29 @@ class Rag(Graph):
         self.update_unchanged_edges = update_unchanged_edges
         if update_unchanged_edges:
             self.move_edge = self.merge_edge_properties
+        self.fast_edges = not use_slow
 
 
     def __copy__(self):
         """Return a copy of the object and attributes.
         """
-        pr_shape = self.probabilities_r.shape
-        g = super(Rag, self).copy()
-        g.watershed_r = g.watershed.ravel()
-        g.probabilities_r = g.probabilities.reshape(pr_shape)
-        return g
+        mask = (
+            morpho.juicy_center(self.mask.reshape(self.probabilities.shape))
+            if self.is_masked
+            else None
+        )
+        return Rag(
+            watershed=morpho.juicy_center(self.watershed),
+            probabilities=morpho.juicy_center(self.probabilities),
+            merge_priority_function=self.merge_priority_function,
+            gt_vol=morpho.juicy_center(self.gt) if self.gt else None,
+            feature_manager=self.feature_manager,
+            mask=mask,
+            show_progress=self.show_progress,
+            connectivity=self.connectivity,
+            use_slow=self.use_slow,
+            update_unchanged_edges=self.update_unchanged_edges,
+        )
 
 
     def copy(self):
@@ -536,23 +545,23 @@ class Rag(Graph):
     def extent(self, nodeid):
         try:
             ext = self.extents
-            full_ext = [ext[f] for f in self.node[nodeid]['fragments']]
+            full_ext = [ext[f] for f in self.nodes[nodeid]['fragments']]
             return np.concatenate(full_ext).astype(np.intp)
         except AttributeError:
             extent_array = opt.flood_fill(self.watershed,
-                               np.array(self.node[nodeid]['entrypoint']),
-                               np.fromiter(self.node[nodeid]['fragments'],
+                               np.array(self.nodes[nodeid]['entrypoint']),
+                               np.fromiter(self.nodes[nodeid]['fragments'],
                                            dtype=int))
-            if len(extent_array) != self.node[nodeid]['size']:
+            if len(extent_array) != self.nodes[nodeid]['size']:
                 sys.stderr.write('Flood fill fail - found %d voxels but size'
                                  'expected %d\n' % (len(extent_array),
-                                                    self.node[nodeid]['size']))
+                                                    self.nodes[nodeid]['size']))
             raveled_indices = np.ravel_multi_index(extent_array.T,
                                                    self.watershed.shape)
             return set(raveled_indices)
 
     def boundary(self, u, v):
-        edge_dict = self[u][v]
+        edge_dict = self.edges[u, v]
         try:
             boundary_ids = edge_dict['boundary-ids']
         except KeyError:  # RAG built using old, slow method
@@ -646,7 +655,7 @@ class Rag(Graph):
             self.extents = lol.SparseLOL(lol.extents(self.watershed))
         for nodeid in labels:
             self.add_node(nodeid)
-            node = self.node[nodeid]
+            node = self.nodes[nodeid]
             node['size'] = sizes[nodeid]
             node['fragments'] = {nodeid}  # set literal
             node['entrypoint'] = (
@@ -666,7 +675,7 @@ class Rag(Graph):
                 if v == nodeid:
                     continue
                 if self.has_edge(nodeid, v):
-                    self[nodeid][v]['boundary'].append(idx)
+                    self.edges[nodeid, v]['boundary'].append(idx)
                 else:
                     self.add_edge(nodeid, v, boundary=[idx])
 
@@ -711,11 +720,11 @@ class Rag(Graph):
         """
         for n in ip.with_progress(
                     self.nodes(), title='Node caches ', pbar=self.pbar):
-            self.node[n]['feature-cache'] = \
+            self.nodes[n]['feature-cache'] = \
                             self.feature_manager.create_node_cache(self, n)
         for n1, n2 in ip.with_progress(
                     self.edges(), title='Edge caches ', pbar=self.pbar):
-            self[n1][n2]['feature-cache'] = \
+            self.edges[n1, n2]['feature-cache'] = \
                             self.feature_manager.create_edge_cache(self, n1, n2)
 
 
@@ -830,9 +839,9 @@ class Rag(Graph):
             self.boundary_body = 1
         self.volume_size = ws.size
         if ws.size > 0:
-            ws, _, inv = relabel_sequential(ws)
+            ws, fw, inv = relabel_sequential(ws)
             self.inverse_watershed_map = inv  # translates to original labels
-            self.forward_map = dict(zip(inv, np.arange(inv.size)))
+            self.forward_map = fw
         self.watershed = morpho.pad(ws, self.boundary_body)
         self.watershed_r = self.watershed.ravel()
         self.pad_thickness = 1
@@ -840,7 +849,7 @@ class Rag(Graph):
                                                        connectivity)
 
     def __contains__(self, value):
-        new_value = self.forward_map(value)
+        new_value = self.forward_map(np.asarray(value))
         return super().__contains__(new_value)
 
 
@@ -904,9 +913,9 @@ class Rag(Graph):
             if excl.size != 0:
                 eids = unique(excl.ravel()[self.extent(n)])
                 eids = eids[flatnonzero(eids)]
-                self.node[n]['exclusions'] = set(list(eids))
+                self.nodes[n]['exclusions'] = set(list(eids))
             else:
-                self.node[n]['exclusions'] = set()
+                self.nodes[n]['exclusions'] = set()
 
 
     def build_merge_queue(self):
@@ -939,8 +948,8 @@ class Rag(Graph):
         for w, (l1, l2) in zip(weights, edges):
             qitem = [w, True, l1, l2]
             queue_items.append(qitem)
-            self[l1][l2]['qlink'] = qitem
-            self[l1][l2]['weight'] = w
+            self.edges[l1, l2]['qlink'] = qitem
+            self.edges[l1, l2]['weight'] = w
         return MergeQueue(queue_items, with_progress=self.show_progress)
 
 
@@ -1089,7 +1098,7 @@ class Rag(Graph):
         self.rebuild_merge_queue()
         max_score = max([qitem[0] for qitem in self.merge_queue.q])
         for n in self.tree.nodes():
-            self.tree.node[n]['w'] -= max_score
+            self.tree.nodes[n]['w'] -= max_score
 
 
     def learn_agglomerate(self, gts, feature_map,
@@ -1333,7 +1342,7 @@ class Rag(Graph):
         n1, n2 = edge
         features = feature_map(self, n1, n2).ravel()
         # Calculate weights for weighting data points
-        s1, s2 = [self.node[n]['size'] for n in [n1, n2]]
+        s1, s2 = [self.nodes[n]['size'] for n in [n1, n2]]
         weights = \
             compute_local_vi_change(s1, s2, self.volume_size), \
             compute_local_rand_change(s1, s2, self.volume_size)
@@ -1395,7 +1404,7 @@ class Rag(Graph):
         g = self
         data = []
         while len(g.merge_queue) > 0:
-            merge_priority, valid, n1, n2 = g.merge_queue.pop()
+            merge_priority, _, n1, n2 = g.merge_queue.pop()
             if g.boundary_body in (n1, n2):
                 continue
             dat = g.learn_edge((n1,n2), ctables, assignments, feature_map)
@@ -1469,11 +1478,11 @@ class Rag(Graph):
         new : int
             The new node id.
         """
-        self.add_node(new, attr_dict=self.node[old])
+        self.add_node(new, **self.nodes[old])
         self.add_edges_from(
-            [(new, v, self[old][v]) for v in self.neighbors(old)])
+            [(new, v, self.edges[old, v]) for v in self.neighbors(old)])
         for v in self.neighbors(new):
-            qitem = self[new][v].get('qlink', None)
+            qitem = self.edges[new, v].get('qlink', None)
             if qitem is not None:
                 if qitem[2] == old:
                     qitem[2] = new
@@ -1503,32 +1512,37 @@ class Rag(Graph):
         contingency matrix to the ground truth (if provided) is
         updated.
         """
-        if len(self.node[n1]['exclusions'] & self.node[n2]['exclusions']) > 0:
+        if len(self.nodes[n1]['exclusions']
+                & self.nodes[n2]['exclusions']) > 0:
             return
         else:
-            self.node[n1]['exclusions'].update(self.node[n2]['exclusions'])
-        w = self[n1][n2].get('weight', merge_priority)
-        self.node[n1]['size'] += self.node[n2]['size']
-        self.node[n1]['fragments'].update(self.node[n2]['fragments'])
+            self.nodes[n1]['exclusions'].update(self.nodes[n2]['exclusions'])
+        w = self.edges[n1, n2].get('weight', merge_priority)
+        self.nodes[n1]['size'] += self.nodes[n2]['size']
+        self.nodes[n1]['fragments'].update(self.nodes[n2]['fragments'])
 
         self.feature_manager.update_node_cache(self, n1, n2,
-                self.node[n1]['feature-cache'], self.node[n2]['feature-cache'])
-        common_neighbors = np.intersect1d(self.neighbors(n1),
-                                          self.neighbors(n2),
-                                          assume_unique=True)
+                self.nodes[n1]['feature-cache'], self.nodes[n2]['feature-cache'])
+        nn1 = list(self.neighbors(n1))
+        nn2 = list(self.neighbors(n2))
+        common_neighbors = np.intersect1d(
+                np.array(nn1), np.array(nn2), assume_unique=True
+                )
         edges_to_update = []
         for n in common_neighbors:
             self.merge_edge_properties((n2, n), (n1, n))
             edges_to_update.append((n1, n))
-        new_neighbors = np.setdiff1d(self.neighbors(n2),
-                                     np.concatenate((common_neighbors, [n1])),
-                                     assume_unique=True)
+        new_neighbors = np.setdiff1d(
+                nn2,
+                np.concatenate((common_neighbors, [n1])),
+                assume_unique=True,
+                )
         for n in new_neighbors:
             self.move_edge((n2, n), (n1, n))
             if self.update_unchanged_edges:
                 edges_to_update.append((n1, n))
         try:
-            self.merge_queue.invalidate(self[n1][n2]['qlink'])
+            self.merge_queue.invalidate(self.edges[n1, n2]['qlink'])
         except KeyError:  # no edge or no queue link
             pass
         self.update_merge_queue(edges_to_update)
@@ -1554,7 +1568,10 @@ class Rag(Graph):
             subgraph = self.subgraph(subgraph)
         if len(subgraph) == 0:
             return
-        for subsubgraph in nx.connected_component_subgraphs(subgraph):
+        for subsubgraph in (
+                self.subgraph(list(c))
+                for c in list(nx.connected_components(subgraph))
+                ):
             node_dfs = list(dfs_preorder_nodes(subsubgraph, source))
             # dfs_preorder_nodes returns iter, convert to list
             source_node, other_nodes = node_dfs[0], node_dfs[1:]
@@ -1629,7 +1646,7 @@ class Rag(Graph):
             # the graph doesn't keep nodes in the history, only the
             # most recent nodes. So, we only need to find that one and
             # update its fragment list.
-            self.node[highest]['fragments'].difference_update(leaves)
+            self.nodes[highest]['fragments'].difference_update(leaves)
         self.tree.remove_node(tree_node)
 
     def move_edge(self, src, dst):
@@ -1642,9 +1659,9 @@ class Rag(Graph):
         """
         u, v = dst
         w, x = src
-        self.add_edge(u, v, attr_dict=self[w][x])
-        if 'qlink' in self[u][v]:
-            qelem = self[u][v]['qlink']
+        self.add_edge(u, v, **self.edges[w, x])
+        if 'qlink' in self.edges[u, v]:
+            qelem = self.edges[u, v]['qlink']
             qelem[2:] = u, v
 
     def merge_edge_properties(self, src, dst):
@@ -1662,16 +1679,25 @@ class Rag(Graph):
         u, v = dst
         w, x = src
         if not self.has_edge(u,v):
-            self.add_edge(u, v, attr_dict=self[w][x])
+            self.add_edge(u, v, **self.edges[w, x])
         else:
             if self.fast_edges:
-                self[u][v]['boundary-ids'].update(self[w][x]['boundary-ids'])
+                self.edges[u, v]['boundary-ids'].update(
+                        self.edges[w, x]['boundary-ids']
+                        )
             else:
-                self[u][v]['boundary'].extend(self[w][x]['boundary'])
-            self.feature_manager.update_edge_cache(self, (u, v), (w, x),
-                    self[u][v]['feature-cache'], self[w][x]['feature-cache'])
+                self.edges[u, v]['boundary'].extend(
+                        self.edges[w, x]['boundary']
+                        )
+            self.feature_manager.update_edge_cache(
+                    self,
+                    (u, v),
+                    (w, x),
+                    self.edges[u, v]['feature-cache'],
+                    self.edges[w, x]['feature-cache'],
+                    )
         try:
-            self.merge_queue.invalidate(self[w][x]['qlink'])
+            self.merge_queue.invalidate(self.edges[w, x]['qlink'])
         except KeyError:
             pass
 
@@ -1692,11 +1718,11 @@ class Rag(Graph):
         if not self.merge_queue.is_null_queue and edges:
             weights = self.merge_priority_function(self, edges)
             for w, (u, v) in zip(weights, edges):
-                if 'qlink' in self[u][v]:
-                    self.merge_queue.invalidate(self[u][v]['qlink'])
+                if 'qlink' in self.edges[u, v]:
+                    self.merge_queue.invalidate(self.edges[u, v]['qlink'])
                 new_qitem = [w, True, u, v]
-                self[u][v]['qlink'] = new_qitem
-                self[u][v]['weight'] = w
+                self.edges[u, v]['qlink'] = new_qitem
+                self.edges[u, v]['weight'] = w
                 self.merge_queue.push(new_qitem)
 
 
@@ -1786,7 +1812,9 @@ class Rag(Graph):
         mr = m.ravel()
         if ebunch is None:
             ebunch = self.real_edges_iter()
-        ebunch = sorted([(self[u][v]['weight'], u, v) for u, v in ebunch])
+        ebunch = sorted(
+                [(self.edges[u, v]['weight'], u, v) for u, v in ebunch]
+                )
         for w, u, v in ebunch:
             b = self.boundary(u, v)
             mr[b] = w
@@ -1823,8 +1851,8 @@ class Rag(Graph):
             del bcc[container] # remove the main graph
             bcc = list(map(list, bcc))
             for cc in bcc:
-                cc.sort(key=lambda x: self.node[x]['size'], reverse=True)
-            bcc.sort(key=lambda x: self.node[x[0]]['size'])
+                cc.sort(key=lambda x: self.nodes[x]['size'], reverse=True)
+            bcc.sort(key=lambda x: self.nodes[x[0]]['size'])
             for cc in bcc:
                 self.merge_subgraph(cc, cc[0])
 
@@ -1998,9 +2026,9 @@ class Rag(Graph):
             {'location': list(map(int, self.get_edge_coordinates(i, j)[-1::-1])),
             'node1': int(i), 'node2': int(j),
             'edge_size': len(self.boundary(i, j)),
-            'size1': self.node[i]['size'],
-            'size2': self.node[j]['size'],
-            'weight': float(self[i][j]['weight'])}
+            'size1': self.nodes[i]['size'],
+            'size2': self.nodes[j]['size'],
+            'weight': float(self.edges[i, j]['weight'])}
             for i, j in self.real_edges()
         ]
         json_vals['edge_list'] = edge_list

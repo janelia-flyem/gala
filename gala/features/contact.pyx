@@ -46,10 +46,10 @@ class Manager(base.Null):
 
     def compute_edge_features(self, g, n1, n2, cache=None):
         boundlen = len(g.boundary(n1, n2))
-        volume_ratio_1 = boundlen / g.node[n1]['size']
-        volume_ratio_2 = boundlen / g.node[n2]['size']
+        volume_ratio_1 = boundlen / g.nodes[n1]['size']
+        volume_ratio_2 = boundlen / g.nodes[n2]['size']
         if cache is None:
-            cache = g[n1][n2][self.default_cache]
+            cache = g.edges[n1, n2][self.default_cache]
         contact_matrix = _compute_contact_matrix(cache, volume_ratio_1, 
                                                     volume_ratio_2)
         conlen = contact_matrix.size

@@ -1,4 +1,4 @@
-import collections
+from collections.abc import Iterable
 
 import numpy as np
 from scipy import sparse, ndimage as ndi
@@ -117,7 +117,7 @@ def fast_rag(labels, connectivity=1, out=None):
     ``fast_rag`` works on data of any dimension. For a 1D array:
 
     >>> labels = np.array([1, 1, 5, 5], dtype=np.int_)
-    >>> fast_rag(labels).edges()
+    >>> list(fast_rag(labels).edges())
     [(1, 5)]
     """
     coo_graph = edge_matrix(labels, connectivity)
@@ -158,7 +158,7 @@ class Rag(object):
         self.graph = fast_rag(labels, connectivity)
         self.tree = tree.Ultrametric(init_nodes=self.graph.nodes())
 
-    def merge_subgraph(self, subgraph: collections.Iterable = {},
+    def merge_subgraph(self, subgraph: Iterable = {},
                        source: int = None):
         """Merge nodes given by `subgraph`.
 
@@ -174,7 +174,10 @@ class Rag(object):
         if len(subgraph) == 0:
             # do nothing given empty subgraph
             return
-        for connected_subgraph in nx.connected_component_subgraphs(subgraph):
+        for connected_subgraph in (
+                self.graph.subgraph(c)
+                for c in nx.connected_components(subgraph)
+                ):
             ordered_nodes = nx.dfs_preorder_nodes(connected_subgraph, source)
             current_node = next(ordered_nodes)
             for next_node in ordered_nodes:

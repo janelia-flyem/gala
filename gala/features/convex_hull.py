@@ -5,7 +5,7 @@ import itertools as it
 # numpy/scipy
 import numpy as np
 from scipy import ndimage as nd
-from scipy.misc import factorial
+from scipy.special import factorial
 from numpy.linalg import det
 try:
     from scipy.spatial import Delaunay
@@ -85,16 +85,16 @@ class Manager(base.Null):
 
     def compute_node_features(self, g, n, cache=None):
         if cache is None: 
-            cache = g.node[n][self.default_cache]
+            cache = g.nodes[n][self.default_cache]
         convex_vol = cache[1]
         features = []
         features.append(convex_vol)
-        features.append(convex_vol/float(g.node[n]['size']))
+        features.append(convex_vol/float(g.nodes[n]['size']))
         return np.array(features)
 
     def compute_edge_features(self, g, n1, n2, cache=None):
         if cache is None: 
-            cache = g[n1][n2][self.default_cache]
+            cache = g.edges[n1, n2][self.default_cache]
         convex_vol = cache[1]
 
         features = []
@@ -104,12 +104,12 @@ class Manager(base.Null):
 
     def compute_difference_features(self,g, n1, n2, cache1=None, cache2=None):
         if cache1 is None:
-            cache1 = g.node[n1][self.default_cache]
+            cache1 = g.nodes[n1][self.default_cache]
         tri1 = cache1[0]
         convex_vol1 = cache1[1]
 
         if cache2 is None:
-            cache2 = g.node[n2][self.default_cache]
+            cache2 = g.nodes[n2][self.default_cache]
         tri2 = cache2[0]
         convex_vol2 = cache2[1]
 
@@ -118,8 +118,8 @@ class Manager(base.Null):
         allind = np.concatenate((ind1,ind2))
         convex_vol_both, tri_both = self.convex_hull_vol(allind, g)
 
-        vol1 = float(g.node[n1]['size'])
-        vol2 = float(g.node[n2]['size'])
+        vol1 = float(g.nodes[n1]['size'])
+        vol2 = float(g.nodes[n2]['size'])
         volborder = float(len(g.boundary(n1, n2)))
         volboth = vol1+vol2
 

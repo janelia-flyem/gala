@@ -36,9 +36,9 @@ def extents(labels, input_indices=None):
     """
     labels = labels.astype(label_dtype).ravel()
     if input_indices is None:
-        input_indices = np.arange(labels.size, dtype=int)
+        input_indices = np.arange(labels.size, dtype=np.intp)
     counts = np.bincount(labels)
-    indptr = np.concatenate([[0], np.cumsum(counts)])
+    indptr = np.concatenate([[0], np.cumsum(counts)]).astype(np.intp)
     indices = np.empty_like(labels)
     extents_count(labels.ravel(), indptr.copy(), input_indices, out=indices)
     one = np.ones((1,), dtype=int)

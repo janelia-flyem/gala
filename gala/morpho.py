@@ -19,12 +19,11 @@ from scipy.ndimage import distance_transform_cdt
 from scipy.ndimage.measurements import label, find_objects
 from scipy.ndimage.morphology import binary_opening, binary_dilation
 from . import iterprogress as ip
-from .evaluate import relabel_from_one
-
+from skimage.segmentation import relabel_sequential
 from skimage import measure, util, feature
 import skimage.morphology
 
-from sklearn.externals import joblib
+import joblib
 
 zero3d = array([0,0,0])
 
@@ -229,7 +228,7 @@ def watershed(a, seeds=None, connectivity=1, mask=None, smooth_thresh=0.0,
         seeds = regional_minima(a, connectivity)
     if minimum_seed_size > 0:
         seeds = remove_small_connected_components(seeds, minimum_seed_size)
-        seeds = relabel_from_one(seeds)[0]
+        seeds = relabel_sequential(seeds)[0]
     if smooth_seeds:
         seeds = binary_opening(seeds, sel)
     if smooth_thresh > 0.0:

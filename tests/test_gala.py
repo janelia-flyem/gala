@@ -1,5 +1,6 @@
 import os
 import glob
+import functools
 from contextlib import contextmanager
 
 import pytest
@@ -7,9 +8,12 @@ import pytest
 from numpy.testing import assert_allclose
 import numpy as np
 from scipy import ndimage as ndi
-from sklearn.linear_model import LogisticRegression as LR
+from sklearn.linear_model import LogisticRegression
 import subprocess as sp
 from gala import imio, features, agglo, evaluate as ev
+
+
+LR = functools.partial(LogisticRegression, solver='liblinear')
 
 
 @contextmanager
@@ -26,8 +30,7 @@ rundir = os.path.dirname(__file__)
 
 ### fixtures
 
-@pytest.fixture
-def dummy_data():
+def dummy_data_source():
     frag = np.arange(1, 17, dtype=int).reshape((4, 4))
     gt = np.array([[1, 1, 2, 2], [1, 1, 2, 2], [3] * 4, [3] * 4], dtype=int)
     fman = features.base.Mock(frag, gt)
@@ -36,8 +39,13 @@ def dummy_data():
 
 
 @pytest.fixture
-def dummy_data_fast():
-    frag, gt, _, fman = dummy_data()
+def dummy_data():
+    return dummy_data_source()
+
+
+@pytest.fixture
+def dummy_data_fast(dummy_data):
+    frag, gt, _, fman = dummy_data
     frag = ndi.zoom(frag, 2, order=0)
     gt = ndi.zoom(gt, 2, order=0)
     g = agglo.Rag(frag, feature_manager=fman)

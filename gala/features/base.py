@@ -14,12 +14,12 @@ class Null(object):
 
     def compute_features(self, g, n1, n2=None):
         if n2 is None:
-            c1 = g.node[n1][self.default_cache]
+            c1 = g.nodes[n1][self.default_cache]
             return self.compute_node_features(g, n1, c1)
-        if g.node[n1]['size'] > g.node[n2]['size']:
+        if g.nodes[n1]['size'] > g.nodes[n2]['size']:
             n1, n2 = n2, n1 # smaller node first
         c1, c2, ce = [d[self.default_cache] for d in 
-                            [g.node[n1], g.node[n2], g[n1][n2]]]
+                            [g.nodes[n1], g.nodes[n2], g.edges[n1, n2]]]
         return np.concatenate((
             self.compute_node_features(g, n1, c1),
             self.compute_node_features(g, n2, c2),
@@ -67,22 +67,22 @@ class Composite(Null):
             child.update_edge_cache(g, e1, e2, dst[i], src[i])
     
     def compute_node_features(self, g, n, cache=None):
-        if cache is None: cache = g.node[n][self.default_cache]
+        if cache is None: cache = g.nodes[n][self.default_cache]
         features = []
         for i, child in enumerate(self.children):
             features.append(child.compute_node_features(g, n, cache[i]))
         return np.concatenate(features)
 
     def compute_edge_features(self, g, n1, n2, cache=None):
-        if cache is None: cache = g[n1][n2][self.default_cache]
+        if cache is None: cache = g.edges[n1, n2][self.default_cache]
         features = []
         for i, child in enumerate(self.children):
             features.append(child.compute_edge_features(g, n1, n2, cache[i]))
         return np.concatenate(features)
     
     def compute_difference_features(self, g, n1, n2, cache1=None, cache2=None):
-        if cache1 is None: cache1 = g.node[n1][self.default_cache]
-        if cache2 is None: cache2 = g.node[n2][self.default_cache]
+        if cache1 is None: cache1 = g.nodes[n1][self.default_cache]
+        if cache2 is None: cache2 = g.nodes[n2][self.default_cache]
         features = []
         for i, child in enumerate(self.children):
             features.append(child.compute_difference_features(
@@ -129,7 +129,9 @@ class Mock(Null):
     def compute_features(self, g, n1, n2=None):
         if n2 is None:
             return np.array([])
-        f1, f2 = g.node[n1]['fragments'], g.node[n2]['fragments']
+        f1, f2 = g.nodes[n1]['fragments'], g.nodes[n2]['fragments']
+        f1 -= {g.boundary_body}
+        f2 -= {g.boundary_body}
         should_merge = _compute_delta_vi(self.ctable, f1, f2) < 0
         if should_merge:
             return np.array([0., 0.]) + self.eps()
