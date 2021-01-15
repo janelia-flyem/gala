@@ -517,11 +517,16 @@ class Rag(Graph):
     def __copy__(self):
         """Return a copy of the object and attributes.
         """
-        pr_shape = self.probabilities_r.shape
-        g = super(Rag, self).copy()
-        g.watershed_r = g.watershed.ravel()
-        g.probabilities_r = g.probabilities.reshape(pr_shape)
-        return g
+        return Rag(
+            watershed=morpho.juicy_center(self.watershed),
+            probabilities=morpho.juicy_center(self.probabilities),
+            merge_priority_function=self.merge_priority_function,
+            gt_vol=morpho.juicy_center(self.gt) if self.gt else None,
+            feature_manager=self.feature_manager,
+            mask=morpho.juicy_center(self.mask),
+            show_progress=self.show_progress,
+            use_slow=self.use_slow,
+        )
 
 
     def copy(self):
